@@ -82,21 +82,25 @@ current cursor, bounded serialized requests and a documented rate. It remains
 subject to the controller gate and manual takeover. Reading observation alone
 never moves the cursor or tests a target.
 
-## Pinned source audit: 57295e126d93512159edc3edfdfbc77e378690fe
+## Pinned source audit: 7d2adea67884f46d57f8fc1a5f69aea470b7f85d
 
-- [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/Map.cpp#L680-L700), cursor back/front drawing: yellow box/crosshair branches require a
+The linked files are byte-identical to the previously audited source. These
+references identify the audit basis; they do not claim that earlier prototype
+tests were rerun on this revision.
+
+- [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/Map.cpp#L680-L700), cursor back/front drawing: yellow box/crosshair branches require a
   unit with `getVisible()` or debug mode. Tile discovery is not separately tested
   there. This permits preserving a genuinely rendered black-tile hint, but does
   **not** establish that every hidden enemy changes the cursor. Debug is excluded.
-- [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/Map.cpp#L185-L229), map drawing: hidden-movement overlay/terrain choice can reveal
+- [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/Map.cpp#L185-L229), map drawing: hidden-movement overlay/terrain choice can reveal
   projectile, explosion or dying-unit cues. `drawUnit()` checks unit visibility;
   later clipping/shading still affects whether pixels reach the player.
-- [`UnitWalkBState.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/UnitWalkBState.cpp#L350-L366): footsteps have visible-and-on-screen checks. Door-open
+- [`UnitWalkBState.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/UnitWalkBState.cpp#L350-L366): footsteps have visible-and-on-screen checks. Door-open
   sound calls do not have that same local gate. Weapon and death sound call sites
   have their own behavior; do not replace all with one new visibility policy.
-- [`Map::getSoundAngle()`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/Map.cpp#L1717-L1733) produces clamped screen-horizontal pan. It is not an
+- [`Map::getSoundAngle()`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/Map.cpp#L1717-L1733) produces clamped screen-horizontal pan. It is not an
   exact source-location contract.
-- [`Sound.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Engine/Sound.cpp#L77-L93) applies missing-resource/mute/channel/stereo behavior. Capture the
+- [`Sound.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Engine/Sound.cpp#L77-L93) applies missing-resource/mute/channel/stereo behavior. Capture the
   permitted output after these effects, rather than exporting call arguments.
 
 These are source findings, not completed screen/audio fixtures. Confirm the

@@ -1,5 +1,4 @@
 {
-  "git_head": "57295e126d93512159edc3edfdfbc77e378690fe",
   "git_tracked_diff_sha256": "566ba53393b7d7b29403d80641ba3c89f3b04d967e81b86b48930c8baa576c30",
   "source_inputs_sha256": "fa44a5c740156235a32d4ee3d42254ad0da3a1ad484eff407ec3785e7dce42c2",
   "requested_observer_mode": "ON",
@@ -11,7 +10,6 @@
   "configure": {
     "CMAKE_BUILD_TYPE": "Release",
     "BUILD_PACKAGE": "OFF",
-    "OPENXCOM_VERSION_STRING": ".57295e1-cursor-prototype",
     "EXPERIMENTAL_CURSOR_OBSERVER": "ON",
     "EXPERIMENTAL_HUD_OBSERVER": "ON",
     "compiler": "GCC 14.2.0",
@@ -73,5 +71,7 @@
     "source_inputs_sha256": "8ebd260f73b1be3852a919c82b18c645543d80cbb3cfe0c00e052a98ad3890b3",
     "binary_sha256": "ee1d895b3dea889f1f4690ad325bc49456e053af1fdc9b1e0149731edc351d40",
     "scope": "Rebuild after license-notice changes; original pixel-comparison evidence above refers to the earlier binary."
-  }
+  },
+  "prototype_label": "Final-pixel cursor prototype",
+  "evidence_scope": "Historical prototype results and source-input/binary checksums are retained; no claim is made that tests were rerun on a later repository revision."
 }

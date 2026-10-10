@@ -83,21 +83,25 @@ UI с одним текущим курсором, ограниченными п�
 документированной частотой. Сохраняются барьер контроллера и ручной перехват.
 Само чтение наблюдения не двигает курсор и не проверяет цель.
 
-## Аудит исходников: 57295e126d93512159edc3edfdfbc77e378690fe
+## Аудит исходников: 7d2adea67884f46d57f8fc1a5f69aea470b7f85d
 
-- В [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/Map.cpp#L680-L700) жёлтые рамки и прицел в заднем/переднем слое курсора требуют
+Указанные файлы побайтно совпадают с ранее проверенными исходниками. Эти
+ссылки уточняют базу аудита, но не утверждают, что прежние испытания прототипа
+повторно выполнены на этой ревизии.
+
+- В [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/Map.cpp#L680-L700) жёлтые рамки и прицел в заднем/переднем слое курсора требуют
   объекта с `getVisible()` либо режима отладки. Открытие клетки отдельно здесь
   не проверяется. Это позволяет сохранить реально нарисованную подсказку на
   чёрной клетке, но не доказывает реакцию на любого скрытого врага. Отладка исключена.
-- В [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/Map.cpp#L185-L229) выбор между панелью скрытого движения и картой может предъявлять
+- В [`Map.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/Map.cpp#L185-L229) выбор между панелью скрытого движения и картой может предъявлять
   снаряд, взрыв или гибель. `drawUnit()` проверяет видимость, но дальнейшие
   обрезка и затемнение ещё определяют, дошли ли пиксели до игрока.
-- В [`UnitWalkBState.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/UnitWalkBState.cpp#L350-L366) шаги требуют видимости и нахождения на экране; вызов
+- В [`UnitWalkBState.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/UnitWalkBState.cpp#L350-L366) шаги требуют видимости и нахождения на экране; вызов
   звука открытия двери не имеет такой же локальной проверки. У выстрелов и
   гибели свои условия. Нельзя заменить всё новой единой политикой видимости.
-- [`Map::getSoundAngle()`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Battlescape/Map.cpp#L1717-L1733) даёт ограниченную горизонтальную панораму относительно
+- [`Map::getSoundAngle()`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Battlescape/Map.cpp#L1717-L1733) даёт ограниченную горизонтальную панораму относительно
   экрана, а не контракт точного местоположения.
-- [`Sound.cpp`](https://github.com/microtrigger/OpenXcom/blob/57295e126d93512159edc3edfdfbc77e378690fe/src/Engine/Sound.cpp#L77-L93) учитывает отсутствие ресурса, отключение звука, канал и стерео.
+- [`Sound.cpp`](https://github.com/microtrigger/OpenXcom/blob/7d2adea67884f46d57f8fc1a5f69aea470b7f85d/src/Engine/Sound.cpp#L77-L93) учитывает отсутствие ресурса, отключение звука, канал и стерео.
   Наблюдаем итог после этих факторов, а не аргументы вызова.
 
 Это результаты чтения исходников, а не завершённые экранные/звуковые сценарии.

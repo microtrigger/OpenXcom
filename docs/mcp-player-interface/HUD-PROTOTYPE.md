@@ -92,8 +92,8 @@ Keep dependency versions, configure arguments and toolchain beside it.
   passed twice, including a clean rebuild with identical SHA-256
   `9ad7867d7f555b764630e5d04bd667c544045348b4099c633b3b9cf3f0b80f34`.
   This establishes repeatability for the tested build configuration, not universal
-  reproducibility across toolchains. Engine/build source diff to the documentation branch base
-  `84c9f5a70625d7b9cb20f825ceb37cb84ef0179e` was empty.
+  reproducibility across toolchains. The initial prototype used the same
+  engine/build source as the audited baseline before observer changes.
 - Experimental branch with observer ON and OFF: full builds passed. The OFF
   executable has no `OpenXcom::Observer` symbols. Different build-directory and
   embedded source paths mean separate binary hashes are not an equivalence proof.

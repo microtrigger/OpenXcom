@@ -1,6 +1,5 @@
 {
   "baseline_source": "630130c5c9ac236b9e1d8496005fb23e84e397ca",
-  "prototype_base_commit": "84c9f5a70625d7b9cb20f825ceb37cb84ef0179e",
   "prototype_source_inputs_sha256": "7183a2adff3fb95978b9031e8601884c8265e489ef8aeb3313de7ce482b7bdaa",
   "toolchain": {
     "compiler": "GCC 14.2.0",
@@ -9,8 +8,7 @@
   "cmake": {
     "CMAKE_BUILD_TYPE": "Release",
     "BUILD_PACKAGE": "OFF",
-    "baseline_version": ".630130c5c",
-    "prototype_version": ".84c9f5a-hud-prototype"
+    "baseline_version": ".630130c5c"
   },
   "binary_sha256": {
     "clean_baseline_first_and_clean_repeat": "9ad7867d7f555b764630e5d04bd667c544045348b4099c633b3b9cf3f0b80f34",
@@ -108,5 +106,7 @@
       }
     ],
     "claim": "Nonsilent stereo output only; no spatial-cue or perceptual-quality certification"
-  }
+  },
+  "prototype_label": "HUD-only prototype tested before later observer additions",
+  "evidence_scope": "These historical test results describe the prototype stage, not a claim that every later repository revision was retested."
 }
