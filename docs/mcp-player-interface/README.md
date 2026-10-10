@@ -16,7 +16,7 @@ Evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d
 | 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
 | 3 · Native observer | Historical HUD/cursor slices, request-bound pixels and optional four-number displayed HUD implemented ([latest slice](PRESENTED-HUD-PROTOTYPE.md)). | Full approved projection, event/audio coverage and parity validation. |
 | 4 · IPC/MCP | Local read-only stdio tools and request-bound `/1`/`/2` protocols implemented; SDK checks pass ([adapter](../../tools/mcp-observer/README.md)). | Production recovery and broader observation coverage. |
-| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass within their documented scope. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md) also pass. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
 | 8 · UFO/TFTD matrix | Selected checks in both games pass; failures and unmatched comparisons are retained in [bounded evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
@@ -26,7 +26,7 @@ Evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d
 
 Latest bounded verification: **125 Python tests pass**, together with native/source-boundary tests and historical plus `/1`/`/2` SDK checks. Fourteen successful displayed-HUD reads span both games. Separately sampled screenshot/crop comparisons: nine exact matches, two nonmatches, three not compared; an initial UFO menu request failed for an unknown reason. These are selected results, not full perceptual or timing equivalence. No CI run was recorded for the evidence revision; local test results are not a CI pass.
 
-Next planned checks: actual NumberText/Surface-to-projection paired fixtures and real producer–adapter replay/session tests. They are pending and, even if they pass, will not alone complete stage 5. Then extend the full hidden-state/timing matrix before any controller acceptance. Events/audio coverage, the broad game matrix and real token benchmarking remain open.
+Additional test-only verification: 15 actual NumberText/Surface-to-projection and native producer–Python adapter tests pass, including all 0–999 numerals and replay/reset/timeout cases. Two deliberate production-source leaks are rejected; [coverage and limits](PAIRED-UI-GATE.md) keep this UI-boundary result separate from full battle simulation. Next, assess the [proposed hidden-world battle fixtures](FULL-BATTLE-GATE-PROPOSAL.md), then extend the hidden-state/timing matrix before controller acceptance. That proposal is not implemented. Events/audio coverage, the broad game matrix and real token benchmarking remain open.
 
 ## Goal and boundaries
 
@@ -117,7 +117,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 5. Security gate: paired hidden-state tests
 
-**Status:** cache, transport and structural tests pass for the HUD slice; paired hidden-engine-state tests remain pending. This mandatory controller gate has not passed.
+**Status:** cache, transport and structural tests pass; production UI-module paired fixtures and native-to-Python lifecycle tests also pass within their documented scope. Full hidden-world battle and timing tests remain pending. This mandatory controller gate has not passed.
 
 **Dependencies:** stages 3–4 and the approved contract.
 

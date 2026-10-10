@@ -1,0 +1,39 @@
+{
+  "schema": "openxcom-paired-ui-evidence/1",
+  "date_utc": "2026-10-10",
+  "production_base": "b8d9806aa83151c4da1805c691f50903512c7f65",
+  "production_changes": false,
+  "scope": "asset-free production UI/extraction boundary and native-to-Python transport; partial stage 5",
+  "command": "SDL_PREFIX=<existing SDL development prefix> tests/paired-observer/run.sh",
+  "integration_tests_passed": 15,
+  "supported_numbertext_values_checked": 1000,
+  "deliberate_production_mutants_rejected": [
+    "source widget numeric value replaces final-pixel-decoded HUD first field",
+    "admission-token comparison removed from native request validation"
+  ],
+  "hosted_ci_run": false,
+  "full_battle_run": false,
+  "real_screen_flip_run": false,
+  "audio_or_timing_certified": false,
+  "original_assets_or_saves_used": false,
+  "controller_added": false,
+  "source_sha256": {
+    "src/Interface/NumberText.cpp": "affbed80d2bcb8fcff8b28f1dac62649360c4451591215be026cc6b2301319d8",
+    "src/Engine/Surface.cpp": "5b6299b9d9b14a281ead80f3a8f23e8ae8bf846d193593ccd6b2a0c3c9f8bfb6",
+    "src/Observer/PresentedHud.cpp": "596bf8869d13e420810686edd4f0ef18d7adf9986169bc2d4fb253d90f72560c",
+    "src/Observer/PresentedCursor.cpp": "ea5830822fd942f0212d23b744381db3bcc5f177741994d74b36bd0927222068",
+    "src/Observer/PresentedCursorSurface.cpp": "7e18325b8dfcc7b7e6caa9aae9f46177117624173b4272cdc1cb74a4e472a942",
+    "src/Observer/PresentationObserver.cpp": "60c522d3dcb6a9560e2568b4155ebf1ebb95559f2a6a1d5ef7b1b20740d5ed8c",
+    "tools/mcp-observer/presentation.py": "353ff2d7c0c43a453695f1b1a60d40223ed462a3f1415f569fbfc096ca340436",
+    "tools/mcp-observer/adapter.py": "f8b2704f43c732623c14cf3ca8e7277181112d116f9a538e4ec18b518dd55a2e",
+    "tests/paired-observer/native_fixture.cpp": "a61e961868c8bafb18e7ff3251bbf57e205b92a083d9605afb49fb4c22634288",
+    "tests/paired-observer/test_pairs.py": "9e88281c8b6cd89388d9275782f81efb8d1d160f7ab3f0da234f239574a3a6b3",
+    "tests/paired-observer/run.sh": "2dc667d20ca9e1790ad2eb7a9591f9db0e9fdef4de608c0001f80c2b38eb8861"
+  },
+  "existing_regression_checks": {
+    "public_hud_native_and_structural": "passed",
+    "cursor_presentation_hud_native_and_structural": "passed",
+    "mcp_python_tests": 125,
+    "benchmark_python_tests": 7
+  }
+}
