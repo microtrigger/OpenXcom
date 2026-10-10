@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off render-only test gate.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#include "../../tests/battle-observer/RenderPairGate.h"
+#endif
 #include "StartState.h"
 #include "../version.h"
 #include "../Engine/Logger.h"
@@ -168,6 +173,9 @@ void StartState::think()
 	case LOADING_SUCCESSFUL:
 		CrossPlatform::flashWindow();
 		Log(LOG_INFO) << "OpenXcom started successfully!";
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+		if (RenderPairGate::loaded(_game)) break;
+#endif
 		_game->setState(new GoToMainMenuState);
 		if (_oldMaster != Options::getActiveMaster() && Options::playIntro)
 		{

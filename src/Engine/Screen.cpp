@@ -18,6 +18,11 @@
  */
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
+// Fork modification 2026-10-10: default-off render-only test gate.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#include "../../tests/battle-observer/RenderPairGate.h"
+#endif
 #include "Screen.h"
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #include "../Observer/CursorFileObserver.h"
@@ -276,6 +281,9 @@ void Screen::flip()
 			_leftBlackBand == 0 && _rightBlackBand == 0;
 		const Observer::PixelCrop crop = Observer::capturePresentedCursor(_screen, _baseWidth, _baseHeight,
 			cursorX, cursorY, allowed);
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+		RenderPairGate::capture(_screen, _baseWidth, _baseHeight, allowed, _presentedHud, crop);
+#endif
 		if (_cursorObserver) _cursorObserver->observe(crop);
 		if (_presentationObserver) _presentationObserver->presented(crop,
 			wantsPresentedHud() ? Observer::provePresentedHud(_screen, _baseWidth, _baseHeight, _presentedHud, allowed) : "null");

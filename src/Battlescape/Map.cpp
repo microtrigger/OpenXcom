@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off renderer dependency assertion.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#include "../../tests/battle-observer/RenderPairGate.h"
+#endif
 #include "Map.h"
 #include "Camera.h"
 #include "UnitSprite.h"
@@ -681,6 +686,9 @@ void Map::drawTerrain(Surface *surface)
 					{
 						if (_camera->getViewLevel() == itZ)
 						{
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+							RenderPairGate::visited(tile, _animFrame);
+#endif
 							if (_cursorType != CT_AIM)
 							{
 								if (unit && (unit->getVisible() || _save->getDebugMode()))

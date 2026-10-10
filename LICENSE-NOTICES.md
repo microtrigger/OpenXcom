@@ -15,7 +15,7 @@ The new project additions listed below are likewise offered under GPL version 3
 or, at your option, any later version, without warranty:
 
 - `src/Observer/`
-- `tests/observer/`, `tests/cursor-observer/` and `tests/paired-observer/`
+- `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/` and `tests/battle-observer/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)

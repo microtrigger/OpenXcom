@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off render-only test gate.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#include "../tests/battle-observer/RenderPairGate.h"
+#endif
 #include <sstream>
 #include "version.h"
 #include "Engine/Logger.h"
@@ -115,14 +120,24 @@ int main(int argc, char *argv[])
 	Options::baseXResolution = Options::displayWidth;
 	Options::baseYResolution = Options::displayHeight;
 
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+	RenderPairGate::prepare();
+#endif
 	game = new Game(title.str());
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+	RenderPairGate::silence();
+#endif
 	State::setGamePtr(game);
 	game->setState(new StartState);
 	game->run();
 
 	// Comment this for faster exit.
 	delete game;
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+	return RenderPairGate::exitStatus();
+#else
 	return EXIT_SUCCESS;
+#endif
 }
 
 

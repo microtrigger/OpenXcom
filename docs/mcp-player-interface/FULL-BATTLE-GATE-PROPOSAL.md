@@ -1,8 +1,10 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later. Original project documentation, 2026-10-10. See LICENSE.txt and LICENSE-NOTICES.md. -->
 # Proposed subsequent hidden-world battle gate
 
-This is a bounded design proposal, not an implemented fixture or a passing gate.
-The current paired UI tests do not close stage 5 or authorize a controller.
+This is a bounded design proposal. The first hidden-occupant render-only pair now
+has a [default-off implementation](HIDDEN-OCCUPANT-GATE.md); the remaining cases
+are still proposals. Neither that narrow pair nor the paired UI tests close
+stage 5 or authorize a controller.
 Source feasibility is pinned to `b8d9806aa83151c4da1805c691f50903512c7f65`.
 
 ## Smallest credible path

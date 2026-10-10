@@ -1,0 +1,167 @@
+{
+  "_license": "SPDX-License-Identifier: GPL-3.0-or-later; original test evidence, 2026-10-10. See LICENSE.txt and LICENSE-NOTICES.md.",
+  "schema": "openxcom-hidden-occupant-render-evidence/1",
+  "date": "2026-10-10",
+  "base_revision": "e97676bc5b9bf9b432e4be3c9f5c2d119beaccf6",
+  "source_identification": "Base revision plus exact hashes below; documentation-only edits followed runtime verification.",
+  "scope": "One controlled in-engine hidden-occupant versus empty-hover render pair with visible positive control; not normal simulation or full fairness certification.",
+  "build": {
+    "toolchain": {
+      "cxx_standard": 11,
+      "build_type": "Release"
+    },
+    "opt_in": {
+      "EXPERIMENTAL_BATTLE_PAIR_GATE": true,
+      "EXPERIMENTAL_CURSOR_OBSERVER": true,
+      "EXPERIMENTAL_HUD_OBSERVER": true,
+      "version_suffix": ".battle-pair-gate",
+      "result": "pass",
+      "binary_sha256": "ba39dc1059d2cd05b6061ac936f59047fa18757652558d2f6401e25a830e9bb1"
+    },
+    "default_off": {
+      "EXPERIMENTAL_BATTLE_PAIR_GATE": false,
+      "EXPERIMENTAL_CURSOR_OBSERVER": false,
+      "EXPERIMENTAL_HUD_OBSERVER": false,
+      "version_suffix": ".battle-pair-off",
+      "result": "pass",
+      "binary_sha256": "6630e982961d3e925245942ff5103c7b5a6b0dfcd5f065efb3abbad924ff4dbb",
+      "gate_and_observer_symbols_absent": true,
+      "activation_strings_absent": true
+    },
+    "dependency_guard_rejects_gate_without_cursor_observer": true
+  },
+  "profile": {
+    "display_pixels": [
+      640,
+      400
+    ],
+    "base_pixels": [
+      320,
+      200
+    ],
+    "scale": 2,
+    "renderer": "focused software single-buffer 8-bit palette, no bands or filters",
+    "mods": "one active vanilla master only",
+    "resources": "Legally installed resources loaded normally; the same loaded Mod instance is used for every scenario within each run. No cross-installation asset-equivalence claim.",
+    "language": "en-US",
+    "depth": 0,
+    "animation_phases": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "think_timers_and_simulation_advanced": false,
+    "input": "Same fixed ordinary mouse-motion Action; no external gameplay input during sampling.",
+    "world_setup": "Fresh real battle per scenario; same two-unit roster and construction order; hidden hostile on actual hover or distant tile; controlled stored visibility, not natural-history reachability.",
+    "audio": "Mixer closed and SDL audio subsystem shut down before resource loading; mute and absence of mixer/audio subsystem asserted throughout. No PCM/audibility parity claim."
+  },
+  "runs": [
+    {
+      "master": "xcom1",
+      "runs_on_final_binary": 1,
+      "exit_status": 0,
+      "aggregate": {
+        "schema": "render-pair-gate/1",
+        "master": "xcom1",
+        "scenarios": 3,
+        "frames_per_scenario": 8,
+        "equal_pair_frames": 8,
+        "responses": 24,
+        "positive_odd_phases": 4,
+        "audio": "subsystem-disabled",
+        "simulation": false,
+        "full_fairness": false
+      }
+    },
+    {
+      "master": "xcom2",
+      "runs_on_final_binary": 1,
+      "exit_status": 0,
+      "aggregate": {
+        "schema": "render-pair-gate/1",
+        "master": "xcom2",
+        "scenarios": 3,
+        "frames_per_scenario": 8,
+        "equal_pair_frames": 8,
+        "responses": 24,
+        "positive_odd_phases": 4,
+        "audio": "subsystem-disabled",
+        "simulation": false,
+        "full_fairness": false
+      }
+    }
+  ],
+  "oracle": {
+    "complete_final_rgb_equal_before_transcript_comparison": true,
+    "actual_hover_renderer_visit_and_phase_asserted": true,
+    "actual_hud_candidate_and_cursor_eligibility_equal": true,
+    "non_null_hud_and_cursor_required_every_frame": true,
+    "actual_produced_crop_equals_captured_crop": true,
+    "exact_packet_bytes_sizes_order_count_and_open_channel_checked": true,
+    "normalization": "Only transport-random epoch/admission/challenge fields; per-trace width-preserving bijection after global raw epoch continuity, admission chaining and unique-token checks.",
+    "visible_control_changes_complete_frame_and_produced_crop_on_all_odd_phases": true,
+    "comparator_controls": [
+      "Guaranteed changed HUD value in recorded transcript",
+      "Changed full-frame RGB byte"
+    ],
+    "new_production_hidden_state_leak_mutant": "not implemented by this slice"
+  },
+  "regressions": {
+    "native_hud_and_cursor_suites": "pass",
+    "existing_source_boundary_checks": "pass",
+    "paired_production_ui_and_transport_tests": 15,
+    "existing_killed_production_ui_transport_mutants": 2,
+    "python_adapter_tests": 125,
+    "new_structural_gate_check": "pass",
+    "optimized_python_structural_check": "rejected as intended",
+    "fixture_strict_warning_syntax_check": "pass",
+    "shell_syntax_check": "pass",
+    "git_diff_check": "pass"
+  },
+  "runtime_failures_on_final_binary": [],
+  "runtime_notes": [
+    "An existing upstream thread-cleanup warning occurred in both final runs; both process exit statuses were zero.",
+    "Each final profile ran once; no repeatability distribution or hosted CI result is claimed."
+  ],
+  "not_run_or_not_certified": [
+    "Normal battle simulation and natural scenario reachability",
+    "Mixed-audio, audible clue and speaker parity",
+    "Smoke/fire density, offscreen death/projectiles and hidden-movement/occlusion matrix",
+    "Battle-pair-to-Python-adapter integration (native producer only here)",
+    "Load/reconnect/history/focus-loss lifecycle in this battle fixture",
+    "Timing/noninterference distributions and physical side channels",
+    "Other display scales, rendering backends, platforms and asset variants",
+    "Gameplay controller or controller-availability tests",
+    "Hosted CI"
+  ],
+  "exports": "Only fixed aggregate results; no raw frames, packets, nonces, hidden unit data, saves or game resources.",
+  "source_sha256": {
+    "CMakeLists.txt": "bf37489ed77f485eb832ceafcfc24ab3057146facdf670f6e8668c42468a3577",
+    "src/CMakeLists.txt": "fbc31112007abe0b678ed530bb4657c3a21bc53389a8b0ee9c69ff334fd0921c",
+    "src/main.cpp": "e54eeb411ff27eba98dcad839f2a2dffdd7b507d5ad36d6f1916739761e8d6b2",
+    "src/Engine/Game.cpp": "7528d4d9057c3d8983c41e04855d36175088b8cbbd9a95d020416a493fdc4e86",
+    "src/Engine/Screen.cpp": "e4309908108ec0895b760db22fce414a3a4d512b40e81b9734418669753ce6cf",
+    "src/Menu/StartState.cpp": "1b2a8a0536dbd64b083a30c5c6dcbee667928627affc3acce94a21ebd9cbe14c",
+    "src/Battlescape/Map.cpp": "dddb04b365c45e9562e96a0e08889f7d46009846c03798fdcb9b8214dd0d158f",
+    "tests/battle-observer/RenderPairGate.cpp": "8a5bb76c9abecd9cbe17982244c17a6ba9d301d952c831a77f01c51dc8ba292e",
+    "tests/battle-observer/RenderPairGate.h": "43e68053dc562aa487de939fb7daa285880216e21e14c0a4a28cf9ca888786a9",
+    "tests/battle-observer/run.sh": "4d6de40f0d62ff9ce40ad4a7569c1f8065e83feab62abd27a324bab8415aaaa2",
+    "tests/battle-observer/check_boundary.py": "a1021d8fb1027d610f9b32b504b8edc9894d3336a82ffc39357f7db9fa9d68f2",
+    "src/Battlescape/BattlescapeState.cpp": "40622f0094a2efc52a92e98d2e18301bae580702c943b094041974cec1e4ed82",
+    "src/Battlescape/Camera.cpp": "9ac9ccd13f76b4ffe44c50eeb5c08ed24a3526db82b2ce2ba5f2b185583eace8",
+    "src/Savegame/SavedBattleGame.cpp": "bcd28410a9af414f2a78e5369070ac17e9eec5de1b37e30d10e9a8b884066cf1",
+    "src/Savegame/BattleUnit.cpp": "0d20217e02f6ed6e3911b8118fef709c289d40c931be8f7aff252174a5c638a8",
+    "src/Savegame/Tile.cpp": "8506a38c7b9d61f76f0c6d49bd5156a3a08a8f2e6a071eff06e130ecdb757b42",
+    "src/Interface/NumberText.cpp": "affbed80d2bcb8fcff8b28f1dac62649360c4451591215be026cc6b2301319d8",
+    "src/Engine/Surface.cpp": "5b6299b9d9b14a281ead80f3a8f23e8ae8bf846d193593ccd6b2a0c3c9f8bfb6",
+    "src/Observer/PresentationObserver.cpp": "60c522d3dcb6a9560e2568b4155ebf1ebb95559f2a6a1d5ef7b1b20740d5ed8c",
+    "src/Observer/PresentedCursor.cpp": "ea5830822fd942f0212d23b744381db3bcc5f177741994d74b36bd0927222068",
+    "src/Observer/PresentedCursorSurface.cpp": "7e18325b8dfcc7b7e6caa9aae9f46177117624173b4272cdc1cb74a4e472a942",
+    "src/Observer/PresentedHud.cpp": "596bf8869d13e420810686edd4f0ef18d7adf9986169bc2d4fb253d90f72560c"
+  }
+}

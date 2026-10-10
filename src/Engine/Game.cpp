@@ -18,6 +18,11 @@
  */
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
+// Fork modification 2026-10-10: default-off render-only test gate.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#include "../../tests/battle-observer/RenderPairGate.h"
+#endif
 #include "Game.h"
 #include "../resource.h"
 #include <algorithm>
@@ -158,6 +163,9 @@ void Game::run()
 			_deleted.pop_back();
 		}
 
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+		RenderPairGate::afterCleanup(this);
+#endif
 		// Initialize active state
 		if (!_init)
 		{
@@ -181,6 +189,10 @@ void Game::run()
 		// Process events
 		while (SDL_PollEvent(&_event))
 		{
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+			// Fixed render-fixture input; still permit closing the test window.
+			if (RenderPairGate::active() && _event.type != SDL_QUIT && _event.type != SDL_ACTIVEEVENT) continue;
+#endif
 			if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;
 			switch (_event.type)
@@ -294,6 +306,10 @@ void Game::run()
 		if (runningState != PAUSED)
 		{
 			// Process logic
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+			// The gate covers rendering/animation only, not simulation or timers.
+			if (!RenderPairGate::active())
+#endif
 			_states.back()->think();
 			_fpsCounter->think();
 			if (Options::FPS > 0 && !(Options::useOpenGL && Options::vSyncForOpenGL))
@@ -308,11 +324,17 @@ void Game::run()
 				_timeUntilNextFrame = 0;
 			}
 
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+			if (RenderPairGate::active()) _timeUntilNextFrame = 0;
+#endif
 			if (_init && _timeUntilNextFrame <= 0)
 			{
 				// make a note of when this frame update occurred.
 				_timeOfLastFrame = SDL_GetTicks();
 				_fpsCounter->addFrame();
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+				RenderPairGate::beforeFrame(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 				_screen->beginObserverFrame();
 #endif
@@ -339,6 +361,9 @@ void Game::run()
 				_screen->flip(cursorPresented ? _cursor->getX() : -1, cursorPresented ? _cursor->getY() : -1);
 #else
 				_screen->flip();
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+				RenderPairGate::afterFrame(this);
 #endif
 			}
 		}
