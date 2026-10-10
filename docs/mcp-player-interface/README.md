@@ -7,7 +7,7 @@ Status as of October 10, 2026. We maintain the Russian version for day-to-day pr
 
 ## Plan versus actual progress
 
-Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The latest bounded slice is the [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md), with [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The earlier [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) has [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. The latest boundary correction is [diagnostic isolation](../../tools/mcp-observer/DIAGNOSTIC-ISOLATION.md), with separate [bounded menu and test evidence](diagnostic-isolation-evidence.json). Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenX
 | 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) passes visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM and idle/requested-observer state/engine-RNG comparisons in each game, rejecting PCM-corruption, extra-RNG-draw and missing-cue controls in both. | Full paired hidden-engine-state, audio and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
-| 8 · UFO/TFTD matrix | Selected visual checks, [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json) and the [bounded land-only battlefield-audio slice](battlefield-audio-evidence.json) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
+| 8 · UFO/TFTD matrix | Selected visual and [diagnostic-profile menu checks](diagnostic-isolation-evidence.json), [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json) and the [bounded land-only battlefield-audio slice](battlefield-audio-evidence.json) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
 | 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)); bounded audio byte counts and component microbenchmarks recorded. | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
@@ -56,8 +56,8 @@ channel. It exports no actors, source IDs or positions and retains no continuous
 history; sounds between requests can be missed. Its socket and epoch are independent
 of pixels/HUD, with no frame synchronization or physical-audibility claim.
 
-The combined Python suite now passes **190 tests**. Native slot/protocol tests and
-a real SDL dummy-mixer oracle pass, including overlapping panned sounds, custom
+The earlier mixed-audio verification recorded **190 passing Python tests**. Native
+slot/protocol tests and a real SDL dummy-mixer oracle pass, including overlapping panned sounds, custom
 music, post-effects, zero/mute cases, byte-exact output and deliberate-corruption
 controls. Official SDK checks cover audio-only and combined visual/audio launch
 modes. Separate [actual-game GUI checks](mixed-audio-game-evidence.json) pass for UFO
@@ -95,6 +95,43 @@ during a witnessed event, not isolated grenade PCM or proof of physical audibili
 No new observer fields or controller are added. Full hidden-world/audio coverage,
 libc RNG, timing equality, audiovisual synchronization and repeated-run robustness
 remain unverified; Stage 5 stays open. See [aggregate evidence](battlefield-audio-evidence.json).
+
+### Diagnostic-isolation update
+
+The [supported launcher boundary](../../tools/mcp-observer/DIAGNOSTIC-ISOLATION.md)
+now discards both child stdout and stderr with `DEVNULL`, including startup,
+shutdown and the logger's stderr fallback. Native qualification requires effective
+`debug`, `debugUi`, `traceAI` and `verboseLogging` to be false and logger severity
+`LOG_FATAL` through `LOG_INFO`, inclusive. Initialization follows actual config
+parsing and logger setup, before game construction or an observer hello. A debug
+build at `LOG_DEBUG` is rejected even with all four options false. No user
+configuration is rewritten.
+
+Admission/publication checks reject a changed profile permanently for that process,
+including before a completed audio window is sent. Each observer retires at its
+next check, not an instantaneous global tick. Historical writers release their
+locks and leave prior lawful snapshots on disk with their historical/unverified
+meaning. Raw log files are not an observation API. The boundary assumes cooperative
+trusted local processes and a matching build/launcher; the unchanged protocol does
+not authenticate the executable. All pixel/HUD/audio and timing limits remain.
+
+The Python suite completes 208 test methods in both normal and optimized modes,
+with two native-only tests skipped in ordinary unittest runs. The focused runner
+separately passes all 18 sentinel tests and 24 native stage/flag cases; these are
+not additive counts. In each final normal UFO/TFTD menu profile, cursor PNG,
+null displayed HUD and a 44,144-byte audio WAV succeed. UFO with `traceAI=true`
+and TFTD with `debug=true` each return generic unavailable for all three tools
+while their menus remain available. All four final runs have zero launcher stderr
+bytes. See [bounded evidence](diagnostic-isolation-evidence.json).
+
+Three earlier normal UFO attempts returned unavailable visual results: audio
+succeeded on the first, was not requested on the second, and a late audio request
+was unavailable on the third. The exact rejection cause was not instrumented.
+The final unchanged binary succeeded after explicit input focus before the first
+request and supported `asyncBlit=false` / filters-off configuration; this does not
+establish the cause of the earlier failures. Earlier slice evidence remains
+separate. These are bounded menu checks, with no new battle or full-fairness claim.
+No controller is added; Stage 5, full audio parity and timing parity remain open.
 
 ## Goal and boundaries
 
@@ -359,7 +396,8 @@ malformed, replayed, late or reset streams become generically unavailable withou
 reusing stale audio. There is no continuous history, source/actor identity,
 physical-device audibility guarantee, or audiovisual clock/frame pairing.
 
-The 190-test Python suite, native slot/protocol checks, real-SDL dummy-mixer oracle
+For that earlier slice, the 190-test Python suite, native slot/protocol checks,
+real-SDL dummy-mixer oracle
 and SDK audio-content checks pass within their documented scope. The separate
 [UFO/TFTD menu GUI record](mixed-audio-game-evidence.json) contains eight successful
 clips and four generic post-exit rejections, with verified enabled and zero-volume
@@ -407,5 +445,5 @@ corrections. See [aggregate runtime evidence](battlefield-audio-evidence.json).
 One normal run per master does not establish repeatability, physical-device
 audibility, an isolated grenade waveform, libc RNG equality, hostile AI behavior, full gameplay
 or hidden-world coverage, timing equality, broad backend support or audiovisual
-synchronization. The existing **190 Python tests** remain a separate regression
+synchronization. The earlier **190 Python tests** remain a separate regression
 suite. Stage 5 and full audio parity remain open; the controller stays disabled.

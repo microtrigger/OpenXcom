@@ -3,6 +3,7 @@
 // This file is free software: you may redistribute and/or modify it under
 // GNU GPL version 3 or, at your option, any later version.
 // Provided without warranty; see the repository LICENSE.txt and LICENSE-NOTICES.md.
+#include "../diagnostic-isolation/fixture_options.h"
 #include "../../src/Observer/PresentedCursor.h"
 #include "../../src/Observer/PresentedCursorSurface.h"
 #include "../../src/Observer/CursorFileObserver.h"
@@ -174,6 +175,7 @@ static void fileTests()
 }
 int main()
 {
+    qualifyNormalDiagnostics();
  boundsTests(); cacheTests(); surfaceTests(); malformedAndPaddedSurfaceTests(); fileTests();
  std::cout << "PASS: synthetic cursor pixels, bounded crops, public revisions, conservative profiles, private fail-closed files\n";
 }

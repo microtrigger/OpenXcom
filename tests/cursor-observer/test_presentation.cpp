@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // New contribution maintained in this OpenXcom fork, 2026-10-10.
 // See repository LICENSE.txt and LICENSE-NOTICES.md.
+#include "../diagnostic-isolation/fixture_options.h"
 #include "../../src/Observer/PresentationObserver.h"
 #include <cassert>
 #include <cstdlib>
@@ -23,6 +24,7 @@ struct Fixture {
 };
 PixelCrop crop() { PixelCrop c; c.screenWidth=320;c.screenHeight=200;c.x=1;c.y=2;c.width=1;c.height=1;c.rgb={1,2,3};return c; }
 int main() {
+    qualifyNormalDiagnostics();
     unsetenv("OPENXCOM_PRESENTATION_VERSION");
     { Fixture f; f.request(); f.producer->beginFrame(); assert(f.receive().empty()); f.producer->presented(crop()); auto reply=f.receive(); assert(reply.find("presented_after_request")!=std::string::npos); assert(reply.find("010203")!=std::string::npos); f.producer->presented(crop()); assert(f.receive().empty());
       // Old admission token replay closes the channel and cannot produce another ack.

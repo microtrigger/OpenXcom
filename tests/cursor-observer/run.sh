@@ -12,7 +12,7 @@ if [ -n "${SDL_CONFIG:-}" ]; then
   SDL_CFLAGS=$($SDL_CONFIG --cflags)
   SDL_LIBS=$($SDL_CONFIG --libs)
 elif [ -n "${SDL_PREFIX:-}" ]; then
-  SDL_CFLAGS="-I$SDL_PREFIX/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT"
+  SDL_CFLAGS="-I$SDL_PREFIX/include/SDL -I$SDL_PREFIX/include -D_GNU_SOURCE=1 -D_REENTRANT"
   SDL_LIBS="-L$SDL_PREFIX/lib -L$SDL_PREFIX/lib/x86_64-linux-gnu -lSDL"
   LD_LIBRARY_PATH="$SDL_PREFIX/lib:$SDL_PREFIX/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
   export LD_LIBRARY_PATH
@@ -25,14 +25,14 @@ ${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} $SDL_CFLAGS
   "$ROOT/tests/cursor-observer/test_presented_cursor.cpp" \
   "$ROOT/src/Observer/PresentedCursor.cpp" \
   "$ROOT/src/Observer/PresentedCursorSurface.cpp" \
-  "$ROOT/src/Observer/CursorFileObserver.cpp" \
+  "$ROOT/src/Observer/CursorFileObserver.cpp" "$ROOT/src/Observer/DiagnosticProfile.cpp" \
   $SDL_LIBS -o "$BUILD/test-presented-cursor"
 "$BUILD/test-presented-cursor"
 python3 "$ROOT/tests/cursor-observer/check_boundary.py"
 
-${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} \
+${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} $SDL_CFLAGS \
   "$ROOT/tests/cursor-observer/test_presentation.cpp" \
-  "$ROOT/src/Observer/PresentationObserver.cpp" \
+  "$ROOT/src/Observer/PresentationObserver.cpp" "$ROOT/src/Observer/DiagnosticProfile.cpp" \
   "$ROOT/src/Observer/PresentedCursor.cpp" -o "$BUILD/test-presentation"
 "$BUILD/test-presentation"
 

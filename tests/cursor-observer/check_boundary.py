@@ -12,7 +12,7 @@ root = Path(__file__).resolve().parents[2]
 observer = root / 'src/Observer'
 names = ('PresentedCursor', 'PresentedCursorSurface', 'CursorFileObserver', 'PresentationObserver', 'PresentedHud')
 allowed_headers = {
-    'PresentedHud.h', 'array', 'PresentedCursor.h', 'PresentedCursorSurface.h', 'CursorFileObserver.h', 'PresentationObserver.h',
+    'DiagnosticProfile.h', 'PresentedHud.h', 'array', 'PresentedCursor.h', 'PresentedCursorSurface.h', 'CursorFileObserver.h', 'PresentationObserver.h',
     'SDL.h', 'cstdint', 'string', 'vector', 'memory', 'algorithm', 'locale',
     'sstream', 'stdexcept', 'cerrno', 'cstdio', 'fcntl.h', 'sys/file.h',
     'sys/stat.h', 'unistd.h', 'sys/socket.h', 'cstdlib', 'climits',

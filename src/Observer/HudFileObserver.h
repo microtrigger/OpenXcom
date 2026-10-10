@@ -23,7 +23,7 @@ public:
 	explicit HudFileObserver(const char *directory);
 	~HudFileObserver();
 	void observe(const PublicHud &hud);
-	bool enabled() const { return _cache.get() != 0; }
+	bool enabled();
 private:
 	HudFileObserver(const HudFileObserver &);
 	HudFileObserver &operator=(const HudFileObserver &);

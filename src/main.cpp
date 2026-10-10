@@ -41,6 +41,10 @@
 #include "Engine/Game.h"
 #include "Engine/Options.h"
 #include "Menu/StartState.h"
+// Fork modification 2026-10-10: qualify effective diagnostics before observation.
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_DIAGNOSTICS
+#include "Observer/DiagnosticProfile.h"
+#endif
 
 /** @mainpage
  * @author OpenXcom Developers
@@ -130,6 +134,10 @@ int main(int argc, char *argv[])
 	title << "OpenXcom " << OPENXCOM_VERSION_SHORT << OPENXCOM_VERSION_GIT;
 	if (Options::verboseLogging)
 		Logger::reportingLevel() = LOG_VERBOSE;
+	// Never rewrite operator configuration to qualify observation.
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_DIAGNOSTICS
+	Observer::initializeDiagnosticProfile();
+#endif
 	Options::baseXResolution = Options::displayWidth;
 	Options::baseYResolution = Options::displayHeight;
 

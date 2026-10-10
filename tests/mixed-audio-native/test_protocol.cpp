@@ -2,6 +2,7 @@
 // New contribution maintained in this OpenXcom fork, 2026-10-10.
 // Free software under GNU GPL version 3 or later; without warranty.
 // See repository LICENSE.txt and LICENSE-NOTICES.md.
+#include "../diagnostic-isolation/fixture_options.h"
 #include "../../src/Observer/MixedAudioObserver.h"
 #include "../../src/Observer/MixedAudioMusicProfile.h"
 #include <cassert>
@@ -97,6 +98,7 @@ struct Fixture
 }
 int main(int argc, char **argv)
 {
+    qualifyNormalDiagnostics();
     (void)argv;
     assert(!softwareMixedMusicType(MUS_NONE));
     assert(!softwareMixedMusicType(MUS_MID));

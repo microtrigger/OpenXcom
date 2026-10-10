@@ -1,0 +1,205 @@
+{
+  "license": "GPL-3.0-or-later",
+  "date": "2026-10-10",
+  "scope": "Diagnostic qualification and isolated launcher streams; menu smoke only",
+  "binary_sha256": "05fbb3178f572524ad880a46d442b76b7157441807f80d12a63651c3dc7ec740",
+  "all_observers_off_binary_sha256": "4d91f975b3630276e49e1a6635a4d47e9d56e0426b9fc4c6f604207077e04b7d",
+  "source_sha256": {
+    "src/Battlescape/BattlescapeState.cpp": "dc1ce9a78c9931d7030c5805ea4d6e69a6755f9ce55c8744a0593c369bb0b047",
+    "src/CMakeLists.txt": "b970173256f0c2be516a492655db7fc0a664b6eedb07368b23318a982302467d",
+    "src/Observer/CursorFileObserver.cpp": "da0f107327f2febea2e9d0e774289014f31aee1b0727fa2dca37823478eab8f6",
+    "src/Observer/CursorFileObserver.h": "8b57535f62db37e86841842594ba63a7e11a9a21422dab56ae0af27238605e95",
+    "src/Observer/DiagnosticProfile.cpp": "c215ac886d0bc38b68c05bb51842701f7af8d85ffe34a0106be0995da1a461a9",
+    "src/Observer/DiagnosticProfile.h": "3766a8adb5cecb46ce2a46cc4bcbeb64f351707b8ea0421aca9c959d7264451e",
+    "src/Observer/HudFileObserver.cpp": "0324faf884caebbae39a6607c46ee13bbcf7377d11cf61e9ed840ae08aba10ae",
+    "src/Observer/HudFileObserver.h": "dd7b85e9332dc0d1b886be7d30726ce514502fbd12d4ab8eb33ed606be815895",
+    "src/Observer/MixedAudioObserver.cpp": "1987af329993608daadf6238f1dcd409440df5f740835dec13528adaa55786e5",
+    "src/Observer/PresentationObserver.cpp": "0dfb11b19a3a4253e9b7b775df1f126617d4b5bed433fcbe72241f1ece155461",
+    "src/main.cpp": "0678d9d2c4e606788e6dbfc06161d15f0516cc7c17ce497e54afa79c9c6773f2",
+    "tests/cursor-observer/check_boundary.py": "297ada68d5b864b64cb003ba37d863cd4f1e86b48a67a4688696e34d7bd13b82",
+    "tests/cursor-observer/run.sh": "d9b3bb7eae7283fafc9a1f4a718c05833e4a5241348763f9e1f349a6d946a7af",
+    "tests/cursor-observer/test_presentation.cpp": "8f4722f2dbb668a350f8cfc5c495ee245941081cd04b077841ddba434ce62390",
+    "tests/cursor-observer/test_presented_cursor.cpp": "551aeadb96269577f768e17d345ab25efd231f9e192f2f15ef33b31982d1db52",
+    "tests/diagnostic-isolation/check_boundary.py": "f53089af37e2a8c0ecdf055415117df5b0ce8bf730b3be9e226e6b61baca288a",
+    "tests/diagnostic-isolation/fixture_options.h": "14453d9163bae8da0891be5024c36e32389122929ab8f7cafb962170df0098a6",
+    "tests/diagnostic-isolation/run.sh": "be87bcc54785c147f940fc8c9d01b840ee952947fd64c049da331050837baca5",
+    "tests/diagnostic-isolation/test_profile.cpp": "7f2fd8631019a8b450dbfe625440ec0c6c8f5082af23b1d8419fce7657dee46b",
+    "tests/mixed-audio-native/run.sh": "2e4144125efc05de74fca3f60235457342ceaa011ccf5b414a56e669aaa2e697",
+    "tests/mixed-audio-native/test_dummy_mixer.cpp": "0067b1f0caa862f6a051f8134708406a7e6031352d79632e31b4db930885238e",
+    "tests/mixed-audio-native/test_protocol.cpp": "c922474bd3282fc825cc3d3d4ac1654a2e051d6e36ddd68fdde4a6c8ae2b060c",
+    "tests/observer/run.sh": "21308df07924b46cc7ef40c9f36c615daaafedb27bba1e89d947392baf133eba",
+    "tests/observer/test_public_hud.cpp": "96e4cbabb6328abf3c3899767580bf121beea746ac02e5fd1b1dfa7d35912077",
+    "tests/paired-observer/native_fixture.cpp": "304c8fd08edd2d7cde40e49b608ed21cc07c8dedbf8b9c3c4253809cbb4cc88e",
+    "tests/paired-observer/run.sh": "e68eae8ba392438f6531f79e7cde8b3aadf4229327ab655622d1bde75b579600",
+    "tools/mcp-observer/adapter.py": "1dec7c9c9ec03104454650ac3f3bd98dd1144c18e8de2a1a3a61fccc9545406d",
+    "tools/mcp-observer/launch_presentation.py": "2b6e37f0d4ea9325e53896fdeb12f7391caa18e16217be53c19569c2fdb2cfea",
+    "tools/mcp-observer/test_diagnostic_isolation.py": "b53e954dfe191f46c5199f472803b8bee778c2a9d6be058d468882683feff7b6"
+  },
+  "checks": {
+    "python_methods": 208,
+    "normal_and_optimized_passed": true,
+    "ordinary_unittest_native_cases_skipped": 2,
+    "focused_native_stage_flag_cases": 24,
+    "focused_python_sentinel_tests": 18,
+    "focused_no_skips": true,
+    "official_sdk": "1.29.0",
+    "sdk_smokes_passed": true,
+    "all_observers_off_build_passed": true,
+    "off_observer_symbols_absent": true
+  },
+  "profile": {
+    "audio_backend": "SDL dummy",
+    "audio_volume_options": [
+      64,
+      64,
+      64
+    ],
+    "display": [
+      960,
+      600
+    ],
+    "asyncBlit": false,
+    "filters_and_OpenGL": false,
+    "normal_diagnostic_flags": false
+  },
+  "runs": [
+    {
+      "profile": "xcom1-normal",
+      "reads": [
+        {
+          "label": "cursor",
+          "tool": "read_presented_cursor",
+          "error": false,
+          "request_bytes": 104,
+          "response_bytes": 2103,
+          "png_bytes": 1184
+        },
+        {
+          "label": "hud",
+          "tool": "read_presented_hud",
+          "error": false,
+          "request_bytes": 101,
+          "response_bytes": 355,
+          "menu_hud_null": true
+        },
+        {
+          "label": "audio",
+          "tool": "read_mixed_audio",
+          "error": false,
+          "request_bytes": 99,
+          "response_bytes": 59342,
+          "wav_bytes": 44144
+        }
+      ],
+      "launcher_stderr_bytes": 0
+    },
+    {
+      "profile": "xcom2-normal",
+      "reads": [
+        {
+          "label": "cursor",
+          "tool": "read_presented_cursor",
+          "error": false,
+          "request_bytes": 104,
+          "response_bytes": 2231,
+          "png_bytes": 1279
+        },
+        {
+          "label": "hud",
+          "tool": "read_presented_hud",
+          "error": false,
+          "request_bytes": 101,
+          "response_bytes": 355,
+          "menu_hud_null": true
+        },
+        {
+          "label": "audio",
+          "tool": "read_mixed_audio",
+          "error": false,
+          "request_bytes": 99,
+          "response_bytes": 59342,
+          "wav_bytes": 44144
+        }
+      ],
+      "launcher_stderr_bytes": 0
+    },
+    {
+      "profile": "xcom1-trace",
+      "reads": [
+        {
+          "label": "cursor",
+          "tool": "read_presented_cursor",
+          "error": true,
+          "request_bytes": 104,
+          "response_bytes": 149,
+          "generic_unavailable": true
+        },
+        {
+          "label": "hud",
+          "tool": "read_presented_hud",
+          "error": true,
+          "request_bytes": 101,
+          "response_bytes": 149,
+          "generic_unavailable": true
+        },
+        {
+          "label": "audio",
+          "tool": "read_mixed_audio",
+          "error": true,
+          "request_bytes": 99,
+          "response_bytes": 149,
+          "generic_unavailable": true
+        }
+      ],
+      "launcher_stderr_bytes": 0
+    },
+    {
+      "profile": "xcom2-debug",
+      "reads": [
+        {
+          "label": "cursor",
+          "tool": "read_presented_cursor",
+          "error": true,
+          "request_bytes": 104,
+          "response_bytes": 149,
+          "generic_unavailable": true
+        },
+        {
+          "label": "hud",
+          "tool": "read_presented_hud",
+          "error": true,
+          "request_bytes": 101,
+          "response_bytes": 149,
+          "generic_unavailable": true
+        },
+        {
+          "label": "audio",
+          "tool": "read_mixed_audio",
+          "error": true,
+          "request_bytes": 99,
+          "response_bytes": 149,
+          "generic_unavailable": true
+        }
+      ],
+      "launcher_stderr_bytes": 0
+    }
+  ],
+  "earlier_attempts": {
+    "ufo_normal_attempts": 3,
+    "visual_result": "generic unavailable in each",
+    "audio_results": [
+      "valid WAV",
+      "not requested",
+      "generic unavailable"
+    ],
+    "cause": "Not instrumented. Final unchanged binary passed after supported display configuration and explicit input focus before the first request. No causal proof for the earlier failures.",
+    "all_launcher_stderr_bytes": 0
+  },
+  "limits": [
+    "Qualification is sampled at observer boundaries and rejection is sticky once observed.",
+    "Historical writer retirement occurs at the next writer boundary; prior lawful files remain historical and unverified.",
+    "No continuous monitoring of transient option mutations.",
+    "No physical audibility, new battlefield coverage, timing noninterference, controller or full Stage 5 acceptance.",
+    "Trusted local producer and launcher; raw log files on disk are outside the observation API."
+  ]
+}

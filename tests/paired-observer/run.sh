@@ -23,7 +23,7 @@ build() {
     "$ROOT/tests/paired-observer/native_fixture.cpp" \
     "$ROOT/src/Interface/NumberText.cpp" "$ROOT/src/Engine/Surface.cpp" \
     "$2" "$3" "$ROOT/src/Observer/PresentedCursor.cpp" \
-    "$ROOT/src/Observer/PresentedCursorSurface.cpp" \
+    "$ROOT/src/Observer/PresentedCursorSurface.cpp" "$ROOT/src/Observer/DiagnosticProfile.cpp" \
     -Wl,--gc-sections $SDL_LIBS -o "$1"
 }
 build "$BUILD/native" "$ROOT/src/Observer/PresentedHud.cpp" "$ROOT/src/Observer/PresentationObserver.cpp"

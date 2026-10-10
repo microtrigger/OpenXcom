@@ -3,6 +3,7 @@
 // Free software under GNU GPL version 3 or later; without warranty.
 // See repository LICENSE.txt and LICENSE-NOTICES.md.
 #include "MixedAudioObserver.h"
+#include "DiagnosticProfile.h"
 #include <SDL_mixer.h>
 #include <cerrno>
 #include <climits>
@@ -66,6 +67,7 @@ MixedAudioObserver::MixedAudioObserver(const char *descriptor) :
     _fd = fcntl(fd, F_DUPFD_CLOEXEC, 3);
     ::close(fd);
     if (_fd < 0) return;
+    if (!diagnosticProfileQualified()) { close(); return; }
     const int flags = fcntl(_fd, F_GETFL);
     if (flags < 0 || fcntl(_fd, F_SETFL, flags | O_NONBLOCK) != 0 ||
         !_slot.lockFree() || !_catalog.is_lock_free()) close();
@@ -103,6 +105,7 @@ void SDLCALL MixedAudioObserver::postmix(void *context, Uint8 *stream, int len)
 }
 bool MixedAudioObserver::sendPacket(const std::string &packet)
 {
+    if (!diagnosticProfileQualified()) { close(); return false; }
 #ifdef MSG_NOSIGNAL
     if (_fd >= 0 && packet.size() < 102400 &&
         send(_fd, packet.data(), packet.size(), MSG_DONTWAIT | MSG_NOSIGNAL) ==
@@ -116,6 +119,7 @@ bool MixedAudioObserver::sendPacket(const std::string &packet)
 void MixedAudioObserver::poll()
 {
     if (_fd < 0) return;
+    if (!diagnosticProfileQualified()) { close(); return; }
     try { pollImpl(); }
     catch (const std::bad_alloc &) { close(); }
 }

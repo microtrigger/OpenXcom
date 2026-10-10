@@ -112,10 +112,29 @@ The launcher uses only the Python standard library. Optional --hud-dir and
 configuration, never an MCP tool argument. The launcher creates one connected
 AF_UNIX SOCK_SEQPACKET pair; there is no socket pathname, listener, port,
 registration, credential, or durable channel. Only the intended launched child
-inherits the producer descriptor. Existing display settings are preserved, game
-stdout is directed to stderr, and protocol EOF closes observation without killing
-the game. Unsupported systems/socket types fail closed. This is cooperative local
+inherits the producer descriptor. Existing display settings are preserved. Both
+game stdout and stderr are discarded at process creation with `subprocess.DEVNULL`,
+including startup, shutdown and logger fallback; neither stream is captured,
+forwarded or decoded. Protocol EOF closes observation without killing the game.
+Unsupported systems/socket types fail closed. This is cooperative trusted local
 IPC, not protection against a malicious same-user process or modified executable.
+
+The matching native build requires `debug`, `debugUi`, `traceAI` and
+`verboseLogging` to be false and the effective logger level to be `LOG_FATAL`
+through `LOG_INFO`, inclusive. Qualification is initialized after actual
+configuration parsing and logger setup, before game construction or any observer
+hello. A debug build at `LOG_DEBUG` is unqualified even with all four options
+false. Neither the launcher nor the native checks rewrite settings to qualify.
+
+Qualification is rechecked at observer admission/publication boundaries, including
+before sending a completed audio window. A rejected profile cannot become qualified
+again in that process. Each writer/channel retires when it next reaches its check,
+not through an instantaneous global tick. Historical writers release their locks
+and retain previously lawful snapshot bytes as historical/unverified records.
+The saved-battle debug-mode HUD guard remains separate. Raw engine log files retain
+their normal behavior and are never observation inputs. Existing hello/schema
+strings do not authenticate the executable. See the [complete diagnostic-isolation
+contract and checks](DIAGNOSTIC-ISOLATION.md).
 
 The optional tool read_presented_cursor({}) returns one bounded final RGB PNG with
 semantics presented_after_request. It means that a normal presentation occurred
@@ -237,8 +256,8 @@ deadline. After success the adapter requires one second before another request.
 Malformed, replayed, late, reset or disconnected audio closes that channel with
 one generic unavailable result. No cached clip or automatic reconnect is used.
 
-The current combined suite passes 190 Python tests; native slot/protocol tests and
-a real-SDL dummy-mixer oracle verify sample bits, channel order, final effects,
+The earlier mixed-audio evidence records 190 passing Python tests; native
+slot/protocol tests and a real-SDL dummy-mixer oracle verify sample bits, channel order, final effects,
 zero/mute cases and corruption controls. The official SDK checks audio-only and
 combined visual/audio modes. Separate [actual-game menu GUI checks](../../docs/mcp-player-interface/mixed-audio-game-evidence.json)
 pass in UFO/TFTD in audio-only mode with intros disabled: eight fresh clips cover
@@ -254,6 +273,21 @@ Hex is not compact; byte/character counts and component microbenchmarks are not
 model-token measurements, physical-audio tests or end-to-end resource savings.
 
 ## Tests and evidence
+
+New diagnostic isolation has separate [native and launcher checks](DIAGNOSTIC-ISOLATION.md#bounded-checks),
+including the real logger fallback, startup/runtime/shutdown output and terminal
+profile rejection. Run `tests/diagnostic-isolation/run.sh` from the repository root.
+The Python suite completes 208 test methods in normal and optimized modes, with
+two native-only tests skipped in ordinary unittest. The focused runner separately
+passes all 18 sentinel tests and 24 native stage/flag cases; do not sum these counts.
+[Final bounded menu checks](../../docs/mcp-player-interface/diagnostic-isolation-evidence.json)
+succeed for normal UFO/TFTD cursor PNG, null HUD and 44,144-byte WAV reads. UFO
+`traceAI=true` and TFTD `debug=true` make all three tools generically unavailable
+while leaving game menus available. All four final runs have empty launcher stderr.
+Three earlier UFO visual failures remain recorded without a demonstrated cause;
+see the [results and limits](DIAGNOSTIC-ISOLATION.md#verified-results-and-limits).
+Earlier runtime results below remain separate evidence. No new battle or complete
+fairness claim is made; Stage 5 and controller acceptance remain open.
 
 ```
 python -m unittest -v

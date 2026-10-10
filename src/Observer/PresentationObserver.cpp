@@ -2,6 +2,7 @@
 // New contribution maintained in this OpenXcom fork, 2026-10-10.
 // See repository LICENSE.txt and LICENSE-NOTICES.md.
 #include "PresentationObserver.h"
+#include "DiagnosticProfile.h"
 #include <cerrno>
 #include <cstdlib>
 #include <climits>
@@ -46,6 +47,7 @@ PresentationObserver::PresentationObserver(const char *descriptor) : _fd(-1), _h
     _fd = fcntl(fd, F_DUPFD_CLOEXEC, 3);
     if (_fd < 0) return;
     ::close(fd);
+    if (!diagnosticProfileQualified()) { close(); return; }
     int flags = fcntl(_fd, F_GETFL);
     if (flags < 0 || fcntl(_fd, F_SETFL, flags | O_NONBLOCK) != 0 ||
         !randomToken(_epoch) || !randomToken(_admission)) { close(); return; }
@@ -62,6 +64,7 @@ void PresentationObserver::close()
 bool PresentationObserver::sendPacket(const std::string &bytes)
 {
     if (_fd < 0) return false;
+    if (!diagnosticProfileQualified()) { close(); return false; }
 #ifdef MSG_NOSIGNAL
     if (send(_fd, bytes.data(), bytes.size(), MSG_DONTWAIT | MSG_NOSIGNAL) != static_cast<ssize_t>(bytes.size()))
     { close(); return false; }
@@ -81,6 +84,7 @@ void PresentationObserver::resetPresentation()
 void PresentationObserver::beginFrame()
 {
     if (_fd < 0) return;
+    if (!diagnosticProfileQualified()) { close(); return; }
     // A previous frame token must never survive an interrupted composition.
     if (!_challenge.empty()) { close(); return; }
     char bytes[97];
@@ -101,6 +105,7 @@ void PresentationObserver::beginFrame()
 void PresentationObserver::presented(const PixelCrop &crop, const std::string &hud)
 {
     if (_fd < 0 || _challenge.empty()) return;
+    if (!diagnosticProfileQualified()) { close(); return; }
     if (!validCrop(crop)) { close(); return; }
     const std::string challenge = _challenge;
     _challenge.clear();

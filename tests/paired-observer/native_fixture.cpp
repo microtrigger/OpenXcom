@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Original test contribution, 2026-10-10. See LICENSE.txt and LICENSE-NOTICES.md.
 // Asset-free production UI/extraction boundary fixture, not a game or display.
+#include "../diagnostic-isolation/fixture_options.h"
 #include "../../src/Interface/NumberText.h"
 #include "../../src/Observer/PresentationObserver.h"
 #include "../../src/Observer/PresentedCursorSurface.h"
@@ -79,6 +80,7 @@ struct Composition {
 }
 int main(int argc, char **argv)
 {
+    qualifyNormalDiagnostics();
     assert(argc == 2);
     const int descriptor = std::atoi(argv[1]);
     int monitor = dup(descriptor); assert(monitor >= 0);

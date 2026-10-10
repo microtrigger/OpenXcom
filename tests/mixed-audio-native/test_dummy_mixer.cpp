@@ -2,6 +2,7 @@
 // New contribution maintained in this OpenXcom fork, 2026-10-10.
 // Free software under GNU GPL version 3 or later; without warranty.
 // See repository LICENSE.txt and LICENSE-NOTICES.md.
+#include "../diagnostic-isolation/fixture_options.h"
 #include "../../src/Observer/MixedAudioObserver.h"
 #include "../../src/Engine/Sound.h"
 #include "../../src/Engine/Options.h"
@@ -17,8 +18,7 @@ using namespace OpenXcom;
 using namespace OpenXcom::Observer;
 // Link the production Sound implementation; these fixture settings replace the
 // unrelated application option parser and timestamp logger, not Sound::play.
-namespace OpenXcom { namespace Options { bool mute = false; bool StereoSound = true; }
-namespace CrossPlatform { std::string now() { return "synthetic"; } } }
+namespace OpenXcom { namespace Options { bool mute = false; bool StereoSound = true; } }
 namespace {
 void (*productionCallback)(void *, Uint8 *, int) = 0;
 void *productionContext = 0;
@@ -142,6 +142,7 @@ void __wrap_Mix_SetPostMix(void (*callback)(void *, Uint8 *, int), void *context
 }
 int main()
 {
+    qualifyNormalDiagnostics();
     assert(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER) == 0);
     assert(Mix_OpenAudio(22050, AUDIO_S16LSB, 2, 512) == 0);
     Mix_AllocateChannels(8);

@@ -6,8 +6,8 @@ New contributions maintained in this fork add optional, default-off read-only
 HUD, final-pixel cursor and fixed-window final-mix audio observers, a local
 read-only stdio MCP adapter with optional transient presentation acknowledgements
 and native MCP audio content, a separately opted-in final-pixel displayed-HUD decoder, isolated render-pair and
-observer-request functional-effects gates, and associated tests,
-build helpers, documentation and evidence metadata. Existing
+observer-request functional-effects gates, a diagnostic-isolation boundary, and
+associated tests, build helpers, documentation and evidence metadata. Existing
 upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
 
@@ -18,7 +18,8 @@ or, at your option, any later version, without warranty:
 
 - `src/Observer/`
 - `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/`,
-  `tests/battle-observer/` and `tests/mixed-audio-native/`
+  `tests/battle-observer/`, `tests/mixed-audio-native/` and
+  `tests/diagnostic-isolation/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)

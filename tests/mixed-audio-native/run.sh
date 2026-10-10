@@ -20,12 +20,12 @@ FLAGS="-std=c++11 -O2 -Wall -Wextra -Werror -pedantic -pthread ${CXXFLAGS:-} -UN
 ${CXX:-c++} $FLAGS "$ROOT/tests/mixed-audio-native/test_slot.cpp" -o "$BUILD/test-slot"
 "$BUILD/test-slot"
 ${CXX:-c++} $FLAGS $SDL_CFLAGS "$ROOT/tests/mixed-audio-native/test_protocol.cpp" \
-  "$ROOT/src/Observer/MixedAudioObserver.cpp" -o "$BUILD/test-protocol"
+  "$ROOT/src/Observer/MixedAudioObserver.cpp" "$ROOT/src/Observer/DiagnosticProfile.cpp" -o "$BUILD/test-protocol"
 "$BUILD/test-protocol" --startup
 # ELF link wrapping is only an independent synthetic oracle, never a game hook.
 ${CXX:-c++} $FLAGS $SDL_CFLAGS -ffunction-sections -fdata-sections \
   "$ROOT/tests/mixed-audio-native/test_dummy_mixer.cpp" \
-  "$ROOT/src/Observer/MixedAudioObserver.cpp" "$ROOT/src/Engine/Sound.cpp" \
+  "$ROOT/src/Observer/MixedAudioObserver.cpp" "$ROOT/src/Observer/DiagnosticProfile.cpp" "$ROOT/src/Engine/Sound.cpp" \
   -Wl,--gc-sections -Wl,--wrap=Mix_SetPostMix -lSDL_mixer $SDL_LIBS -o "$BUILD/test-dummy-mixer"
 SDL_AUDIODRIVER=dummy "$BUILD/test-dummy-mixer"
 python3 "$ROOT/tests/mixed-audio-native/check_boundary.py"

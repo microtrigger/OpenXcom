@@ -44,11 +44,25 @@ an executable, device, output profile, volume, duration, path or source.
 The launcher scrubs ambient observation descriptors/version selection, creates
 anonymous connected socketpairs for exactly the explicitly enabled streams, and
 passes only those descriptors to the child. There is no socket pathname, listener,
-port, registration, credential or network service. Child stdout goes to stderr to
-protect MCP framing. Observation EOF closes the channels without terminating the
-game. Display/audio settings and game arguments are not changed. This boundary
-assumes cooperative local processes; it does not defend against a modified game
-or malicious same-user process.
+port, registration, credential or network service. Both child stdout and stderr
+are discarded at process creation with `subprocess.DEVNULL`, including the engine
+logger fallback, startup and shutdown. There are no captured diagnostic pipes or
+buffers. Observation EOF closes the channels without terminating the game.
+Display/audio settings and game arguments are not changed. This boundary assumes
+cooperative trusted local processes and the matching native build; it does not
+defend against a modified game or malicious same-user process. Raw engine log
+files are not observation inputs.
+
+The shared [diagnostic qualification](DIAGNOSTIC-ISOLATION.md) requires effective
+`debug`, `debugUi`, `traceAI` and `verboseLogging` to be false and the logger level
+to be `LOG_FATAL` through `LOG_INFO`, inclusive, after configuration parsing and
+logger setup. Initialization must precede game construction and observer hello.
+A main-thread recheck rejects newly unqualified settings before admission or
+publication, including a completed PCM window. Once rejected, qualification is
+lost for that process; restoring settings does not reopen observation. Retirement
+occurs at each channel's next observer boundary, not an instantaneous global tick.
+The audio callback does not read the options, and settings are never rewritten
+to qualify. Existing format, catalog and lifecycle gates remain in force.
 
 ## Tool result
 
@@ -88,8 +102,8 @@ unbounded byte stream.
 
 - Hello: exactly `OPENXCOM-MIXED-AUDIO/1 ` followed by a 32-character lowercase
   hexadecimal epoch and a 32-character lowercase hexadecimal admission token.
-  Total: 87 bytes. Native sends it only after aggregate resource readiness and
-  the exact actual mix format are qualified.
+  Total: 87 bytes. Native sends it only after the effective diagnostic profile,
+  aggregate resource readiness and exact actual mix format are qualified.
 - Request: exactly 96 lowercase hexadecimal ASCII bytes: epoch, current
   admission token, and a new OS-random 128-bit challenge, each 32 characters.
 - Reply: one UTF-8 JSON object with exactly `schema`, `epoch`, `challenge`,
@@ -139,8 +153,11 @@ closes only the audio channel and returns one text-only error:
 ```
 
 Late data and cached audio are never substituted. Relaunch explicitly to create a
-new channel. Existing historical/presentation channels remain independent; failure
-does not relabel another stream's result or claim a synchronized fallback.
+new channel. Ordinary audio transport failures leave historical/presentation
+channels independent; failure does not relabel another stream's result or claim a
+synchronized fallback. Diagnostic-profile rejection is process-wide and each
+observer retires at its next qualification check. Historical files are retained
+with their old, unverified historical meaning; their writers release the locks.
 
 ## MCP compatibility and verification
 
@@ -194,4 +211,12 @@ remain separate from these adapter checks.
 
 Actual UFO/TFTD menu integration and volume-zero controls are recorded separately
 in [game evidence](../../docs/mcp-player-interface/mixed-audio-game-evidence.json).
-Those smoke checks do not replace the synthetic independent final-buffer oracle.
+Those earlier smoke checks do not replace the synthetic independent final-buffer
+oracle. Separate [diagnostic-isolation menu checks](../../docs/mcp-player-interface/diagnostic-isolation-evidence.json)
+now obtain a 44,144-byte WAV alongside cursor PNG and null HUD in each final normal
+UFO/TFTD run. UFO `traceAI=true` and TFTD `debug=true` reject all three tools with
+generic unavailable while game menus remain available; all four final runs have
+zero launcher stderr bytes. Earlier failed UFO attempts and their unestablished
+cause are retained in the [results and limits](DIAGNOSTIC-ISOLATION.md#verified-results-and-limits).
+These bounded menu checks add no battle or full-fairness claim; Stage 5, full audio
+parity and timing parity remain open.

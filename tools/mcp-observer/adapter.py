@@ -17,6 +17,17 @@ UNAVAILABLE = {'content': [{'type': 'text', 'text':
 NAMES = ('read_last_hud', 'read_last_cursor')
 
 
+def silence_broken_stdout():
+    # A buffered stream otherwise retries its failed flush during interpreter
+    # shutdown and emits an uncontrolled diagnostic after the handled failure.
+    import os
+    try:
+        with open(os.devnull, 'wb', buffering=0) as discard:
+            os.dup2(discard.fileno(), sys.stdout.fileno())
+    except (OSError, ValueError):
+        pass
+
+
 def strict_json(raw):
     def pairs(items):
         result = {}
@@ -216,11 +227,24 @@ def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None, mixed_
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description=__doc__)
+    class QuietArgumentParser(argparse.ArgumentParser):
+        def error(self, message):
+            self.exit(2, 'Invalid observer arguments; use --help.\n')
+    parser = QuietArgumentParser(description=__doc__)
     parser.add_argument('--hud-dir')
     parser.add_argument('--cursor-dir')
     config = parser.parse_args()
     try:
         serve(sys.stdin.buffer, sys.stdout.buffer, config.hud_dir, config.cursor_dir)
     except BrokenPipeError:
+        silence_broken_stdout()
+    except KeyboardInterrupt:
         pass
+    except Exception:
+        # Do not expose private paths or arbitrary exception payloads.
+        try:
+            sys.stderr.write('Observer transport unavailable.\n')
+            sys.stderr.flush()
+        except (OSError, ValueError):
+            pass
+        sys.exit(1)

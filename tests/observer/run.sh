@@ -8,9 +8,14 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 BUILD=$(mktemp -d)
 trap 'rm -rf "$BUILD"' EXIT HUP INT TERM
-${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic \
+if [ -n "${SDL_PREFIX:-}" ]; then
+  SDL_CFLAGS="-I$SDL_PREFIX/include/SDL -I$SDL_PREFIX/include"
+else
+  SDL_CFLAGS=$(${SDL_CONFIG:-sdl-config} --cflags)
+fi
+${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic $SDL_CFLAGS \
   "$ROOT/tests/observer/test_public_hud.cpp" \
-  "$ROOT/src/Observer/PublicHud.cpp" "$ROOT/src/Observer/HudFileObserver.cpp" \
+  "$ROOT/src/Observer/DiagnosticProfile.cpp" "$ROOT/src/Observer/PublicHud.cpp" "$ROOT/src/Observer/HudFileObserver.cpp" \
   -o "$BUILD/test-public-hud"
 "$BUILD/test-public-hud"
 python3 "$ROOT/tests/observer/check_boundary.py"

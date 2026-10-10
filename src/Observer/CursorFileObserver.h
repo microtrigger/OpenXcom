@@ -23,7 +23,7 @@ public:
 	explicit CursorFileObserver(const char *directory);
 	~CursorFileObserver();
 	void observe(const PixelCrop &crop);
-	bool enabled() const { return _cache.get() != 0; }
+	bool enabled();
 private:
 	CursorFileObserver(const CursorFileObserver &);
 	CursorFileObserver &operator=(const CursorFileObserver &);

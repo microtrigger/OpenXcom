@@ -1,12 +1,12 @@
 {
   "scope": "Read-only historical observations and optional request-bound presentation and post-admission mixed-audio prototypes",
   "current_sources": {
-    "adapter.py": "e36cb1ec42c52d4ebb78964b945c32512a72c77ea0102ab16fe0792a19edb2a2",
+    "adapter.py": "1dec7c9c9ec03104454650ac3f3bd98dd1144c18e8de2a1a3a61fccc9545406d",
     "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
     "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
     "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
-    "README.md": "fc6e4d9b3f5b1d24f35330d49ff1771586cebb765151800d5fdb2f9218a3f028",
-    "launch_presentation.py": "8e84f1e845daa5180614648adfe6bcca7fd6f098cc6b4de520d5654aa66c7e15",
+    "README.md": "b781d65ea076439ff2ff5f3256c84c42725a18e1a64bc78124f7e6187f5140f1",
+    "launch_presentation.py": "2b6e37f0d4ea9325e53896fdeb12f7391caa18e16217be53c19569c2fdb2cfea",
     "presentation.py": "353ff2d7c0c43a453695f1b1a60d40223ed462a3f1415f569fbfc096ca340436",
     "test_presentation.py": "ed0123a86d193cd39c6869aa6d752461ec4eb67eb707657050ed17db911a704c",
     "test_presented_hud.py": "f8e39ce22a7e05d9dd18d99b56f4918541564c0c1f6234cdf140556e1c236d3e",
@@ -15,10 +15,12 @@
     "test_mixed_audio.py": "f9dc6e5a5bfd46c0add7c11ec8044cb05e8d95c6d91d67fb1f3756f03117202a",
     "sdk_mixed_audio_smoke.py": "2e65a01cf2c8cbf5c202dbe38967a9079ff7ec6da5f94205e6223684f3d4197f",
     "measure_mixed_audio.py": "806870badc8186281c7d2260a5c1cea4cb3c5584715d5da7f361e80a7338a771",
-    "AUDIO-ADAPTER.md": "801bb82d9ca64e652ce67676cffe8f37319c11aaab2fd371f458490b3cb3ee38"
+    "AUDIO-ADAPTER.md": "5dc7ea5596c0b5d7c102f040c2c0a6e7228485d585e23f9e3aee230b2fcbf20a",
+    "test_diagnostic_isolation.py": "b53e954dfe191f46c5199f472803b8bee778c2a9d6be058d468882683feff7b6",
+    "DIAGNOSTIC-ISOLATION.md": "eb64c71dede37d7e2f6e574df9176b7090b707ff259a5dc9907843992ac8a14f"
   },
   "final_checks": {
-    "unit_tests": 190,
+    "unit_tests": 208,
     "unit_tests_passed": true,
     "compileall_passed": true,
     "official_sdk": "1.29.0",
@@ -35,7 +37,12 @@
     ],
     "default_tool_definitions_byte_compatible": true,
     "default_mcp_responses_byte_compatible": true,
-    "synthetic_mixed_audio_sdk_smoke_passed": true
+    "synthetic_mixed_audio_sdk_smoke_passed": true,
+    "ordinary_unittest_skipped": 2,
+    "normal_and_optimized_passed": true,
+    "focused_sentinel_tests": 18,
+    "focused_native_stage_flag_cases": 24,
+    "focused_skipped": 0
   },
   "actual_ufo": {
     "live_record": "actual-ufo-evidence.json",
@@ -103,5 +110,48 @@
     "coverage": "Native slot/protocol/real SDL dummy oracle,190 Python tests, official SDK1.29.0 AudioContent smoke, selected UFO/TFTD menu enabled/zero-volume/exit integration",
     "runtime_evidence": "../../docs/mcp-player-interface/mixed-audio-game-evidence.json",
     "limits": "No continuous history, physical audibility, audiovisual synchronization, broad battlefield parity, full timing/noninterference proof or model-token savings."
+  },
+  "before_diagnostic_isolation_sources": {
+    "adapter.py": "e36cb1ec42c52d4ebb78964b945c32512a72c77ea0102ab16fe0792a19edb2a2",
+    "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
+    "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
+    "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
+    "README.md": "fc6e4d9b3f5b1d24f35330d49ff1771586cebb765151800d5fdb2f9218a3f028",
+    "launch_presentation.py": "8e84f1e845daa5180614648adfe6bcca7fd6f098cc6b4de520d5654aa66c7e15",
+    "presentation.py": "353ff2d7c0c43a453695f1b1a60d40223ed462a3f1415f569fbfc096ca340436",
+    "test_presentation.py": "ed0123a86d193cd39c6869aa6d752461ec4eb67eb707657050ed17db911a704c",
+    "test_presented_hud.py": "f8e39ce22a7e05d9dd18d99b56f4918541564c0c1f6234cdf140556e1c236d3e",
+    "sdk_presented_hud_smoke.py": "9980648390180ccb9e9e0264dc0afc3d56f73734c853d2901f35c7331424f7e9",
+    "mixed_audio.py": "d1be2e9b4eff2fc42feb23a5834b96fe60b2200c49bb3060b350e8e0dfd972a0",
+    "test_mixed_audio.py": "f9dc6e5a5bfd46c0add7c11ec8044cb05e8d95c6d91d67fb1f3756f03117202a",
+    "sdk_mixed_audio_smoke.py": "2e65a01cf2c8cbf5c202dbe38967a9079ff7ec6da5f94205e6223684f3d4197f",
+    "measure_mixed_audio.py": "806870badc8186281c7d2260a5c1cea4cb3c5584715d5da7f361e80a7338a771",
+    "AUDIO-ADAPTER.md": "801bb82d9ca64e652ce67676cffe8f37319c11aaab2fd371f458490b3cb3ee38"
+  },
+  "before_diagnostic_isolation_checks": {
+    "unit_tests": 190,
+    "unit_tests_passed": true,
+    "compileall_passed": true,
+    "official_sdk": "1.29.0",
+    "protocol": "2025-11-25",
+    "synthetic_sdk_smoke_passed": true,
+    "synthetic_presentation_sdk_smoke_passed": true,
+    "presentation_versions": [
+      1,
+      2
+    ],
+    "displayed_hud_integer_range": [
+      0,
+      999
+    ],
+    "default_tool_definitions_byte_compatible": true,
+    "default_mcp_responses_byte_compatible": true,
+    "synthetic_mixed_audio_sdk_smoke_passed": true
+  },
+  "diagnostic_isolation": {
+    "evidence": "../../docs/mcp-player-interface/diagnostic-isolation-evidence.json",
+    "qualification": "Effective options and actual logger severity sampled at observer boundaries; sticky rejection after detection.",
+    "transport": "Child stdin/stdout/stderr use DEVNULL; bounded generic launcher/adapter failures.",
+    "scope": "Four final menu profiles; earlier unavailable attempts retained; no new battlefield or full Stage 5 claim."
   }
 }

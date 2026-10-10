@@ -10,13 +10,42 @@ import os
 import socket
 import subprocess
 import sys
-from adapter import serve
+import warnings
+from adapter import serve, silence_broken_stdout
 from presentation import PresentationClient
 from mixed_audio import MixedAudioClient
 
 
+class QuietArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # argparse normally echoes unrecognized arguments and paths.
+        self.exit(2, 'Invalid observer launch arguments; use --help.\n')
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    # Leaving a live game running on protocol EOF is intentional. Python's
+    # Popen destructor must not echo process IDs or library paths as warnings.
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=ResourceWarning, module='subprocess')
+        try:
+            return run()
+        except BrokenPipeError:
+            silence_broken_stdout()
+            return 0
+        except KeyboardInterrupt:
+            return 0
+        except Exception:
+            # Neither child data nor exception text belongs on a model-visible channel.
+            try:
+                sys.stderr.write('Observer launch or transport unavailable.\n')
+                sys.stderr.flush()
+            except (OSError, ValueError):
+                pass
+            return 1
+
+
+def run():
+    parser = QuietArgumentParser(description=__doc__)
     parser.add_argument('--hud-dir')
     parser.add_argument('--cursor-dir')
     parser.add_argument('--presented-hud', action='store_true',
@@ -58,15 +87,20 @@ def main():
             env['OPENXCOM_MIXED_AUDIO_FD'] = str(child.fileno())
             audio = MixedAudioClient(parent)
             cleanup.callback(audio.close)
-        # Child diagnostics cannot corrupt MCP stdout. Display/audio settings and
-        # trusted operator game arguments are inherited without modification.
-        subprocess.Popen(command, env=env, pass_fds=tuple(c.fileno() for c in children),
-                         stdin=subprocess.DEVNULL, stdout=sys.stderr)
+        # Discard both diagnostics streams at the OS boundary, including startup,
+        # logger fallback and shutdown. No pipe, decoding, reader or log buffer.
+        # The native producer separately qualifies effective engine options.
+        process = subprocess.Popen(command, env=env, pass_fds=tuple(c.fileno() for c in children),
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL)
         for child in children:
             child.close()
-        serve(sys.stdin.buffer, sys.stdout.buffer, args.hud_dir, args.cursor_dir, client, audio)
+        try:
+            serve(sys.stdin.buffer, sys.stdout.buffer, args.hud_dir, args.cursor_dir, client, audio)
+        finally:
+            process.poll() # Reap only if already exited; never wait for or stop the game.
     # EOF ends observation only. Never terminate the normally running game.
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

@@ -4,6 +4,7 @@
 // GNU GPL version 3 or, at your option, any later version.
 // Provided without warranty; see the repository LICENSE.txt and LICENSE-NOTICES.md.
 #include "HudFileObserver.h"
+#include "DiagnosticProfile.h"
 #include <cerrno>
 #include <cstdio>
 #include <fcntl.h>
@@ -49,7 +50,7 @@ bool nonce(std::string &value)
 
 HudFileObserver::HudFileObserver(const char *directory) : _directory(-1), _lock(-1)
 {
-	if (!directory || !*directory) return;
+	if (!directory || !*directory || !diagnosticProfileQualified()) return;
 	_directory = open(directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	struct stat s;
 	if (_directory < 0 || fstat(_directory, &s) != 0 || s.st_uid != geteuid() || (s.st_mode & 0777) != 0700)
@@ -79,6 +80,7 @@ void HudFileObserver::disable()
 
 bool HudFileObserver::publish()
 {
+	if (!diagnosticProfileQualified()) return false;
 	// A fresh exclusive file prevents following existing symlinks/hardlinks.
 	// A stale .pending file causes fail-closed behavior; it is never overwritten.
 	int fd = openat(_directory, "snapshot.pending", O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -98,8 +100,15 @@ bool HudFileObserver::publish()
 	return ok;
 }
 
+bool HudFileObserver::enabled()
+{
+	if (!diagnosticProfileQualified()) disable();
+	return _cache.get() != 0;
+}
+
 void HudFileObserver::observe(const PublicHud &hud)
 {
+	if (!enabled()) return;
 	if (_cache && _cache->observe(hud) && !publish()) disable();
 }
 }

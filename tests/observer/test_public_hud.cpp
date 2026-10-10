@@ -3,6 +3,7 @@
 // This file is free software: you may redistribute and/or modify it under
 // GNU GPL version 3 or, at your option, any later version.
 // Provided without warranty; see the repository LICENSE.txt and LICENSE-NOTICES.md.
+#include "../diagnostic-isolation/fixture_options.h"
 #include "../../src/Observer/PublicHud.h"
 #include "../../src/Observer/HudFileObserver.h"
 #include <cassert>
@@ -33,6 +34,7 @@ static void cleanup(const std::string &d)
 }
 int main()
 {
+    qualifyNormalDiagnostics();
 	const std::string session(32, 'a');
 	PublicHudCache cache(session), pair(session);
 	assert(cache.revision() == 0 && cache.snapshot() == pair.snapshot());

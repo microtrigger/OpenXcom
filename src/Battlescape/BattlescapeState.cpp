@@ -642,6 +642,8 @@ void BattlescapeState::blit()
 /** Copy only values already present in the visible HUD, never hidden state. */
 void BattlescapeState::samplePublicHud()
 {
+	// Retire the historical lock even when no new stable HUD can be sampled.
+	if (_hudObserver && !_hudObserver->enabled()) return;
 	if (!_game->isState(this) || !_gameTimer->isRunning()
 		|| _firstInit || !_popups.empty() || _save->getSide() != FACTION_PLAYER
 		|| _save->getDebugMode() || _battleGame->isBusy() || !_battleGame->getPanicHandled()
