@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off bounded observer-effects test hooks.
+// See LICENSE-NOTICES.md; existing upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+#include "../../tests/battle-observer/ObserverEffectsGate.h"
+#endif
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 // Fork modification 2026-10-10: default-off render-only test gate.
@@ -166,6 +171,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 		RenderPairGate::afterCleanup(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+		ObserverEffectsGate::afterCleanup(this);
+#endif
 		// Initialize active state
 		if (!_init)
 		{
@@ -186,12 +194,18 @@ void Game::run()
 			_states.back()->handle(&action);
 		}
 
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+		ObserverEffectsGate::beforeEvents(this);
+#endif
 		// Process events
 		while (SDL_PollEvent(&_event))
 		{
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 			// Fixed render-fixture input; still permit closing the test window.
 			if (RenderPairGate::active() && _event.type != SDL_QUIT && _event.type != SDL_ACTIVEEVENT) continue;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+			if (!ObserverEffectsGate::acceptEvent(_event)) continue;
 #endif
 			if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;
@@ -302,6 +316,9 @@ void Game::run()
 			}
 		}
 		
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+		ObserverEffectsGate::afterEvents(this);
+#endif
 		// Process rendering
 		if (runningState != PAUSED)
 		{
@@ -335,6 +352,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 				RenderPairGate::beforeFrame(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+				ObserverEffectsGate::beforeFrame(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 				_screen->beginObserverFrame();
 #endif
@@ -364,6 +384,9 @@ void Game::run()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 				RenderPairGate::afterFrame(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+				ObserverEffectsGate::afterFrame(this);
 #endif
 			}
 		}

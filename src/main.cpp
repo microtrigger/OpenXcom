@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off bounded observer-effects test hooks.
+// See LICENSE-NOTICES.md; existing upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+#include "../tests/battle-observer/ObserverEffectsGate.h"
+#endif
 // Fork modification 2026-10-10: default-off render-only test gate.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
@@ -123,7 +128,13 @@ int main(int argc, char *argv[])
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 	RenderPairGate::prepare();
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+	ObserverEffectsGate::prepare();
+#endif
 	game = new Game(title.str());
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+	ObserverEffectsGate::silence();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 	RenderPairGate::silence();
 #endif
@@ -135,6 +146,8 @@ int main(int argc, char *argv[])
 	delete game;
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 	return RenderPairGate::exitStatus();
+#elif defined(OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE)
+	return ObserverEffectsGate::exitStatus();
 #else
 	return EXIT_SUCCESS;
 #endif

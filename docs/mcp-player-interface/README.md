@@ -7,7 +7,7 @@ Status as of October 10, 2026. We maintain the Russian version for day-to-day pr
 
 ## Plan versus actual progress
 
-Evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65), 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). Latest bounded gate: [observer-request effects evidence](observer-effects-evidence.json), based on `5d6ae1b1` plus recorded source hashes, 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d
 | 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
 | 3 · Native observer | Historical HUD/cursor slices, request-bound pixels and optional four-number displayed HUD implemented ([latest slice](PRESENTED-HUD-PROTOTYPE.md)). | Full approved projection, event/audio coverage and parity validation. |
 | 4 · IPC/MCP | Local read-only stdio tools and request-bound `/1`/`/2` protocols implemented; SDK checks pass ([adapter](../../tools/mcp-observer/README.md)). | Production recovery and broader observation coverage. |
-| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
 | 8 · UFO/TFTD matrix | Selected checks in both games pass; failures and unmatched comparisons are retained in [bounded evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
@@ -24,9 +24,16 @@ Evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
 
-Latest bounded verification: **125 Python tests pass**, together with native/source-boundary tests and historical plus `/1`/`/2` SDK checks. Fourteen successful displayed-HUD reads span both games. Separately sampled screenshot/crop comparisons: nine exact matches, two nonmatches, three not compared; an initial UFO menu request failed for an unknown reason. These are selected results, not full perceptual or timing equivalence. No CI run was recorded for the evidence revision; local test results are not a CI pass.
+Earlier displayed-HUD verification: **125 Python tests pass**, together with native/source-boundary tests and historical plus `/1`/`/2` SDK checks. Fourteen successful displayed-HUD reads span both games. Separately sampled screenshot/crop comparisons: nine exact matches, two nonmatches, three not compared; an initial UFO menu request failed for an unknown reason. These are selected results, not full perceptual or timing equivalence. No CI run was recorded for the evidence revision; local test results are not a CI pass.
 
 Additional test-only verification: 15 actual NumberText/Surface-to-projection and native producer–Python adapter tests pass, including all 0–999 numerals and replay/reset/timeout cases. Two deliberate production-source leaks are rejected; [coverage and limits](PAIRED-UI-GATE.md) keep this UI-boundary result separate from full battle simulation. The first [controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) now passes eight full-frame matches and visible-crop positive controls in each game profile; its [source hashes and bounded evidence](hidden-occupant-evidence.json) are recorded. Normal simulation/timers are skipped and audio is disabled in this test. The [remaining proposed hidden-world fixtures](FULL-BATTLE-GATE-PROPOSAL.md) and timing matrix must still be implemented before controller acceptance. Events/audio coverage, the broad game matrix and real token benchmarking remain open.
+
+A later bounded functional check now passes in both games: the [observer-request
+effects gate](OBSERVER-EFFECTS-GATE.md) runs actual normal kneel/stand input and
+timers, compares pretraffic setup and three post-flip states/RNGs, and rejects
+an engine-RNG request-path mutation in each profile. Each normal/mutant profile
+ran once; libc RNG, timing, audio and initialization/OFF-vs-ON effects remain
+unverified. See [aggregate evidence](observer-effects-evidence.json).
 
 ## Goal and boundaries
 
@@ -117,7 +124,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 5. Security gate: paired hidden-state tests
 
-**Status:** cache, transport and structural tests pass; production UI-module paired fixtures and native-to-Python lifecycle tests also pass within their documented scope. One controlled hidden-occupant render pair also passes in UFO/TFTD, with simulation/timers skipped and audio disabled. Full hidden-world battle and timing tests remain pending. This mandatory controller gate has not passed.
+**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. Full hidden-world, lifecycle, audio, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
 
 **Dependencies:** stages 3–4 and the approved contract.
 
@@ -224,3 +231,21 @@ screenshot/crop comparisons matched, two did not; an initial UFO menu failure
 remains unexplained. See the [bounded evidence](presented-hud-build-evidence.json).
 Full paired hidden-state timing tests, broader perceptual parity and the
 controller acceptance gate remain open.
+
+## Bounded observer-request effects test
+
+The separate default-off [observer-effects gate](OBSERVER-EFFECTS-GATE.md) passed
+three real standing/kneeling/standing checkpoints in UFO and TFTD land profiles.
+Each compares two same-binary worlds: connected idle observer versus three valid
+requests, with ordinary event dispatch, think, timers and FPS scheduling intact.
+Internal gameplay state and engine RNG match after each checkpoint presentation. A temporary
+request-path engine-RNG consumption mutant is rejected by the actual RNG
+comparison in both profiles. See [aggregate evidence and source hashes](observer-effects-evidence.json).
+
+Each normal profile and each mutant control ran once. Default-OFF and opt-in
+builds and existing regression tests pass; no hosted CI or repeatability
+distribution is claimed. Libc RNG state remains dynamically unverified, audio is
+disabled, and initialization effects, observer-OFF/ON equivalence, timing, pixel
+equality and full fairness remain outside this gate. Stage 5 stays open and no
+MCP controller is enabled. Broader hidden-world, lifecycle and event/audio
+coverage remain next work.

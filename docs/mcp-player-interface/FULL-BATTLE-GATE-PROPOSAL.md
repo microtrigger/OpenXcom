@@ -4,7 +4,9 @@
 This is a bounded design proposal. The first hidden-occupant render-only pair now
 has a [default-off implementation](HIDDEN-OCCUPANT-GATE.md); the remaining cases
 are still proposals. Neither that narrow pair nor the paired UI tests close
-stage 5 or authorize a controller.
+stage 5 or authorize a controller. A separate [bounded request-effects gate](OBSERVER-EFFECTS-GATE.md)
+now exercises normal kneel/stand execution and engine-RNG comparison; it does
+not implement the remaining hidden-world or timing matrix.
 Source feasibility is pinned to `b8d9806aa83151c4da1805c691f50903512c7f65`.
 
 ## Smallest credible path

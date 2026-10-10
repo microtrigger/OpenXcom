@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off bounded observer-effects test hooks.
+// See LICENSE-NOTICES.md; existing upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+#include "../../tests/battle-observer/ObserverEffectsGate.h"
+#endif
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
@@ -597,6 +602,9 @@ void BattlescapeState::think()
 			return;
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+	ObserverEffectsGate::thought(this, _popups.empty() && _gameTimer->isRunning());
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 	samplePublicHud();
 #endif
@@ -1555,6 +1563,9 @@ void BattlescapeState::animate()
 
 	blinkVisibleUnitButtons();
 	blinkHealthBar();
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+	ObserverEffectsGate::animated(this);
+#endif
 }
 
 /**
@@ -1563,6 +1574,9 @@ void BattlescapeState::animate()
 void BattlescapeState::handleState()
 {
 	_battleGame->handleState();
+#ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
+	ObserverEffectsGate::handledState(this);
+#endif
 }
 
 /**

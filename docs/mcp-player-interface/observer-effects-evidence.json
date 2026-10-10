@@ -1,0 +1,186 @@
+{
+  "_license": "SPDX-License-Identifier: GPL-3.0-or-later; original test evidence, 2026-10-10. See LICENSE.txt and LICENSE-NOTICES.md.",
+  "schema": "openxcom-observer-effects-evidence/1",
+  "date": "2026-10-10",
+  "base_revision": "5d6ae1b1b49bc14a22b4e9cd830b301884763607",
+  "source_identification": "Base revision plus exact source hashes below; native source frozen for runtime verification, followed only by documentation and structural-test updates.",
+  "scope": "Bounded same-binary per-request functional effects during normal land-based standing/kneeling/standing execution. Not initialization effects or observer-OFF/ON equivalence.",
+  "build": {
+    "opt_in": {
+      "EXPERIMENTAL_OBSERVER_EFFECTS_GATE": true,
+      "EXPERIMENTAL_CURSOR_OBSERVER": true,
+      "EXPERIMENTAL_BATTLE_PAIR_GATE": false,
+      "EXPERIMENTAL_HUD_OBSERVER": false,
+      "result": "pass",
+      "binary_sha256": "ac1bbd49e93efeb49aa78f075c7a51767c3a3b6017ddadf9201e0a22f55bd2c3"
+    },
+    "default_off": {
+      "EXPERIMENTAL_OBSERVER_EFFECTS_GATE": false,
+      "EXPERIMENTAL_CURSOR_OBSERVER": false,
+      "EXPERIMENTAL_BATTLE_PAIR_GATE": false,
+      "EXPERIMENTAL_HUD_OBSERVER": false,
+      "result": "pass",
+      "binary_sha256": "231228670f00a96b5b3776ce603a882a0239233e6e6e37fb1a3606b37e46434c",
+      "effects_gate_symbols_absent": true,
+      "effects_gate_activation_and_schema_strings_absent": true
+    },
+    "dependency_guard_rejects_gate_without_cursor_observer": true,
+    "incompatible_render_pair_guard": true
+  },
+  "profile": {
+    "display_pixels": [
+      640,
+      400
+    ],
+    "base_pixels": [
+      320,
+      200
+    ],
+    "renderer": "Focused software single-buffer 8-bit palette, integer scale 2, no bands or filters",
+    "mods": "One active vanilla master only; validated master in aggregate is matched to requested master",
+    "language": "en-US",
+    "depth": 0,
+    "resources": "Separately obtained lawful resources loaded normally; no assets exported and no cross-installation equivalence claim",
+    "fixture": "Fresh real Soldier owned by Base, normal armor, distant healthy unarmed hostile, real patched BLANKS scorched-earth floor, normal occupancy/FOV/lighting setup",
+    "execution": "Ordinary Game::run event dispatch, think, timers, FPS scheduling, composition and flip; fixed SDL mouse and kneel-shortcut keydown/up inputs",
+    "checkpoints": [
+      "standing initial TU",
+      "kneeling initial TU minus 4",
+      "standing initial TU minus 12"
+    ],
+    "minimum_monotonic_phase_ms": 250,
+    "required_real_callbacks_per_phase": [
+      "BattlescapeState::think",
+      "BattlescapeState::animate",
+      "BattlescapeState::handleState"
+    ],
+    "audio": "Mixer closed and SDL audio subsystem disabled before resource loading; absence asserted; no audio-equivalence claim"
+  },
+  "runs": [
+    {
+      "master": "xcom1",
+      "runs_on_final_binary": 1,
+      "exit_status": 0,
+      "aggregate": {
+        "schema": "observer-effects-gate/1",
+        "master": "xcom1",
+        "worlds": 2,
+        "checkpoints_per_world": 3,
+        "requests": 3,
+        "engine_rng": true,
+        "libc_rng": "unverified",
+        "audio": "subsystem-disabled",
+        "timing_equal": false,
+        "full_fairness": false
+      }
+    },
+    {
+      "master": "xcom2",
+      "runs_on_final_binary": 1,
+      "exit_status": 0,
+      "aggregate": {
+        "schema": "observer-effects-gate/1",
+        "master": "xcom2",
+        "worlds": 2,
+        "checkpoints_per_world": 3,
+        "requests": 3,
+        "engine_rng": true,
+        "libc_rng": "unverified",
+        "audio": "subsystem-disabled",
+        "timing_equal": false,
+        "full_fairness": false
+      }
+    }
+  ],
+  "oracle": {
+    "world_A": "Connected idle /2 observer, zero requests",
+    "world_B": "Three valid /2 requests, one before each normally scheduled checkpoint composition",
+    "pretraffic_setup_equal": true,
+    "all_three_postflip_checkpoints_equal": true,
+    "whole_semantic_battle_save": true,
+    "map_order_independent_sequence_order_preserved": true,
+    "engine_rng_read_without_consumption": true,
+    "additional_runtime_state": "Gameplay unit state, stable pointer identities, occupancy/backlinks, FOV/visible/spotted lists, tile visibility/shading, selection/side/turn/falling and every initialized BattleAction member including diff",
+    "stable_state_and_exact_action_costs_asserted": true,
+    "non_null_request_bound_hud_crop_required": true,
+    "hello_epoch_admission_challenge_continuity_and_no_extra_packets_or_closure_checked": true,
+    "snapshot_data_never_exported": true,
+    "comparator_controls": [
+      "map-order independence",
+      "sequence ordering",
+      "changed scalar"
+    ]
+  },
+  "positive_control": {
+    "kind": "Temporary uncommitted engine RNG draw in accepted PresentationObserver::beginFrame request path",
+    "normal_source_changed": false,
+    "binary_sha256": "fcebbc9b5ffa94e9f0a1dfbcd5304e5c09bbdcceb2f7a15454715efd336bd6de",
+    "runs": [
+      {
+        "master": "xcom1",
+        "runs": 1,
+        "exit_status": 1,
+        "rejected_by": "engine RNG equality comparison"
+      },
+      {
+        "master": "xcom2",
+        "runs": 1,
+        "exit_status": 1,
+        "rejected_by": "engine RNG equality comparison"
+      }
+    ],
+    "mutant_source_or_binary_published": false
+  },
+  "regressions": {
+    "native_hud_cursor_presentation_displayed_hud_suites": "pass",
+    "existing_boundary_checks": "pass",
+    "paired_production_ui_transport_tests": 15,
+    "existing_detected_ui_transport_mutants": 2,
+    "python_adapter_presentation_tests": 125,
+    "benchmark_ledger_tests": 7,
+    "effects_structural_check": "pass",
+    "optimized_python_structural_check": "rejected as intended",
+    "git_diff_check": "pass",
+    "fixture_strict_warning_syntax_check": "pass",
+    "runner_aggregate_and_requested_master_validation": "pass (mocked process results; separate real runs recorded above)"
+  },
+  "runtime_failures_on_final_normal_binary": [],
+  "limits": [
+    "Each normal profile and each mutation control ran once; no repeatability distribution",
+    "Engine RNG only; libc RNG state dynamically unverified, with bounded land-path source audit",
+    "Timer timestamps, callback/frame counts, animation phase, render caches/surfaces and wall-clock timing excluded",
+    "No observer initialization or disconnected/OFF-vs-ON equivalence",
+    "Audio subsystem disabled; no PCM, audible-clue or speaker parity",
+    "No pixel or complete presentation-history equality requirement",
+    "No walking, firing, AI turns, underwater behavior or full hidden-world/lifecycle/event matrix",
+    "Native producer tested here; this fixture does not add battle-to-Python-adapter integration",
+    "No hosted CI, comprehensive engine-state closure, full fairness or controller acceptance"
+  ],
+  "exports": "Only fixed aggregate results and source/binary identification; no runtime state, state hashes, raw pixels, packets, nonces, saves or original game resources",
+  "source_sha256": {
+    "CMakeLists.txt": "b565978ed4120fa8d7cb671d8ce93f2216c90f928da3f0896c05a36d39b6ea48",
+    "src/CMakeLists.txt": "74830ddab5029130642695f3aed21b76b5ecd3d80824bb36ebb7f18677e0d181",
+    "src/main.cpp": "122d32418ea26ff61e5a11e59eb3c0cfad2169b2af701ef5daae2ebef3eab6b9",
+    "src/Menu/StartState.cpp": "0c1d1ddc58213d5fa2e4a2499330dbcab3ca82b2f4848cc5f8948857c3450265",
+    "src/Engine/Game.cpp": "7a2387fc9609c86daa1282a751dc9f10a6ce05827c7b43106c47ecc8e18ab654",
+    "src/Battlescape/BattlescapeState.cpp": "d62fae458927b720d70c02ecfc36071a5853a3506a7b606d5ac99a63e0b525f8",
+    "tests/battle-observer/ObserverEffectsGate.h": "bfc8fb4840d5e9a8c7c6319228e04b0136b1f70eca2fa1ff310fbef76021ac29",
+    "tests/battle-observer/ObserverEffectsGate.cpp": "ce28f28787ed35eb0636aff5ed5f93f6ef35e0caa8d18eb640ff32bcd5a7ddc9",
+    "tests/battle-observer/run-effects.py": "3d228e8a97c9cd3f92affcc2d5796b8d2c8bba0156fd6361112b44c4794b7b6b",
+    "tests/battle-observer/check_effects_boundary.py": "f70a21b2f5c3e3d4a1a930edc8b851aad0371e7644863ec20a533a41442a36aa",
+    "src/Observer/PresentationObserver.cpp": "60c522d3dcb6a9560e2568b4155ebf1ebb95559f2a6a1d5ef7b1b20740d5ed8c",
+    "src/Observer/PresentedCursor.h": "10e23e6447051a7b25ac5d3ac288eab6e74b72b340b7e6b900aee7e1df928714",
+    "src/Observer/PresentedCursor.cpp": "ea5830822fd942f0212d23b744381db3bcc5f177741994d74b36bd0927222068",
+    "src/Observer/PresentedCursorSurface.cpp": "7e18325b8dfcc7b7e6caa9aae9f46177117624173b4272cdc1cb74a4e472a942",
+    "src/Observer/PresentedHud.cpp": "596bf8869d13e420810686edd4f0ef18d7adf9986169bc2d4fb253d90f72560c",
+    "src/Engine/Screen.cpp": "e4309908108ec0895b760db22fce414a3a4d512b40e81b9734418669753ce6cf",
+    "src/Engine/RNG.cpp": "18812039f994d9d55b317906e024d460be6d1a178f8f521eac6daf6fe5592d40",
+    "src/Battlescape/BattlescapeGame.h": "2a4c8bcc865d4c0a6dc4c920defb49cb59e85aa29cccd2bcb03723e640ed28f4",
+    "src/Battlescape/BattlescapeGame.cpp": "24bec8ed9091325f4b0831c089af3e9c594de23e851752acc5f3cd0c357d2fd3",
+    "src/Battlescape/Map.cpp": "dddb04b365c45e9562e96a0e08889f7d46009846c03798fdcb9b8214dd0d158f",
+    "src/Battlescape/TileEngine.cpp": "50c2a36dbee556a67c03cdf4f7a2351be596fff9920636dd3085f54f22c2be31",
+    "src/Savegame/SavedBattleGame.cpp": "bcd28410a9af414f2a78e5369070ac17e9eec5de1b37e30d10e9a8b884066cf1",
+    "src/Savegame/BattleUnit.cpp": "0d20217e02f6ed6e3911b8118fef709c289d40c931be8f7aff252174a5c638a8",
+    "src/Savegame/Tile.cpp": "8506a38c7b9d61f76f0c6d49bd5156a3a08a8f2e6a071eff06e130ecdb757b42"
+  }
+}
