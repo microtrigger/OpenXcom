@@ -5,9 +5,8 @@
 // Provided without warranty; see the repository LICENSE.txt and LICENSE-NOTICES.md.
 #include "PresentedCursorSurface.h"
 namespace OpenXcom { namespace Observer {
-PixelCrop capturePresentedCursor(SDL_Surface *screen, int bw, int bh, int cx, int cy, bool allowed)
+bool supportedPresentedSurface(SDL_Surface *screen, int bw, int bh, bool allowed)
 {
-	PixelCrop crop;
 	if (!allowed || !screen || !screen->format || !screen->pixels || bw <= 0 || bh <= 0 ||
 		bw > MaximumScreenSize || bh > MaximumScreenSize ||
 		(screen->flags & (SDL_OPENGL | SDL_HWSURFACE | SDL_DOUBLEBUF | SDL_ASYNCBLIT)) ||
@@ -16,7 +15,14 @@ PixelCrop capturePresentedCursor(SDL_Surface *screen, int bw, int bh, int cx, in
 		!screen->format->palette || !screen->format->palette->colors ||
 		screen->format->palette->ncolors != 256 || screen->pitch < screen->w ||
 		screen->w % bw || screen->h % bh || screen->w / bw != screen->h / bh ||
-		screen->w / bw < 1 || screen->w / bw > 6 || cx < 0 || cy < 0 || cx >= bw || cy >= bh)
+		screen->w / bw < 1 || screen->w / bw > 6)
+		return false;
+	return true;
+}
+PixelCrop capturePresentedCursor(SDL_Surface *screen, int bw, int bh, int cx, int cy, bool allowed)
+{
+	PixelCrop crop;
+	if (!supportedPresentedSurface(screen, bw, bh, allowed) || cx < 0 || cy < 0 || cx >= bw || cy >= bh)
 		return crop;
 	const int scale = screen->w / bw;
 	if (!cursorCropBounds(screen->w, screen->h, cx * scale, cy * scale, crop)) return PixelCrop();

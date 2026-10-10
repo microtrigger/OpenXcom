@@ -4,7 +4,8 @@
 
 New contributions maintained in this fork add optional, default-off read-only
 HUD and final-pixel cursor observers, a local read-only stdio MCP adapter with optional transient presentation acknowledgements,
-associated tests, build helpers, documentation and evidence metadata. Existing
+a separately opted-in final-pixel displayed-HUD decoder, and associated tests,
+build helpers, documentation and evidence metadata. Existing
 upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
 

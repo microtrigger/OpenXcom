@@ -331,6 +331,10 @@ void Game::run()
 				_fpsCounter->blit(_screen->getSurface());
 				_cursor->blit(_screen->getSurface());
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+				if (_fpsCounter->getVisible())
+					_screen->excludePresentedHud(_fpsCounter->getX(), _fpsCounter->getY(), _fpsCounter->getWidth(), _fpsCounter->getHeight());
+				if (_cursor->getVisible())
+					_screen->excludePresentedHud(_cursor->getX(), _cursor->getY(), _cursor->getWidth(), _cursor->getHeight());
 				const bool cursorPresented = _cursor->getVisible();
 				_screen->flip(cursorPresented ? _cursor->getX() : -1, cursorPresented ? _cursor->getY() : -1);
 #else

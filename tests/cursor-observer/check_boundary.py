@@ -10,9 +10,9 @@ import re
 
 root = Path(__file__).resolve().parents[2]
 observer = root / 'src/Observer'
-names = ('PresentedCursor', 'PresentedCursorSurface', 'CursorFileObserver', 'PresentationObserver')
+names = ('PresentedCursor', 'PresentedCursorSurface', 'CursorFileObserver', 'PresentationObserver', 'PresentedHud')
 allowed_headers = {
-    'PresentedCursor.h', 'PresentedCursorSurface.h', 'CursorFileObserver.h', 'PresentationObserver.h',
+    'PresentedHud.h', 'array', 'PresentedCursor.h', 'PresentedCursorSurface.h', 'CursorFileObserver.h', 'PresentationObserver.h',
     'SDL.h', 'cstdint', 'string', 'vector', 'memory', 'algorithm', 'locale',
     'sstream', 'stdexcept', 'cerrno', 'cstdio', 'fcntl.h', 'sys/file.h',
     'sys/stat.h', 'unistd.h', 'sys/socket.h', 'cstdlib', 'climits',
@@ -73,7 +73,7 @@ header = (root / 'src/Engine/Screen.h').read_text()
 assert re.search(r'void flip\(int cursorX = -1, int cursorY = -1\)', header), 'Other flip callers must default unavailable'
 
 game = (root / 'src/Engine/Game.cpp').read_text()
-assert re.search(r'_cursor->blit\(_screen->getSurface\(\)\);\s*#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER\s*const bool cursorPresented = _cursor->getVisible\(\);\s*_screen->flip\(cursorPresented \? _cursor->getX\(\) : -1, cursorPresented \? _cursor->getY\(\) : -1\);', game)
+assert re.search(r'_cursor->blit\(_screen->getSurface\(\)\);\s*#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER[\s\S]*?const bool cursorPresented = _cursor->getVisible\(\);\s*_screen->flip\(cursorPresented \? _cursor->getX\(\) : -1, cursorPresented \? _cursor->getY\(\) : -1\);', game)
 cmake = (root / 'CMakeLists.txt').read_text()
 assert re.search(r'option\s*\(\s*EXPERIMENTAL_CURSOR_OBSERVER\s+"[^"]*"\s+OFF\s*\)', cmake)
 print('PASS: cursor source dependencies, final-pixel hook order and conservative gates (structural guard only)')
@@ -82,7 +82,7 @@ print('PASS: cursor source dependencies, final-pixel hook order and conservative
 assert game.index('_screen->beginObserverFrame();') < game.index('_screen->clear();')
 assert game.count('_screen->beginObserverFrame();') == 1
 assert 'beginFrame(' not in flip and 'recv(' not in flip
-assert flip.index('SDL_Flip(_screen)') < flip.index('capturePresentedCursor(') < flip.index('_presentationObserver->presented(crop)')
+assert flip.index('SDL_Flip(_screen)') < flip.index('capturePresentedCursor(') < flip.index('_presentationObserver->presented(crop,')
 producer = (observer / 'PresentationObserver.cpp').read_text()
 post = producer[producer.index('void PresentationObserver::presented('):]
 assert 'recv(' not in post and 'beginFrame(' not in post
@@ -94,3 +94,32 @@ assert 'public_revision' not in producer and 'SDL_GetTicks' not in producer
 assert screen.index('if (_presentationObserver) _presentationObserver->resetPresentation();', screen.index('void Screen::resetDisplay(')) > 0
 assert 'if (pending()) close();' in producer
 print('PASS: precomposition admission, post-presentation acknowledgement and bounded transport gates')
+
+# HUD proof uses final pixels and UI provenance only, never hidden numeric values.
+hud = (observer / 'PresentedHud.cpp').read_text()
+number = (root / 'src/Interface/NumberText.cpp').read_text()
+blit = number[number.index('void NumberText::blit('):number.index('void NumberText::setBordered(')]
+assert '_value' not in blit and 'getValue' not in blit
+for gate in ('!_visible', '_hidden', '_redraw', '_bordered', '_crop.w', '_crop.h'):
+    assert gate in blit
+assert blit.index('Surface::blit(surface)') < blit.index('if (!_presentedDigits)')
+assert 'value' not in (observer / 'PresentedHud.h').read_text().split('struct HudDigits')[1].split('};')[0]
+assert flip.index('SDL_Flip(_screen)') < flip.index('provePresentedHud(')
+assert '_presentedHud = Observer::HudFrame();' in screen
+battle = (root / 'src/Battlescape/BattlescapeState.cpp').read_text()
+proof = battle[battle.index('void BattlescapeState::blit()'):battle.index('/** Copy only')]
+for token in forbidden:
+    if token != 'Battlescape': assert token not in proof, token
+assert '!_game->isState(this)' in proof and 'screen->wantsPresentedHud()' in proof
+assert '{ _numTimeUnits, _numEnergy, _numHealth, _numMorale }' in proof
+assert proof.index('armPresentedDigits(&frame[i])') < proof.rindex('State::blit();') < proof.rindex('armPresentedDigits(0)')
+# Keep the decoder alphabet tied to actual upstream NumberText pixels.
+glyph_literals = re.findall(r'"([01]{15})"', hud)
+assert len(glyph_literals) == 10
+for n, expected in enumerate(glyph_literals):
+    glyph = ['0'] * 15
+    for x, y in re.findall(r'_chars\[' + str(n) + r'\]->setPixel\((\d), (\d), 1\)', number):
+        glyph[int(y) * 3 + int(x)] = '1'
+    assert ''.join(glyph) == expected
+assert game.count('excludePresentedHud(') == 2
+print('PASS: HUD UI-only source boundary, actual blits, final pixels and exact glyph alphabet')

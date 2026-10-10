@@ -4,8 +4,9 @@
 The optional `read_presented_cursor({})` tool returns a bounded PNG crop that was
 normally presented **after its particular request was consumed**. It does not
 claim an instantaneous view of the game world. Historical HUD/cursor tools keep
-their existing semantics, and requests requiring fresh HUD values still fail
-closed. No gameplay commands, entity queries or arbitrary cursor probes are added.
+their existing semantics. The original `/1` protocol cannot prove fresh HUD values;
+the separately opted-in [/2 displayed-HUD extension](PRESENTED-HUD-PROTOTYPE.md)
+adds a conservative final-pixel decoder. No gameplay commands, entity queries or arbitrary cursor probes are added.
 
 ## Ordering and connection boundary
 

@@ -186,4 +186,18 @@ The [benchmark protocol and offline harness](../../tools/benchmarks/README.md) d
 
 ### Request-bound pixel presentation
 
-The [presentation prototype](PRESENTATION-PROTOTYPE.md) now acknowledges a normal displayed crop after its specific request. Selected UFO/TFTD menu, battle and overlay comparisons pass, alongside 43 Python tests and native ordering/transport checks. Historical HUD remains separate; fresh HUD and gameplay control are unsupported. Timing parity and resource savings are not yet established.
+The [presentation prototype](PRESENTATION-PROTOTYPE.md) now acknowledges a normal displayed crop after its specific request. Selected UFO/TFTD menu, battle and overlay comparisons pass, alongside 43 Python tests and native ordering/transport checks. Historical HUD remains separate; protocol `/1` does not provide request-bound HUD, and gameplay control is unsupported. Timing parity and resource savings are not yet established.
+
+### Request-bound displayed HUD (2026-10-10)
+
+The separately opted-in [/2 displayed-HUD slice](PRESENTED-HUD-PROTOTYPE.md)
+decodes exactly four final-pixel numbers in 0–999 or returns a generic null HUD,
+bound to the same request and presentation. Historical tools and default `/1`
+remain unchanged. Synthetic C++/source-boundary checks, 125 Python tests and
+both protocol versions' SDK interoperability pass. Fourteen selected reads across
+UFO and TFTD checked menu/battle, kneeling, overlays, cursor overlap and reload;
+TFTD pointer exit closed the channel without stale HUD. Nine separately sampled
+screenshot/crop comparisons matched, two did not; an initial UFO menu failure
+remains unexplained. See the [bounded evidence](presented-hud-build-evidence.json).
+Full paired hidden-state timing tests, broader perceptual parity and the
+controller acceptance gate remain open.

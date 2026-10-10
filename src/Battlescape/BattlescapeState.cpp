@@ -602,6 +602,25 @@ void BattlescapeState::think()
 #endif
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+void BattlescapeState::blit()
+{
+    Screen *screen = _game->getScreen();
+    if (!_game->isState(this) || !screen->wantsPresentedHud()) { State::blit(); return; }
+    Observer::HudFrame frame;
+    NumberText *widgets[4] = { _numTimeUnits, _numEnergy, _numHealth, _numMorale };
+    struct DisarmDigits
+    {
+        NumberText **widgets;
+        ~DisarmDigits() { for (int i = 0; i < 4; ++i) widgets[i]->armPresentedDigits(0); }
+    } disarm = { widgets };
+    for (int i = 0; i < 4; ++i) widgets[i]->armPresentedDigits(&frame[i]);
+    State::blit();
+    for (int i = 0; i < 4; ++i) widgets[i]->armPresentedDigits(0);
+    screen->setPresentedHud(frame);
+}
+#endif
+
 #ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 /** Copy only values already present in the visible HUD, never hidden state. */
 void BattlescapeState::samplePublicHud()

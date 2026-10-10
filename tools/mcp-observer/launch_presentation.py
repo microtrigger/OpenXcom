@@ -17,6 +17,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--hud-dir')
     parser.add_argument('--cursor-dir')
+    parser.add_argument('--presented-hud', action='store_true',
+                        help='explicitly select presentation version 2 for displayed HUD reads')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command
@@ -27,6 +29,10 @@ def main():
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
     env = os.environ.copy()
     env['OPENXCOM_PRESENTATION_FD'] = str(child.fileno())
+    # Ambient configuration must not silently opt the child into another version.
+    env.pop('OPENXCOM_PRESENTATION_VERSION', None)
+    if args.presented_hud:
+        env['OPENXCOM_PRESENTATION_VERSION'] = '2'
     # Child diagnostics cannot corrupt the MCP stdout stream. Existing display
     # settings and operator game arguments are inherited without modification.
     try:
@@ -34,7 +40,7 @@ def main():
                          stdin=subprocess.DEVNULL, stdout=sys.stderr)
     finally:
         child.close()
-    client = PresentationClient(parent)
+    client = PresentationClient(parent, version=2 if args.presented_hud else 1)
     try:
         serve(sys.stdin.buffer, sys.stdout.buffer, args.hud_dir, args.cursor_dir, client)
     finally:

@@ -17,7 +17,12 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only displayed-digit proof;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #include "../Engine/Surface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+#include "../Observer/PresentedHud.h"
+#endif
 
 namespace OpenXcom
 {
@@ -30,11 +35,18 @@ class NumberText : public Surface
 {
 private:
 	unsigned int _value;
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	Observer::HudDigits *_presentedDigits = 0;
+#endif
 	Surface *_chars[10];
 	Surface *_borderedChars[10];
 	bool _bordered;
 	Uint8 _color;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	void armPresentedDigits(Observer::HudDigits *digits) { _presentedDigits = digits; }
+	void blit(Surface *surface);
+#endif
 	/// Creates a new number text with the specified size and position.
 	NumberText(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the number text.

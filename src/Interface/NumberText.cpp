@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only displayed-digit proof;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #include "NumberText.h"
 #include <sstream>
 #include <string>
@@ -300,6 +302,27 @@ void NumberText::draw()
 
 	this->offset(_color);
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+void NumberText::blit(Surface *surface)
+{
+    Surface::blit(surface);
+    if (!_presentedDigits) return;
+    *_presentedDigits = Observer::HudDigits();
+    if (!_visible || _hidden || _redraw || _bordered || _crop.w || _crop.h ||
+        getWidth() < 7 || getWidth() > 64 || getHeight() != 5 ||
+        getX() < 0 || getY() < 0 || getX() > surface->getWidth() - getWidth() ||
+        getY() > surface->getHeight() - getHeight()) return;
+    const SDL_Rect &clip = surface->getSurface()->clip_rect;
+    if (getX() < clip.x || getY() < clip.y || getX() + getWidth() > clip.x + clip.w ||
+        getY() + getHeight() > clip.y + clip.h) return;
+    Observer::HudDigits d;
+    d.x = getX(); d.y = getY(); d.width = getWidth(); d.height = getHeight();
+    d.foreground = static_cast<unsigned char>(_color + 1);
+    if (!d.foreground) return;
+    *_presentedDigits = d;
+}
+#endif
 
 void NumberText::setBordered(bool bordered)
 {

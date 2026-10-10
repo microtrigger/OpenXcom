@@ -122,8 +122,40 @@ semantics presented_after_request. It means that a normal presentation occurred
 after that specific request was consumed, not instantaneous current game-world
 state, desktop visibility, or authority to act. It can show menus or loading if
 that is what was actually displayed. It never forces a frame, simulation update,
-FOV calculation, input, cursor motion, or battle transition. Fresh HUD is still
-unsupported; historical HUD sessions are independent and never joined to pixels.
+FOV calculation, input, cursor motion, or battle transition. The default version 1
+channel supports pixels only; historical HUD sessions remain independent and are
+never joined to pixels.
+
+Displayed HUD is a separate explicit version 2 opt-in:
+
+```
+python launch_presentation.py --presented-hud -- openxcom [operator game arguments]
+```
+
+Only this flag sets the child's OPENXCOM_PRESENTATION_VERSION=2. The launcher
+ignores an inherited value of that variable when choosing a version. Both ends
+must use the selected version: there is no automatic upgrade or downgrade.
+Version 1 keeps its original hello, reply and public cursor-output schema.
+
+Version 2 adds read_presented_hud({}). Its text-only result uses
+openxcom-mcp-presented-hud/1 with exactly schema, epoch, challenge, semantics,
+profile and hud. The hud value is either null or an exact object containing
+time_units, energy, health and morale. Each is a strict integer from 0 through
+999; booleans, floats, strings, negative values, extra keys and larger values
+are rejected. The producer decodes complete numbers from the final displayed
+RGB, requiring a blank trailing glyph slot. It returns generic null when the
+four numbers cannot all be proven from an eligible display. No reason for a null
+HUD is exposed. A null HUD is a successful presentation observation; it does not
+imply anything about undisplayed game state.
+
+The HUD tool validates the entire same-request version 2 reply, including its
+unchanged eligible cursor crop proof, before exposing the four values or null.
+It never reads historical HUD files, promotes historical observations, or falls
+back to cached values. Separate calls to the HUD and cursor tools are separate
+presentation requests, not an automatically synchronized pair. The existing
+read_presented_cursor output retains its exact public schema and key set even
+on version 2; it does not add a hud key. Historical read_last_hud behavior,
+unsigned 32-bit values and require_current denial are unchanged.
 
 A one-time hello contains protocol version, OS-random producer epoch and random
 admission token. Each fixed 96-byte request contains epoch, admission token and
@@ -136,6 +168,11 @@ reads requests. A request arriving during composition or after flip must await a
 later normally composed frame. No engine frame/tick counts, timestamps, busy reasons,
 world IDs or game RNG enter this protocol. Unchanged public pixels need no changed
 revision to acknowledge a later presentation.
+
+Version 2 uses OPENXCOM-PRESENTATION/2 in the hello and
+experimental-presentation/2 in the reply, with the same fixed request length and
+the additional required hud key. Version 1 rejects that key and version 2 rejects
+a version 1 reply. Reply and hello versions must match the explicit launch choice.
 
 The adapter permits one outstanding request, with a one-second monotonic deadline
 (maximum two seconds in the internal API), and at most four successful requests per
@@ -171,6 +208,7 @@ remain separate gates. No complete fair-play timing-parity claim is made.
 ```
 python -m unittest -v
 python sdk_smoke.py
+python sdk_presented_hud_smoke.py
 ```
 
 Unit and SDK smoke fixture content is synthetic; separate runtime integration reads
@@ -182,6 +220,15 @@ snapshot and lock replacement races, independent HUD reading, revision conflicts
 and session reset, deterministic PNG CRCs and exact decoded RGB roundtrip. The
 SDK smoke initializes an actual subprocess, lists both tools, obtains synthetic
 historical image content, and verifies current-state requests remain denied.
+
+Displayed-HUD unit tests additionally cover both negotiated versions, strict
+shape/type/range checks, duplicate keys, missing or extra fields, cross-version
+rejection, stale or mismatched replies, generic null, historical/fresh separation,
+unchanged cursor output, and explicit launcher selection. The separate
+sdk_presented_hud_smoke.py uses a synthetic subprocess peer through the real
+launcher and the official SDK. It checks both versions, exact PNG
+bytes, request-bound displayed HUD, generic null and overflow rejection. This
+is transport integration evidence, not a game-runtime or timing-parity proof.
 
 `cost-evidence.json` measures **bytes and characters only** for 128×128 synthetic
 RGB: solid PNG 125 bytes, patterned 302, incompressible-like noise 49,363, versus
@@ -200,3 +247,14 @@ values remain valid under both ranges.
 Historical file-based TFTD adapter integration is **untested**. The optional
 request-bound channel has separate [UFO/TFTD validation](../../docs/mcp-player-interface/PRESENTATION-PROTOTYPE.md).
 Broader platform behavior and paired hidden-state timing parity remain separate gates.
+
+### Selected displayed-HUD runtime evidence
+
+The [/2 build and runtime record](../../docs/mcp-player-interface/presented-hud-build-evidence.json)
+reports 14 successful reads across UFO/TFTD, including null HUD for menus,
+overlays and cursor overlap, displayed stat changes after kneeling, and reload.
+TFTD pointer exit closed observation without stale output. Nine comparisons
+against separately sampled screenshots matched; two did not, and one initial UFO
+menu unavailability remains unexplained. These are bounded checks, not full-frame
+or simultaneous-screenshot equivalence, hidden-state timing parity, or controller
+acceptance. Raw screenshots and packets are not published.

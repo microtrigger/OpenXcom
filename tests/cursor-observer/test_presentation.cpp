@@ -3,6 +3,7 @@
 // See repository LICENSE.txt and LICENSE-NOTICES.md.
 #include "../../src/Observer/PresentationObserver.h"
 #include <cassert>
+#include <cstdlib>
 #include <string>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -22,6 +23,7 @@ struct Fixture {
 };
 PixelCrop crop() { PixelCrop c; c.screenWidth=320;c.screenHeight=200;c.x=1;c.y=2;c.width=1;c.height=1;c.rgb={1,2,3};return c; }
 int main() {
+    unsetenv("OPENXCOM_PRESENTATION_VERSION");
     { Fixture f; f.request(); f.producer->beginFrame(); assert(f.receive().empty()); f.producer->presented(crop()); auto reply=f.receive(); assert(reply.find("presented_after_request")!=std::string::npos); assert(reply.find("010203")!=std::string::npos); f.producer->presented(crop()); assert(f.receive().empty());
       // Old admission token replay closes the channel and cannot produce another ack.
       f.request();f.producer->beginFrame();assert(!f.producer->enabled()); }
@@ -43,4 +45,24 @@ int main() {
     { Fixture f; f.request();f.producer->resetPresentation();f.producer->beginFrame();f.producer->presented(crop());assert(!f.receive().empty()); }
     { Fixture f; f.request();f.producer->beginFrame();f.producer->resetPresentation();assert(!f.producer->enabled());assert(f.receive().empty()); }
     { Fixture f; f.request();f.producer->beginFrame();f.producer->close();f.producer->presented(crop());assert(f.receive().empty()); }
+    // /1 ignores HUD additions and preserves its exact original envelope shape.
+    { Fixture f; assert(!f.producer->hudEnabled()); f.request(); f.producer->beginFrame();
+      f.producer->presented(crop(), "{\"time_units\":58}"); auto reply=f.receive();
+      assert(reply.find("experimental-presentation/1")!=std::string::npos);
+      assert(reply.find("\"hud\"")==std::string::npos); }
+    setenv("OPENXCOM_PRESENTATION_VERSION", "2", 1);
+    { Fixture f; assert(f.producer->hudEnabled()); f.request(); f.producer->beginFrame();
+      f.producer->presented(crop()); auto reply=f.receive();
+      assert(reply.find("experimental-presentation/2")!=std::string::npos);
+      assert(reply.find("\"hud\":null")!=std::string::npos); }
+    { Fixture f; f.request(); f.producer->beginFrame();
+      const std::string hud="{\"time_units\":58,\"energy\":100,\"health\":100,\"morale\":100}";
+      f.producer->presented(crop(),hud); auto reply=f.receive();
+      assert(reply.find("\"hud\":"+hud)!=std::string::npos);
+      assert(reply.find("\"epoch\":\""+f.epoch+"\"")!=std::string::npos);
+      assert(reply.find("\"challenge\":\""+std::string(32,'a')+"\"")!=std::string::npos); }
+    { Fixture f; f.request(); f.producer->beginFrame(); f.producer->resetPresentation();
+      f.producer->presented(crop(),"{}"); assert(f.receive().empty()); }
+    unsetenv("OPENXCOM_PRESENTATION_VERSION");
+
 }

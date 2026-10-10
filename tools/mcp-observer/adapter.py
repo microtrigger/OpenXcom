@@ -34,7 +34,7 @@ def error(ident, code, message):
     return {'jsonrpc': '2.0', 'id': ident, 'error': {'code': code, 'message': message}}
 
 
-def definitions(presentation=False):
+def definitions(presentation=False, presented_hud=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -43,10 +43,16 @@ def definitions(presentation=False):
             for name in NAMES]
     if presentation:
         result.append({'name': 'read_presented_cursor',
-                       'description': 'Request one normal displayed cursor crop presented after this request; never instantaneous current world state. Unsupported presentation or timeout is unavailable. HUD freshness is unsupported.',
+                       'description': 'Request one normal displayed cursor crop presented after this request; never instantaneous current world state. Unsupported presentation or timeout is unavailable. ' + ('This tool returns pixels only.' if presented_hud else 'HUD freshness is unsupported.'),
                        'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
                        'annotations': {'readOnlyHint': True, 'destructiveHint': False,
                                        'idempotentHint': False, 'openWorldHint': False}})
+        if presented_hud:
+            result.append({'name': 'read_presented_hud',
+                           'description': 'Request four displayed HUD integers from one normal presentation after this request, or null when no eligible HUD was displayed. Never instantaneous current world state. Requires explicitly selected presentation version 2.',
+                           'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+                           'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                                           'idempotentHint': False, 'openWorldHint': False}})
     return result
 
 
@@ -54,6 +60,7 @@ class Server:
     def __init__(self, hud_dir=None, cursor_dir=None, presentation=None):
         self.state = 'new'
         self.presentation = presentation
+        self.presented_hud_enabled = presentation is not None and getattr(presentation, 'version', 1) == 2
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
     def handle(self, msg):
@@ -89,11 +96,13 @@ class Server:
         elif method == 'tools/list':
             if params:
                 return error(ident, -32602, 'Invalid params')
-            result = {'tools': definitions(self.presentation is not None)}
-        elif method == 'tools/call' and params.get('name') == 'read_presented_cursor' and self.presentation is not None:
+            result = {'tools': definitions(self.presentation is not None, self.presented_hud_enabled)}
+        elif (method == 'tools/call' and self.presentation is not None
+                and (params.get('name') == 'read_presented_cursor'
+                     or (params.get('name') == 'read_presented_hud' and self.presented_hud_enabled))):
             if set(params) - {'name', 'arguments', '_meta'} or params.get('arguments', {}) != {}:
                 return error(ident, -32602, 'Invalid params')
-            result = self.presented()
+            result = self.presented('hud' if params['name'] == 'read_presented_hud' else 'cursor')
         elif method == 'tools/call':
             if (set(params) - {'name', 'arguments', '_meta'} or params.get('name') not in NAMES
                     or type(params.get('arguments', {})) is not dict
@@ -109,12 +118,20 @@ class Server:
         return {'jsonrpc': '2.0', 'id': ident, 'result': result}
 
 
-    def presented(self):
-        from snapshots import Unavailable, image_content
+    def presented(self, kind='cursor'):
+        from snapshots import Unavailable, image_content, require
         try:
+            require(kind in ('cursor', 'hud') and (kind != 'hud' or self.presented_hud_enabled))
             obj, candidate = self.presentation.observe()
+            if kind == 'hud':
+                require(obj['schema'] == 'experimental-presentation/2')
+                # Fresh HUD comes only from this validated presentation reply;
+                # historical snapshots are never read or substituted here.
+                hud = {'schema': 'openxcom-mcp-presented-hud/1',
+                       **{k: obj[k] for k in ('epoch', 'challenge', 'semantics', 'profile', 'hud')}}
+                return {'content': [{'type': 'text', 'text': json.dumps(hud, separators=(',', ':'))}], 'isError': False}
             image = image_content(candidate)
-            obj = {k: v for k, v in obj.items() if k != 'next_token'}
+            obj = {k: v for k, v in obj.items() if k not in ('next_token', 'hud')}
             obj['schema'] = 'openxcom-mcp-presented-cursor/1'
             obj['crop'] = {k: v for k, v in obj['crop'].items() if k not in ('pixels', 'format')}
             obj['crop']['format'] = 'image/png'

@@ -24,7 +24,7 @@ bool randomToken(std::string &out)
     return true;
 }
 }
-PresentationObserver::PresentationObserver(const char *descriptor) : _fd(-1)
+PresentationObserver::PresentationObserver(const char *descriptor) : _fd(-1), _hudEnabled(false)
 {
 #ifndef MSG_NOSIGNAL
     // Without a per-send SIGPIPE suppression flag this prototype stays disabled.
@@ -49,7 +49,9 @@ PresentationObserver::PresentationObserver(const char *descriptor) : _fd(-1)
     int flags = fcntl(_fd, F_GETFL);
     if (flags < 0 || fcntl(_fd, F_SETFL, flags | O_NONBLOCK) != 0 ||
         !randomToken(_epoch) || !randomToken(_admission)) { close(); return; }
-    sendPacket("OPENXCOM-PRESENTATION/1 " + _epoch + _admission);
+    const char *version = std::getenv("OPENXCOM_PRESENTATION_VERSION");
+    _hudEnabled = version && std::string(version) == "2";
+    sendPacket(std::string(_hudEnabled ? "OPENXCOM-PRESENTATION/2 " : "OPENXCOM-PRESENTATION/1 ") + _epoch + _admission);
 }
 PresentationObserver::~PresentationObserver() { close(); }
 void PresentationObserver::close()
@@ -96,14 +98,14 @@ void PresentationObserver::beginFrame()
     _challenge = request.substr(64, 32);
     if (!randomToken(_admission)) close();
 }
-void PresentationObserver::presented(const PixelCrop &crop)
+void PresentationObserver::presented(const PixelCrop &crop, const std::string &hud)
 {
     if (_fd < 0 || _challenge.empty()) return;
     if (!validCrop(crop)) { close(); return; }
     const std::string challenge = _challenge;
     _challenge.clear();
-    sendPacket("{\"schema\":\"experimental-presentation/1\",\"epoch\":\"" + _epoch +
+    sendPacket(std::string("{\"schema\":\"experimental-presentation/") + (_hudEnabled ? "2" : "1") + "\",\"epoch\":\"" + _epoch +
         "\",\"challenge\":\"" + challenge + "\",\"next_token\":\"" + _admission +
-        "\",\"semantics\":\"presented_after_request\",\"profile\":\"software-single-buffer-8bit-integer-scale-no-bands\",\"crop\":" + serializeCrop(crop) + "}");
+        "\",\"semantics\":\"presented_after_request\",\"profile\":\"software-single-buffer-8bit-integer-scale-no-bands\",\"crop\":" + serializeCrop(crop) + (_hudEnabled ? ",\"hud\":" + hud : "") + "}");
 }
 } }

@@ -105,6 +105,9 @@ private:
 	/// Gets the built-in melee weapon of a unit, if any.
 	BattleItem *getSpecialMeleeWeapon(BattleUnit *unit);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	void blit();
+#endif
 	/// Selects the next soldier.
 	void selectNextPlayerUnit(bool checkReselect = false, bool setReselect = false, bool checkInventory = false, bool checkFOV = true);
 	/// Selects the previous soldier.

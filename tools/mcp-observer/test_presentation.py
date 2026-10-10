@@ -17,25 +17,36 @@ CROP = {'screen_width':320,'screen_height':200,'x':0,'y':0,'width':1,'height':1,
         'format':'rgb24-hex-row-major','pixels':'010203'}
 
 class PresentationTests(unittest.TestCase):
+    VERSION = 1
     def setUp(self):
         a, self.peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-        self.client = PresentationClient(a, timeout=0.08)
+        self.client = PresentationClient(a, timeout=0.08, version=self.VERSION)
         self.peer.settimeout(1)
-        self.peer.send(('OPENXCOM-PRESENTATION/1 '+EPOCH+ADMISSION).encode())
+        self.peer.send((f'OPENXCOM-PRESENTATION/{self.VERSION} '+EPOCH+ADMISSION).encode())
         self.threads = []
+        self.thread_errors = []
     def tearDown(self):
         self.client.close()
         for t in self.threads: t.join(1)
         self.peer.close()
+        self.assertFalse(any(t.is_alive() for t in self.threads))
+        if self.thread_errors: raise self.thread_errors[0]
     def producer(self, change=None, delay=0, raw=None):
         def work():
+            try: reply()
+            except Exception as error: self.thread_errors.append(error)
+        def reply():
             request = self.peer.recv(97).decode()
             self.assertEqual(len(request), 96)
-            obj = {'schema':'experimental-presentation/1','epoch':EPOCH,'challenge':request[64:],
+            self.assertEqual(request[:64], EPOCH+self.client.admission if self.client.admission else EPOCH+ADMISSION)
+            obj = {'schema':f'experimental-presentation/{self.VERSION}','epoch':EPOCH,'challenge':request[64:],
                    'next_token':'3'*32,'semantics':'presented_after_request','profile':PROFILE,'crop':dict(CROP)}
+            if self.VERSION == 2:
+                obj['hud'] = dict(time_units=58, energy=62, health=33, morale=100)
             if change: change(obj)
             if delay: time.sleep(delay)
-            try: self.peer.send(raw if raw is not None else json.dumps(obj).encode())
+            payload = raw(obj) if callable(raw) else raw
+            try: self.peer.send(payload if payload is not None else json.dumps(obj).encode())
             except BrokenPipeError: pass
         t=threading.Thread(target=work);self.threads.append(t);t.start()
     def unavailable(self):
@@ -78,7 +89,7 @@ class PresentationTests(unittest.TestCase):
     def test_optional_tool_and_hud_still_denied(self):
         s=Server(presentation=self.client);s.state='ready'
         reply=s.handle({'jsonrpc':'2.0','id':1,'method':'tools/list'})
-        self.assertEqual(len(reply['result']['tools']),3)
+        self.assertEqual(len(reply['result']['tools']),4 if self.VERSION == 2 else 3)
         reply=s.handle({'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'read_last_hud','arguments':{'require_current':True}}})
         self.assertTrue(reply['result']['isError'])
         for args in ({'x':1}, [], None, {'require_current':True}):

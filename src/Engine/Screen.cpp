@@ -207,8 +207,19 @@ void Screen::handle(Action *action)
  * before being put on screen.
  */
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+void Screen::excludePresentedHud(int x, int y, int width, int height)
+{
+	for (const Observer::HudDigits &d : _presentedHud)
+		if (x < d.x + d.width && x + width > d.x && y < d.y + d.height && y + height > d.y)
+		{ _presentedHud = Observer::HudFrame(); return; }
+}
+bool Screen::wantsPresentedHud() const
+{
+	return _presentationObserver && _presentationObserver->pending() && _presentationObserver->hudEnabled();
+}
 void Screen::beginObserverFrame()
 {
+	_presentedHud = Observer::HudFrame();
 	if (_presentationObserver) _presentationObserver->beginFrame();
 }
 
@@ -266,7 +277,9 @@ void Screen::flip()
 		const Observer::PixelCrop crop = Observer::capturePresentedCursor(_screen, _baseWidth, _baseHeight,
 			cursorX, cursorY, allowed);
 		if (_cursorObserver) _cursorObserver->observe(crop);
-		if (_presentationObserver) _presentationObserver->presented(crop);
+		if (_presentationObserver) _presentationObserver->presented(crop,
+			wantsPresentedHud() ? Observer::provePresentedHud(_screen, _baseWidth, _baseHeight, _presentedHud, allowed) : "null");
+		_presentedHud = Observer::HudFrame();
 	}
 #endif
 }
@@ -371,6 +384,7 @@ void Screen::resetDisplay(bool resetVideo)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	if (_presentationObserver) _presentationObserver->resetPresentation();
+	_presentedHud = Observer::HudFrame();
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	_observerPaletteExact = false;

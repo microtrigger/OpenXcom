@@ -22,6 +22,9 @@
 #include <SDL.h>
 #include <string>
 #include "OpenGL.h"
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+#include "../Observer/PresentedHud.h"
+#endif
 
 namespace OpenXcom
 {
@@ -47,6 +50,7 @@ private:
 	Observer::CursorFileObserver *_cursorObserver;
 	Observer::PresentationObserver *_presentationObserver;
 	bool _observerPaletteExact;
+	Observer::HudFrame _presentedHud;
 #endif
 	SDL_Surface *_screen;
 	int _bpp;
@@ -81,6 +85,9 @@ public:
 	/// Renders the screen onto the game window.
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	void beginObserverFrame();
+	bool wantsPresentedHud() const;
+	void excludePresentedHud(int x, int y, int width, int height);
+	void setPresentedHud(const Observer::HudFrame &frame) { _presentedHud = frame; }
 	// Coordinates are the UI cursor actually composed into this frame, never a probe.
 	void flip(int cursorX = -1, int cursorY = -1);
 #else

@@ -1,22 +1,35 @@
 {
-  "scope": "Read-only historical-observation prototype",
+  "scope": "Read-only historical observations and optional request-bound presentation prototypes",
   "current_sources": {
-    "adapter.py": "8a0df619bb5882f372075ba62add9f803f9d204e62bdf1a4589d3f04042df0ed",
+    "adapter.py": "f8b2704f43c732623c14cf3ca8e7277181112d116f9a538e4ec18b518dd55a2e",
     "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
     "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
     "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
-    "README.md": "9bbeb490ee7a0a72d11f314b1898982387d0a1c952bdde6f800581070186e465",
-    "launch_presentation.py": "1fe64f53dc20d2e556b1390f3d96c41e23a953af1a310f2e27f10ed047859a27",
-    "presentation.py": "6a99aa2f4f0f88e5bb7b771fe149e94e4ff282399f36027ebc18629a72119719",
-    "test_presentation.py": "fdfab4f489db32237720cf03f4c24e64b32050f7e52992f81c3a0408cbd3167a"
+    "README.md": "751022933b31a7e8750dc8f1ca8bf7b483239956f2bcb4bc9acf01b73ed3ff8f",
+    "launch_presentation.py": "73b1999fceedef07bf6071766dc4e685c9af041578ecd659ec03352f4a96764e",
+    "presentation.py": "353ff2d7c0c43a453695f1b1a60d40223ed462a3f1415f569fbfc096ca340436",
+    "test_presentation.py": "ed0123a86d193cd39c6869aa6d752461ec4eb67eb707657050ed17db911a704c",
+    "test_presented_hud.py": "f8e39ce22a7e05d9dd18d99b56f4918541564c0c1f6234cdf140556e1c236d3e",
+    "sdk_presented_hud_smoke.py": "9980648390180ccb9e9e0264dc0afc3d56f73734c853d2901f35c7331424f7e9"
   },
   "final_checks": {
-    "unit_tests": 43,
+    "unit_tests": 125,
     "unit_tests_passed": true,
     "compileall_passed": true,
     "official_sdk": "1.29.0",
     "protocol": "2025-11-25",
-    "synthetic_sdk_smoke_passed": true
+    "synthetic_sdk_smoke_passed": true,
+    "synthetic_presentation_sdk_smoke_passed": true,
+    "presentation_versions": [
+      1,
+      2
+    ],
+    "displayed_hud_integer_range": [
+      0,
+      999
+    ],
+    "default_tool_definitions_byte_compatible": true,
+    "default_mcp_responses_byte_compatible": true
   },
   "actual_ufo": {
     "live_record": "actual-ufo-evidence.json",
@@ -29,13 +42,6 @@
     "historical_reader_source_sha256": "299c72244adccd659b9cee26581e89ce7c479cf694b292bbd8ce7d78f6b8cc5d",
     "reader_delta": "Only HUD integer bounds changed from signed32 to unsigned32 after independent review. Observed 58/62/33/100 values valid under both; filesystem/PNG logic unchanged."
   },
-  "not_tested": [
-    "TFTD adapter runtime integration",
-    "producer freshness acknowledgement",
-    "paired hidden-state temporal parity",
-    "cross-platform behavior",
-    "controller"
-  ],
   "packaging_update": "License notices added; runtime logic unchanged; 23 unit tests and SDK smoke passed.",
   "prior_sources_before_license_headers": {
     "adapter.py": "55e2440a5f46e26004f5aee71d87566f342c84f1d0235ac5caf5f2adad52bdc5",
@@ -52,5 +58,22 @@
     "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
     "README.md": "37ad16430dedeb185952584dc523382da8a013c6fba53d6ada08ab8e727a924e"
   },
-  "presentation_extension": "Optional request-bound pixels added; historical APIs retain their semantics. Separate selected UFO/TFTD presentation tests are documented without reattributing earlier historical-file evidence."
+  "presentation_extension": "Optional request-bound pixels added; historical APIs retain their semantics. Separate selected UFO/TFTD presentation tests are documented without reattributing earlier historical-file evidence.",
+  "presented_hud_extension": {
+    "date": "2026-10-10",
+    "selection": "Explicit --presented-hud selects version 2; default version 1 remains unchanged.",
+    "public_schema": "openxcom-mcp-presented-hud/1",
+    "semantics": "presented_after_request",
+    "displayed_hud": "Exact four-field integer object in 0..999 or generic null; no historical fallback.",
+    "coverage": "Strict version, shape, type and range checks; request binding and failure paths; historical separation; unchanged public cursor envelope; real launcher and official SDK with synthetic peers.",
+    "evidence_limit": "Python checks remain synthetic. Separate selected UFO/TFTD runtime evidence records fourteen successful reads, nine matching and two nonmatching separately sampled crop comparisons, and one initial unexplained UFO unavailability; no simultaneous full-frame or hidden-state timing proof.",
+    "runtime_evidence": "../../docs/mcp-player-interface/presented-hud-build-evidence.json"
+  },
+  "historical_adapter_not_tested_at_that_stage": [
+    "TFTD adapter runtime integration",
+    "producer freshness acknowledgement",
+    "paired hidden-state temporal parity",
+    "cross-platform behavior",
+    "controller"
+  ]
 }

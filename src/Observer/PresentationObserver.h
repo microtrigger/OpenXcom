@@ -8,6 +8,7 @@ namespace OpenXcom { namespace Observer {
 class PresentationObserver
 {
     int _fd;
+    bool _hudEnabled;
     std::string _epoch, _admission, _challenge;
     bool sendPacket(const std::string &bytes);
 public:
@@ -17,7 +18,8 @@ public:
     bool pending() const { return _fd >= 0 && !_challenge.empty(); }
     void resetPresentation();
     void beginFrame();
-    void presented(const PixelCrop &crop);
+    bool hudEnabled() const { return _hudEnabled; }
+    void presented(const PixelCrop &crop, const std::string &hud = "null");
     void close();
 private:
     PresentationObserver(const PresentationObserver &);

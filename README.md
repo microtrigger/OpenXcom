@@ -2,7 +2,7 @@
 
 ## Fair-Play MCP Interface Project
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD and final-pixel cursor prototypes and a local read-only stdio MCP adapter are implemented and tested within their documented limits. An optional request-bound pixel channel is available; fresh HUD and gameplay control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD and final-pixel cursor prototypes and a local read-only stdio MCP adapter are implemented and tested within their documented limits. Optional request-bound pixel and displayed-HUD observations are available within their documented limits; gameplay control remains unimplemented.
 
 **Fork modification notice (2026-10-10):** this work adds optional read-only HUD/cursor observers, tests, build evidence and a read-only MCP adapter. New project code/documentation uses GPL-3.0-or-later; upstream and third-party notices remain intact. See [license and redistribution notices](LICENSE-NOTICES.md). No original X-COM game resources or new binaries are included in these additions.
 

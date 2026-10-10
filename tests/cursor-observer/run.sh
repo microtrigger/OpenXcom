@@ -35,3 +35,11 @@ ${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} \
   "$ROOT/src/Observer/PresentationObserver.cpp" \
   "$ROOT/src/Observer/PresentedCursor.cpp" -o "$BUILD/test-presentation"
 "$BUILD/test-presentation"
+
+${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} $SDL_CFLAGS \
+  "$ROOT/tests/cursor-observer/test_presented_hud.cpp" \
+  "$ROOT/src/Observer/PresentedHud.cpp" \
+  "$ROOT/src/Observer/PresentedCursor.cpp" \
+  "$ROOT/src/Observer/PresentedCursorSurface.cpp" \
+  $SDL_LIBS -o "$BUILD/test-presented-hud"
+"$BUILD/test-presented-hud"
