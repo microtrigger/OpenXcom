@@ -1,5 +1,9 @@
 # OpenXcom [![Workflow Status][workflow-badge]][actions-url]
 
+## Fair-Play MCP Interface Project
+
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](https://github.com/microtrigger/OpenXcom/blob/mcp-player-interface/docs/mcp-player-interface/README.md)**; the **[Russian working version](https://github.com/microtrigger/OpenXcom/blob/mcp-player-interface/docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. This is a documentation-stage project; the MCP observer and controller are not implemented yet.
+
 [workflow-badge]: https://github.com/OpenXcom/OpenXcom/workflows/ci/badge.svg
 [actions-url]: https://github.com/OpenXcom/OpenXcom/actions
 
