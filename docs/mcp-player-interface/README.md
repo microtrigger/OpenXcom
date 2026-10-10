@@ -5,6 +5,29 @@ English visitor-facing version · [Русская рабочая версия / 
 
 Status as of October 10, 2026. We maintain the Russian version for day-to-day project work; this English version presents the same scope, stages, and acceptance gates for visitors.
 
+## Plan versus actual progress
+
+Evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65), 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+
+| Stage / planned outcome | Actual result | Remaining acceptance gate |
+| --- | --- | --- |
+| 0 · Perception contract | Vanilla perceptual parity selected; [policy documented](PERCEPTION-CONTRACT.md). | Per-field validation and pilot boundaries. |
+| 1 · Reproducible baseline/build | Clean baseline and opt-in/default-OFF builds pass; selected combat/save/load/audio checks in both games ([build evidence](HUD-PROTOTYPE.md)). | Broader repeatability and complete stage acceptance. |
+| 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
+| 3 · Native observer | Historical HUD/cursor slices, request-bound pixels and optional four-number displayed HUD implemented ([latest slice](PRESENTED-HUD-PROTOTYPE.md)). | Full approved projection, event/audio coverage and parity validation. |
+| 4 · IPC/MCP | Local read-only stdio tools and request-bound `/1`/`/2` protocols implemented; SDK checks pass ([adapter](../../tools/mcp-observer/README.md)). | Production recovery and broader observation coverage. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass within their documented scope. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
+| 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
+| 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
+| 8 · UFO/TFTD matrix | Selected checks in both games pass; failures and unmatched comparisons are retained in [bounded evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
+| 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)). | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
+| 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
+| 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
+
+Latest bounded verification: **125 Python tests pass**, together with native/source-boundary tests and historical plus `/1`/`/2` SDK checks. Fourteen successful displayed-HUD reads span both games. Separately sampled screenshot/crop comparisons: nine exact matches, two nonmatches, three not compared; an initial UFO menu request failed for an unknown reason. These are selected results, not full perceptual or timing equivalence. No CI run was recorded for the evidence revision; local test results are not a CI pass.
+
+Next planned checks: actual NumberText/Surface-to-projection paired fixtures and real producer–adapter replay/session tests. They are pending and, even if they pass, will not alone complete stage 5. Then extend the full hidden-state/timing matrix before any controller acceptance. Events/audio coverage, the broad game matrix and real token benchmarking remain open.
+
 ## Goal and boundaries
 
 Make joint human–assistant play in OpenXcom more convenient and resource-efficient by exchanging compact observations and normal game commands instead of continuously interpreting the entire screen. The interface must preserve game rules, fog of war, action costs, and the human player's ability to take control at any time.
@@ -74,7 +97,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 3. Native observer and public projection
 
-**Status:** experimental HUD and final-pixel cursor slices are implemented. A bounded pixel channel now acknowledges presentation after each request. These subsets do not complete the full contract or this stage.
+**Status:** experimental HUD and final-pixel cursor slices are implemented. A bounded pixel channel now acknowledges presentation after each request; optional `/2` HUD values are decoded from the same presented final pixels, or the entire HUD is null. These subsets do not complete the full contract or this stage.
 
 **Dependencies:** stages 0–2.
 
@@ -126,7 +149,7 @@ A request includes a session ID, command ID, expected public revision, and param
 
 ### 8. UFO + TFTD matrix and regressions
 
-**Status:** not started.
+**Status:** selected UFO/TFTD prototype checks completed; the full regression matrix and stage acceptance remain open. See the plan-versus-actual summary above.
 
 **Dependencies:** test suites begin at stage 3; final acceptance follows stage 7.
 
@@ -136,7 +159,7 @@ A request includes a session ID, command ID, expected public revision, and param
 
 ### 9. Measure value against visual control
 
-**Status:** not started; no resource-savings figures are available.
+**Status:** protocol and offline measurement harness prepared; actual end-to-end token/resource comparison has not run and no token-savings result is established.
 
 **Dependencies:** a visual baseline can be collected after stage 1; the final comparison follows stage 8.
 
@@ -170,7 +193,7 @@ Main sequence: 0 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10. Stage 1
 
 The minimum version is ready for a pilot when the contract is selected, both games pass the stated matrix, non-disclosure tests pass, normal action rules are preserved, retries/interruptions are safe, the human can regain control, and honest resource measurements exist. Recheck these conditions whenever the contract, projection, or controller changes.
 
-Next step: validate final-frame cursor/overlay fixtures under the selected perceptual-parity contract, then review the next read-only presentation slice. Continue paired-engine testing; no controller is enabled.
+Next steps and their current status are tracked in the plan-versus-actual summary above. Continue paired-engine and timing validation; no controller is enabled.
 
 ### Additional presented-pixel experiment
 
