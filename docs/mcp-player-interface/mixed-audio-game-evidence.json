@@ -1,0 +1,173 @@
+{
+  "license": "GPL-3.0-or-later; see repository LICENSE.txt and LICENSE-NOTICES.md",
+  "date": "2026-10-10",
+  "scope": "Actual application menu audio through the native postmix producer and stdio MCP adapter; bounded smoke evidence",
+  "profile": {
+    "backend": "SDL dummy audio driver",
+    "sample_rate": 22050,
+    "sample_format": "s16le",
+    "channels": 2,
+    "duration_ms": 500,
+    "playIntro": false,
+    "tool": "read_mixed_audio",
+    "audio_only": true
+  },
+  "enabled_binary_sha256": "0eb631ddd10c9a4169b4b74adeb0d9b1357dd40c732fd1fc2aba86276814523b",
+  "default_off_binary_sha256": "ddf364d2589334fa077b8ada74ca4dd3499f642531fd69387c96cf42736b6f78",
+  "profiles": [
+    {
+      "master": "xcom1",
+      "menu_visually_verified": true,
+      "volume_profile": "enabled",
+      "effective_options": {
+        "musicVolume": 84,
+        "soundVolume": 84,
+        "uiVolume": 42
+      },
+      "successful_clips": 2,
+      "each_pcm_bytes": 44100,
+      "each_wav_bytes": 44144,
+      "each_mcp_response_bytes": 59342,
+      "all_clips_nonzero": true,
+      "all_clips_exact_silence": false,
+      "successive_pcm_different": true,
+      "epoch_continuity": true,
+      "new_challenges": true,
+      "closed_producer_generic_unavailable": true,
+      "closed_response_bytes": 149,
+      "observed_request_seconds": [
+        0.5260638680010743,
+        0.5471370729974296
+      ],
+      "each_mcp_request_bytes": 99
+    },
+    {
+      "master": "xcom1",
+      "menu_visually_verified": true,
+      "volume_profile": "zero",
+      "effective_options": {
+        "musicVolume": 0,
+        "soundVolume": 0,
+        "uiVolume": 0
+      },
+      "successful_clips": 2,
+      "each_pcm_bytes": 44100,
+      "each_wav_bytes": 44144,
+      "each_mcp_response_bytes": 59342,
+      "all_clips_nonzero": false,
+      "all_clips_exact_silence": true,
+      "successive_pcm_different": false,
+      "epoch_continuity": true,
+      "new_challenges": true,
+      "closed_producer_generic_unavailable": true,
+      "closed_response_bytes": 149,
+      "observed_request_seconds": [
+        0.52713914099877,
+        0.5328058109989797
+      ],
+      "each_mcp_request_bytes": 99
+    },
+    {
+      "master": "xcom2",
+      "menu_visually_verified": true,
+      "volume_profile": "enabled",
+      "effective_options": {
+        "musicVolume": 84,
+        "soundVolume": 84,
+        "uiVolume": 42
+      },
+      "successful_clips": 2,
+      "each_pcm_bytes": 44100,
+      "each_wav_bytes": 44144,
+      "each_mcp_response_bytes": 59342,
+      "all_clips_nonzero": true,
+      "all_clips_exact_silence": false,
+      "successive_pcm_different": true,
+      "epoch_continuity": true,
+      "new_challenges": true,
+      "closed_producer_generic_unavailable": true,
+      "closed_response_bytes": 149,
+      "observed_request_seconds": [
+        0.5233372020011302,
+        0.5278453079990868
+      ],
+      "each_mcp_request_bytes": 99
+    },
+    {
+      "master": "xcom2",
+      "menu_visually_verified": true,
+      "volume_profile": "zero",
+      "effective_options": {
+        "musicVolume": 0,
+        "soundVolume": 0,
+        "uiVolume": 0
+      },
+      "successful_clips": 2,
+      "each_pcm_bytes": 44100,
+      "each_wav_bytes": 44144,
+      "each_mcp_response_bytes": 59342,
+      "all_clips_nonzero": false,
+      "all_clips_exact_silence": true,
+      "successive_pcm_different": false,
+      "epoch_continuity": true,
+      "new_challenges": true,
+      "closed_producer_generic_unavailable": true,
+      "closed_response_bytes": 149,
+      "observed_request_seconds": [
+        0.7433834040020884,
+        0.530182230999344
+      ],
+      "each_mcp_request_bytes": 99
+    }
+  ],
+  "invalid_profile_attempts": [
+    {
+      "master": "xcom1",
+      "requested_profile": "zero",
+      "attempts": 1,
+      "clips": 2,
+      "outcome": "Nonzero PCM; test settings incorrectly placed outside options mapping, so defaults were effective. Excluded from zero-volume evidence. Corrected nested options and verified persisted effective values before rerun. No production code change."
+    }
+  ],
+  "enabled_profile_note": "Initial requested volume values were outside the options mapping; these enabled runs used the verified effective defaults84/84/42 listed above. They establish enabled audio, not the initially intended volume64.",
+  "source_sha256": {
+    "CMakeLists.txt": "696346d5f0781bc9dd5ecdbcdeb2306c3258966b84bfe38801d4e54bf26f0023",
+    "src/CMakeLists.txt": "a1ace3174e07d0d791454e57ec929124a7d63b30b050dc38f4132c750e74cb06",
+    "src/Engine/AdlibMusic.h": "fab46c8237d0fd6b063e3d1e60002c8773b84f38f6df27a1d2a373bf8ee5a24a",
+    "src/Engine/FlcPlayer.cpp": "658be79e044e3385d98ad4489e3f5ddc123b1853bbc8cefea3dd3f9c328d8b42",
+    "src/Engine/Game.cpp": "d414b924c3de9aae3a32ab2e492c1e4143b76f4d1db0d61ff8e64e02408fa7b2",
+    "src/Engine/Game.h": "ad7fb141707b55dc7fd731151f225a3f25dba22a6a749fd5eb2a0b57fb9c5276",
+    "src/Engine/Music.cpp": "249c6dfa9eede7e18d7ac0a6c483e2bc6d7fb69c834c96ed5d66c7d5721c3b36",
+    "src/Engine/Music.h": "27b052b8ea86ccead8f5f401dd9d6c91549441190c6f29849a51737d1eff95d3",
+    "src/Menu/StartState.cpp": "036a44124ba54fc4179c888412ab98a1d0ebc8e29182a59b5eb1a866762ebab2",
+    "src/Mod/Mod.cpp": "8390d45f12c640c2044c44e4269479f91d9174cc6cd8a2028a90acc41111793c",
+    "src/Mod/Mod.h": "9d064db35cab0f8bcb40ece6f3c6e328312d2abb4e73dc0e60191733e30792da",
+    "src/Observer/MixedAudioMusicProfile.h": "1d92d5231935a6b09a42d5bccf734939752e781bb020b7b2ac645c46b839538a",
+    "src/Observer/MixedAudioObserver.cpp": "3813c4e8186c15fadd6041d4787c7489bf28b91642dcb5c5237f9e10d10c77ea",
+    "src/Observer/MixedAudioObserver.h": "3e5723c6ff7cb3cf07b210d59c2a8e5e84485de23bb3084ccaaaffb0148b7286",
+    "src/Observer/MixedAudioSlot.h": "1496e5d55623d0e78e3128d52ba71928fc8d36bfbec5dea867e26d5c5d3d52ad",
+    "tests/mixed-audio-native/bench_slot.cpp": "4ca7d55dc806b26813f56587180fe0dcf257f229308a4935e8f66f30d0c0fca4",
+    "tests/mixed-audio-native/check_boundary.py": "e034b7959c98a6cefbe311fbb2885dc51bfe95061d960ef557410aeec44f4f6a",
+    "tests/mixed-audio-native/run.sh": "03b8e5b4ba4588eba1c7c487891e979e3c90779ed07f6e335f5a91182602b38c",
+    "tests/mixed-audio-native/test_dummy_mixer.cpp": "6ba5a8096f77c5fa2ee55eb25b9742d6fc8b395e59306091f6735f297640a679",
+    "tests/mixed-audio-native/test_protocol.cpp": "72df37b9b464f969d892269d1020a97570f07b0d1eb96fe740cd18ec7a2c3ea8",
+    "tests/mixed-audio-native/test_slot.cpp": "6d2816a8936d581cd78ae70bc2ac1858432c569ebb03a73bb8493e3f499c835f",
+    "tools/mcp-observer/adapter.py": "e36cb1ec42c52d4ebb78964b945c32512a72c77ea0102ab16fe0792a19edb2a2",
+    "tools/mcp-observer/launch_presentation.py": "8e84f1e845daa5180614648adfe6bcca7fd6f098cc6b4de520d5654aa66c7e15",
+    "tools/mcp-observer/mixed_audio.py": "d1be2e9b4eff2fc42feb23a5834b96fe60b2200c49bb3060b350e8e0dfd972a0",
+    "tools/mcp-observer/test_mixed_audio.py": "f9dc6e5a5bfd46c0add7c11ec8044cb05e8d95c6d91d67fb1f3756f03117202a",
+    "tools/mcp-observer/sdk_mixed_audio_smoke.py": "2e65a01cf2c8cbf5c202dbe38967a9079ff7ec6da5f94205e6223684f3d4197f",
+    "tools/mcp-observer/measure_mixed_audio.py": "806870badc8186281c7d2260a5c1cea4cb3c5584715d5da7f361e80a7338a771"
+  },
+  "not_established": [
+    "Independent full-buffer oracle for actual game clips (provided only by synthetic mixer tests)",
+    "Physical device or speaker audibility",
+    "Battlefield atmosphere or all accepted decoders",
+    "Audio/video synchronization",
+    "Continuous history or absence of missed clues between requests",
+    "Game CPU/RSS or timing noninterference",
+    "Full Stage5 fairness certification",
+    "Model tokens, model cost or resource savings"
+  ],
+  "artifact_policy": "Only aggregate results and source/binary digests are included; no game PCM, captures, runtime tokens, paths or resource assets."
+}

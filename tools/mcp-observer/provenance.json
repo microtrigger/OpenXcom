@@ -1,19 +1,24 @@
 {
-  "scope": "Read-only historical observations and optional request-bound presentation prototypes",
+  "scope": "Read-only historical observations and optional request-bound presentation and post-admission mixed-audio prototypes",
   "current_sources": {
-    "adapter.py": "f8b2704f43c732623c14cf3ca8e7277181112d116f9a538e4ec18b518dd55a2e",
+    "adapter.py": "e36cb1ec42c52d4ebb78964b945c32512a72c77ea0102ab16fe0792a19edb2a2",
     "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
     "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
     "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
-    "README.md": "751022933b31a7e8750dc8f1ca8bf7b483239956f2bcb4bc9acf01b73ed3ff8f",
-    "launch_presentation.py": "73b1999fceedef07bf6071766dc4e685c9af041578ecd659ec03352f4a96764e",
+    "README.md": "fc6e4d9b3f5b1d24f35330d49ff1771586cebb765151800d5fdb2f9218a3f028",
+    "launch_presentation.py": "8e84f1e845daa5180614648adfe6bcca7fd6f098cc6b4de520d5654aa66c7e15",
     "presentation.py": "353ff2d7c0c43a453695f1b1a60d40223ed462a3f1415f569fbfc096ca340436",
     "test_presentation.py": "ed0123a86d193cd39c6869aa6d752461ec4eb67eb707657050ed17db911a704c",
     "test_presented_hud.py": "f8e39ce22a7e05d9dd18d99b56f4918541564c0c1f6234cdf140556e1c236d3e",
-    "sdk_presented_hud_smoke.py": "9980648390180ccb9e9e0264dc0afc3d56f73734c853d2901f35c7331424f7e9"
+    "sdk_presented_hud_smoke.py": "9980648390180ccb9e9e0264dc0afc3d56f73734c853d2901f35c7331424f7e9",
+    "mixed_audio.py": "d1be2e9b4eff2fc42feb23a5834b96fe60b2200c49bb3060b350e8e0dfd972a0",
+    "test_mixed_audio.py": "f9dc6e5a5bfd46c0add7c11ec8044cb05e8d95c6d91d67fb1f3756f03117202a",
+    "sdk_mixed_audio_smoke.py": "2e65a01cf2c8cbf5c202dbe38967a9079ff7ec6da5f94205e6223684f3d4197f",
+    "measure_mixed_audio.py": "806870badc8186281c7d2260a5c1cea4cb3c5584715d5da7f361e80a7338a771",
+    "AUDIO-ADAPTER.md": "801bb82d9ca64e652ce67676cffe8f37319c11aaab2fd371f458490b3cb3ee38"
   },
   "final_checks": {
-    "unit_tests": 125,
+    "unit_tests": 190,
     "unit_tests_passed": true,
     "compileall_passed": true,
     "official_sdk": "1.29.0",
@@ -29,7 +34,8 @@
       999
     ],
     "default_tool_definitions_byte_compatible": true,
-    "default_mcp_responses_byte_compatible": true
+    "default_mcp_responses_byte_compatible": true,
+    "synthetic_mixed_audio_sdk_smoke_passed": true
   },
   "actual_ufo": {
     "live_record": "actual-ufo-evidence.json",
@@ -75,5 +81,27 @@
     "paired hidden-state temporal parity",
     "cross-platform behavior",
     "controller"
-  ]
+  ],
+  "prior_presented_hud_sources": {
+    "adapter.py": "f8b2704f43c732623c14cf3ca8e7277181112d116f9a538e4ec18b518dd55a2e",
+    "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
+    "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
+    "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
+    "README.md": "751022933b31a7e8750dc8f1ca8bf7b483239956f2bcb4bc9acf01b73ed3ff8f",
+    "launch_presentation.py": "73b1999fceedef07bf6071766dc4e685c9af041578ecd659ec03352f4a96764e",
+    "presentation.py": "353ff2d7c0c43a453695f1b1a60d40223ed462a3f1415f569fbfc096ca340436",
+    "test_presentation.py": "ed0123a86d193cd39c6869aa6d752461ec4eb67eb707657050ed17db911a704c",
+    "test_presented_hud.py": "f8e39ce22a7e05d9dd18d99b56f4918541564c0c1f6234cdf140556e1c236d3e",
+    "sdk_presented_hud_smoke.py": "9980648390180ccb9e9e0264dc0afc3d56f73734c853d2901f35c7331424f7e9"
+  },
+  "mixed_audio_extension": {
+    "date": "2026-10-10",
+    "selection": "Explicit --mixed-audio or --audio-only; native feature defaults OFF.",
+    "schema": "openxcom-mcp-mixed-audio/1",
+    "semantics": "post_admission_mixed_output",
+    "capture": "500 ms, 11025 stereo s16le frames at22050Hz, exact canonical WAV",
+    "coverage": "Native slot/protocol/real SDL dummy oracle,190 Python tests, official SDK1.29.0 AudioContent smoke, selected UFO/TFTD menu enabled/zero-volume/exit integration",
+    "runtime_evidence": "../../docs/mcp-player-interface/mixed-audio-game-evidence.json",
+    "limits": "No continuous history, physical audibility, audiovisual synchronization, broad battlefield parity, full timing/noninterference proof or model-token savings."
+  }
 }

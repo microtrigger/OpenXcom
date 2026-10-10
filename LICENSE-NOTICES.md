@@ -3,8 +3,9 @@
 ## Dated fork modification notice: 2026-10-10
 
 New contributions maintained in this fork add optional, default-off read-only
-HUD and final-pixel cursor observers, a local read-only stdio MCP adapter with optional transient presentation acknowledgements,
-a separately opted-in final-pixel displayed-HUD decoder, isolated render-pair and
+HUD, final-pixel cursor and fixed-window final-mix audio observers, a local
+read-only stdio MCP adapter with optional transient presentation acknowledgements
+and native MCP audio content, a separately opted-in final-pixel displayed-HUD decoder, isolated render-pair and
 observer-request functional-effects gates, and associated tests,
 build helpers, documentation and evidence metadata. Existing
 upstream copyright, license and warranty notices are retained; new contribution
@@ -16,7 +17,8 @@ The new project additions listed below are likewise offered under GPL version 3
 or, at your option, any later version, without warranty:
 
 - `src/Observer/`
-- `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/` and `tests/battle-observer/`
+- `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/`,
+  `tests/battle-observer/` and `tests/mixed-audio-native/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)
@@ -49,7 +51,7 @@ notices accompanying existing components and artwork, including:
 
 The optional official Python MCP SDK 1.29.0 is MIT licensed, copyright 2024
 Anthropic, PBC: [pinned SDK license](https://github.com/modelcontextprotocol/python-sdk/blob/v1.29.0/LICENSE).
-It is used only by an optional interoperability test and is neither vendored nor
+It is used only by optional interoperability tests and is neither vendored nor
 bundled here; its transitive dependencies are not bundled either. The adapter's
 runtime uses the Python standard library. This project does not relicense the
 SDK. Distributing it later requires retaining its MIT notice and checking the
@@ -57,9 +59,11 @@ other bundled dependencies then.
 
 ## Publication boundary and later binary distribution
 
-This publication adds reviewed source, documentation and metadata only: no new
-binaries, dependency archives, original UFO/TFTD resources, saves or rendered
-game screenshots. Existing repository history already includes some Windows
+The project additions covered here are source, documentation and metadata only:
+no new binaries, dependency archives, original UFO/TFTD resources, saves or rendered
+game screenshots or raw/rendered game audio and PCM. These code licenses do not
+grant rights to redistribute original soundtracks or sound-effect recordings.
+Existing repository history already includes some Windows
 DLL/LIB files under `deps/lib`; their presence is not a certification of the
 redistributability of the entire repository or a future binary package.
 

@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 // Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
@@ -137,6 +139,9 @@ StartState::~StartState()
  */
 void StartState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	_game->resetMixedAudioObserver(true);
+#endif
 	State::init();
 
 	// Silence!

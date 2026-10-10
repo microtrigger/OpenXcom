@@ -478,6 +478,11 @@ if ( FORCE_INSTALL_DATA_TO_BIN )
 endif ()
 
 add_executable ( openxcom  ${application_type} ${openxcom_src} ${openxcom_icon} )
+# SPDX-License-Identifier: GPL-3.0-or-later; optional observer addition, 2026-10-10.
+if ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER )
+  target_sources ( openxcom PRIVATE Observer/MixedAudioObserver.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER )
+endif()
 if ( EXPERIMENTAL_HUD_OBSERVER )
   target_sources ( openxcom PRIVATE Observer/PublicHud.cpp Observer/HudFileObserver.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_HUD_OBSERVER )

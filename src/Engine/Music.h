@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include <string>
 #include <SDL_mixer.h>
 
@@ -40,6 +42,10 @@ public:
 	virtual void load(const std::string &filename);
 	/// Loads music from a chunk of memory.
 	virtual void load(const void *data, int size);
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	/// Static capability of this loaded track, never an active-track query.
+	virtual bool isSoftwareMixedAudio() const;
+#endif
 	/// Plays the music.
 	virtual void play(int loop = -1) const;
 	/// Stops all music.

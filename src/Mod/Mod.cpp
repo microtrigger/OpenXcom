@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "Mod.h"
 #include <algorithm>
 #include <functional>
@@ -879,6 +881,17 @@ static void throwModOnErrorHelper(const std::string& modId, const std::string& e
 
 	throw Exception(errorStream.str());
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+bool Mod::isMusicCatalogSoftwareMixed() const
+{
+	for (std::map<std::string, Music*>::const_iterator i = _musics.begin(); i != _musics.end(); ++i)
+	{
+		if (!i->second || !i->second->isSoftwareMixedAudio()) return false;
+	}
+	return true;
+}
+#endif
 
 /**
  * Loads a list of mods specified in the options.

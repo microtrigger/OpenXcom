@@ -7,26 +7,26 @@ Status as of October 10, 2026. We maintain the Russian version for day-to-day pr
 
 ## Plan versus actual progress
 
-Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). Latest bounded gate: [natural-FOV/pause evidence](natural-fov-evidence.json), based on `a8750ad` plus recorded source hashes, 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The latest bounded slice is [request-bound mixed audio](MIXED-AUDIO-NATIVE.md), with [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json), 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
 | --- | --- | --- |
 | 0 · Perception contract | Vanilla perceptual parity selected; [policy documented](PERCEPTION-CONTRACT.md). | Per-field validation and pilot boundaries. |
 | 1 · Reproducible baseline/build | Clean baseline and opt-in/default-OFF builds pass; selected combat/save/load/audio checks in both games ([build evidence](HUD-PROTOTYPE.md)). | Broader repeatability and complete stage acceptance. |
 | 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
-| 3 · Native observer | Historical HUD/cursor slices, request-bound pixels and optional four-number displayed HUD implemented ([latest slice](PRESENTED-HUD-PROTOTYPE.md)). | Full approved projection, event/audio coverage and parity validation. |
-| 4 · IPC/MCP | Local read-only stdio tools and request-bound `/1`/`/2` protocols implemented; SDK checks pass ([adapter](../../tools/mcp-observer/README.md)). | Production recovery and broader observation coverage. |
-| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
+| 3 · Native observer | Historical HUD/cursor slices, request-bound pixels, optional four-number displayed HUD and default-off [500 ms final-mix audio](MIXED-AUDIO-NATIVE.md) implemented. | Full approved projection, event coverage, broader game-audio/lifecycle validation and parity. |
+| 4 · IPC/MCP | Local read-only stdio tools, request-bound `/1`/`/2` visual protocols and a separate [native MCP audio tool](../../tools/mcp-observer/AUDIO-ADAPTER.md) implemented; SDK checks pass. | Production recovery and broader observation coverage; no audiovisual synchronization. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. | Full paired hidden-engine-state, audio and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
-| 8 · UFO/TFTD matrix | Selected checks in both games pass; failures and unmatched comparisons are retained in [bounded evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
-| 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)). | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
+| 8 · UFO/TFTD matrix | Selected visual checks and [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
+| 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)); bounded audio byte counts and component microbenchmarks recorded. | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
 
 Earlier displayed-HUD verification: **125 Python tests pass**, together with native/source-boundary tests and historical plus `/1`/`/2` SDK checks. Fourteen successful displayed-HUD reads span both games. Separately sampled screenshot/crop comparisons: nine exact matches, two nonmatches, three not compared; an initial UFO menu request failed for an unknown reason. These are selected results, not full perceptual or timing equivalence. No CI run was recorded for the evidence revision; local test results are not a CI pass.
 
-Additional test-only verification: 15 actual NumberText/Surface-to-projection and native producer–Python adapter tests pass, including all 0–999 numerals and replay/reset/timeout cases. Two deliberate production-source leaks are rejected; [coverage and limits](PAIRED-UI-GATE.md) keep this UI-boundary result separate from full battle simulation. The first [controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) now passes eight full-frame matches and visible-crop positive controls in each game profile; its [source hashes and bounded evidence](hidden-occupant-evidence.json) are recorded. Normal simulation/timers are skipped and audio is disabled in this test. The [remaining proposed hidden-world fixtures](FULL-BATTLE-GATE-PROPOSAL.md) and timing matrix must still be implemented before controller acceptance. Events/audio coverage, the broad game matrix and real token benchmarking remain open.
+Additional test-only verification: 15 actual NumberText/Surface-to-projection and native producer–Python adapter tests pass, including all 0–999 numerals and replay/reset/timeout cases. Two deliberate production-source leaks are rejected; [coverage and limits](PAIRED-UI-GATE.md) keep this UI-boundary result separate from full battle simulation. The first [controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) now passes eight full-frame matches and visible-crop positive controls in each game profile; its [source hashes and bounded evidence](hidden-occupant-evidence.json) are recorded. Normal simulation/timers are skipped and audio is disabled in this test. The [remaining proposed hidden-world fixtures](FULL-BATTLE-GATE-PROPOSAL.md) and timing matrix must still be implemented before controller acceptance. Full event/audio coverage, the broad game matrix and real token benchmarking remain open.
 
 A later bounded functional check now passes in both games: the [observer-request
 effects gate](OBSERVER-EFFECTS-GATE.md) runs actual normal kneel/stand input and
@@ -47,6 +47,32 @@ profile crashed in the normal popup sound callback and is retained as a failed
 attempt. Each successful profile ran once. Timing, audible equivalence, AI/end-turn
 and full fairness remain unverified; Stage 5 stays open and control stays off.
 See [aggregate evidence](natural-fov-evidence.json).
+
+The latest optional [mixed-audio prototype](MIXED-AUDIO-NATIVE.md) captures exactly
+500 ms of final application SDL_mixer output after request admission, at 22050 Hz,
+signed 16-bit little-endian stereo, with a qualified software-mixed music catalog.
+It discards the admission callback block and preserves every sample bit and stereo
+channel. It exports no actors, source IDs or positions and retains no continuous
+history; sounds between requests can be missed. Its socket and epoch are independent
+of pixels/HUD, with no frame synchronization or physical-audibility claim.
+
+The combined Python suite now passes **190 tests**. Native slot/protocol tests and
+a real SDL dummy-mixer oracle pass, including overlapping panned sounds, custom
+music, post-effects, zero/mute cases, byte-exact output and deliberate-corruption
+controls. Official SDK checks cover audio-only and combined visual/audio launch
+modes. Separate [actual-game GUI checks](mixed-audio-game-evidence.json) pass for UFO
+and TFTD menus in audio-only mode with intros disabled: each has two fresh, nonzero,
+distinct clips at verified effective music/sound/UI volumes 84/84/42 and two
+exact-silence clips at verified 0/0/0 volumes. All four profiles
+reject a request after game exit with the generic unavailable result. An initial
+zero-volume attempt actually used default volumes due to misplaced configuration
+settings and was excluded before the corrected run; production code was unchanged.
+The eight successful clips observe the application dummy-mixer backend only; full gameplay, physical-device output and broad backend/lifecycle
+coverage are not established. The independent final-buffer oracle belongs to
+the synthetic mixer tests; these game clips establish bounded integration only.
+[Payload measurements](../../tools/mcp-observer/mixed-audio-evidence.json) and
+component microbenchmarks are not model-token counts or end-to-end savings.
+Stage 5, audio parity and controller acceptance remain open.
 
 ## Goal and boundaries
 
@@ -117,7 +143,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 3. Native observer and public projection
 
-**Status:** experimental HUD and final-pixel cursor slices are implemented. A bounded pixel channel now acknowledges presentation after each request; optional `/2` HUD values are decoded from the same presented final pixels, or the entire HUD is null. These subsets do not complete the full contract or this stage.
+**Status:** experimental HUD and final-pixel cursor slices are implemented. A bounded pixel channel now acknowledges presentation after each request; optional `/2` HUD values are decoded from the same presented final pixels, or the entire HUD is null. A separate default-off mixed-audio slice collects fixed 500 ms post-admission final SDL_mixer PCM under its qualified profile. These subsets do not complete the full contract or this stage.
 
 **Dependencies:** stages 0–2.
 
@@ -127,7 +153,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 4. Local IPC and external MCP observer
 
-**Status:** experimental historical-file and request-bound pixel transports are implemented with read-only stdio MCP tools. Production recovery, broader projection and full-stage acceptance remain open.
+**Status:** experimental historical-file and request-bound pixel/HUD transports are implemented with read-only stdio MCP tools. A separate fixed-window audio transport exposes canonical WAV in native MCP audio content; visual and audio requests are not synchronized. Production recovery, broader projection and full-stage acceptance remain open.
 
 **Dependencies:** stage 3; schema design can begin earlier.
 
@@ -137,7 +163,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 5. Security gate: paired hidden-state tests
 
-**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. Full hidden-world, lifecycle, audio, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
+**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. A real-SDL synthetic final-mix oracle also passes with byte-exact PCM and corruption controls. Full hidden-world, lifecycle, audio parity, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
 
 **Dependencies:** stages 3–4 and the approved contract.
 
@@ -179,7 +205,7 @@ A request includes a session ID, command ID, expected public revision, and param
 
 ### 9. Measure value against visual control
 
-**Status:** protocol and offline measurement harness prepared; actual end-to-end token/resource comparison has not run and no token-savings result is established.
+**Status:** protocol and offline measurement harness prepared; audio payload sizes and bounded component microbenchmarks recorded. Actual end-to-end token/resource comparison has not run and no token-savings result is established.
 
 **Dependencies:** a visual baseline can be collected after stage 1; the final comparison follows stage 8.
 
@@ -288,3 +314,34 @@ dummy audio profile preserves ordinary popup callbacks without claiming audible
 parity. An earlier closed-audio attempt plus two diagnostics crashed there and
 are recorded separately. No hosted CI, timing equivalence, AI/end-turn coverage
 or full fairness is claimed. Stage 5 remains open; the controller is disabled.
+
+## Fixed-window mixed-audio observation (2026-10-10)
+
+The independently enabled [native collector](MIXED-AUDIO-NATIVE.md) and
+[local MCP audio adapter](../../tools/mcp-observer/AUDIO-ADAPTER.md) expose
+read-only `read_mixed_audio({})`. The native feature defaults to OFF; launch audio
+explicitly with `--mixed-audio` alongside the existing presentation channel or
+`--audio-only` without one. Existing historical and `/1`/`/2` schemas stay unchanged.
+
+Qualification requires SDL_mixer 1.2.12, its actual 22050 Hz signed-16-bit
+little-endian stereo format and a fully loaded software-mixed music catalog.
+All MIDI, external-command and unknown music types fail closed;
+qualification uses only an aggregate catalog property, not the current track or
+an individual source. The observer changes no audio settings to qualify.
+
+A success carries 11025 stereo frames: 44100 PCM bytes in a 44144-byte canonical
+WAV. Internal native hex occupies 88200 characters; the 88571-byte native JSON
+packet is not compact audio. Base64 uses 58860 characters before the MCP envelope.
+These are byte/character measurements, not model tokens. One request is in flight;
+malformed, replayed, late or reset streams become generically unavailable without
+reusing stale audio. There is no continuous history, source/actor identity,
+physical-device audibility guarantee, or audiovisual clock/frame pairing.
+
+The 190-test Python suite, native slot/protocol checks, real-SDL dummy-mixer oracle
+and SDK audio-content checks pass within their documented scope. The separate
+[UFO/TFTD menu GUI record](mixed-audio-game-evidence.json) contains eight successful
+clips and four generic post-exit rejections, with verified enabled and zero-volume
+settings. It checks application dummy-mixer output, not physical audibility or
+full gameplay. Timing/functional noninterference and the full UFO/TFTD audio
+parity matrix remain unverified. No gameplay control is added;
+Stage 5 and actual end-to-end resource/token comparison remain open.

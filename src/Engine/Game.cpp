@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 // Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
@@ -34,6 +36,9 @@
 #include "Game.h"
 #include "../resource.h"
 #include <algorithm>
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#include <cstdlib>
+#endif
 #include <cmath>
 #include <sstream>
 #include <SDL_mixer.h>
@@ -66,7 +71,11 @@ const double Game::VOLUME_GRADIENT = 10.0;
  * creates the display screen and sets up the cursor.
  * @param title Title of the game window.
  */
-Game::Game(const std::string &title) : _screen(0), _cursor(0), _lang(0), _save(0), _mod(0), _quit(false), _init(false), _mouseActive(true), _timeUntilNextFrame(0)
+Game::Game(const std::string &title) :
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	_mixedAudioObserver(std::getenv("OPENXCOM_MIXED_AUDIO_FD")),
+#endif
+	_screen(0), _cursor(0), _lang(0), _save(0), _mod(0), _quit(false), _init(false), _mouseActive(true), _timeUntilNextFrame(0)
 {
 	Options::reload = false;
 	Options::mute = false;
@@ -128,6 +137,9 @@ Game::Game(const std::string &title) : _screen(0), _cursor(0), _lang(0), _save(0
  */
 Game::~Game()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	_mixedAudioObserver.close();
+#endif
 	Sound::stop();
 	Music::stop();
 
@@ -412,6 +424,11 @@ void Game::run()
 			}
 		}
 
+		// Independent observer polling also runs while application is PAUSED.
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+		_mixedAudioObserver.poll();
+#endif
+
 		// Save on CPU
 		switch (runningState)
 		{
@@ -597,6 +614,10 @@ void Game::loadMods()
 	delete _mod;
 	_mod = new Mod();
 	_mod->loadAll(FileMap::getRulesets());
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	// This executes on the loader thread; only an atomic aggregate crosses over.
+	_mixedAudioObserver.publishCatalogSupported(_mod->isMusicCatalogSoftwareMixed());
+#endif
 }
 
 /**
@@ -722,11 +743,21 @@ void Game::loadLanguages()
 		_lang->loadRule(_mod->getExtraStrings(), currentLang);
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+void Game::resetMixedAudioObserver(bool resourceReload)
+{
+	_mixedAudioObserver.beforeAudioReset(resourceReload);
+}
+#endif
+
 /**
  * Initializes the audio subsystem.
  */
 void Game::initAudio()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	resetMixedAudioObserver();
+#endif
 	Uint16 format = MIX_DEFAULT_FORMAT;
 	if (Options::audioBitDepth == 8)
 		format = AUDIO_S8;

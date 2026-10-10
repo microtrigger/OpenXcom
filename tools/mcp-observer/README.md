@@ -203,12 +203,63 @@ bounded work. Completion/timeout timing and request-driven load are not proved
 noninterfering; paired hidden-state timing tests and broader platform validation
 remain separate gates. No complete fair-play timing-parity claim is made.
 
+## Optional fixed-window mixed-audio channel
+
+A separate default-off [native collector](../../docs/mcp-player-interface/MIXED-AUDIO-NATIVE.md)
+provides `read_mixed_audio({})` only when explicitly launched. See the complete
+[audio contract and launch instructions](AUDIO-ADAPTER.md):
+
+```
+python launch_presentation.py --mixed-audio -- /path/to/openxcom [operator game arguments]
+python launch_presentation.py --mixed-audio --presented-hud -- /path/to/openxcom [operator game arguments]
+python launch_presentation.py --audio-only -- /path/to/openxcom [operator game arguments]
+```
+
+The native build option `EXPERIMENTAL_MIXED_AUDIO_OBSERVER` defaults to OFF and is
+independent of the pixel/HUD feature. Qualified capture requires SDL_mixer 1.2.12,
+actual 22050 Hz signed-16-bit little-endian stereo and an entirely qualified
+software-mixed music catalog. MIDI, external-command and unknown music types are
+conservatively unavailable. No audio setting is changed to make the profile fit.
+
+A success returns compact text metadata plus native MCP `audio` content containing
+a canonical WAV: exactly 500 ms, 11025 stereo frames, 44100 unchanged PCM bytes,
+and a 44-byte WAV header. The admission callback block is discarded; only later
+final postmix blocks are captured. No actor/source ID, position, track, timestamp
+or simulation counter is exported. There is no continuous audio history or
+physical-device audibility guarantee, and sounds between requests can be missed.
+
+Audio has its own socket, epoch and admission tokens. Existing historical and
+visual `/1`/`/2` schemas are unchanged; there is no common audio/video clock or
+frame/HUD synchronization. The stdio server processes tool calls synchronously,
+so waiting for audio can delay a subsequent visual call. Startup allows 31 seconds
+for the ready hello; each capture then has a separate strict two-second acceptance
+deadline. After success the adapter requires one second before another request.
+Malformed, replayed, late, reset or disconnected audio closes that channel with
+one generic unavailable result. No cached clip or automatic reconnect is used.
+
+The current combined suite passes 190 Python tests; native slot/protocol tests and
+a real-SDL dummy-mixer oracle verify sample bits, channel order, final effects,
+zero/mute cases and corruption controls. The official SDK checks audio-only and
+combined visual/audio modes. Separate [actual-game menu GUI checks](../../docs/mcp-player-interface/mixed-audio-game-evidence.json)
+pass in UFO/TFTD in audio-only mode with intros disabled: eight fresh clips cover
+verified effective music/sound/UI volumes 84/84/42 and 0/0/0, and four post-exit
+requests become generically unavailable. Independent full-buffer comparison is
+provided by the synthetic mixer tests, not these bounded game-integration reads. These use the application
+dummy-mixer backend; physical audibility, full gameplay/audio parity and Stage 5
+acceptance remain unverified. The controller remains unimplemented.
+
+[Audio payload evidence](mixed-audio-evidence.json) records 88200 native hex
+characters, 88571 native packet bytes, 44144 WAV bytes and 58860 base64 characters.
+Hex is not compact; byte/character counts and component microbenchmarks are not
+model-token measurements, physical-audio tests or end-to-end resource savings.
+
 ## Tests and evidence
 
 ```
 python -m unittest -v
 python sdk_smoke.py
 python sdk_presented_hud_smoke.py
+python sdk_mixed_audio_smoke.py
 ```
 
 Unit and SDK smoke fixture content is synthetic; separate runtime integration reads

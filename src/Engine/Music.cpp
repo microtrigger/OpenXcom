@@ -16,7 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "Music.h"
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#include "../Observer/MixedAudioMusicProfile.h"
+#endif
 #include "Exception.h"
 #include "Options.h"
 #include "Logger.h"
@@ -78,6 +83,20 @@ void Music::load(const void *data, int size)
 	}
 #endif
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+bool Music::isSoftwareMixedAudio() const
+{
+#ifndef __NO_MUSIC
+	// SDL_mixer 1.2.12 routes these explicit types through its software mixer.
+	// MUS_MID can select native MIDI and MUS_CMD plays outside the mixer.
+	if (!_music) return false;
+	return Observer::softwareMixedMusicType(Mix_GetMusicType(_music));
+#else
+	return false;
+#endif
+}
+#endif
 
 /**
  * Plays the contained music track.

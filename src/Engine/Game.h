@@ -17,6 +17,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#include "../Observer/MixedAudioObserver.h"
+#endif
 #include <list>
 #include <string>
 #include <SDL.h>
@@ -41,6 +46,9 @@ class FpsCounter;
 class Game
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	Observer::MixedAudioObserver _mixedAudioObserver;
+#endif
 	SDL_Event _event;
 	Screen *_screen;
 	Cursor *_cursor;
@@ -100,6 +108,10 @@ public:
 	void loadLanguages();
 	/// Sets up the audio.
 	void initAudio();
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	/// Invalidate observation before mixer or resource changes (main thread).
+	void resetMixedAudioObserver(bool resourceReload = false);
+#endif
 };
 
 }

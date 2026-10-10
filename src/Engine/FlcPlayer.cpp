@@ -25,6 +25,8 @@
 #define _SCL_SECURE_NO_WARNINGS
 #endif
 #endif
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "FlcPlayer.h"
 #include <algorithm>
 #include <cassert>
@@ -814,6 +816,9 @@ void FlcPlayer::audioCallback(void *userData, Uint8 *stream, int len)
 
 void FlcPlayer::initAudio(Uint16 format, Uint8 channels)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	if (_useInternalAudio && _game) _game->resetMixedAudioObserver();
+#endif
 	_videoDelay = 1000 / (_audioData.sampleRate / _audioFrameSize );
 	if (_useInternalAudio)
 	{
@@ -851,6 +856,9 @@ void FlcPlayer::initAudio(Uint16 format, Uint8 channels)
 
 void FlcPlayer::deInitAudio()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	if (_game) _game->resetMixedAudioObserver();
+#endif
 	if (_game)
 	{
 		if (!Options::mute)

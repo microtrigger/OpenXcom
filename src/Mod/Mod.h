@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include <map>
 #include <vector>
 #include <string>
@@ -288,6 +290,10 @@ public:
 
 	/// Loads a list of mods.
 	void loadAll(const std::vector< std::pair< std::string, std::vector<std::string> > > &mods);
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	/// Qualify the entire loaded catalog on its resource-loading thread.
+	bool isMusicCatalogSoftwareMixed() const;
+#endif
 	/// Generates the starting saved game.
 	SavedGame *newSave() const;
 	/// Gets the ruleset for a country type.

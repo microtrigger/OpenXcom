@@ -13,6 +13,12 @@ set (CMAKE_CXX_STANDARD 11)
 # use std=c++11 rather than std=gnu++11
 set (CMAKE_CXX_EXTENSIONS OFF)
 
+# SPDX-License-Identifier: GPL-3.0-or-later; optional observer addition, 2026-10-10.
+option ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER "Build experimental final mixed-audio observer (POSIX only)" OFF )
+if ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER AND NOT UNIX )
+  message ( FATAL_ERROR "Experimental mixed-audio observer currently requires POSIX" )
+endif()
+
 option ( EXPERIMENTAL_CURSOR_OBSERVER "Build experimental final presented cursor-pixel observer (POSIX only)" OFF )
 if ( EXPERIMENTAL_CURSOR_OBSERVER AND NOT UNIX )
   message ( FATAL_ERROR "Experimental cursor observer currently requires POSIX" )

@@ -34,7 +34,7 @@ def error(ident, code, message):
     return {'jsonrpc': '2.0', 'id': ident, 'error': {'code': code, 'message': message}}
 
 
-def definitions(presentation=False, presented_hud=False):
+def definitions(presentation=False, presented_hud=False, mixed_audio=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -53,13 +53,20 @@ def definitions(presentation=False, presented_hud=False):
                            'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
                            'annotations': {'readOnlyHint': True, 'destructiveHint': False,
                                            'idempotentHint': False, 'openWorldHint': False}})
+    if mixed_audio:
+        result.append({'name': 'read_mixed_audio',
+                       'description': 'Read one lossless 500ms application postmix WAV window after audio callback admission. Fixed 22050Hz signed 16-bit little-endian stereo. Not physical audibility, instantaneous current state or synchronized video. Between-request sounds can be missed. Wait at least one second after each result; failure requires explicit relaunch.',
+                       'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+                       'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                                       'idempotentHint': False, 'openWorldHint': False}})
     return result
 
 
 class Server:
-    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None):
+    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None):
         self.state = 'new'
         self.presentation = presentation
+        self.mixed_audio = mixed_audio
         self.presented_hud_enabled = presentation is not None and getattr(presentation, 'version', 1) == 2
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
@@ -96,7 +103,15 @@ class Server:
         elif method == 'tools/list':
             if params:
                 return error(ident, -32602, 'Invalid params')
-            result = {'tools': definitions(self.presentation is not None, self.presented_hud_enabled)}
+            result = {'tools': definitions(self.presentation is not None, self.presented_hud_enabled,
+                                          self.mixed_audio is not None)}
+        elif (method == 'tools/call' and self.mixed_audio is not None
+                and params.get('name') == 'read_mixed_audio'):
+            if (set(params) - {'name', 'arguments', '_meta'}
+                    or type(params.get('arguments', {})) is not dict
+                    or params.get('arguments', {})):
+                return error(ident, -32602, 'Invalid params')
+            result = self.mixed()
         elif (method == 'tools/call' and self.presentation is not None
                 and (params.get('name') == 'read_presented_cursor'
                      or (params.get('name') == 'read_presented_hud' and self.presented_hud_enabled))):
@@ -117,6 +132,18 @@ class Server:
             return error(ident, -32601, 'Method not found')
         return {'jsonrpc': '2.0', 'id': ident, 'result': result}
 
+
+    def mixed(self):
+        from mixed_audio import PUBLIC_SCHEMA, audio_content
+        from snapshots import Unavailable
+        try:
+            obj, pcm = self.mixed_audio.observe()
+            meta = {k: v for k, v in obj.items() if k not in ('pcm_hex', 'next_token')}
+            meta['schema'] = PUBLIC_SCHEMA
+            return {'content': [{'type': 'text', 'text': json.dumps(meta, separators=(',', ':'))},
+                                audio_content(pcm)], 'isError': False}
+        except Unavailable:
+            return {'content': [{'type': 'text', 'text': '{"available":false,"reason":"observation_unavailable"}'}], 'isError': True}
 
     def presented(self, kind='cursor'):
         from snapshots import Unavailable, image_content, require
@@ -162,8 +189,8 @@ class Server:
                 '{"available":false,"freshness":"unverified","reason":"observation_unavailable"}'}], 'isError': True}
 
 
-def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None):
-    server = Server(hud_dir, cursor_dir, presentation)
+def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None):
+    server = Server(hud_dir, cursor_dir, presentation, mixed_audio)
     while True:
         raw = source.readline(MAX_MESSAGE + 1)
         if not raw:

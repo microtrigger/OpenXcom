@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off mixed-audio observation.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "Music.h"
 #include <map>
 #include <string>
@@ -48,6 +50,9 @@ public:
 	void load(const void *data, int size);
 	/// Plays the music.
 	void play(int loop = -1) const;
+#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+	bool isSoftwareMixedAudio() const { return true; }
+#endif
 	/// Adlib music player.
 	static void player(void *udata, Uint8 *stream, int len);
 	bool isPlaying();
