@@ -7,7 +7,7 @@ Status as of October 10, 2026. We maintain the Russian version for day-to-day pr
 
 ## Plan versus actual progress
 
-Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). Latest bounded gate: [observer-request effects evidence](observer-effects-evidence.json), based on `5d6ae1b1` plus recorded source hashes, 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). Latest bounded gate: [natural-FOV/pause evidence](natural-fov-evidence.json), based on `a8750ad` plus recorded source hashes, 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenX
 | 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
 | 3 · Native observer | Historical HUD/cursor slices, request-bound pixels and optional four-number displayed HUD implemented ([latest slice](PRESENTED-HUD-PROTOTYPE.md)). | Full approved projection, event/audio coverage and parity validation. |
 | 4 · IPC/MCP | Local read-only stdio tools and request-bound `/1`/`/2` protocols implemented; SDK checks pass ([adapter](../../tools/mcp-observer/README.md)). | Production recovery and broader observation coverage. |
-| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. | Full paired hidden-engine-state and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
 | 8 · UFO/TFTD matrix | Selected checks in both games pass; failures and unmatched comparisons are retained in [bounded evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
@@ -34,6 +34,19 @@ timers, compares pretraffic setup and three post-flip states/RNGs, and rejects
 an engine-RNG request-path mutation in each profile. Each normal/mutant profile
 ran once; libc RNG, timing, audio and initialization/OFF-vs-ON effects remain
 unverified. See [aggregate evidence](observer-effects-evidence.json).
+
+The latest [natural-FOV/pause lifecycle gate](NATURAL-FOV-GATE.md) passes six
+sampled presentations in each game through normal input and timers. Turning
+reveals the hostile, removes it from the player's current FOV list, and
+reacquires it; vanilla's remembered rendered visibility remains after list loss.
+Independent final-display RGB and glyph oracles check the crop and four HUD
+numbers, with null HUD under the pause menu and current HUD after recovery.
+Three production-path controls (crop byte, HUD number and pause HUD availability)
+are rejected in each game. The final profile uses an initialized muted dummy mixer; the earlier closed-mixer
+profile crashed in the normal popup sound callback and is retained as a failed
+attempt. Each successful profile ran once. Timing, audible equivalence, AI/end-turn
+and full fairness remain unverified; Stage 5 stays open and control stays off.
+See [aggregate evidence](natural-fov-evidence.json).
 
 ## Goal and boundaries
 
@@ -124,7 +137,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 5. Security gate: paired hidden-state tests
 
-**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. Full hidden-world, lifecycle, audio, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
+**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. Full hidden-world, lifecycle, audio, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
 
 **Dependencies:** stages 3–4 and the approved contract.
 
@@ -249,3 +262,29 @@ disabled, and initialization effects, observer-OFF/ON equivalence, timing, pixel
 equality and full fairness remain outside this gate. Stage 5 stays open and no
 MCP controller is enabled. Broader hidden-world, lifecycle and event/audio
 coverage remain next work.
+
+## Bounded natural-FOV and pause-menu lifecycle test
+
+The separately enabled [natural-FOV fixture](NATURAL-FOV-GATE.md) passes one
+six-sample land profile in each of UFO and TFTD. Normal right-click turning
+charges one TU per step and drives current FOV membership 0/1/0/1. The stationary
+hostile's retained visibility follows 0/1/1/1, preserving vanilla clues after
+turn-away. Ordinary options/cancel keys open and close PauseState with normal
+Battlescape reinitialization and timers on recovery.
+
+Every response crop is compared byte-for-byte with an independent read of the
+final physical SDL display, and all four HUD values are independently decoded
+from those pixels. The pause response has null HUD and current menu pixels;
+recovery restores a current non-null HUD. Three isolated production-source controls were rejected in both games at their
+intended assertions: a changed crop byte, a wrong HUD number and a non-null pause
+HUD. Each mutation/master ran once. No gameplay controls or contact fields
+are added to MCP. Default-OFF/ON builds and existing regressions pass; see
+[aggregate source/binary identification](natural-fov-evidence.json).
+
+These are sampled presentation and lifecycle checks, not every transient frame
+or a paired hidden-world proof. The initial/reveal image difference also includes
+possible orientation, discovery and cursor changes. The final initialized-muted-
+dummy audio profile preserves ordinary popup callbacks without claiming audible
+parity. An earlier closed-audio attempt plus two diagnostics crashed there and
+are recorded separately. No hosted CI, timing equivalence, AI/end-turn coverage
+or full fairness is claimed. Stage 5 remains open; the controller is disabled.

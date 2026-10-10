@@ -16,10 +16,13 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-// Fork modification 2026-10-10: default-off bounded observer-effects test hooks.
+// Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 #include "../../tests/battle-observer/ObserverEffectsGate.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+#include "../../tests/battle-observer/NaturalFovGate.h"
 #endif
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
@@ -570,6 +573,9 @@ void BattlescapeState::init()
 			_game->pushState(new SaveGameState(OPT_BATTLESCAPE, SAVE_AUTO_BATTLESCAPE, _palette));
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+	NaturalFovGate::initialized(this);
+#endif
 }
 
 /**
@@ -604,6 +610,9 @@ void BattlescapeState::think()
 	}
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 	ObserverEffectsGate::thought(this, _popups.empty() && _gameTimer->isRunning());
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+	NaturalFovGate::thought(this, _popups.empty() && _gameTimer->isRunning());
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 	samplePublicHud();
@@ -1566,6 +1575,9 @@ void BattlescapeState::animate()
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 	ObserverEffectsGate::animated(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+	NaturalFovGate::animated(this);
+#endif
 }
 
 /**
@@ -1576,6 +1588,9 @@ void BattlescapeState::handleState()
 	_battleGame->handleState();
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 	ObserverEffectsGate::handledState(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+	NaturalFovGate::handledState(this);
 #endif
 }
 

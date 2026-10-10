@@ -22,6 +22,10 @@ or, at your option, any later version, without warranty:
 - `tools/benchmarks/` (original source, tests, protocol and templates)
 - `docs/mcp-player-interface/` (new project documentation and generated metadata)
 
+The natural-FOV fixture's independent glyph row masks are adapted from
+`src/Interface/NumberText.cpp`, Copyright 2010–2016 OpenXcom Developers,
+GPL-3.0-or-later. Its test source retains this attribution.
+
 Existing engine files retain their original notices; dated comments identify
 this fork's observer-hook changes. Choosing GPL-3.0-or-later for the new adapter
 is a conservative compatible project choice, not a claim that an IPC/process

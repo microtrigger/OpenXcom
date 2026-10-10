@@ -38,6 +38,15 @@ if ( EXPERIMENTAL_OBSERVER_EFFECTS_GATE AND EXPERIMENTAL_BATTLE_PAIR_GATE )
   message ( FATAL_ERROR "Observer effects and render pair gates are separate test binaries" )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-10.
+option ( EXPERIMENTAL_NATURAL_FOV_GATE "Build isolated natural-FOV/pause lifecycle test gate" OFF )
+if ( EXPERIMENTAL_NATURAL_FOV_GATE AND NOT EXPERIMENTAL_CURSOR_OBSERVER )
+  message ( FATAL_ERROR "Natural FOV gate requires EXPERIMENTAL_CURSOR_OBSERVER" )
+endif()
+if ( EXPERIMENTAL_NATURAL_FOV_GATE AND (EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_OBSERVER_EFFECTS_GATE OR EXPERIMENTAL_HUD_OBSERVER) )
+  message ( FATAL_ERROR "Natural FOV gate requires a separate test binary" )
+endif()
+
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )
 option ( BUILD_PACKAGE "Prepares build for creation of a package with CPack" ON )
 option ( ENABLE_WARNING "Always show warnings (even for release builds)" OFF )

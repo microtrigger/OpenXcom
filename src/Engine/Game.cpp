@@ -16,10 +16,13 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-// Fork modification 2026-10-10: default-off bounded observer-effects test hooks.
+// Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 #include "../../tests/battle-observer/ObserverEffectsGate.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+#include "../../tests/battle-observer/NaturalFovGate.h"
 #endif
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
@@ -174,6 +177,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 		ObserverEffectsGate::afterCleanup(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+		NaturalFovGate::afterCleanup(this);
+#endif
 		// Initialize active state
 		if (!_init)
 		{
@@ -197,6 +203,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 		ObserverEffectsGate::beforeEvents(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+		NaturalFovGate::beforeEvents(this);
+#endif
 		// Process events
 		while (SDL_PollEvent(&_event))
 		{
@@ -206,6 +215,9 @@ void Game::run()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 			if (!ObserverEffectsGate::acceptEvent(_event)) continue;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+			if (!NaturalFovGate::acceptEvent(_event)) continue;
 #endif
 			if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;
@@ -319,6 +331,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 		ObserverEffectsGate::afterEvents(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+		NaturalFovGate::afterEvents(this);
+#endif
 		// Process rendering
 		if (runningState != PAUSED)
 		{
@@ -355,6 +370,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 				ObserverEffectsGate::beforeFrame(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+				NaturalFovGate::beforeFrame(this, _states.back());
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 				_screen->beginObserverFrame();
 #endif
@@ -387,6 +405,9 @@ void Game::run()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 				ObserverEffectsGate::afterFrame(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
+				NaturalFovGate::afterFrame(this);
 #endif
 			}
 		}

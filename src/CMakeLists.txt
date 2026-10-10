@@ -568,3 +568,9 @@ if ( MSVC OR "${CMAKE_GENERATOR}" STREQUAL "Xcode" )
     source_group ( "SDL" FILES ${sdl_src} )
   endif ()
 endif ()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-10.
+if ( EXPERIMENTAL_NATURAL_FOV_GATE )
+  target_sources ( openxcom PRIVATE ../tests/battle-observer/NaturalFovGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE )
+endif()
