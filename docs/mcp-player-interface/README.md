@@ -74,7 +74,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 3. Native observer and public projection
 
-**Status:** an experimental four-widget HUD-only slice is implemented and locally demonstrated. This preparatory subset is not acceptance of the full contract or completion of this stage.
+**Status:** experimental HUD and final-pixel cursor slices are implemented. A bounded pixel channel now acknowledges presentation after each request. These subsets do not complete the full contract or this stage.
 
 **Dependencies:** stages 0–2.
 
@@ -84,7 +84,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 4. Local IPC and external MCP observer
 
-**Status:** a private atomic-file transport exists only for the HUD prototype; production IPC and MCP server are not implemented.
+**Status:** experimental historical-file and request-bound pixel transports are implemented with read-only stdio MCP tools. Production recovery, broader projection and full-stage acceptance remain open.
 
 **Dependencies:** stage 3; schema design can begin earlier.
 
@@ -183,3 +183,7 @@ The [stdio inspection adapter](../../tools/mcp-observer/README.md) exposes two r
 ### Resource comparison protocol
 
 The [benchmark protocol and offline harness](../../tools/benchmarks/README.md) define paired GUI/MCP tasks, correctness/freshness gates and a complete model-usage ledger. Offline encoding/parsing measurements are only component baselines. A final end-to-end comparison requires actual token telemetry for every call and retry; unavailable values stay unknown and block token-savings conclusions.
+
+### Request-bound pixel presentation
+
+The [presentation prototype](PRESENTATION-PROTOTYPE.md) now acknowledges a normal displayed crop after its specific request. Selected UFO/TFTD menu, battle and overlay comparisons pass, alongside 43 Python tests and native ordering/transport checks. Historical HUD remains separate; fresh HUD and gameplay control are unsupported. Timing parity and resource savings are not yet established.

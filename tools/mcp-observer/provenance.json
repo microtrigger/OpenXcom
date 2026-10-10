@@ -1,14 +1,17 @@
 {
   "scope": "Read-only historical-observation prototype",
   "current_sources": {
-    "adapter.py": "697df7271ad0af1563deef536ddf160495ca53014bfd1dc944e52c6a96ebdaa4",
+    "adapter.py": "8a0df619bb5882f372075ba62add9f803f9d204e62bdf1a4589d3f04042df0ed",
     "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
     "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
     "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
-    "README.md": "37ad16430dedeb185952584dc523382da8a013c6fba53d6ada08ab8e727a924e"
+    "README.md": "9bbeb490ee7a0a72d11f314b1898982387d0a1c952bdde6f800581070186e465",
+    "launch_presentation.py": "1fe64f53dc20d2e556b1390f3d96c41e23a953af1a310f2e27f10ed047859a27",
+    "presentation.py": "6a99aa2f4f0f88e5bb7b771fe149e94e4ff282399f36027ebc18629a72119719",
+    "test_presentation.py": "fdfab4f489db32237720cf03f4c24e64b32050f7e52992f81c3a0408cbd3167a"
   },
   "final_checks": {
-    "unit_tests": 23,
+    "unit_tests": 43,
     "unit_tests_passed": true,
     "compileall_passed": true,
     "official_sdk": "1.29.0",
@@ -41,5 +44,13 @@
     "sdk_smoke.py": "46aff66f970b8ee315b4cdfaa60d67d7f6429ee61e54a6e51fcd4057fc4922a0",
     "README.md": "96282d18d66e6ddaadc36d63c503eae788899177be75b84eac334e361f4fccc0"
   },
-  "public_metadata_note": "Operational details and run session identifiers omitted; behavioral test results retained."
+  "public_metadata_note": "Operational details and run session identifiers omitted; behavioral test results retained.",
+  "historical_adapter_sources": {
+    "adapter.py": "697df7271ad0af1563deef536ddf160495ca53014bfd1dc944e52c6a96ebdaa4",
+    "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
+    "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
+    "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
+    "README.md": "37ad16430dedeb185952584dc523382da8a013c6fba53d6ada08ab8e727a924e"
+  },
+  "presentation_extension": "Optional request-bound pixels added; historical APIs retain their semantics. Separate selected UFO/TFTD presentation tests are documented without reattributing earlier historical-file evidence."
 }

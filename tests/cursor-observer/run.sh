@@ -29,3 +29,9 @@ ${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} $SDL_CFLAGS
   $SDL_LIBS -o "$BUILD/test-presented-cursor"
 "$BUILD/test-presented-cursor"
 python3 "$ROOT/tests/cursor-observer/check_boundary.py"
+
+${CXX:-c++} -std=c++11 -Wall -Wextra -Werror -pedantic ${CXXFLAGS:-} \
+  "$ROOT/tests/cursor-observer/test_presentation.cpp" \
+  "$ROOT/src/Observer/PresentationObserver.cpp" \
+  "$ROOT/src/Observer/PresentedCursor.cpp" -o "$BUILD/test-presentation"
+"$BUILD/test-presentation"

@@ -47,9 +47,9 @@ void PresentedCursorCache::rebuild()
 		<< ",\"public_revision\":" << _revision << ",\"crop\":" << _payload << "}\n";
 	_snapshot = out.str();
 }
-bool PresentedCursorCache::observe(const PixelCrop &c)
+std::string serializeCrop(const PixelCrop &c)
 {
-	if (!validCrop(c)) return close();
+	if (!validCrop(c)) return "null";
 	std::ostringstream out; out.imbue(std::locale::classic());
 	out << "{\"screen_width\":" << c.screenWidth << ",\"screen_height\":" << c.screenHeight
 		<< ",\"x\":" << c.x << ",\"y\":" << c.y << ",\"width\":" << c.width
@@ -57,7 +57,12 @@ bool PresentedCursorCache::observe(const PixelCrop &c)
 	const char *hex = "0123456789abcdef";
 	for (std::size_t i = 0; i < c.rgb.size(); ++i) out << hex[c.rgb[i] >> 4] << hex[c.rgb[i] & 15];
 	out << "\"}";
-	const std::string payload = out.str();
+	return out.str();
+}
+bool PresentedCursorCache::observe(const PixelCrop &c)
+{
+	if (!validCrop(c)) return close();
+	const std::string payload = serializeCrop(c);
 	// Compare exact public bytes, never a hash or hidden frame/tick counter.
 	if (payload == _payload) return false;
 	_payload = payload; ++_revision; rebuild(); return true;

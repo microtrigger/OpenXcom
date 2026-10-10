@@ -21,6 +21,7 @@
 #include "Screen.h"
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #include "../Observer/CursorFileObserver.h"
+#include "../Observer/PresentationObserver.h"
 #include "../Observer/PresentedCursorSurface.h"
 #include <cstdlib>
 #endif
@@ -120,7 +121,7 @@ void Screen::makeVideoFlags()
  */
 Screen::Screen() :
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
-	_cursorObserver(0), _observerPaletteExact(false),
+	_cursorObserver(0), _presentationObserver(0), _observerPaletteExact(false),
 #endif
 	_baseWidth(ORIGINAL_WIDTH), _baseHeight(ORIGINAL_HEIGHT), _scaleX(1.0), _scaleY(1.0), _flags(0), _numColors(0), _firstColor(0), _pushPalette(false), _surface(0)
 {
@@ -128,6 +129,8 @@ Screen::Screen() :
 	memset(deferredPalette, 0, 256*sizeof(SDL_Color));
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	_cursorObserver = new Observer::CursorFileObserver(std::getenv("OPENXCOM_EXPERIMENTAL_CURSOR_DIR"));
+	_presentationObserver = new Observer::PresentationObserver(std::getenv("OPENXCOM_PRESENTATION_FD"));
+	::unsetenv("OPENXCOM_PRESENTATION_FD");
 #endif
 }
 
@@ -139,6 +142,7 @@ Screen::~Screen()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	delete _cursorObserver;
+	delete _presentationObserver;
 #endif
 	delete _surface;
 }
@@ -203,6 +207,11 @@ void Screen::handle(Action *action)
  * before being put on screen.
  */
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+void Screen::beginObserverFrame()
+{
+	if (_presentationObserver) _presentationObserver->beginFrame();
+}
+
 void Screen::flip(int cursorX, int cursorY)
 #else
 void Screen::flip()
@@ -237,21 +246,27 @@ void Screen::flip()
 
 	if (SDL_Flip(_screen) == -1)
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+		if (_presentationObserver) _presentationObserver->close();
+#endif
 		throw Exception(SDL_GetError());
 	}
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	// Only final display bytes after all scaling, palette application and flip.
 	// Software single-buffer pixels remain the just-presented image; swapping or
 	// asynchronous backends are rejected. No claim about desktop occlusion/freshness.
-	if (_cursorObserver && _cursorObserver->enabled())
+	if ((_cursorObserver && _cursorObserver->enabled()) ||
+		(_presentationObserver && _presentationObserver->pending()))
 	{
 		const Uint8 requiredFocus = SDL_APPACTIVE | SDL_APPINPUTFOCUS | SDL_APPMOUSEFOCUS;
 		const bool focused = (SDL_GetAppState() & requiredFocus) == requiredFocus;
 		const bool allowed = focused && !useOpenGL() && !use32bitScaler() && !Options::debug &&
 			_observerPaletteExact && _topBlackBand == 0 && _bottomBlackBand == 0 &&
 			_leftBlackBand == 0 && _rightBlackBand == 0;
-		_cursorObserver->observe(Observer::capturePresentedCursor(_screen, _baseWidth, _baseHeight,
-			cursorX, cursorY, allowed));
+		const Observer::PixelCrop crop = Observer::capturePresentedCursor(_screen, _baseWidth, _baseHeight,
+			cursorX, cursorY, allowed);
+		if (_cursorObserver) _cursorObserver->observe(crop);
+		if (_presentationObserver) _presentationObserver->presented(crop);
 	}
 #endif
 }
@@ -354,6 +369,9 @@ int Screen::getHeight() const
  */
 void Screen::resetDisplay(bool resetVideo)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	if (_presentationObserver) _presentationObserver->resetPresentation();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	_observerPaletteExact = false;
 #endif

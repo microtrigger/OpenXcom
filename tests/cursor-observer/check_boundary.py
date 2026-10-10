@@ -10,12 +10,12 @@ import re
 
 root = Path(__file__).resolve().parents[2]
 observer = root / 'src/Observer'
-names = ('PresentedCursor', 'PresentedCursorSurface', 'CursorFileObserver')
+names = ('PresentedCursor', 'PresentedCursorSurface', 'CursorFileObserver', 'PresentationObserver')
 allowed_headers = {
-    'PresentedCursor.h', 'PresentedCursorSurface.h', 'CursorFileObserver.h',
+    'PresentedCursor.h', 'PresentedCursorSurface.h', 'CursorFileObserver.h', 'PresentationObserver.h',
     'SDL.h', 'cstdint', 'string', 'vector', 'memory', 'algorithm', 'locale',
     'sstream', 'stdexcept', 'cerrno', 'cstdio', 'fcntl.h', 'sys/file.h',
-    'sys/stat.h', 'unistd.h',
+    'sys/stat.h', 'unistd.h', 'sys/socket.h', 'cstdlib', 'climits',
 }
 forbidden = (
     'BattleUnit', 'BattleItem', 'BattleState', 'BattleSave', 'SavedBattleGame',
@@ -57,9 +57,10 @@ flip = screen[start:end]
 audit(flip, 'Screen::flip')
 assert flip.index('SDL_BlitSurface(') < flip.index('SDL_Flip(_screen)')
 assert flip.index('SDL_SetColors(') < flip.index('SDL_Flip(_screen)')
-assert re.search(r'if\s*\(SDL_Flip\(_screen\) == -1\)\s*\{\s*throw Exception\(SDL_GetError\(\)\);\s*\}', flip)
+assert 'if (_presentationObserver) _presentationObserver->close();' in flip
+assert flip.index('_presentationObserver->close();') < flip.index('throw Exception(SDL_GetError());')
 assert flip.index('SDL_Flip(_screen)') < flip.index('capturePresentedCursor(')
-hook = flip[flip.index('if (_cursorObserver && _cursorObserver->enabled())'):]
+hook = flip[flip.index('if ((_cursorObserver && _cursorObserver->enabled())'):]
 audit(hook, 'post-flip boundary')
 for gate in ('const bool allowed = focused &&', 'SDL_APPACTIVE | SDL_APPINPUTFOCUS | SDL_APPMOUSEFOCUS',
              '(SDL_GetAppState() & requiredFocus) == requiredFocus', '!useOpenGL()', '!use32bitScaler()', '!Options::debug', '_observerPaletteExact',
@@ -76,3 +77,20 @@ assert re.search(r'_cursor->blit\(_screen->getSurface\(\)\);\s*#ifdef OPENXCOM_E
 cmake = (root / 'CMakeLists.txt').read_text()
 assert re.search(r'option\s*\(\s*EXPERIMENTAL_CURSOR_OBSERVER\s+"[^"]*"\s+OFF\s*\)', cmake)
 print('PASS: cursor source dependencies, final-pixel hook order and conservative gates (structural guard only)')
+
+# The fresh request is consumed before composition, never discovered after flip.
+assert game.index('_screen->beginObserverFrame();') < game.index('_screen->clear();')
+assert game.count('_screen->beginObserverFrame();') == 1
+assert 'beginFrame(' not in flip and 'recv(' not in flip
+assert flip.index('SDL_Flip(_screen)') < flip.index('capturePresentedCursor(') < flip.index('_presentationObserver->presented(crop)')
+producer = (observer / 'PresentationObserver.cpp').read_text()
+post = producer[producer.index('void PresentationObserver::presented('):]
+assert 'recv(' not in post and 'beginFrame(' not in post
+assert '_challenge.clear();' in post and 'if (!validCrop(crop)) { close(); return; }' in post
+assert 'MSG_DONTWAIT | MSG_NOSIGNAL' in producer
+assert 'char bytes[97]' in producer and 'count != 96' in producer
+assert 'randomToken(_admission)' in producer and 'SOCK_SEQPACKET' in producer
+assert 'public_revision' not in producer and 'SDL_GetTicks' not in producer
+assert screen.index('if (_presentationObserver) _presentationObserver->resetPresentation();', screen.index('void Screen::resetDisplay(')) > 0
+assert 'if (pending()) close();' in producer
+print('PASS: precomposition admission, post-presentation acknowledgement and bounded transport gates')

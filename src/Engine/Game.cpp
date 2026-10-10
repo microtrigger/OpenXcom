@@ -313,6 +313,9 @@ void Game::run()
 				// make a note of when this frame update occurred.
 				_timeOfLastFrame = SDL_GetTicks();
 				_fpsCounter->addFrame();
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+				_screen->beginObserverFrame();
+#endif
 				_screen->clear();
 				std::list<State*>::iterator i = _states.end();
 				do

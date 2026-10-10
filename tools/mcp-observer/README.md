@@ -1,11 +1,11 @@
 <!-- New project documentation: SPDX-License-Identifier: GPL-3.0-or-later. See repository LICENSE.txt and LICENSE-NOTICES.md. -->
-# Local OpenXcom historical-observation MCP prototype
+# Local OpenXcom read-only observation MCP prototype
 
-**Read-only inspection, not a controller or current-state observer.** This is an
-standalone Python prototype in this repository. Running it changes no engine
+**Read-only inspection, not a controller or current-state observer.** This is a
+standalone Python prototype in this repository. The adapter changes no engine
 source, game installation, profile, save, connector registration or network service.
 There are no gameplay/input tools, arbitrary paths supplied by MCP callers,
-credentials, uploads, subscriptions, timers, background polling or network sockets.
+credentials, uploads, subscriptions, background polling or network listeners.
 
 ## Run and boundary
 
@@ -38,7 +38,7 @@ claim that software can stop a malicious consumer using historical observations.
 
 ## File and schema safeguards
 
-Only `snapshot.json` plus `observer.lock`, or `cursor.json` plus `cursor.lock`, are
+For historical reads only, `snapshot.json` plus `observer.lock`, or `cursor.json` plus `cursor.lock`, are
 opened. All directory path components reject symlinks. The pinned leaf must be
 owned by the effective user, mode 0700. Opened files must be regular, owned by that
 user, mode 0600, single-link, no symlinks. `O_NONBLOCK` prevents FIFO opens hanging.
@@ -97,43 +97,74 @@ protocol 2025-11-25. No assumption of v2 API compatibility
 is made. The standalone server does not
 import the SDK. `sdk_smoke.py` is optional and requires the installed SDK.
 
-## Freshness: unresolved producer change, not a TTL workaround
+## Optional post-request presentation channel
 
-Existing producer files explicitly say `last_observation` / `unverified`, retain
-unchanged bytes during idle/blocked phases, and may survive a crash. File age,
-open descriptors, locked files, a live PID, changed revisions or session nonces do
-not establish that a presentation occurred after this request. No combination is
-promoted to proof here. An idle unchanged frame must not be mistaken for dead, and
-a hung live process must not be mistaken for current.
+The historical APIs above are unchanged. Fresh pixels are a separate experimental
+slice, enabled only in a build with EXPERIMENTAL_CURSOR_OBSERVER=ON (default OFF)
+and explicitly launched with a transient inherited channel:
 
-A possible **future** protocol, requiring separately reviewed engine work:
+```
+python launch_presentation.py -- /path/to/openxcom [operator game arguments]
+```
 
-1. The trusted launcher establishes a bounded local request/response channel
-   directly with the intended producer, with an OS-generated process-session
-   binding. No networking or external registration is needed. The observer's
-   existing per-Battlescape HUD session remains distinct from presentation session.
-2. A read carries one random single-use challenge. The producer responds only
-   after a successful normal presentation following that request, binding the
-   challenge, presentation session, relevant HUD session and exact public payload.
-   No game tick, busy reason, wall-clock producer timestamp or hidden counter is
-   returned. The challenge does not consume game RNG or force simulation progress.
-3. Pixel acknowledgements refer to the final displayed crop. A HUD response needs
-   its own demonstrated connection to the same presented HUD values; merely
-   echoing an older think-time cache is insufficient. Reload, teardown, focus and
-   unsupported rendering must invalidate the relevant scopes.
-4. The consumer accepts the matching acknowledgement once within a bounded request
-   lifetime; missing, mismatched, replayed or ambiguous acknowledgements return
-   generic unavailable. Deadline is a safety limit, **not** evidence of freshness.
-   The result would mean “presented after this request,” never an instantaneous
-   view of an unchanging world.
-5. No unsolicited heartbeat, frame counter, polling task or durable event history
-   is added. Nevertheless request completion and timeout timing can reveal state
-   or create load; cadence normalization/rate limiting and paired hidden-state
-   timing tests would still be required. A challenge alone does not solve timing
-   side channels or prove simulation noninterference.
+The launcher uses only the Python standard library. Optional --hud-dir and
+--cursor-dir preserve historical file reads. The game command is trusted operator
+configuration, never an MCP tool argument. The launcher creates one connected
+AF_UNIX SOCK_SEQPACKET pair; there is no socket pathname, listener, port,
+registration, credential, or durable channel. Only the intended launched child
+inherits the producer descriptor. Existing display settings are preserved, game
+stdout is directed to stderr, and protocol EOF closes observation without killing
+the game. Unsupported systems/socket types fail closed. This is cooperative local
+IPC, not protection against a malicious same-user process or modified executable.
 
-This handshake is design only, not implemented. It must not be enabled by merely
-changing `freshness` strings, trusting caller assertions or adding a bypass flag.
+The optional tool read_presented_cursor({}) returns one bounded final RGB PNG with
+semantics presented_after_request. It means that a normal presentation occurred
+after that specific request was consumed, not instantaneous current game-world
+state, desktop visibility, or authority to act. It can show menus or loading if
+that is what was actually displayed. It never forces a frame, simulation update,
+FOV calculation, input, cursor motion, or battle transition. Fresh HUD is still
+unsupported; historical HUD sessions are independent and never joined to pixels.
+
+A one-time hello contains protocol version, OS-random producer epoch and random
+admission token. Each fixed 96-byte request contains epoch, admission token and
+OS-random challenge. Exactly one request is consumed on the main thread before
+normal composition begins. Its challenge remains immutable for that frame; the
+admission token rotates on consumption. Only after a successful SDL_Flip and
+eligible exact final crop does the producer send an atomic bounded reply containing
+the challenge, epoch, next admission token and exact crop. The post-flip code never
+reads requests. A request arriving during composition or after flip must await a
+later normally composed frame. No engine frame/tick counts, timestamps, busy reasons,
+world IDs or game RNG enter this protocol. Unchanged public pixels need no changed
+revision to acknowledge a later presentation.
+
+The adapter permits one outstanding request, with a one-second monotonic deadline
+(maximum two seconds in the internal API), and at most four successful requests per
+second. Deadline is an acceptance limit, never evidence of freshness. It validates
+all reply fields, epoch/challenge/token, strict crop geometry and exact RGB bytes;
+then exposes only the PNG, public geometry and presentation envelope. The next
+admission token stays transport-internal. Malformed, oversized, extra queued,
+replayed, mismatched, late or missing responses produce one generic unavailable.
+Unsupported presentation, interrupted composition, peer closure and backpressure
+never substitute cached pixels. In these cases the fresh channel closes; there is
+no automatic retry or reconnect. Relaunch explicitly to establish a new channel.
+A display reset closes any already-consumed pending request. An idle reset may
+retain the Screen-lifetime epoch: queued requests are consumed only before a later
+normal composition. Epoch is a pixel stream, never a battle/HUD session.
+Calling faster than the stated bound also closes this prototype channel. Historical
+reads and the normally running game remain independent.
+
+Wait for the desired normal eligible display before the first request. A loading
+screen, invisible cursor, loss of focus or unsupported renderer can legitimately
+make that request unavailable. The exact software-only capture gates remain in
+force. This prototype is deliberately conservative and does not yet provide graceful
+recovery from every presentation change.
+
+No unsolicited heartbeat, producer polling thread, hidden-event history or
+persistent monitoring is added. Main-thread socket operations are nonblocking and
+bounded: one request, one queue check, one reply. Entropy and serialization remain
+bounded work. Completion/timeout timing and request-driven load are not proved
+noninterfering; paired hidden-state timing tests and broader platform validation
+remain separate gates. No complete fair-play timing-parity claim is made.
 
 ## Tests and evidence
 
@@ -166,5 +197,6 @@ and HUD unsigned-range correction; the behavioral results are retained, with run
 filesystem and PNG paths are unchanged. The final wrapper and corrected boundary
 validation were rechecked with unit and SDK smoke tests; observed runtime HUD
 values remain valid under both ranges.
-TFTD adapter integration is **untested**. Cross-platform behavior, adversarial
-timing parity and producer freshness remain separate gates.
+Historical file-based TFTD adapter integration is **untested**. The optional
+request-bound channel has separate [UFO/TFTD validation](../../docs/mcp-player-interface/PRESENTATION-PROTOTYPE.md).
+Broader platform behavior and paired hidden-state timing parity remain separate gates.

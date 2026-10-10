@@ -4,7 +4,7 @@
 # This file is free software: you may redistribute and/or modify it under
 # GNU GPL version 3 or, at your option, any later version.
 # Provided without warranty; see the repository LICENSE.txt and LICENSE-NOTICES.md.
-"""Local stdio protocol scaffold. Current producer cannot attest freshness."""
+"""Local stdio protocol scaffold. Historical reads and optional post-request presentation acknowledgement."""
 import json
 import sys
 
@@ -34,18 +34,26 @@ def error(ident, code, message):
     return {'jsonrpc': '2.0', 'id': ident, 'error': {'code': code, 'message': message}}
 
 
-def definitions():
-    return [{'name': name,
+def definitions(presentation=False):
+    result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
              'annotations': {'readOnlyHint': True, 'destructiveHint': False,
                              'idempotentHint': True, 'openWorldHint': False}}
             for name in NAMES]
+    if presentation:
+        result.append({'name': 'read_presented_cursor',
+                       'description': 'Request one normal displayed cursor crop presented after this request; never instantaneous current world state. Unsupported presentation or timeout is unavailable. HUD freshness is unsupported.',
+                       'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+                       'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                                       'idempotentHint': False, 'openWorldHint': False}})
+    return result
 
 
 class Server:
-    def __init__(self, hud_dir=None, cursor_dir=None):
+    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None):
         self.state = 'new'
+        self.presentation = presentation
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
     def handle(self, msg):
@@ -81,7 +89,11 @@ class Server:
         elif method == 'tools/list':
             if params:
                 return error(ident, -32602, 'Invalid params')
-            result = {'tools': definitions()}
+            result = {'tools': definitions(self.presentation is not None)}
+        elif method == 'tools/call' and params.get('name') == 'read_presented_cursor' and self.presentation is not None:
+            if set(params) - {'name', 'arguments', '_meta'} or params.get('arguments', {}) != {}:
+                return error(ident, -32602, 'Invalid params')
+            result = self.presented()
         elif method == 'tools/call':
             if (set(params) - {'name', 'arguments', '_meta'} or params.get('name') not in NAMES
                     or type(params.get('arguments', {})) is not dict
@@ -96,6 +108,19 @@ class Server:
             return error(ident, -32601, 'Method not found')
         return {'jsonrpc': '2.0', 'id': ident, 'result': result}
 
+
+    def presented(self):
+        from snapshots import Unavailable, image_content
+        try:
+            obj, candidate = self.presentation.observe()
+            image = image_content(candidate)
+            obj = {k: v for k, v in obj.items() if k != 'next_token'}
+            obj['schema'] = 'openxcom-mcp-presented-cursor/1'
+            obj['crop'] = {k: v for k, v in obj['crop'].items() if k not in ('pixels', 'format')}
+            obj['crop']['format'] = 'image/png'
+            return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}, image], 'isError': False}
+        except Unavailable:
+            return {'content': [{'type': 'text', 'text': '{"available":false,"reason":"observation_unavailable"}'}], 'isError': True}
 
     def historical(self, kind):
         from snapshots import Unavailable, read_candidate, image_content
@@ -120,8 +145,8 @@ class Server:
                 '{"available":false,"freshness":"unverified","reason":"observation_unavailable"}'}], 'isError': True}
 
 
-def serve(source, sink, hud_dir=None, cursor_dir=None):
-    server = Server(hud_dir, cursor_dir)
+def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None):
+    server = Server(hud_dir, cursor_dir, presentation)
     while True:
         raw = source.readline(MAX_MESSAGE + 1)
         if not raw:

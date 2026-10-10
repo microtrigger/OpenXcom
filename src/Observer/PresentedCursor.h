@@ -20,6 +20,7 @@ const int CursorCropSize = 128;
 const int MaximumScreenSize = 4096;
 bool cursorCropBounds(int screenWidth, int screenHeight, int cursorX, int cursorY, PixelCrop &out);
 bool validCrop(const PixelCrop &crop);
+std::string serializeCrop(const PixelCrop &crop);
 class PresentedCursorCache
 {
 	std::string _session, _payload, _snapshot;

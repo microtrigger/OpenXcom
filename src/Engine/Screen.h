@@ -27,7 +27,7 @@ namespace OpenXcom
 {
 
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
-namespace Observer { class CursorFileObserver; }
+namespace Observer { class CursorFileObserver; class PresentationObserver; }
 #endif
 class Surface;
 class Action;
@@ -45,6 +45,7 @@ class Screen
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	Observer::CursorFileObserver *_cursorObserver;
+	Observer::PresentationObserver *_presentationObserver;
 	bool _observerPaletteExact;
 #endif
 	SDL_Surface *_screen;
@@ -79,6 +80,7 @@ public:
 	void handle(Action *action);
 	/// Renders the screen onto the game window.
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	void beginObserverFrame();
 	// Coordinates are the UI cursor actually composed into this frame, never a probe.
 	void flip(int cursorX = -1, int cursorY = -1);
 #else
