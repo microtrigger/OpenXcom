@@ -1,0 +1,112 @@
+{
+  "baseline_source": "630130c5c9ac236b9e1d8496005fb23e84e397ca",
+  "prototype_base_commit": "84c9f5a70625d7b9cb20f825ceb37cb84ef0179e",
+  "prototype_source_inputs_sha256": "7183a2adff3fb95978b9031e8601884c8265e489ef8aeb3313de7ce482b7bdaa",
+  "toolchain": {
+    "compiler": "GCC 14.2.0",
+    "cmake": "3.31.6"
+  },
+  "cmake": {
+    "CMAKE_BUILD_TYPE": "Release",
+    "BUILD_PACKAGE": "OFF",
+    "baseline_version": ".630130c5c",
+    "prototype_version": ".84c9f5a-hud-prototype"
+  },
+  "binary_sha256": {
+    "clean_baseline_first_and_clean_repeat": "9ad7867d7f555b764630e5d04bd667c544045348b4099c633b3b9cf3f0b80f34",
+    "prototype_on": "d7a1effeddfe8ea296334dbf29cf616873d909bc05f741803865726d815e3c49",
+    "prototype_off": "5805225321cc83bbb094f9cce94f628ed7bd43234ecfc6c9c47ba8836d92032b"
+  },
+  "visual_checks": {
+    "UFO": {
+      "before": [
+        58,
+        62,
+        33,
+        100
+      ],
+      "kneeling": [
+        54,
+        62,
+        33,
+        100
+      ],
+      "reload": [
+        58,
+        62,
+        33,
+        100
+      ]
+    },
+    "TFTD": {
+      "before": [
+        55,
+        61,
+        38,
+        100
+      ],
+      "kneeling": [
+        51,
+        61,
+        38,
+        100
+      ],
+      "reload": [
+        55,
+        61,
+        38,
+        100
+      ]
+    },
+    "field_order": [
+      "time_units",
+      "energy",
+      "health",
+      "morale"
+    ],
+    "conditions": "Separate test profiles, vanilla assets, no extra mods, 960x600 window, software scaling"
+  },
+  "scope": "Builds and selected GUI/audio smoke/unit tests only. No full fairness certification; no MCP/controller. Broader matrix and paired-engine presentation tests remain open.",
+  "audio_smoke": {
+    "source": "game audio output only",
+    "samples": [
+      {
+        "file": "baseline-ufo-audio.wav",
+        "channels": 2,
+        "rate": 48000,
+        "frames": 555429,
+        "duration": 11.5714375,
+        "peak": 17141,
+        "rms": 3419.0758665929643
+      },
+      {
+        "file": "baseline-xcom2-audio.wav",
+        "channels": 2,
+        "rate": 48000,
+        "frames": 576060,
+        "duration": 12.00125,
+        "peak": 7566,
+        "rms": 1270.7015118322886
+      },
+      {
+        "file": "observer-xcom1-audio.wav",
+        "channels": 2,
+        "rate": 48000,
+        "frames": 557210,
+        "duration": 11.608541666666667,
+        "peak": 17175,
+        "rms": 3087.870879726991
+      },
+      {
+        "file": "observer-xcom2-audio.wav",
+        "channels": 2,
+        "rate": 48000,
+        "frames": 546941,
+        "duration": 11.394604166666667,
+        "peak": 7563,
+        "rms": 1320.377869585663
+      }
+    ],
+    "claim": "Nonsilent stereo output only; no spatial-cue or perceptual-quality certification"
+  }
+}

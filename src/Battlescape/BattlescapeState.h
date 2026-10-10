@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http:///www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only public observation hooks;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #include "../Engine/State.h"
 #include "Position.h"
 
@@ -40,6 +42,9 @@ class BattleItem;
 class Timer;
 class WarningMessage;
 class BattlescapeGame;
+#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+namespace Observer { class HudFileObserver; }
+#endif
 
 /**
  * Battlescape screen which shows the tactical battle.
@@ -47,6 +52,10 @@ class BattlescapeGame;
 class BattlescapeState : public State
 {
 private:
+	#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+	Observer::HudFileObserver *_hudObserver;
+	void samplePublicHud();
+	#endif
 	Surface *_rank;
 	InteractiveSurface *_icons;
 	Map *_map;

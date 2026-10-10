@@ -1,3 +1,5 @@
+# Fork modification 2026-10-10: default-off public observation build options.
+# See LICENSE-NOTICES.md; existing upstream license retained.
 cmake_minimum_required ( VERSION 3.5 )
 
 project ( OpenXcom )
@@ -10,6 +12,16 @@ include(GNUInstallDirs)
 set (CMAKE_CXX_STANDARD 11)
 # use std=c++11 rather than std=gnu++11
 set (CMAKE_CXX_EXTENSIONS OFF)
+
+option ( EXPERIMENTAL_CURSOR_OBSERVER "Build experimental final presented cursor-pixel observer (POSIX only)" OFF )
+if ( EXPERIMENTAL_CURSOR_OBSERVER AND NOT UNIX )
+  message ( FATAL_ERROR "Experimental cursor observer currently requires POSIX" )
+endif()
+
+option ( EXPERIMENTAL_HUD_OBSERVER "Build the experimental read-only public HUD observer (POSIX only)" OFF )
+if ( EXPERIMENTAL_HUD_OBSERVER AND NOT UNIX )
+  message ( FATAL_ERROR "Experimental HUD observer currently requires POSIX" )
+endif()
 
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )
 option ( BUILD_PACKAGE "Prepares build for creation of a package with CPack" ON )

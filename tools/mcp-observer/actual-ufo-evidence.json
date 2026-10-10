@@ -1,0 +1,35 @@
+{
+  "hud_error": false,
+  "cursor_error": false,
+  "current_denied": true,
+  "hud": {
+    "sampled": true,
+    "selected_hud": {
+      "time_units": 58,
+      "energy": 62,
+      "health": 33,
+      "morale": 100
+    }
+  },
+  "hud_freshness": "unverified",
+  "cursor_metadata": {
+    "schema": "experimental-presented-cursor/0",
+    "semantics": "last_observation",
+    "freshness": "unverified",
+    "profile": "software-single-buffer-8bit-integer-scale-no-bands",
+    "unavailable_or_unsupported": false,
+    "public_revision": 24,
+    "crop": {
+      "screen_width": 960,
+      "screen_height": 600,
+      "x": 74,
+      "y": 74,
+      "width": 128,
+      "height": 128,
+      "format": "image/png"
+    }
+  },
+  "png_matches_source_exactly": true,
+  "comparison_same_session_revision": true,
+  "run_identifiers": "Omitted; same-session/revision comparison result retained."
+}

@@ -1,0 +1,152 @@
+{
+  "source": "Pinned reference build inputs from the official Debian archive",
+  "packages": [
+    {
+      "file": "cmake-data_3.31.6-2_all.deb",
+      "sha256": "d9060145be892f43cd1888024114ceab019c81479d4b0a3383fe14cebe2295cb",
+      "package": "cmake-data",
+      "version": "3.31.6-2",
+      "architecture": "all"
+    },
+    {
+      "file": "cmake_3.31.6-2_amd64.deb",
+      "sha256": "dee2fc94973325240604ffbca677a3f16b462fb6520946bd81be1ecbac770a02",
+      "package": "cmake",
+      "version": "3.31.6-2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libgl-dev_1.7.0-1+b2_amd64.deb",
+      "sha256": "2c5044a44bc7cd7a196d554ca6ff78ae0358fbb98b7d2cce49176bdc6a816fe4",
+      "package": "libgl-dev",
+      "version": "1.7.0-1+b2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libgl1_1.7.0-1+b2_amd64.deb",
+      "sha256": "87fa2f6e5abaed4ed385fac879c8dd735af719ee2300222d901793c66e041678",
+      "package": "libgl1",
+      "version": "1.7.0-1+b2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libglu1-mesa-dev_9.0.2-1.1+b3_amd64.deb",
+      "sha256": "365a0576d95edf7b8052608bcbebe69ead0bb9aa8475b27174558961a58db70f",
+      "package": "libglu1-mesa-dev",
+      "version": "9.0.2-1.1+b3",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libglx-dev_1.7.0-1+b2_amd64.deb",
+      "sha256": "93d456321c07009491b942783db8c57065b616db713ef5f6a0c629ca078c4ea0",
+      "package": "libglx-dev",
+      "version": "1.7.0-1+b2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libglx0_1.7.0-1+b2_amd64.deb",
+      "sha256": "2721fdca0fe3bd963cb39482eabc253af52b88f4a7f6dbb69e475549daf5af3b",
+      "package": "libglx0",
+      "version": "1.7.0-1+b2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libmad0_0.15.1b-11+b1_amd64.deb",
+      "sha256": "2670b1ddb61e805a165f43bc4c81a2781fe042584139d32c8b27f4df2bd6a399",
+      "package": "libmad0",
+      "version": "0.15.1b-11+b1",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libmikmod3_3.3.13-1_amd64.deb",
+      "sha256": "6d991a9a8d915af9ae5b4f2ac763a0755b6d987b7d1a4679c01eb2b5b88288ae",
+      "package": "libmikmod3",
+      "version": "3.3.13-1",
+      "architecture": "amd64"
+    },
+    {
+      "file": "librhash1_1.4.5-1_amd64.deb",
+      "sha256": "9bf56d7d8ce3e7680a0dd8e3cfe8acdf50e0aa3b98b0a907cf744a4d1711af72",
+      "package": "librhash1",
+      "version": "1.4.5-1",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl-gfx1.2-5_2.0.25-12+b2_amd64.deb",
+      "sha256": "fc3f8a110d34eda0d5b0c79ff164de57506fbc43551120c9c30dde403b1fa6a3",
+      "package": "libsdl-gfx1.2-5",
+      "version": "2.0.25-12+b2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl-gfx1.2-dev_2.0.25-12+b2_amd64.deb",
+      "sha256": "0a667bd6fcebbca785d2989cab7f0f7188db77f17805a6e9d95a33b2a32c222f",
+      "package": "libsdl-gfx1.2-dev",
+      "version": "2.0.25-12+b2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl-image1.2-dev_1.2.12-14_amd64.deb",
+      "sha256": "80ad50b0ebd4cd9a1d70c8a1709e20700fac975d0e246670de87469d7218a5cf",
+      "package": "libsdl-image1.2-dev",
+      "version": "1.2.12-14",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl-image1.2_1.2.12-14_amd64.deb",
+      "sha256": "e8394c5a3ad3c6980e4d871b41c1a8e5234d525cc73ff3cf2281de16c4696635",
+      "package": "libsdl-image1.2",
+      "version": "1.2.12-14",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl-mixer1.2-dev_1.2.12-19+b1_amd64.deb",
+      "sha256": "32083732ba3337f2c503580d762e55e30352958b29501c892ef06e254e2b47fd",
+      "package": "libsdl-mixer1.2-dev",
+      "version": "1.2.12-19+b1",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl-mixer1.2_1.2.12-19+b1_amd64.deb",
+      "sha256": "ca997f5edcebcbceb1ca3a5aa65e888fd971542435f8e91cf9e2cc4858322328",
+      "package": "libsdl-mixer1.2",
+      "version": "1.2.12-19+b1",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl1.2-dev_1.2.68-3_amd64.deb",
+      "sha256": "d160c91d5faf1a6176cb8ddece6d27dc7929ee74b82040c5a56bfcd84fa00f1c",
+      "package": "libsdl1.2-dev",
+      "version": "1.2.68-3",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libsdl1.2debian_1.2.68-3_amd64.deb",
+      "sha256": "64622c268b2bd343caa50cf8541629a624838b40d91ab99e7d97853424648d7d",
+      "package": "libsdl1.2debian",
+      "version": "1.2.68-3",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libuv1t64_1.50.0-2_amd64.deb",
+      "sha256": "5fec8035002e0c745b64d1c5b3e1dc42790d1a77574315b976cf3e4aab9ddc0a",
+      "package": "libuv1t64",
+      "version": "1.50.0-2",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libyaml-cpp-dev_0.8.0+dfsg-7_amd64.deb",
+      "sha256": "0103d77ce1535dea4499ab5ad970ab6a343ef63dd93f2a9fdbbf529249719ce0",
+      "package": "libyaml-cpp-dev",
+      "version": "0.8.0+dfsg-7",
+      "architecture": "amd64"
+    },
+    {
+      "file": "libyaml-cpp0.8_0.8.0+dfsg-7_amd64.deb",
+      "sha256": "120ef7f4d076f3307d374133154e34106817be874323e8bc2814130d3dccbb8a",
+      "package": "libyaml-cpp0.8",
+      "version": "0.8.0+dfsg-7",
+      "architecture": "amd64"
+    }
+  ]
+}

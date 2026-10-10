@@ -16,6 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only public observation hooks;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+#include "../Observer/HudFileObserver.h"
+#include <cstdlib>
+#endif
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
@@ -81,6 +87,9 @@ namespace OpenXcom
  */
 BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseScrolling(false), _isMouseScrolled(false), _xBeforeMouseScrolling(0), _yBeforeMouseScrolling(0), _totalMouseMoveX(0), _totalMouseMoveY(0), _mouseMovedOverThreshold(0), _mouseOverIcons(false), _autosave(false)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+	_hudObserver = 0;
+#endif
 	std::fill_n(_visibleUnit, 10, (BattleUnit*)(0));
 
 	const int screenWidth = Options::baseXResolution;
@@ -481,6 +490,9 @@ BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseSc
  */
 BattlescapeState::~BattlescapeState()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+	delete _hudObserver;
+#endif
 	delete _animTimer;
 	delete _gameTimer;
 	delete _battleGame;
@@ -585,7 +597,39 @@ void BattlescapeState::think()
 			return;
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+	samplePublicHud();
+#endif
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
+/** Copy only values already present in the visible HUD, never hidden state. */
+void BattlescapeState::samplePublicHud()
+{
+	if (!_game->isState(this) || !_gameTimer->isRunning()
+		|| _firstInit || !_popups.empty() || _save->getSide() != FACTION_PLAYER
+		|| _save->getDebugMode() || _battleGame->isBusy() || !_battleGame->getPanicHandled()
+		|| _save->getUnitsFalling() || !_save->getFallingUnits()->empty()
+		|| _map->getProjectile() || !_map->getExplosions()->empty())
+		return; // Preserve the last immutable observation; no busy/hidden reason.
+	if (!_hudObserver)
+		_hudObserver = new Observer::HudFileObserver(std::getenv("OPENXCOM_EXPERIMENTAL_HUD_DIR"));
+	if (!_hudObserver->enabled()) return;
+	Observer::PublicHud hud;
+	const BattleUnit *selected = _save->getSelectedUnit();
+	if (selected && selected->getFaction() == FACTION_PLAYER && !selected->isOut()
+		&& _numTimeUnits->getVisible() && _numEnergy->getVisible()
+		&& _numHealth->getVisible() && _numMorale->getVisible())
+	{
+		hud.selected = true;
+		hud.timeUnits = _numTimeUnits->getValue();
+		hud.energy = _numEnergy->getValue();
+		hud.health = _numHealth->getValue();
+		hud.morale = _numMorale->getValue();
+	}
+	_hudObserver->observe(hud);
+}
+#endif
 
 /**
  * Processes any mouse moving over the map.

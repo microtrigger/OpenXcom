@@ -16,7 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only public observation hooks;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #include "Screen.h"
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+#include "../Observer/CursorFileObserver.h"
+#include "../Observer/PresentedCursorSurface.h"
+#include <cstdlib>
+#endif
 #include <algorithm>
 #include <sstream>
 #include <cmath>
@@ -111,10 +118,17 @@ void Screen::makeVideoFlags()
  * Initializes a new display screen for the game to render contents to.
  * The screen is set up based on the current options.
  */
-Screen::Screen() : _baseWidth(ORIGINAL_WIDTH), _baseHeight(ORIGINAL_HEIGHT), _scaleX(1.0), _scaleY(1.0), _flags(0), _numColors(0), _firstColor(0), _pushPalette(false), _surface(0)
+Screen::Screen() :
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	_cursorObserver(0), _observerPaletteExact(false),
+#endif
+	_baseWidth(ORIGINAL_WIDTH), _baseHeight(ORIGINAL_HEIGHT), _scaleX(1.0), _scaleY(1.0), _flags(0), _numColors(0), _firstColor(0), _pushPalette(false), _surface(0)
 {
 	resetDisplay();
 	memset(deferredPalette, 0, 256*sizeof(SDL_Color));
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	_cursorObserver = new Observer::CursorFileObserver(std::getenv("OPENXCOM_EXPERIMENTAL_CURSOR_DIR"));
+#endif
 }
 
 /**
@@ -123,6 +137,9 @@ Screen::Screen() : _baseWidth(ORIGINAL_WIDTH), _baseHeight(ORIGINAL_HEIGHT), _sc
  */
 Screen::~Screen()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	delete _cursorObserver;
+#endif
 	delete _surface;
 }
 
@@ -185,7 +202,11 @@ void Screen::handle(Action *action)
  * of the buffer are resized by that factor (eg. 2 = doubled)
  * before being put on screen.
  */
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+void Screen::flip(int cursorX, int cursorY)
+#else
 void Screen::flip()
+#endif
 {
 	if (getWidth() != _baseWidth || getHeight() != _baseHeight || useOpenGL())
 	{
@@ -199,7 +220,12 @@ void Screen::flip()
 	// perform any requested palette update
 	if (_pushPalette && _numColors && _screen->format->BitsPerPixel == 8)
 	{
-		if (_screen->format->BitsPerPixel == 8 && SDL_SetColors(_screen, &(deferredPalette[_firstColor]), _firstColor, _numColors) == 0)
+		const bool paletteExact = SDL_SetColors(_screen, &(deferredPalette[_firstColor]), _firstColor, _numColors) != 0;
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+		if (!paletteExact) _observerPaletteExact = false;
+		else if (_firstColor == 0 && _numColors == 256) _observerPaletteExact = true;
+#endif
+		if (!paletteExact)
 		{
 			Log(LOG_DEBUG) << "Display palette doesn't match requested palette";
 		}
@@ -213,6 +239,21 @@ void Screen::flip()
 	{
 		throw Exception(SDL_GetError());
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	// Only final display bytes after all scaling, palette application and flip.
+	// Software single-buffer pixels remain the just-presented image; swapping or
+	// asynchronous backends are rejected. No claim about desktop occlusion/freshness.
+	if (_cursorObserver && _cursorObserver->enabled())
+	{
+		const Uint8 requiredFocus = SDL_APPACTIVE | SDL_APPINPUTFOCUS | SDL_APPMOUSEFOCUS;
+		const bool focused = (SDL_GetAppState() & requiredFocus) == requiredFocus;
+		const bool allowed = focused && !useOpenGL() && !use32bitScaler() && !Options::debug &&
+			_observerPaletteExact && _topBlackBand == 0 && _bottomBlackBand == 0 &&
+			_leftBlackBand == 0 && _rightBlackBand == 0;
+		_cursorObserver->observe(Observer::capturePresentedCursor(_screen, _baseWidth, _baseHeight,
+			cursorX, cursorY, allowed));
+	}
+#endif
 }
 
 /**
@@ -251,9 +292,14 @@ void Screen::setPalette(SDL_Color* colors, int firstcolor, int ncolors, bool imm
 	_surface->setPalette(colors, firstcolor, ncolors);
 
 	// defer actual update of screen until SDL_Flip()
-	if (immediately && _screen->format->BitsPerPixel == 8 && SDL_SetColors(_screen, colors, firstcolor, ncolors) == 0)
+	if (immediately && _screen->format->BitsPerPixel == 8)
 	{
-		Log(LOG_DEBUG) << "Display palette doesn't match requested palette";
+		const bool paletteExact = SDL_SetColors(_screen, colors, firstcolor, ncolors) != 0;
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+		if (!paletteExact) _observerPaletteExact = false;
+		else if (firstcolor == 0 && ncolors == 256) _observerPaletteExact = true;
+#endif
+		if (!paletteExact) Log(LOG_DEBUG) << "Display palette doesn't match requested palette";
 	}
 
 	// Sanity check
@@ -308,6 +354,9 @@ int Screen::getHeight() const
  */
 void Screen::resetDisplay(bool resetVideo)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	_observerPaletteExact = false;
+#endif
 	int width = Options::displayWidth;
 	int height = Options::displayHeight;
 #ifdef __linux__

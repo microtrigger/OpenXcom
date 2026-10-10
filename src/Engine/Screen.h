@@ -17,6 +17,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only public observation hooks;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #include <SDL.h>
 #include <string>
 #include "OpenGL.h"
@@ -24,6 +26,9 @@
 namespace OpenXcom
 {
 
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+namespace Observer { class CursorFileObserver; }
+#endif
 class Surface;
 class Action;
 
@@ -38,6 +43,10 @@ class Action;
 class Screen
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	Observer::CursorFileObserver *_cursorObserver;
+	bool _observerPaletteExact;
+#endif
 	SDL_Surface *_screen;
 	int _bpp;
 	int _baseWidth, _baseHeight;
@@ -69,7 +78,12 @@ public:
 	/// Handles keyboard events.
 	void handle(Action *action);
 	/// Renders the screen onto the game window.
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+	// Coordinates are the UI cursor actually composed into this frame, never a probe.
+	void flip(int cursorX = -1, int cursorY = -1);
+#else
 	void flip();
+#endif
 	/// Clears the screen.
 	void clear();
 	/// Sets the screen's 8bpp palette.

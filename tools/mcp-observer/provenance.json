@@ -1,0 +1,45 @@
+{
+  "scope": "Read-only historical-observation prototype",
+  "current_sources": {
+    "adapter.py": "697df7271ad0af1563deef536ddf160495ca53014bfd1dc944e52c6a96ebdaa4",
+    "snapshots.py": "f1fe30f15f5cd0a168f00042997bed58dae6ff87fde8c53c9ff4fda58dcb566a",
+    "test_adapter.py": "b24c030984ef13b17dc24833e9d8fa08bca11cfca4cbbbd67271e98cd321a79f",
+    "sdk_smoke.py": "134fae614e4d49355964d1208c3871da576b269a4b74cf3eeaaf9abf63227110",
+    "README.md": "37ad16430dedeb185952584dc523382da8a013c6fba53d6ada08ab8e727a924e"
+  },
+  "final_checks": {
+    "unit_tests": 23,
+    "unit_tests_passed": true,
+    "compileall_passed": true,
+    "official_sdk": "1.29.0",
+    "protocol": "2025-11-25",
+    "synthetic_sdk_smoke_passed": true
+  },
+  "actual_ufo": {
+    "live_record": "actual-ufo-evidence.json",
+    "closed_record": "actual-ufo-closed-evidence.json",
+    "timing": "Both captured before cursor output-schema relabelling and HUD unsigned-range correction. Public evidence omits run session identifiers.",
+    "source_hash_captured_at_runtime": false,
+    "reconstructed_pre_schema_adapter_sha256": "5e04c28c6290475691f3d566ed942b92d2a4fb99cafa1e94ec46c943c028999c",
+    "reconstruction_note": "Retrospective reconstruction from final adapter by removing only two source_schema/schema assignments in non-null cursor branch and the matching conditional assignments in null-cursor branch. Not a contemporaneously captured runtime hash.",
+    "final_schema_validation": "Current sources rechecked with synthetic unit and official SDK smoke; actual GUI not rerun after output-only naming and HUD range correction.",
+    "historical_reader_source_sha256": "299c72244adccd659b9cee26581e89ce7c479cf694b292bbd8ce7d78f6b8cc5d",
+    "reader_delta": "Only HUD integer bounds changed from signed32 to unsigned32 after independent review. Observed 58/62/33/100 values valid under both; filesystem/PNG logic unchanged."
+  },
+  "not_tested": [
+    "TFTD adapter runtime integration",
+    "producer freshness acknowledgement",
+    "paired hidden-state temporal parity",
+    "cross-platform behavior",
+    "controller"
+  ],
+  "packaging_update": "License notices added; runtime logic unchanged; 23 unit tests and SDK smoke passed.",
+  "prior_sources_before_license_headers": {
+    "adapter.py": "55e2440a5f46e26004f5aee71d87566f342c84f1d0235ac5caf5f2adad52bdc5",
+    "snapshots.py": "479c7cc0dcc4b4d234ad39ab36a3749f16029943fb1108044b9f4286b78e73d5",
+    "test_adapter.py": "3e6f1423dccbf2795af9fb4e428ae35f735def1ae0126138d7c88c4d08061501",
+    "sdk_smoke.py": "46aff66f970b8ee315b4cdfaa60d67d7f6429ee61e54a6e51fcd4057fc4922a0",
+    "README.md": "96282d18d66e6ddaadc36d63c503eae788899177be75b84eac334e361f4fccc0"
+  },
+  "public_metadata_note": "Operational details and run session identifiers omitted; behavioral test results retained."
+}

@@ -16,6 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: opt-in read-only public observation hooks;
+// see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
 #include "Game.h"
 #include "../resource.h"
 #include <algorithm>
@@ -325,7 +327,12 @@ void Game::run()
 				}
 				_fpsCounter->blit(_screen->getSurface());
 				_cursor->blit(_screen->getSurface());
+#ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
+				const bool cursorPresented = _cursor->getVisible();
+				_screen->flip(cursorPresented ? _cursor->getX() : -1, cursorPresented ? _cursor->getY() : -1);
+#else
 				_screen->flip();
+#endif
 			}
 		}
 

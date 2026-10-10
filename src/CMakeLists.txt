@@ -1,3 +1,5 @@
+# Fork modification 2026-10-10: default-off public observation build options.
+# See LICENSE-NOTICES.md; existing upstream license retained.
 set ( root_src
   lodepng.cpp
   main.cpp
@@ -476,6 +478,14 @@ if ( FORCE_INSTALL_DATA_TO_BIN )
 endif ()
 
 add_executable ( openxcom  ${application_type} ${openxcom_src} ${openxcom_icon} )
+if ( EXPERIMENTAL_HUD_OBSERVER )
+  target_sources ( openxcom PRIVATE Observer/PublicHud.cpp Observer/HudFileObserver.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_HUD_OBSERVER )
+endif()
+if ( EXPERIMENTAL_CURSOR_OBSERVER )
+  target_sources ( openxcom PRIVATE Observer/PresentedCursor.cpp Observer/PresentedCursorSurface.cpp Observer/CursorFileObserver.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER )
+endif()
 install ( TARGETS openxcom ${install_dest} DESTINATION ${CMAKE_INSTALL_BINDIR} )
 # Extra link flags for Windows. They need to be set before the SDL/YAML link flags, otherwise you will get strange link errors ('Undefined reference to WinMain@16')
 if ( WIN32 )

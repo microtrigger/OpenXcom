@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# New contribution maintained in this fork, 2026-10-10; see ../../LICENSE.txt.
+__pycache__/
+*.py[cod]
