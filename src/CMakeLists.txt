@@ -579,3 +579,10 @@ if ( EXPERIMENTAL_NATURAL_FOV_GATE )
   target_sources ( openxcom PRIVATE ../tests/battle-observer/NaturalFovGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-10.
+if ( EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE )
+  target_sources ( openxcom PRIVATE ../tests/battle-observer/BattlefieldAudioGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE )
+  set_property ( TARGET openxcom APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=Mix_SetPostMix" )
+endif()

@@ -53,6 +53,18 @@ if ( EXPERIMENTAL_NATURAL_FOV_GATE AND (EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIM
   message ( FATAL_ERROR "Natural FOV gate requires a separate test binary" )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-10.
+option ( EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE "Build isolated battlefield mixed-audio test gate" OFF )
+if ( EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE AND NOT EXPERIMENTAL_MIXED_AUDIO_OBSERVER )
+  message ( FATAL_ERROR "Battlefield audio gate requires EXPERIMENTAL_MIXED_AUDIO_OBSERVER" )
+endif()
+if ( EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE AND (EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_OBSERVER_EFFECTS_GATE OR EXPERIMENTAL_NATURAL_FOV_GATE OR EXPERIMENTAL_CURSOR_OBSERVER OR EXPERIMENTAL_HUD_OBSERVER) )
+  message ( FATAL_ERROR "Battlefield audio gate requires a separate test binary" )
+endif()
+if ( EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" )
+  message ( FATAL_ERROR "Battlefield audio gate requires the Linux linker postmix wrapper" )
+endif()
+
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )
 option ( BUILD_PACKAGE "Prepares build for creation of a package with CPack" ON )
 option ( ENABLE_WARNING "Always show warnings (even for release builds)" OFF )

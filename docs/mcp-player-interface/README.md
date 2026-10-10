@@ -7,7 +7,7 @@ Status as of October 10, 2026. We maintain the Russian version for day-to-day pr
 
 ## Plan versus actual progress
 
-Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The latest bounded slice is [request-bound mixed audio](MIXED-AUDIO-NATIVE.md), with [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json), 2026-10-10. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The latest bounded slice is the [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md), with [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
 | --- | --- | --- |
@@ -16,10 +16,10 @@ Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenX
 | 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
 | 3 · Native observer | Historical HUD/cursor slices, request-bound pixels, optional four-number displayed HUD and default-off [500 ms final-mix audio](MIXED-AUDIO-NATIVE.md) implemented. | Full approved projection, event coverage, broader game-audio/lifecycle validation and parity. |
 | 4 · IPC/MCP | Local read-only stdio tools, request-bound `/1`/`/2` visual protocols and a separate [native MCP audio tool](../../tools/mcp-observer/AUDIO-ADAPTER.md) implemented; SDK checks pass. | Production recovery and broader observation coverage; no audiovisual synchronization. |
-| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. | Full paired hidden-engine-state, audio and timing tests; controller gate remains open. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) passes visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM and idle/requested-observer state/engine-RNG comparisons in each game, rejecting PCM-corruption, extra-RNG-draw and missing-cue controls in both. | Full paired hidden-engine-state, audio and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
-| 8 · UFO/TFTD matrix | Selected visual checks and [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
+| 8 · UFO/TFTD matrix | Selected visual checks, [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json) and the [bounded land-only battlefield-audio slice](battlefield-audio-evidence.json) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
 | 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)); bounded audio byte counts and component microbenchmarks recorded. | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
@@ -68,11 +68,33 @@ reject a request after game exit with the generic unavailable result. An initial
 zero-volume attempt actually used default volumes due to misplaced configuration
 settings and was excluded before the corrected run; production code was unchanged.
 The eight successful clips observe the application dummy-mixer backend only; full gameplay, physical-device output and broad backend/lifecycle
-coverage are not established. The independent final-buffer oracle belongs to
-the synthetic mixer tests; these game clips establish bounded integration only.
+coverage are not established. This earlier menu record has no independent
+final-buffer oracle; those clips establish bounded integration only. The separate battlefield gate below adds
+an independent same-output oracle during a normal grenade event.
 [Payload measurements](../../tools/mcp-observer/mixed-audio-evidence.json) and
 component microbenchmarks are not model-token counts or end-to-end savings.
 Stage 5, audio parity and controller acceptance remain open.
+
+The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) now passes once
+per UFO/TFTD master: four fresh land-only worlds form two idle/requested-observer
+pairs, with a grenade origin inside or outside current player-team terrain FOV.
+Two native audio requests per master match an independent copy of the exact same
+final mixer buffers; the production callback leaves those buffers unchanged.
+Successful ordinary grenade Sound playback on an allocated channel is witnessed
+during capture. Whole semantic battle state, checked runtime fields and engine
+RNG agree within each pair at setup and the normal next-turn input-wait checkpoint.
+Three isolated controls per game are rejected at the intended assertions: a corrupt
+PCM byte, an extra engine-RNG draw on admission and omission of the ordinary cue.
+All six controls ran once without crashes or timeouts.
+
+Normal SDL End Turn dispatch, simulation/animation timers, flash and camera
+recentering remain active. The ordinary next-turn screen awaits input, so hostile
+AI is not exercised. The profile uses an initialized dummy mixer, land depth 0,
+normal music and configured music/sound/UI levels 84/84/42. This is mixed output
+during a witnessed event, not isolated grenade PCM or proof of physical audibility.
+No new observer fields or controller are added. Full hidden-world/audio coverage,
+libc RNG, timing equality, audiovisual synchronization and repeated-run robustness
+remain unverified; Stage 5 stays open. See [aggregate evidence](battlefield-audio-evidence.json).
 
 ## Goal and boundaries
 
@@ -163,7 +185,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 5. Security gate: paired hidden-state tests
 
-**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. A real-SDL synthetic final-mix oracle also passes with byte-exact PCM and corruption controls. Full hidden-world, lifecycle, audio parity, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
+**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. A real-SDL synthetic final-mix oracle also passes with byte-exact PCM and corruption controls. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) now passes one land-only run per game: visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM, unchanged output buffers and paired semantic battle-state/checked-runtime/engine-RNG equality. Normal End Turn input and timers reach the ordinary next-turn input wait; hostile AI is not exercised. PCM-corruption, extra-RNG-draw and missing-cue controls are rejected once each in both games at the intended assertions. Full hidden-world, lifecycle, audio parity, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
 
 **Dependencies:** stages 3–4 and the approved contract.
 
@@ -342,6 +364,48 @@ and SDK audio-content checks pass within their documented scope. The separate
 [UFO/TFTD menu GUI record](mixed-audio-game-evidence.json) contains eight successful
 clips and four generic post-exit rejections, with verified enabled and zero-volume
 settings. It checks application dummy-mixer output, not physical audibility or
-full gameplay. Timing/functional noninterference and the full UFO/TFTD audio
-parity matrix remain unverified. No gameplay control is added;
+full gameplay. The separate battlefield gate below adds bounded functional-effects
+evidence; timing noninterference and the full UFO/TFTD audio parity matrix remain
+unverified. No gameplay control is added;
 Stage 5 and actual end-to-end resource/token comparison remain open.
+
+## Bounded normal battlefield-audio test (2026-10-10)
+
+The separate default-OFF [battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md)
+passes one normal run for UFO and one for TFTD, each using four fresh land-only
+worlds at depth 0. One same-orientation idle/requested-observer pair has the grenade
+origin inside current player-team terrain FOV; the other has it outside. Natural
+FOV determines visibility. Each master performs two native audio requests through
+the existing twelve-field mixed-audio schema; this test adds no observer fields
+or MCP gameplay controls.
+
+Ordinary SDL End Turn input triggers the native ground-grenade and explosion path.
+The expected ordinary grenade Sound successfully obtains a mixer channel during
+capture. An independent test-only postmix trampoline copies the same final output
+before invoking the production observer callback, verifies that callback leaves
+the output unchanged, and checks every returned PCM byte against its own capture.
+It reads neither the native capture slot nor its private state. The normal music
+path and configured music/sound/UI levels 84/84/42 are retained with an initialized
+dummy backend. Nonzero mixed PCM alone would not establish grenade audibility;
+this result covers mixed output during a separately witnessed normal event.
+
+Each requested world matches its idle twin in the whole semantic SavedBattleGame
+structure, checked additional runtime fields and engine RNG at setup and after the
+normal side change. The ordinary NextTurnState input wait prevents hostile AI from
+running; simulation and animation timers, blast flash and camera recentering are
+preserved. Equality is between each same-orientation pair's checked state, not
+between different worlds' audio waveforms, wall-clock pacing or callback counts.
+
+Three isolated mutation controls are rejected in each game: corruption of a
+serialized PCM byte fails the exact independent comparison; an extra engine-RNG
+draw on an admitted request fails paired equality; omission of the ordinary
+grenade cue fails the playback witness despite music remaining enabled. All six
+controls ran once and failed at their intended assertions, without a crash or
+timeout. Both normal runs passed on the first attempt without runtime source
+corrections. See [aggregate runtime evidence](battlefield-audio-evidence.json).
+
+One normal run per master does not establish repeatability, physical-device
+audibility, an isolated grenade waveform, libc RNG equality, hostile AI behavior, full gameplay
+or hidden-world coverage, timing equality, broad backend support or audiovisual
+synchronization. The existing **190 Python tests** remain a separate regression
+suite. Stage 5 and full audio parity remain open; the controller stays disabled.

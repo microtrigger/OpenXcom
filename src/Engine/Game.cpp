@@ -20,6 +20,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 // Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
+// Fork modification 2026-10-10: default-off battlefield-audio test seam.
+// See LICENSE-NOTICES.md; upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+#include "../../tests/battle-observer/BattlefieldAudioGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 #include "../../tests/battle-observer/ObserverEffectsGate.h"
 #endif
@@ -192,6 +197,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		NaturalFovGate::afterCleanup(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		BattlefieldAudioGate::afterCleanup(this);
+#endif
 		// Initialize active state
 		if (!_init)
 		{
@@ -218,6 +226,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		NaturalFovGate::beforeEvents(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		BattlefieldAudioGate::beforeEvents(this);
+#endif
 		// Process events
 		while (SDL_PollEvent(&_event))
 		{
@@ -230,6 +241,9 @@ void Game::run()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 			if (!NaturalFovGate::acceptEvent(_event)) continue;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+			if (!BattlefieldAudioGate::acceptEvent(_event)) continue;
 #endif
 			if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;
@@ -346,6 +360,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		NaturalFovGate::afterEvents(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		BattlefieldAudioGate::afterEvents(this);
+#endif
 		// Process rendering
 		if (runningState != PAUSED)
 		{
@@ -384,6 +401,9 @@ void Game::run()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 				NaturalFovGate::beforeFrame(this, _states.back());
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+				BattlefieldAudioGate::beforeFrame(this, _states.back());
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 				_screen->beginObserverFrame();
@@ -426,7 +446,13 @@ void Game::run()
 
 		// Independent observer polling also runs while application is PAUSED.
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		BattlefieldAudioGate::beforePoll();
+#endif
 		_mixedAudioObserver.poll();
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		BattlefieldAudioGate::afterPoll(this);
+#endif
 #endif
 
 		// Save on CPU

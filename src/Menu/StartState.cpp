@@ -20,6 +20,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 // Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
+// Fork modification 2026-10-10: default-off battlefield-audio test seam.
+// See LICENSE-NOTICES.md; upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+#include "../../tests/battle-observer/BattlefieldAudioGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 #include "../../tests/battle-observer/ObserverEffectsGate.h"
 #endif
@@ -194,6 +199,9 @@ void StartState::think()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		if (NaturalFovGate::loaded(_game)) break;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		if (BattlefieldAudioGate::loaded(_game)) break;
 #endif
 		_game->setState(new GoToMainMenuState);
 		if (_oldMaster != Options::getActiveMaster() && Options::playIntro)

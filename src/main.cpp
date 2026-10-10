@@ -18,6 +18,11 @@
  */
 // Fork modification 2026-10-10: default-off bounded observer-effects and natural-FOV test hooks.
 // See LICENSE-NOTICES.md; existing upstream license retained.
+// Fork modification 2026-10-10: default-off battlefield-audio test seam.
+// See LICENSE-NOTICES.md; upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+#include "../tests/battle-observer/BattlefieldAudioGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 #include "../tests/battle-observer/ObserverEffectsGate.h"
 #endif
@@ -137,6 +142,9 @@ int main(int argc, char *argv[])
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 	NaturalFovGate::prepare();
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+	BattlefieldAudioGate::prepare();
+#endif
 	game = new Game(title.str());
 #ifdef OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE
 	ObserverEffectsGate::silence();
@@ -159,6 +167,8 @@ int main(int argc, char *argv[])
 	return ObserverEffectsGate::exitStatus();
 #elif defined(OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE)
 	return NaturalFovGate::exitStatus();
+#elif defined(OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE)
+	return BattlefieldAudioGate::exitStatus();
 #else
 	return EXIT_SUCCESS;
 #endif

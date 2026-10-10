@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+// Fork modification 2026-10-10: default-off battlefield-audio test seam.
+// See LICENSE-NOTICES.md; upstream license retained.
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+#include "../../tests/battle-observer/BattlefieldAudioGate.h"
+#endif
 #include "Sound.h"
 #include "Exception.h"
 #include "Options.h"
@@ -90,6 +95,9 @@ void Sound::play(int channel, int angle, int distance) const
 				Log(LOG_WARNING) << Mix_GetError();
 			}
 		}
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
+		BattlefieldAudioGate::played(this, chan);
+#endif
 	}
 }
 
