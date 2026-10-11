@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Original negative-test contribution, 2026-10-11. Never ship these deliberate faults.
+diff --git a/src/Battlescape/Map.cpp b/src/Battlescape/Map.cpp
+index 1b760e7b0..8501de96e 100644
+--- a/src/Battlescape/Map.cpp
++++ b/src/Battlescape/Map.cpp
+@@ -906 +906 @@ void Map::drawTerrain(Surface *surface)
+-							frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
++							frameNumber += tile->getSmoke() == 7 ? 0 : int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif

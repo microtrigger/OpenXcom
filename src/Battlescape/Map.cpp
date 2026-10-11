@@ -921,6 +921,9 @@ void Map::drawTerrain(Surface *surface)
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #if defined(OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE) && defined(OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE)
 						RenderPairGate::smokeBlitted(tile, _animFrame, frameNumber, shade);
+#elif defined(OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE) && defined(OPENXCOM_EXPERIMENTAL_SMOKE_CLIPPING_GATE)
+                        RenderPairGate::smokeClipped(tile, _animFrame, frameNumber, shade,
+                            tmpSurface, surface, screenPosition.x, screenPosition.y, _spriteWidth, _spriteHeight);
 #endif
 					}
 

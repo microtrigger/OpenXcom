@@ -1,11 +1,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later. Original project documentation, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md. -->
 # Proposed subsequent hidden-world battle gate
 
-This is a bounded design proposal with two implemented render-only cases: the
-[hidden-occupant pair](HIDDEN-OCCUPANT-GATE.md) and the
-[smoke-density pair](SMOKE-DENSITY-GATE.md), both default-off. Occlusion/clipping
-and offscreen death remain proposals. These narrow pairs and the paired UI tests
-do not close stage 5 or authorize a controller. A separate [bounded request-effects gate](OBSERVER-EFFECTS-GATE.md)
+This is a bounded design proposal with three implemented render-only cases: the
+[hidden-occupant pair](HIDDEN-OCCUPANT-GATE.md), the
+[smoke-density pair](SMOKE-DENSITY-GATE.md) and the
+[full right-edge smoke-clipping pair](SMOKE-CLIPPING-GATE.md), all default-off.
+Other clipping/occlusion, the hidden-movement overlay/queue and offscreen death
+remain proposals. These narrow pairs and the paired UI tests do not close stage 5
+or authorize a controller. A separate [bounded request-effects gate](OBSERVER-EFFECTS-GATE.md)
 now exercises normal kneel/stand execution and engine-RNG comparison; it does
 not implement the remaining hidden-world or timing matrix.
 Source feasibility is pinned to `b8d9806aa83151c4da1805c691f50903512c7f65`.
@@ -67,10 +69,25 @@ constructors or private-access macro tricks merely to shrink the harness.
    timeouts or exclusions; see [aggregate evidence](smoke-density-evidence.json).
    This implements only the controlled render/transport case, not smoke
    propagation, damage, turns, fire, underwater behavior, audio or timing equivalence.
-3. Occlusion and clipping. First establish different real unit/smoke/cursor pixels
-   without suppression. Then apply the same normal overlay, viewport clipping or
-   offscreen camera, and verify final equality. Exercise the actual hidden-movement
-   overlay branch rather than merely label a fixture “offscreen.”
+3. Occlusion and clipping: the [full right-edge smoke-clipping case](SMOKE-CLIPPING-GATE.md)
+   is implemented. Its first normal run in each UFO/TFTD master uses four fresh
+   worlds: centered smoke 6/7 gives eight different complete frames and actual
+   cursor crops, while wholly clipped smoke 6/7 gives eight equal complete frames
+   and normalized native transcripts; all 32 native responses are valid. The real
+   post-blit witness checks source/destination domains at x=336 in a 320-pixel-wide
+   map surface: the actual smoke branch is visited, but its sprite has zero
+   horizontal intersection. Camera/input history is fixed within each pair; the
+   centered and clipped pairs are independent histories, with no pan between them.
+   Both RNG seeds are pinned; the discovered, terrain-empty depth-0 fixture skips
+   simulation/timers and disables audio. Both source mutants are rejected in each
+   game: an actual-density HUD leak fails `clipped-pair-public-transcript` after
+   the visual preconditions pass; collapsing the centered density groups fails
+   `centered-density-pixel-positive-control`. The latter tests centered positive-control
+   sensitivity, not a clipping bypass. All six normal/mutant runs completed on
+   their first attempt without crashes, timeouts or exclusions; see
+   [aggregate evidence](smoke-clipping-evidence.json). Partial clipping, other edges,
+   occlusion and the actual hidden-movement overlay/ordinary queue remain open;
+   merely labelling a fixture “offscreen” does not exercise those branches.
 4. Offscreen death, after the simpler pairs. Advance genuine UnitDieBState through
    ordinary battle queues. Do not assume offscreen means silent: death audio is
    not gated identically to unit drawing, and death may change selection, corpse

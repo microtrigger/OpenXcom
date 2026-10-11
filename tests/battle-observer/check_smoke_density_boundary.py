@@ -18,7 +18,7 @@ for option in ('EXPERIMENTAL_BATTLE_PAIR_GATE', 'EXPERIMENTAL_OBSERVER_EFFECTS_G
                'EXPERIMENTAL_HUD_OBSERVER', 'EXPERIMENTAL_MIXED_AUDIO_OBSERVER'):
     assert option in conflicts
 sources = (ROOT / 'src/CMakeLists.txt').read_text()
-assert 'if ( EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE )' in sources
+assert 'if ( EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE OR EXPERIMENTAL_SMOKE_CLIPPING_GATE )' in sources
 assert 'target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE )' in sources
 map_source = (ROOT / 'src/Battlescape/Map.cpp').read_text()
 assert map_source.count('RenderPairGate::smokeBlitted(') == 1
@@ -44,8 +44,8 @@ for required in ('const int densities[3] = {7, 8, 6}', 'state->animate()', 'SDL_
                  '"smoke-pair-final-rgb"', '"smoke-pair-public-transcript"',
                  'Mix_QuerySpec', 'SDL_WasInit(SDL_INIT_AUDIO)', 'OPENXCOM_SMOKE_DENSITY_GATE'):
     assert required in fixture, required
-assert fixture.index('"smoke-pair-final-rgb"') < fixture.index('transcript(histories[0])')
-assert fixture.index('"density-boundary-pixel-positive-control"') < fixture.index('transcript(histories[0])')
+assert fixture.index('"smoke-pair-final-rgb"') < fixture.index('transcript(histories[equalFirst])')
+assert fixture.index('"density-boundary-pixel-positive-control"') < fixture.index('transcript(histories[equalFirst])')
 # Public producer files must remain ignorant of the smoke fixture and raw tile data.
 for name in ('src/Observer/PresentationObserver.cpp', 'src/Observer/PresentedCursor.cpp',
              'src/Observer/PresentedHud.cpp'):
