@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: prove the actual displayed stance-button surface; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -192,6 +193,19 @@ void BattlescapeButton::initSurfaces()
 	// Unlock the surface
 	_altSurface->unlock();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+bool BattlescapeButton::stanceContextVisible() const
+{
+    if (!_inverted) return Surface::stanceContextVisible();
+    // TFTD resizing marks the base surface dirty, but inverted buttons blit
+    // only the separate alternate. Prove the actual source, not unused pixels.
+    return _visible && !_hidden && !_crop.w && !_crop.h && _altSurface &&
+        _altSurface->getX() == getX() && _altSurface->getY() == getY() &&
+        _altSurface->getWidth() == getWidth() && _altSurface->getHeight() == getHeight() &&
+        _altSurface->stanceContextVisible();
+}
+#endif
 
 /**
  * Blits this surface or the alternate surface onto another one,

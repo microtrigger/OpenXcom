@@ -1,11 +1,19 @@
 <!-- New project documentation: SPDX-License-Identifier: GPL-3.0-or-later. See repository LICENSE.txt and LICENSE-NOTICES.md. -->
-# Local OpenXcom read-only observation MCP prototype
+# Local OpenXcom observation and supervised stance MCP prototype
 
-**Read-only inspection, not a controller or current-state observer.** This is a
-standalone Python prototype in this repository. The adapter changes no engine
-source, game installation, profile, save, connector registration or network service.
-There are no gameplay/input tools, arbitrary paths supplied by MCP callers,
-credentials, uploads, subscriptions, background polling or network listeners.
+The default tools are read-only observations. A separately opted-in
+[supervised stance pilot](../../docs/mcp-player-interface/SUPERVISED-STANCE-PILOT.md)
+adds `read_stance_context`, `request_stance` and `read_stance_status` through
+`launch_presentation.py --supervised-stance -- /absolute/game ...`. The game must
+be built with the default-OFF stance option. An MCP proposal cannot approve
+itself: the displayed local confirmation must be accepted before the normal
+kneel/stand handler runs. A dispatch receipt is not a verified outcome.
+[Bounded evidence](../../docs/mcp-player-interface/SUPERVISED-STANCE-EVIDENCE.md)
+records both-game checks and earlier unsuccessful attempts.
+
+The adapter installs no connector or network service. MCP callers cannot supply
+arbitrary filesystem paths, hidden-unit queries or a general input command.
+The historical tools below remain read-only and never authorize an action.
 
 ## Run and boundary
 
@@ -32,8 +40,8 @@ Tool names, descriptions and every successful observation retain the historical
 contract. HUD and cursor sessions have different lifecycle scopes and are never
 joined or described as synchronized. `session`/`public_revision` describe producer
 provenance only; they do not attest current liveness or session identity of a lock
-holder. The adapter cannot authorize gameplay, and clients must not treat these
-records as current-state authority. This policy is a consumer requirement, not a
+holder. These historical tools cannot authorize gameplay, and clients must not treat
+their records as current-state authority. This policy is a consumer requirement, not a
 claim that software can stop a malicious consumer using historical observations.
 
 ## File and schema safeguards

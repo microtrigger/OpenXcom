@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-10.
+# Supervised stance integration added 2026-10-11, GPL-3.0-or-later.
 # This file is free software: you may redistribute and/or modify it under
 # GNU GPL version 3 or, at your option, any later version.
 # Provided without warranty; see the repository LICENSE.txt and LICENSE-NOTICES.md.
-"""Local stdio protocol scaffold. Historical reads and optional post-request presentation acknowledgement."""
+"""Local MCP: historical reads, opt-in presentation/audio and supervised stance."""
 import json
 import sys
 
@@ -45,7 +46,7 @@ def error(ident, code, message):
     return {'jsonrpc': '2.0', 'id': ident, 'error': {'code': code, 'message': message}}
 
 
-def definitions(presentation=False, presented_hud=False, mixed_audio=False):
+def definitions(presentation=False, presented_hud=False, mixed_audio=False, supervised_stance=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -70,14 +71,39 @@ def definitions(presentation=False, presented_hud=False, mixed_audio=False):
                        'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
                        'annotations': {'readOnlyHint': True, 'destructiveHint': False,
                                        'idempotentHint': False, 'openWorldHint': False}})
+    if supervised_stance:
+        opaque = {'type': 'string', 'pattern': '^[0-9a-f]{32}$'}
+        stance = {'type': 'string', 'enum': ['kneel', 'stand']}
+        result.extend([
+            {'name': 'read_stance_context',
+             'description': 'Read the actual displayed bottom-panel pixels after this request and receive a one-use stance capability. Interpret the visible stance yourself. A new read invalidates the previous capability. No unit IDs, hidden stats or semantic HUD extraction. Blocked while local confirmation is pending. After any failed observation or transport uncertainty, relaunch explicitly; never automatically retry.',
+             'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+             'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                             'idempotentHint': False, 'openWorldHint': False}},
+            {'name': 'request_stance',
+             'description': 'Experimental supervised pilot: ask the local game UI to confirm an explicit kneel/stand action based on the supplied visual interpretation and fresh context capability. Only a human using ordinary local game controls can approve. A model boolean cannot approve. The action may spend time units or trigger reaction fire. pending_confirmation is not dispatch; dispatched is never success. Poll read_stance_status, then obtain a fresh context image for visible verification. Never resend after uncertainty. An exact duplicate only queries status; conflicting command-ID reuse fails.',
+             'inputSchema': {'type': 'object', 'properties': {
+                 'capability': dict(opaque), 'control_epoch': dict(opaque),
+                 'command_id': dict(opaque), 'observed': dict(stance), 'desired': dict(stance)},
+                 'required': ['capability', 'control_epoch', 'command_id', 'observed', 'desired'],
+                 'additionalProperties': False},
+             'annotations': {'readOnlyHint': False, 'destructiveHint': True,
+                             'idempotentHint': True, 'openWorldHint': False}},
+            {'name': 'read_stance_status',
+             'description': 'Read one known command receipt: pending_confirmation, dispatched or unavailable. This never retries or resends an action. dispatched is not success; read a fresh post-action context image for visible verification. Poll explicitly while pending. Transport failure closes the stance channel; do not retry automatically.',
+             'inputSchema': {'type': 'object', 'properties': {'command_id': dict(opaque)},
+                             'required': ['command_id'], 'additionalProperties': False},
+             'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                             'idempotentHint': True, 'openWorldHint': False}}])
     return result
 
 
 class Server:
-    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None):
+    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None, supervised_stance=None):
         self.state = 'new'
         self.presentation = presentation
         self.mixed_audio = mixed_audio
+        self.supervised_stance = supervised_stance
         self.presented_hud_enabled = presentation is not None and getattr(presentation, 'version', 1) == 2
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
@@ -108,14 +134,32 @@ class Server:
                 return error(ident, -32602, 'Invalid initialization')
             self.state = 'initializing'
             result = {'protocolVersion': PROTOCOL, 'capabilities': {'tools': {}},
-                      'serverInfo': {'name': 'openxcom-readonly-scaffold', 'version': '0.1.0'}}
+                      'serverInfo': {'name': ('openxcom-supervised-stance-pilot' if self.supervised_stance is not None
+                                              else 'openxcom-readonly-scaffold'), 'version': '0.1.0'}}
         elif self.state != 'ready':
             return error(ident, -32000, 'Not initialized')
         elif method == 'tools/list':
             if params:
                 return error(ident, -32602, 'Invalid params')
             result = {'tools': definitions(self.presentation is not None, self.presented_hud_enabled,
-                                          self.mixed_audio is not None)}
+                                          self.mixed_audio is not None, self.supervised_stance is not None)}
+        elif (method == 'tools/call' and self.supervised_stance is not None
+                and params.get('name') in ('read_stance_context', 'request_stance', 'read_stance_status')):
+            from supervised_stance import token, validate_arguments
+            from snapshots import Unavailable, exact
+            arguments = params.get('arguments', {})
+            try:
+                if set(params) - {'name', 'arguments', '_meta'} or type(arguments) is not dict:
+                    raise Unavailable('Unavailable')
+                if params['name'] == 'request_stance':
+                    validate_arguments(arguments)
+                elif params['name'] == 'read_stance_status':
+                    exact(arguments, 'command_id'); token(arguments['command_id'])
+                else:
+                    exact(arguments, '')
+            except Unavailable:
+                return error(ident, -32602, 'Invalid params')
+            result = self.stance(params['name'], arguments)
         elif (method == 'tools/call' and self.mixed_audio is not None
                 and params.get('name') == 'read_mixed_audio'):
             if (set(params) - {'name', 'arguments', '_meta'}
@@ -143,6 +187,33 @@ class Server:
             return error(ident, -32601, 'Method not found')
         return {'jsonrpc': '2.0', 'id': ident, 'result': result}
 
+
+    def stance(self, name, arguments):
+        from supervised_stance import PUBLIC_CONTEXT_SCHEMA, PUBLIC_STATUS_SCHEMA, image_content
+        from snapshots import Unavailable
+        try:
+            image = None
+            if name == 'read_stance_context':
+                obj, rgb = self.supervised_stance.observe()
+                meta = {k: obj[k] for k in ('challenge', 'control_epoch', 'capability', 'semantics')}
+                meta['schema'] = PUBLIC_CONTEXT_SCHEMA
+                meta['panel'] = {'width': obj['panel']['width'], 'height': obj['panel']['height'],
+                                 'format': 'image/png'}
+                image = image_content(rgb)
+            else:
+                if name == 'request_stance':
+                    obj = self.supervised_stance.request(**arguments)
+                else:
+                    obj = self.supervised_stance.read_status(**arguments)
+                meta = {'schema': PUBLIC_STATUS_SCHEMA, 'command_id': obj['command_id'],
+                        'status': obj['status'], 'semantics': 'dispatch_status_not_success'}
+            content = [{'type': 'text', 'text': json.dumps(meta, separators=(',', ':'))}]
+            if image is not None:
+                content.append(image)
+            return {'content': content, 'structuredContent': meta, 'isError': False}
+        except Unavailable:
+            return {'content': [{'type': 'text', 'text': '{"error":"unavailable"}'}],
+                    'structuredContent': {'error': 'unavailable'}, 'isError': True}
 
     def mixed(self):
         from mixed_audio import PUBLIC_SCHEMA, audio_content
@@ -200,8 +271,8 @@ class Server:
                 '{"available":false,"freshness":"unverified","reason":"observation_unavailable"}'}], 'isError': True}
 
 
-def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None):
-    server = Server(hud_dir, cursor_dir, presentation, mixed_audio)
+def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None, supervised_stance=None):
+    server = Server(hud_dir, cursor_dir, presentation, mixed_audio, supervised_stance)
     while True:
         raw = source.readline(MAX_MESSAGE + 1)
         if not raw:

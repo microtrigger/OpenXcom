@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -315,6 +316,9 @@ BattleUnit::~BattleUnit()
  */
 void BattleUnit::load(const YAML::Node &node)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceControlRevision;
+#endif
 	_id = node["id"].as<int>(_id);
 	_faction = _originalFaction = (UnitFaction)node["faction"].as<int>(_faction);
 	_status = (UnitStatus)node["status"].as<int>(_status);
@@ -636,6 +640,9 @@ void BattleUnit::startWalking(int direction, Position destination, Tile *tileBel
 	_destination = destination;
 	_lastPos = _pos;
 	_cacheInvalid = cache;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceControlRevision;
+#endif
 	_kneeled = false;
 	if (_breathFrame >= 0)
 	{
@@ -958,6 +965,9 @@ const std::vector<std::pair<Uint8, Uint8> > &BattleUnit::getRecolor() const
  */
 void BattleUnit::kneel(bool kneeled)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceControlRevision;
+#endif
 	_kneeled = kneeled;
 	_cacheInvalid = true;
 }
@@ -1677,6 +1687,9 @@ void BattleUnit::prepareNewTurn(bool fullProcess)
 		if (_kneeled)
 		{
 			// stand up if kneeling
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+			++_stanceControlRevision;
+#endif
 			_kneeled = false;
 		}
 		return;

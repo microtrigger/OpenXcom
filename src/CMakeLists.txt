@@ -602,3 +602,13 @@ if ( EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE )
   set_property ( TARGET openxcom APPEND_STRING PROPERTY LINK_FLAGS " -Wl,--wrap=Mix_SetPostMix" )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised pilot, 2026-10-11.
+if ( EXPERIMENTAL_SUPERVISED_STANCE )
+  target_sources ( openxcom PRIVATE Observer/StanceController.cpp Observer/StanceConfirmState.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE )
+endif()
+if ( EXPERIMENTAL_STANCE_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/stance-control/StanceControlGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE )
+endif()

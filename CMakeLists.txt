@@ -92,6 +92,19 @@ if ( EXPERIMENTAL_TIMING_CALIBRATION AND (EXPERIMENTAL_SMOKE_CLIPPING_GATE OR EX
   message ( FATAL_ERROR "Timing calibration requires a separate test binary" )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised pilot, 2026-10-11.
+option ( EXPERIMENTAL_SUPERVISED_STANCE "Build local-confirmation desired-stance pilot" OFF )
+if ( EXPERIMENTAL_SUPERVISED_STANCE AND NOT EXPERIMENTAL_CURSOR_OBSERVER )
+  message ( FATAL_ERROR "Supervised stance requires EXPERIMENTAL_CURSOR_OBSERVER" )
+endif()
+option ( EXPERIMENTAL_STANCE_CONTROL_GATE "Build isolated finite stance-control test gate" OFF )
+if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
+  message ( FATAL_ERROR "Stance control gate requires EXPERIMENTAL_SUPERVISED_STANCE" )
+endif()
+if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND (EXPERIMENTAL_TIMING_CALIBRATION OR EXPERIMENTAL_SMOKE_CLIPPING_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE OR EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_OBSERVER_EFFECTS_GATE OR EXPERIMENTAL_NATURAL_FOV_GATE OR EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE) )
+  message ( FATAL_ERROR "Stance control gate requires a separate test binary" )
+endif()
+
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )
 option ( BUILD_PACKAGE "Prepares build for creation of a package with CPack" ON )
 option ( ENABLE_WARNING "Always show warnings (even for release builds)" OFF )

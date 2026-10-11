@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -22,6 +23,9 @@
 #include "../Engine/State.h"
 #include "Position.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#include "../Observer/StanceController.h"
+#endif
 #include <vector>
 #include <string>
 
@@ -52,6 +56,13 @@ namespace Observer { class HudFileObserver; }
 class BattlescapeState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    friend class Observer::StanceController;
+    std::uint64_t _stanceUiRevision = 0;
+    BattleUnit *_stanceShownActor = 0;
+    bool _stanceShownKneeled = false;
+    bool stanceContext(Observer::StanceContext &context, bool covered) const;
+#endif
 	#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 	Observer::HudFileObserver *_hudObserver;
 	void samplePublicHud();

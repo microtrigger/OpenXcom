@@ -1,7 +1,8 @@
 <!-- New project documentation: SPDX-License-Identifier: GPL-3.0-or-later. See repository LICENSE.txt and LICENSE-NOTICES.md. -->
 # Vanilla perceptual parity: selected policy and implementation contract
 
-Version: `vanilla-perceptual-parity/0-draft`, 2026-10-10.
+Policy revision: `vanilla-perceptual-parity/1-practical`, 2026-10-11.
+Supersedes `vanilla-perceptual-parity/0-draft` for the limited pilot route below.
 [Русская версия](PERCEPTION-CONTRACT.ru.md).
 
 ## Decision
@@ -14,11 +15,86 @@ Do not silently “repair” the game's fog of war by suppressing those clues.
 Conversely, do not treat a remembered behavior of the original executable as
 proof that this OpenXcom build behaves identically.
 
-This selects the policy direction. The per-field schema and implementation
-acceptance gates below remain to be validated. It does not approve a campaign,
-controller, bulk probing, or a claim of complete UI parity. The existing four-
-number HUD prototype stays unchanged. Changes to the contract or public
-projection require a new schema version and renewed validation.
+The per-field schema and implementation acceptance gates remain to be validated.
+The selected `practical-play/1` profile below permits work toward one supervised
+stance trial while retaining the original full gate as open. It does not approve
+a campaign, bulk probing or a claim of complete UI parity. This documentation
+amendment changes no existing prototype. Policy/profile changes must be versioned;
+changes to the public projection require a new schema version and validation.
+
+## Practical first-version acceptance profile
+
+Profile: `practical-play/1`, selected 2026-10-11. Documentation/source baseline:
+`5cedf820ab22b2c191ad8c6ac602ae1475b59f8a`. This records a scope decision, not a
+new runtime result. The profile name is separate from observation wire-schema
+versions; this amendment changes no public field or protocol.
+
+The owner accepted ordinary fair play for the experimental first version:
+use the normal displayed interface and mixed audio, including genuinely
+presented cursor/aiming and shadow clues; do not read hidden state or use
+response delays for reconnaissance. The immediate sequence is a supervised
+kneel/stand trial, then an actual end-to-end token comparison on the accepted
+bounded task. A campaign, broader action set and autonomous batches are outside
+this profile.
+
+The practical profile has the following acceptance requirements:
+
+1. **Presentation-only information.** Every exposed field keeps its documented
+   presentation source and validation. No hidden-state API, save/process-memory
+   enrichment, debug view, hidden object identity/location/statistics, or hidden
+   reasons in command results, errors or logs. Ambiguous cues remain ambiguous;
+   ordinary cursor interaction does not license bulk scans. Test-only internal
+   oracles must remain unavailable to the gameplay observer and controller.
+2. **Focused action correctness.** The first trial is limited to normal
+   kneel/stand input for the currently selected player-controlled soldier.
+   Verify the normal action path, its actual TU cost and game-rule checks,
+   presented before/after state, and agreement with ordinary UI execution in
+   each claimed game/profile. Requests must not directly mutate stance, TU or
+   other game state, suppress normal FOV/reaction-fire/death consequences, or
+   advance simulation through a separate observer path. Request an explicit
+   desired stance with one-use session/selected-soldier-bound context; do not
+   expose hidden preflight or reaction-prediction reasons. Relevant existing
+   regressions remain required.
+3. **Supervision and safe stopping.** Each pilot stance request requires local
+   in-game human confirmation; a tool argument cannot approve its own request.
+   This is the first pilot's safeguard, not a permanent approval requirement for
+   future joint automation. Keep human takeover available. Verify rejection or
+   safe stopping for stale or changed context, manual intervention, invalid
+   turn/state, and uncertain
+   completion. A retry, lost reply or reconnect must not execute the stance
+   change twice; if completion cannot be established, stop for reconciliation
+   instead of replaying it. This profile adds no sequential batch or bulk probe.
+4. **Bounded evidence and measurement.** Record the tested source/binary,
+   game/assets/options, supported commands, checks and failures/not-run cases.
+   Pass the focused correctness and information-boundary checks before the
+   supervised trial, then retain outcome checks in the paired GUI/MCP benchmark.
+   Distinguish requested/pending, dispatched and visually verified outcomes;
+   dispatch alone is not successful completion. Count actual model tokens,
+   calls and retries; unavailable token telemetry stays unknown. Byte counts and
+   native latency are not token-savings evidence.
+
+**Timing limitation.** Residual latency/scheduling side channels remain an
+explicit experimental limitation. This profile neither requires nor establishes
+timing equivalence or an absence of physical side channels. Do not classify
+hidden worlds, infer hidden entities, or choose gameplay actions from response
+latency, timeout patterns or waiting reasons. Ordinary performance measurement
+is allowed, but cannot feed hidden-state inference. No new delay padding,
+scheduler mitigation or timing calibration is required for this limited pilot.
+The prior calibration and its inconclusive UFO control remain unchanged.
+
+**Separate full gate.** The original full non-disclosure/controller acceptance
+criteria, including the paired hidden-state, lifecycle, audio and timing work in
+[Stage 5](README.md#5-security-gate-paired-hidden-state-tests), remain open.
+`practical-play/1` is a limited pilot route, not a pass or a replacement claim for
+that full gate. Unresolved non-timing disclosure, rule bypass or loss of control
+still blocks the practical trial. Broader fields/actions require their own
+scope and validation; full-game parity and campaign readiness are not implied.
+
+Acceptance of this profile permits the next implementation and supervised-test
+work; it does not assert that a controller exists, that a trial passed or that
+tokens were saved. The fair-play conditions are the project's design and
+supported-use contract, not additional copyright-license restrictions; the
+[GPL rights and existing notices](../../LICENSE-NOTICES.md) are unchanged.
 
 ## Boundary: what reached the player
 
@@ -139,7 +215,8 @@ side-channel freedom is not claimed without measurements.
 
 ## Next implementation slice
 
-First verify cursor assets and final-frame capture/occlusion using controlled
-UFO and TFTD UI fixtures, then add a read-only current-hover presentation record
-with independent review. No new semantic enemy/terrain/audio field is accepted
-merely by adding this document. Full observer/MCP and controller gates remain.
+Follow `practical-play/1`: implement and verify the bounded normal stance path,
+run the supervised kneel/stand trial, then measure actual end-to-end token use.
+Retain the evidence and limitations of the existing observer slices. No new
+semantic enemy/terrain/audio field is accepted merely by adding this document.
+Full observer/MCP and controller gates remain open separately.

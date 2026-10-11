@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 	#pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -32,6 +33,9 @@ namespace OpenXcom
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 namespace Observer { class CursorFileObserver; class PresentationObserver; }
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+namespace Observer { class StanceController; }
+#endif
 class Surface;
 class Action;
 
@@ -46,6 +50,10 @@ class Action;
 class Screen
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    Observer::StanceController *_stanceController = 0;
+    bool _stancePanelBlocked = false;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	Observer::CursorFileObserver *_cursorObserver;
 	Observer::PresentationObserver *_presentationObserver;
@@ -67,6 +75,10 @@ private:
 	/// Sets the _flags and _bpp variables based on game options; needed in more than one place now
 	void makeVideoFlags();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    void setStanceController(Observer::StanceController *controller) { _stanceController = controller; }
+    bool stanceAllowed() const;
+#endif
 	static const int ORIGINAL_WIDTH;
 	static const int ORIGINAL_HEIGHT;
 

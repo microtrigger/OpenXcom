@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -21,6 +22,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 #include "../Observer/MixedAudioObserver.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#include "../Observer/StanceController.h"
 #endif
 #include <list>
 #include <string>
@@ -46,6 +50,9 @@ class FpsCounter;
 class Game
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    Observer::StanceController _stanceController;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 	Observer::MixedAudioObserver _mixedAudioObserver;
 #endif
@@ -64,6 +71,9 @@ private:
 	static const double VOLUME_GRADIENT;
 
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    Observer::StanceController *getStanceController() { return &_stanceController; }
+#endif
 	/// Creates a new game and initializes SDL.
 	Game(const std::string &title);
 	/// Cleans up all the game's resources and shuts down SDL.

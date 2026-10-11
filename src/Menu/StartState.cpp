@@ -31,6 +31,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 #include "../../tests/battle-observer/NaturalFovGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+#include "../../tests/stance-control/StanceControlGate.h"
+#endif
 // Fork modification 2026-10-10: default-off render-only test gate.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
@@ -199,6 +202,9 @@ void StartState::think()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		if (NaturalFovGate::loaded(_game)) break;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+		if (StanceControlGate::loaded(_game)) break;
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 		if (BattlefieldAudioGate::loaded(_game)) break;

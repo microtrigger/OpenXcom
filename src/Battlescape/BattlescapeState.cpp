@@ -1,3 +1,7 @@
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+#include "../../tests/stance-control/StanceControlGate.h"
+#endif
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -623,7 +627,13 @@ void BattlescapeState::think()
 void BattlescapeState::blit()
 {
     Screen *screen = _game->getScreen();
-    if (!_game->isState(this) || !screen->wantsPresentedHud()) { State::blit(); return; }
+    if (!_game->isState(this) || !screen->wantsPresentedHud()) {
+        State::blit();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+        _game->getStanceController()->arm(this);
+#endif
+        return;
+    }
     Observer::HudFrame frame;
     NumberText *widgets[4] = { _numTimeUnits, _numEnergy, _numHealth, _numMorale };
     struct DisarmDigits
@@ -635,8 +645,12 @@ void BattlescapeState::blit()
     State::blit();
     for (int i = 0; i < 4; ++i) widgets[i]->armPresentedDigits(0);
     screen->setPresentedHud(frame);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _game->getStanceController()->arm(this);
+#endif
 }
 #endif
+
 
 #ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 /** Copy only values already present in the visible HUD, never hidden state. */
@@ -956,6 +970,10 @@ void BattlescapeState::btnShowMapClick(Action *)
 
 void BattlescapeState::toggleKneelButton(BattleUnit* unit)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stanceShownActor = unit;
+    _stanceShownKneeled = unit && unit->isKneeled();
+#endif
 	if (_btnKneel->isTFTDMode())
 	{
 		_btnKneel->toggle(unit && unit->isKneeled());
@@ -989,6 +1007,9 @@ void BattlescapeState::btnKneelClick(Action *)
 			}
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+    StanceControlGate::kneelClicked(this);
+#endif
 }
 
 /**
@@ -1357,6 +1378,9 @@ bool BattlescapeState::playableUnitSelected()
  */
 void BattlescapeState::updateSoldierInfo(bool checkFOV)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceUiRevision;
+#endif
 	BattleUnit *battleUnit = _save->getSelectedUnit();
 
 	for (int i = 0; i < VISIBLE_MAX; ++i)
@@ -2250,6 +2274,42 @@ bool BattlescapeState::getMouseOverIcons() const
 {
 	return _mouseOverIcons;
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+bool BattlescapeState::stanceContext(Observer::StanceContext &c, bool covered) const
+{
+    if ((!covered && !_game->isState(const_cast<BattlescapeState *>(this))) ||
+        !_game->getScreen()->stanceAllowed() || _firstInit || !_gameTimer->isRunning() || !_popups.empty() ||
+        _save->getSide() != FACTION_PLAYER || _save->getDebugMode() || !_battleGame->getPanicHandled() ||
+        _battleGame->isBusy() || _map->getProjectile() || !_map->getExplosions()->empty() ||
+        _save->getUnitsFalling() || !_save->getFallingUnits()->empty() || !allowButtons()) return false;
+    BattleUnit *actor = _save->getSelectedUnit();
+    if (!actor || actor->getFaction() != FACTION_PLAYER || actor->getOriginalFaction() != FACTION_PLAYER ||
+        actor->getType() != "SOLDIER" || actor->isOut() || actor->isFloating() || actor->getStatus() != STATUS_STANDING) return false;
+    Surface *widgets[] = {_icons, _txtName, _numTimeUnits, _numEnergy, _numHealth, _numMorale,
+        _btnKneel, _btnReserveNone, _btnReserveSnap, _btnReserveAimed, _btnReserveAuto, _btnReserveKneel};
+    for (Surface *widget : widgets)
+        if (!widget->stanceContextVisible() || widget->getX() < 0 || widget->getY() < 144 ||
+            widget->getX() + widget->getWidth() > 320 || widget->getY() + widget->getHeight() > 200) return false;
+    if (_stanceShownActor != actor || _stanceShownKneeled != actor->isKneeled() ||
+        _btnReserveKneel->stanceToggled() != _save->getKneelReserved() ||
+        _reserve != (_save->getTUReserved() == BA_SNAPSHOT ? _btnReserveSnap :
+            _save->getTUReserved() == BA_AIMEDSHOT ? _btnReserveAimed :
+            _save->getTUReserved() == BA_AUTOSHOT ? _btnReserveAuto : _btnReserveNone) ||
+        _icons->getWidth() != 320 || _icons->getHeight() != 56 || _warning->getVisible() ||
+        _txtName->getText().empty() || _txtName->getText() != actor->getName(_game->getLanguage(), false) ||
+        _numTimeUnits->getValue() != static_cast<unsigned>(actor->getTimeUnits()) ||
+        _numEnergy->getValue() != static_cast<unsigned>(actor->getEnergy()) ||
+        _numHealth->getValue() != static_cast<unsigned>(actor->getHealth()) ||
+        _numMorale->getValue() != static_cast<unsigned>(actor->getMorale())) return false;
+    c.state = const_cast<BattlescapeState *>(this); c.save = _save; c.actor = actor;
+    c.selectionRevision = _save->stanceControlRevision(); c.actorRevision = actor->stanceControlRevision();
+    c.uiRevision = _stanceUiRevision; c.kneeled = actor->isKneeled(); c.kneelReserved = _save->getKneelReserved();
+    c.tu = actor->getTimeUnits(); c.energy = actor->getEnergy(); c.health = actor->getHealth();
+    c.morale = actor->getMorale(); c.stun = actor->getStunlevel(); c.reserved = _save->getTUReserved();
+    c.name = _txtName->getText(); return true;
+}
+#endif
 
 /**
  * Determines whether the player is allowed to press buttons.

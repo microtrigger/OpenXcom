@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: private supervised-stance UI check; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -40,6 +41,10 @@ protected:
 	InversionType _toggleMode;
 	Surface *_altSurface;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    bool stanceToggled() const { return _inverted; }
+    bool stanceContextVisible() const override;
+#endif
 	/// Creates a new image button with the specified size and position.
 	BattlescapeButton(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the image button.

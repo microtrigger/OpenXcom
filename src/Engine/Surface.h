@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -134,7 +135,10 @@ public:
 	/// Sets the surface's visibility.
 	virtual void setVisible(bool visible);
 	/// Gets the surface's visibility.
-	bool getVisible() const;
+    bool getVisible() const;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    virtual bool stanceContextVisible() const { return _visible && !_hidden && !_redraw && !_crop.w && !_crop.h; }
+#endif
 	/// Resets the cropping rectangle for the surface.
 	void resetCrop();
 	/// Gets the cropping rectangle for the surface.

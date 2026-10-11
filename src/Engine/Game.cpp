@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -30,6 +31,9 @@
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 #include "../../tests/battle-observer/NaturalFovGate.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+#include "../../tests/stance-control/StanceControlGate.h"
 #endif
 // Fork modification 2026-10-10: opt-in read-only public observation hooks;
 // see LICENSE-NOTICES.md. Existing upstream copyright and license retained.
@@ -77,6 +81,9 @@ const double Game::VOLUME_GRADIENT = 10.0;
  * @param title Title of the game window.
  */
 Game::Game(const std::string &title) :
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stanceController(this, std::getenv("OPENXCOM_STANCE_FD")),
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 	_mixedAudioObserver(std::getenv("OPENXCOM_MIXED_AUDIO_FD")),
 #endif
@@ -119,6 +126,9 @@ Game::Game(const std::string &title) :
 
 	// Create display
 	_screen = new Screen();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _screen->setStanceController(&_stanceController);
+#endif
 
 	// Create cursor
 	_cursor = new Cursor(9, 13);
@@ -142,6 +152,9 @@ Game::Game(const std::string &title) :
  */
 Game::~Game()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stanceController.close();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 	_mixedAudioObserver.close();
 #endif
@@ -197,6 +210,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		NaturalFovGate::afterCleanup(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+		StanceControlGate::afterCleanup(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 		BattlefieldAudioGate::afterCleanup(this);
 #endif
@@ -226,6 +242,9 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		NaturalFovGate::beforeEvents(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+		StanceControlGate::beforeEvents(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 		BattlefieldAudioGate::beforeEvents(this);
 #endif
@@ -245,10 +264,16 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 			if (!NaturalFovGate::acceptEvent(_event)) continue;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+			if (!StanceControlGate::acceptEvent(_event)) continue;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 			if (!BattlefieldAudioGate::acceptEvent(_event)) continue;
 #endif
-			if (CrossPlatform::isQuitShortcut(_event))
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+            _stanceController.beforeEvent(_event, _states.back());
+#endif
+            if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;
 			switch (_event.type)
 			{
@@ -363,10 +388,16 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 		NaturalFovGate::afterEvents(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+		StanceControlGate::afterEvents(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 		BattlefieldAudioGate::afterEvents(this);
 #endif
-		// Process rendering
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+        _stanceController.poll();
+#endif
+        // Process rendering
 		if (runningState != PAUSED)
 		{
 			// Process logic
@@ -405,11 +436,18 @@ void Game::run()
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 				NaturalFovGate::beforeFrame(this, _states.back());
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+				StanceControlGate::beforeFrame(this, _states.back());
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 				BattlefieldAudioGate::beforeFrame(this, _states.back());
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
-				_screen->beginObserverFrame();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+                _stanceController.beginFrame();
+                if (!_init) continue;
+#endif
+                _screen->beginObserverFrame();
 #endif
 				_screen->clear();
 				std::list<State*>::iterator i = _states.end();
@@ -443,6 +481,9 @@ void Game::run()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 				NaturalFovGate::afterFrame(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+				StanceControlGate::afterFrame(this);
 #endif
 			}
 		}
@@ -580,6 +621,9 @@ void Game::setState(State *state)
  */
 void Game::pushState(State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stanceController.beforePush(state);
+#endif
 	_states.push_back(state);
 	_init = false;
 }
@@ -592,6 +636,9 @@ void Game::pushState(State *state)
  */
 void Game::popState()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stanceController.beforePop(_states.back());
+#endif
 	_deleted.push_back(_states.back());
 	_states.pop_back();
 	_init = false;
@@ -621,6 +668,9 @@ SavedGame *Game::getSavedGame() const
  */
 void Game::setSavedGame(SavedGame *save)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stanceController.invalidate(true);
+#endif
 	delete _save;
 	_save = save;
 }

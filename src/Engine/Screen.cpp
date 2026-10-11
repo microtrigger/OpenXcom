@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -27,6 +28,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #include "../Observer/CursorFileObserver.h"
 #include "../Observer/PresentationObserver.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#include "../Observer/StanceController.h"
+#endif
 #include "../Observer/PresentedCursorSurface.h"
 #include <cstdlib>
 #endif
@@ -214,6 +218,9 @@ void Screen::handle(Action *action)
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 void Screen::excludePresentedHud(int x, int y, int width, int height)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    if (x < 320 && x + width > 0 && y < 200 && y + height > 144) _stancePanelBlocked = true;
+#endif
 	for (const Observer::HudDigits &d : _presentedHud)
 		if (x < d.x + d.width && x + width > d.x && y < d.y + d.height && y + height > d.y)
 		{ _presentedHud = Observer::HudFrame(); return; }
@@ -222,8 +229,20 @@ bool Screen::wantsPresentedHud() const
 {
 	return _presentationObserver && _presentationObserver->pending() && _presentationObserver->hudEnabled();
 }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+bool Screen::stanceAllowed() const
+{
+    const Uint8 required = SDL_APPACTIVE | SDL_APPINPUTFOCUS | SDL_APPMOUSEFOCUS;
+    return (SDL_GetAppState() & required) == required && !useOpenGL() && !use32bitScaler() && !Options::debug &&
+        _observerPaletteExact && _topBlackBand == 0 && _bottomBlackBand == 0 && _leftBlackBand == 0 && _rightBlackBand == 0 &&
+        _baseWidth == 320 && _baseHeight == 200;
+}
+#endif
 void Screen::beginObserverFrame()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    _stancePanelBlocked = false;
+#endif
 	_presentedHud = Observer::HudFrame();
 	if (_presentationObserver) _presentationObserver->beginFrame();
 }
@@ -260,8 +279,11 @@ void Screen::flip()
 
 
 
-	if (SDL_Flip(_screen) == -1)
-	{
+    if (SDL_Flip(_screen) == -1)
+    {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+        if (_stanceController) _stanceController->close();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 		if (_presentationObserver) _presentationObserver->close();
 #endif
@@ -273,7 +295,10 @@ void Screen::flip()
 #endif
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
-	// Only final display bytes after all scaling, palette application and flip.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    if (_stanceController) _stanceController->presented(_screen, _baseWidth, _baseHeight, stanceAllowed() && !_stancePanelBlocked);
+#endif
+    // Only final display bytes after all scaling, palette application and flip.
 	// Software single-buffer pixels remain the just-presented image; swapping or
 	// asynchronous backends are rejected. No claim about desktop occlusion/freshness.
 	if ((_cursorObserver && _cursorObserver->enabled()) ||
@@ -396,7 +421,10 @@ int Screen::getHeight() const
 void Screen::resetDisplay(bool resetVideo)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
-	if (_presentationObserver) _presentationObserver->resetPresentation();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    if (_stanceController) _stanceController->invalidate(true);
+#endif
+    if (_presentationObserver) _presentationObserver->resetPresentation();
 	_presentedHud = Observer::HudFrame();
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER

@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// New contribution, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md.
+#pragma once
+#include <SDL.h>
+#include <cstdint>
+#include <map>
+#include <string>
+#include <vector>
+namespace OpenXcom {
+class Game; class State; class BattlescapeState; class BattleUnit; class SavedBattleGame;
+namespace Observer {
+class StanceConfirmState;
+// Private binding only. None of these pointers, counters or values is serialized.
+struct StanceContext {
+    BattlescapeState *state = 0;
+    SavedBattleGame *save = 0;
+    BattleUnit *actor = 0;
+    std::uint64_t selectionRevision = 0, actorRevision = 0, uiRevision = 0;
+    bool kneeled = false, kneelReserved = false;
+    int tu = 0, energy = 0, health = 0, morale = 0, stun = 0, reserved = 0;
+    std::string name;
+    bool operator==(const StanceContext &other) const;
+};
+class StanceController {
+    struct Command { std::string request, status; };
+    Game *_game;
+    int _fd;
+    std::string _epoch, _capability, _challenge, _pendingId;
+    StanceContext _context, _frameContext;
+    std::vector<unsigned char> _rgb, _indices;
+    SDL_Color _palette[256];
+    StanceConfirmState *_dialog, *_frameDialog;
+    State *_expectedPush, *_expectedPop;
+    bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
+    std::uint64_t _contextTime;
+    std::map<std::string, Command> _commands;
+    bool sendPacket(const std::string &packet);
+    bool connected() const;
+    bool bindingCurrent(bool modal = false) const;
+    void replyStatus(const std::string &id);
+    void unavailable();
+public:
+    StanceController(Game *game, const char *descriptor);
+    ~StanceController();
+    bool enabled() const { return _fd >= 0; }
+    void close();
+    void invalidate(bool newEpoch = false);
+    void beforePush(State *state);
+    void beforePop(State *state);
+    void beforeEvent(const SDL_Event &event, State *top);
+    void poll();
+    void beginFrame();
+    void arm(BattlescapeState *state);
+    void presented(SDL_Surface *surface, int baseWidth, int baseHeight, bool allowed);
+    void confirm(StanceConfirmState *dialog, bool accept);
+    bool ownsDialog(State *state) const;
+    const std::vector<unsigned char> &indices() const { return _indices; }
+    SDL_Color *palette() { return _palette; }
+    bool desiredKneel() const { return _desired; }
+private:
+    StanceController(const StanceController &);
+    StanceController &operator=(const StanceController &);
+};
+} }

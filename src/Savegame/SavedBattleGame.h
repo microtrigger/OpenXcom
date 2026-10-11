@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -18,6 +19,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <vector>
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#include <cstdint>
+#endif
 #include <string>
 #include <yaml-cpp/yaml.h>
 #include "BattleUnit.h"
@@ -47,6 +51,9 @@ class RuleItem;
 class SavedBattleGame
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    std::uint64_t _stanceControlRevision = 0;
+#endif
 	BattlescapeState *_battleState;
 	int _mapsize_x, _mapsize_y, _mapsize_z;
 	std::vector<MapDataSet*> _mapDataSets;
@@ -82,6 +89,9 @@ private:
 	/// Selects a soldier.
 	BattleUnit *selectPlayerUnit(int dir, bool checkReselect = false, bool setReselect = false, bool checkInventory = false);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    std::uint64_t stanceControlRevision() const { return _stanceControlRevision; }
+#endif
 	/// Creates a new battle save, based on the current generic save.
 	SavedBattleGame();
 	/// Cleans up the saved game.

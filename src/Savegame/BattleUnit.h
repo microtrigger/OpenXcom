@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -18,6 +19,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <vector>
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#include <cstdint>
+#endif
 #include <string>
 #include <yaml-cpp/yaml.h>
 #include "../Battlescape/Position.h"
@@ -59,6 +63,9 @@ enum UnitBodyPart {BODYPART_HEAD, BODYPART_TORSO, BODYPART_RIGHTARM, BODYPART_LE
 class BattleUnit
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    std::uint64_t _stanceControlRevision = 0;
+#endif
 	static const int SPEC_WEAPON_MAX = 3;
 
 	UnitFaction _faction, _originalFaction;
@@ -132,6 +139,9 @@ private:
 	/// Helper function initing recolor vector.
 	void setRecolor(int basicLook, int utileLook, int rankLook);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    std::uint64_t stanceControlRevision() const { return _stanceControlRevision; }
+#endif
 	static const int MAX_SOLDIER_ID = 1000000;
 	/// Creates a BattleUnit from solder.
 	BattleUnit(Soldier *soldier, int depth);

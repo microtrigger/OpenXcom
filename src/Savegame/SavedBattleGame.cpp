@@ -1,3 +1,4 @@
+// Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -218,7 +219,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 		if (faction == FACTION_PLAYER)
 		{
 			if ((unit->getId() == selectedUnit) || (_selectedUnit == 0 && !unit->isOut()))
-				_selectedUnit = unit;
+				setSelectedUnit(unit);
 		}
 		if (unit->getStatus() != STATUS_DEAD && unit->getStatus() != STATUS_IGNORE_ME)
 		{
@@ -643,7 +644,10 @@ BattleUnit *SavedBattleGame::getSelectedUnit() const
  */
 void SavedBattleGame::setSelectedUnit(BattleUnit *unit)
 {
-	_selectedUnit = unit;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceControlRevision;
+#endif
+    _selectedUnit = unit;
 }
 
 /**
@@ -725,7 +729,7 @@ BattleUnit *SavedBattleGame::selectPlayerUnit(int dir, bool checkReselect, bool 
 		if (*i == _selectedUnit)
 		{
 			if (checkReselect && !_selectedUnit->reselectAllowed())
-				_selectedUnit = 0;
+				setSelectedUnit(0);
 			return _selectedUnit;
 		}
 		else if (_selectedUnit == 0 && i == begin)
@@ -735,7 +739,7 @@ BattleUnit *SavedBattleGame::selectPlayerUnit(int dir, bool checkReselect, bool 
 	}
 	while (!(*i)->isSelectable(_side, checkReselect, checkInventory));
 
-	_selectedUnit = (*i);
+	setSelectedUnit((*i));
 	return _selectedUnit;
 }
 
@@ -839,7 +843,7 @@ void SavedBattleGame::endTurn()
 	{
 		if (_selectedUnit && _selectedUnit->getOriginalFaction() == FACTION_PLAYER)
 			_lastSelectedUnit = _selectedUnit;
-		_selectedUnit =  0;
+		setSelectedUnit(0);
 		_side = FACTION_HOSTILE;
 	}
 	else if (_side == FACTION_HOSTILE)
@@ -852,7 +856,7 @@ void SavedBattleGame::endTurn()
 			_turn++;
 			_side = FACTION_PLAYER;
 			if (_lastSelectedUnit && _lastSelectedUnit->isSelectable(FACTION_PLAYER, false, false))
-				_selectedUnit = _lastSelectedUnit;
+				setSelectedUnit(_lastSelectedUnit);
 			else
 				selectNextPlayerUnit();
 			while (_selectedUnit && _selectedUnit->getFaction() != FACTION_PLAYER)
@@ -866,7 +870,7 @@ void SavedBattleGame::endTurn()
 		_turn++;
 		_side = FACTION_PLAYER;
 		if (_lastSelectedUnit && _lastSelectedUnit->isSelectable(FACTION_PLAYER, false, false))
-			_selectedUnit = _lastSelectedUnit;
+			setSelectedUnit(_lastSelectedUnit);
 		else
 			selectNextPlayerUnit();
 		while (_selectedUnit && _selectedUnit->getFaction() != FACTION_PLAYER)
@@ -1877,6 +1881,9 @@ BattleActionType SavedBattleGame::getTUReserved() const
  */
 void SavedBattleGame::setTUReserved(BattleActionType reserved)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceControlRevision;
+#endif
 	_tuReserved = reserved;
 }
 
@@ -1895,6 +1902,9 @@ bool SavedBattleGame::getKneelReserved() const
  */
 void SavedBattleGame::setKneelReserved(bool reserved)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+    ++_stanceControlRevision;
+#endif
 	_kneelReserved = reserved;
 }
 

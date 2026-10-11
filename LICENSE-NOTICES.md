@@ -8,7 +8,8 @@ read-only stdio MCP adapter with optional transient presentation acknowledgement
 and native MCP audio content, a separately opted-in final-pixel displayed-HUD decoder, isolated render-pair and
 observer-request functional-effects gates, a diagnostic-isolation boundary,
 controlled smoke-density and full right-edge smoke-clipping render-equivalence
-gates with isolated negative-test patches, and associated tests, build helpers,
+gates with isolated negative-test patches, a default-off locally confirmed
+stance-control pilot, and associated tests, build helpers,
 documentation and evidence metadata.
 Existing upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
@@ -21,7 +22,7 @@ or, at your option, any later version, without warranty:
 - `src/Observer/`
 - `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/`,
   `tests/battle-observer/`, `tests/mixed-audio-native/` and
-  `tests/diagnostic-isolation/`
+  `tests/diagnostic-isolation/` and `tests/stance-control/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)

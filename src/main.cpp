@@ -29,6 +29,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 #include "../tests/battle-observer/NaturalFovGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+#include "../tests/stance-control/StanceControlGate.h"
+#endif
 // Fork modification 2026-10-10: default-off render-only test gate.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
@@ -150,6 +153,9 @@ int main(int argc, char *argv[])
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 	NaturalFovGate::prepare();
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+	StanceControlGate::prepare();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 	BattlefieldAudioGate::prepare();
 #endif
@@ -159,6 +165,9 @@ int main(int argc, char *argv[])
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE
 	NaturalFovGate::silence();
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
+	StanceControlGate::silence();
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 	RenderPairGate::silence();
@@ -173,6 +182,8 @@ int main(int argc, char *argv[])
 	return RenderPairGate::exitStatus();
 #elif defined(OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE)
 	return ObserverEffectsGate::exitStatus();
+#elif defined(OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE)
+	return StanceControlGate::exitStatus();
 #elif defined(OPENXCOM_EXPERIMENTAL_NATURAL_FOV_GATE)
 	return NaturalFovGate::exitStatus();
 #elif defined(OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE)
