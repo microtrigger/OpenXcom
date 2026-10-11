@@ -15,6 +15,10 @@ bool active();
 void afterCleanup(Game *game);
 void beforeFrame(Game *game);
 void visited(const Tile *tile, int animationPhase);
+// SPDX-License-Identifier: GPL-3.0-or-later; smoke fixture addition, 2026-10-11.
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+void smokeBlitted(const Tile *tile, int animationPhase, int frameNumber, int shade);
+#endif
 void capture(SDL_Surface *surface, int baseWidth, int baseHeight, bool allowed,
              const Observer::HudFrame &hud, const Observer::PixelCrop &crop);
 void afterFrame(Game *game);

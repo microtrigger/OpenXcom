@@ -917,6 +917,11 @@ void Map::drawTerrain(Surface *surface)
 						}
 						tmpSurface = _game->getMod()->getSurfaceSet("SMOKE.PCK")->getFrame(frameNumber);
 						tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y, shade);
+// Fork modification 2026-10-11: default-off actual smoke-blit witness only.
+// SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
+#if defined(OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE) && defined(OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE)
+						RenderPairGate::smokeBlitted(tile, _animFrame, frameNumber, shade);
+#endif
 					}
 
 					//draw particle clouds

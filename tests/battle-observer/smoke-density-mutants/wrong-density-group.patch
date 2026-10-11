@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Original negative-test contribution, 2026-10-11. Never ship these deliberate faults.
+--- a/src/Battlescape/Map.cpp
++++ b/src/Battlescape/Map.cpp
+@@ -917,0 +918,2 @@
++						// Deliberate mutant: split two normally equivalent real smoke densities.
++						if (tile->getSmoke() == 8) ++frameNumber;

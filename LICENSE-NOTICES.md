@@ -1,14 +1,15 @@
 # License and redistribution notices
 
-## Dated fork modification notice: 2026-10-10
+## Dated fork modification notice: 2026-10-11
 
 New contributions maintained in this fork add optional, default-off read-only
 HUD, final-pixel cursor and fixed-window final-mix audio observers, a local
 read-only stdio MCP adapter with optional transient presentation acknowledgements
 and native MCP audio content, a separately opted-in final-pixel displayed-HUD decoder, isolated render-pair and
-observer-request functional-effects gates, a diagnostic-isolation boundary, and
-associated tests, build helpers, documentation and evidence metadata. Existing
-upstream copyright, license and warranty notices are retained; new contribution
+observer-request functional-effects gates, a diagnostic-isolation boundary, a
+controlled smoke-density render-equivalence gate with isolated negative-test
+patches, and associated tests, build helpers, documentation and evidence metadata.
+Existing upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
 
 OpenXcom core source headers grant GNU GPL **version 3 or any later version**

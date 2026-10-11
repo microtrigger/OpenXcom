@@ -3,11 +3,11 @@
 
 English visitor-facing version · [Русская рабочая версия / Russian working version](PLAN.ru.md)
 
-Status as of October 10, 2026. We maintain the Russian version for day-to-day project work; this English version presents the same scope, stages, and acceptance gates for visitors.
+Status as of October 11, 2026. We maintain the Russian version for day-to-day project work; this English version presents the same scope, stages, and acceptance gates for visitors.
 
 ## Plan versus actual progress
 
-Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The earlier [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) has [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. The latest boundary correction is [diagnostic isolation](../../tools/mcp-observer/DIAGNOSTIC-ISOLATION.md), with separate [bounded menu and test evidence](diagnostic-isolation-evidence.json). Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The earlier [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) has [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. The latest boundary correction is [diagnostic isolation](../../tools/mcp-observer/DIAGNOSTIC-ISOLATION.md), with separate [bounded menu and test evidence](diagnostic-isolation-evidence.json). The new [smoke-density render gate](SMOKE-DENSITY-GATE.md) passes its first normal UFO/TFTD runs and rejects both source mutants in each game; see [aggregate evidence](smoke-density-evidence.json), 2026-10-11. Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; read-only prototypes, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
 | --- | --- | --- |
@@ -16,10 +16,10 @@ Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenX
 | 2 · Source audit | Pinned source audit and selected presentation boundaries documented. | Complete field/action and side-channel audit. |
 | 3 · Native observer | Historical HUD/cursor slices, request-bound pixels, optional four-number displayed HUD and default-off [500 ms final-mix audio](MIXED-AUDIO-NATIVE.md) implemented. | Full approved projection, event coverage, broader game-audio/lifecycle validation and parity. |
 | 4 · IPC/MCP | Local read-only stdio tools, request-bound `/1`/`/2` visual protocols and a separate [native MCP audio tool](../../tools/mcp-observer/AUDIO-ADAPTER.md) implemented; SDK checks pass. | Production recovery and broader observation coverage; no audiovisual synchronization. |
-| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) passes visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM and idle/requested-observer state/engine-RNG comparisons in each game, rejecting PCM-corruption, extra-RNG-draw and missing-cue controls in both. | Full paired hidden-engine-state, audio and timing tests; controller gate remains open. |
+| 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) passes visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM and idle/requested-observer state/engine-RNG comparisons in each game, rejecting PCM-corruption, extra-RNG-draw and missing-cue controls in both. The separate [smoke-density gate](SMOKE-DENSITY-GATE.md) passes eight whole-frame 7/8 matches, 24 native responses and eight density-6 positive phases per game, with both source mutants rejected in each game. | Full paired hidden-engine-state, audio and timing tests; controller gate remains open. |
 | 6 · Normal-action controller | Not implemented; no gameplay inputs exposed. | Stage 5 and an agreed command scope. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
-| 8 · UFO/TFTD matrix | Selected visual and [diagnostic-profile menu checks](diagnostic-isolation-evidence.json), [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json) and the [bounded land-only battlefield-audio slice](battlefield-audio-evidence.json) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
+| 8 · UFO/TFTD matrix | Selected visual and [diagnostic-profile menu checks](diagnostic-isolation-evidence.json), [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json), the [bounded land-only battlefield-audio slice](battlefield-audio-evidence.json) and the [controlled land-only smoke-density render pair](SMOKE-DENSITY-GATE.md) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). | Full regression matrix, including unsupported/not-run cases. |
 | 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)); bounded audio byte counts and component microbenchmarks recorded. | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
@@ -133,6 +133,36 @@ establish the cause of the earlier failures. Earlier slice evidence remains
 separate. These are bounded menu checks, with no new battle or full-fairness claim.
 No controller is added; Stage 5, full audio parity and timing parity remain open.
 
+### Controlled smoke-density render update (2026-10-11)
+
+The separately compiled, default-off [smoke-density gate](SMOKE-DENSITY-GATE.md)
+passes its first normal run in each vanilla UFO/TFTD master. In each run, smoke
+densities 7 and 8 produce matching complete 640×400 RGB frames at each of
+the eight animation phases. Three scenarios yield 24 successful production-native
+cursor/HUD responses. Density 6 changes the complete frame and actual cursor
+crop in every phase. Whole-frame, geometry and real smoke-frame preconditions
+are checked before comparing the pair's complete native transcripts; only
+validated transport-random tokens are normalized. The Python adapter is not
+exercised by this fixture.
+
+Both RNG seeds are pinned before each fresh scenario's unit/smoke setup. A witness
+after the actual production smoke blit verifies the tile, phase, selected frame
+and shade. The discovered map has no terrain assets, and depth is fixed at 0
+for both masters. Ordinary composition/flip and explicit animation remain, but
+simulation/timer-driven thinking is skipped and the whole audio subsystem is
+disabled. No new public smoke field or controller is added.
+
+Both real-source mutation controls are rejected in each game at the intended
+assertion: hidden density substituted into a native HUD response fails
+`smoke-pair-public-transcript` after the visual preconditions pass; a wrong selected
+production smoke frame for density 8 fails `smoke-pair-final-rgb` before transcript
+comparison. These four runtime mutant rejections are separate from comparator
+self-checks. All six normal/mutant runs completed on their first attempt, without
+crashes, timeouts or excluded runs. See [aggregate evidence](smoke-density-evidence.json).
+One normal run per master does not establish repeated-run robustness. Smoke
+simulation, fire, underwater rendering, natural battle histories, load/reconnect,
+audio and timing parity remain untested here. Stage 5 remains open.
+
 ## Goal and boundaries
 
 Make joint human–assistant play in OpenXcom more convenient and resource-efficient by exchanging compact observations and normal game commands instead of continuously interpreting the entire screen. The interface must preserve game rules, fog of war, action costs, and the human player's ability to take control at any time.
@@ -222,7 +252,7 @@ Implement an observer first. Enable control only after non-disclosure tests pass
 
 ### 5. Security gate: paired hidden-state tests
 
-**Status:** cache, transport, structural and bounded UI/render-pair tests pass. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. A real-SDL synthetic final-mix oracle also passes with byte-exact PCM and corruption controls. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) now passes one land-only run per game: visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM, unchanged output buffers and paired semantic battle-state/checked-runtime/engine-RNG equality. Normal End Turn input and timers reach the ordinary next-turn input wait; hostile AI is not exercised. PCM-corruption, extra-RNG-draw and missing-cue controls are rejected once each in both games at the intended assertions. Full hidden-world, lifecycle, audio parity, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
+**Status:** cache, transport, structural and bounded UI/render-pair tests pass. The new [smoke-density pair](SMOKE-DENSITY-GATE.md) passes one render-only run per UFO/TFTD master: eight full-frame matches, 24 native responses and eight boundary-positive phases, with audio disabled; both source mutants are rejected in each game. A separate same-binary request-effects test now passes three normal standing/kneeling/standing checkpoints in UFO/TFTD and rejects an engine-RNG consumption mutant in both. This adds bounded functional-effects evidence; the earlier hidden-occupant pair still skips simulation/timers. A further natural-FOV/pause fixture verifies six sampled presentations per game against independent final-pixel crop/HUD oracles. A real-SDL synthetic final-mix oracle also passes with byte-exact PCM and corruption controls. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) now passes one land-only run per game: visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM, unchanged output buffers and paired semantic battle-state/checked-runtime/engine-RNG equality. Normal End Turn input and timers reach the ordinary next-turn input wait; hostile AI is not exercised. PCM-corruption, extra-RNG-draw and missing-cue controls are rejected once each in both games at the intended assertions. Full hidden-world, lifecycle, audio parity, libc RNG and timing coverage remains pending. This mandatory controller gate has not passed.
 
 **Dependencies:** stages 3–4 and the approved contract.
 

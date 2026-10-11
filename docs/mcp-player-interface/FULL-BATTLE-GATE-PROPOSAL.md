@@ -1,10 +1,11 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later. Original project documentation, 2026-10-10. See LICENSE.txt and LICENSE-NOTICES.md. -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later. Original project documentation, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md. -->
 # Proposed subsequent hidden-world battle gate
 
-This is a bounded design proposal. The first hidden-occupant render-only pair now
-has a [default-off implementation](HIDDEN-OCCUPANT-GATE.md); the remaining cases
-are still proposals. Neither that narrow pair nor the paired UI tests close
-stage 5 or authorize a controller. A separate [bounded request-effects gate](OBSERVER-EFFECTS-GATE.md)
+This is a bounded design proposal with two implemented render-only cases: the
+[hidden-occupant pair](HIDDEN-OCCUPANT-GATE.md) and the
+[smoke-density pair](SMOKE-DENSITY-GATE.md), both default-off. Occlusion/clipping
+and offscreen death remain proposals. These narrow pairs and the paired UI tests
+do not close stage 5 or authorize a controller. A separate [bounded request-effects gate](OBSERVER-EFFECTS-GATE.md)
 now exercises normal kneel/stand execution and engine-RNG comparison; it does
 not implement the remaining hidden-world or timing matrix.
 Source feasibility is pinned to `b8d9806aa83151c4da1805c691f50903512c7f65`.
@@ -52,13 +53,20 @@ constructors or private-access macro tricks merely to shrink the harness.
    audio, then observer output. Add a visible-occupant positive control with
    genuinely different final cursor pixels. An unused BattleUnit or unrelated
    secret variable would not exercise this dependency.
-2. Same smoke appearance with different density. Current Map rendering groups
-   smoke densities 7/8 into the same sprite group when fire/shade/animation offset
-   agree. Verify all eight animation phases rather than assume they match.
-   Tile::setSmoke randomizes animation offset, and unit construction also consumes
-   randomness: pin both engine RNG and std::rand setup internally. Restrict the
-   pair to rendering/animation; advancing a turn may destroy equivalence. Require
-   a density-boundary positive control that changes actual pixels.
+2. Same smoke appearance with different density: [implemented bounded
+   gate](SMOKE-DENSITY-GATE.md). Its first normal run in each UFO/TFTD master
+   passes all eight complete-frame 7/8 matches, 24 production-native responses
+   and eight density-6 positive phases affecting both frame and cursor crop.
+   Both RNG seeds are pinned before unit construction and Tile::setSmoke; an
+   actual production-blit witness checks the selected smoke frame and phase.
+   The discovered, terrain-empty fixture uses depth 0 in both games. Simulation
+   and timers are skipped, and the audio subsystem is disabled. Both real-source
+   mutants are rejected in each game: a hidden-density HUD leak fails the public
+   transcript comparison; a wrong smoke frame fails the whole-display RGB check.
+   All six normal/mutant runs completed on their first attempt without crashes,
+   timeouts or exclusions; see [aggregate evidence](smoke-density-evidence.json).
+   This implements only the controlled render/transport case, not smoke
+   propagation, damage, turns, fire, underwater behavior, audio or timing equivalence.
 3. Occlusion and clipping. First establish different real unit/smoke/cursor pixels
    without suppression. Then apply the same normal overlay, viewport clipping or
    offscreen camera, and verify final equality. Exercise the actual hidden-movement

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Original test contribution, 2026-10-10. See LICENSE.txt and LICENSE-NOTICES.md.
+// Smoke profile extension, 2026-10-11; GPL-3.0-or-later.
 // Isolated renderer fixture. No simulation advancement, gameplay controller,
 // external test-control channel, hidden-state dump, save loading or resource export.
 #include "RenderPairGate.h"
@@ -54,12 +55,22 @@ struct Frame {
     std::vector<std::string> packets;
 };
 std::vector<Frame> histories[3];
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+const int densities[3] = {7, 8, 6};
+unsigned int smokeVisits = 0;
+int smokeFrames[3][8] = {};
+int initialOffset = -1, initialShade = -1;
+uint64_t initialSeed = 0;
+const char *const gateName = "SMOKE_DENSITY_GATE";
+#else
+const char *const gateName = "BATTLE_PAIR_GATE";
+#endif
 
 void require(bool condition, const char *reason)
 {
     if (!condition) {
         // Reasons are fixed aggregate assertion labels, never hidden values.
-        std::cerr << "BATTLE_PAIR_GATE FAIL " << reason << std::endl;
+        std::cerr << gateName << " FAIL " << reason << std::endl;
         std::exit(EXIT_FAILURE);
     }
 }
@@ -161,15 +172,30 @@ void verify()
     // Establish the complete visual and eligibility oracle BEFORE comparing packets.
     for (size_t i = 0; i < 8; ++i) {
         const Frame &a = histories[0][i], &b = histories[1][i], &positive = histories[2][i];
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+        require(a.width == b.width && a.height == b.height && a.rgb == b.rgb,
+                "smoke-pair-final-rgb");
+        require(a.eligibility == b.eligibility, "smoke-pair-eligibility");
+        require(a.width == positive.width && a.height == positive.height &&
+                a.eligibility == positive.eligibility && a.rgb != positive.rgb && a.crop != positive.crop,
+                "density-boundary-pixel-positive-control");
+        require(smokeFrames[0][i] == smokeFrames[1][i] && smokeFrames[0][i] != smokeFrames[2][i],
+                "actual-smoke-frame-selection");
+#else
         require(a.width == b.width && a.height == b.height && a.rgb == b.rgb,
                 "hidden-empty-final-rgb");
         require(a.eligibility == b.eligibility, "hidden-empty-eligibility");
         if (i % 2) {
             require(a.rgb != positive.rgb && a.crop != positive.crop, "visible-crop-positive-control");
         }
+#endif
     }
     const std::vector<std::string> a = transcript(histories[0]), b = transcript(histories[1]);
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    require(a.size() == 16 && a == b, "smoke-pair-public-transcript");
+#else
     require(a.size() == 16 && a == b, "hidden-empty-public-transcript");
+#endif
     // Comparator controls change real recorded output; these are not engine mutants.
     std::vector<Frame> changed = histories[1];
     std::string &mutated = changed[0].packets[1];
@@ -183,19 +209,37 @@ void verify()
     changed = histories[1]; changed[0].rgb[0] ^= 1;
     require(changed[0].rgb != histories[0][0].rgb, "full-frame-pixel-sensitivity");
     completed = true;
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    std::cout << "SMOKE_DENSITY_GATE PASS {\"schema\":\"smoke-density-gate/1\",\"master\":\""
+              << Options::getActiveMaster() << "\",\"scenarios\":3,"
+              << "\"frames_per_scenario\":8,\"equal_pair_frames\":8,\"responses\":24,"
+              << "\"positive_phases\":8,\"audio\":\"subsystem-disabled\","
+              << "\"simulation\":false,\"timing_equal\":false,\"full_fairness\":false}" << std::endl;
+#else
     std::cout << "BATTLE_PAIR_GATE PASS {\"schema\":\"render-pair-gate/1\",\"master\":\""
               << Options::getActiveMaster() << "\",\"scenarios\":3,"
               << "\"frames_per_scenario\":8,\"equal_pair_frames\":8,\"responses\":24,"
               << "\"positive_odd_phases\":4,\"audio\":\"subsystem-disabled\","
               << "\"simulation\":false,\"full_fairness\":false}" << std::endl;
+#endif
 }
 } // namespace
 
 void prepare()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    const char *option = std::getenv("OPENXCOM_SMOKE_DENSITY_GATE");
+#else
     const char *option = std::getenv("OPENXCOM_BATTLE_PAIR_GATE");
+#endif
     enabled = option && std::string(option) == "1";
     if (!enabled) return;
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    for (const char *other : {"OPENXCOM_BATTLE_PAIR_GATE", "OPENXCOM_OBSERVER_EFFECTS_GATE",
+                             "OPENXCOM_NATURAL_FOV_GATE", "OPENXCOM_BATTLEFIELD_AUDIO_GATE",
+                             "OPENXCOM_MIXED_AUDIO_FD"})
+        require(!std::getenv(other), "isolated-gate-profile");
+#endif
     // An isolated test owns its channel. Never inherit an observer destination.
     require(!std::getenv("OPENXCOM_PRESENTATION_FD") && !std::getenv("OPENXCOM_EXPERIMENTAL_CURSOR_DIR") &&
             !std::getenv("OPENXCOM_EXPERIMENTAL_HUD_DIR"), "isolated-observer-destinations");
@@ -259,7 +303,13 @@ void afterCleanup(Game *game)
     BattleUnit *player = new BattleUnit(rules, FACTION_PLAYER, 1, armor, game->getMod()->getStatAdjustment(0), 0);
     occupant = new BattleUnit(rules, FACTION_HOSTILE, 2, armor, game->getMod()->getStatAdjustment(0), 0);
     player->setPosition(playerPosition); player->setDirection(0);
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    occupant->setPosition(parked); occupant->setDirection(0);
+    // Identical construction order precedes the real RNG-consuming setter.
+    battle->getTile(hover)->setSmoke(densities[world]);
+#else
     occupant->setPosition(world == 1 ? parked : hover); occupant->setDirection(0);
+#endif
     battle->getUnits()->push_back(player); battle->getUnits()->push_back(occupant);
     battle->resetUnitTiles(); battle->setSelectedUnit(player);
     state = new BattlescapeState;
@@ -276,7 +326,17 @@ void beforeFrame(Game *game)
         // Normal init has run. This is a controlled stored-visibility fixture,
         // not a claim that these worlds came from a particular gameplay history.
         require(!occupant->getVisible(), "initial-hidden-visibility");
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+        const Tile *tile = battle->getTile(hover);
+        if (world == 0) {
+            initialOffset = tile->getAnimationOffset(); initialShade = tile->getShade();
+            initialSeed = RNG::getSeed();
+        }
+        require(tile->getAnimationOffset() == initialOffset && tile->getShade() == initialShade &&
+                RNG::getSeed() == initialSeed, "identical-smoke-setup");
+#else
         occupant->setVisible(world == 2);
+#endif
         map->cacheUnits();
         Position pixel; map->getCamera()->convertMapToScreen(hover, &pixel);
         pixel += map->getCamera()->getMapOffset();
@@ -292,10 +352,21 @@ void beforeFrame(Game *game)
     require(selected == hover && map->getCamera()->getViewLevel() == hover.z &&
             map->getCursorType() == CT_NORMAL && !state->getMouseOverIcons() &&
             game->getCursor()->getVisible() && !Options::debug && !battle->getDebugMode(), "actual-hover-cursor-preconditions");
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    const Tile *tile = battle->getTile(hover);
+    require(tile->getSmoke() == densities[world] && tile->getFire() == 0 && tile->isDiscovered(2) &&
+            tile->getAnimationOffset() == initialOffset && tile->getShade() == initialShade &&
+            battle->getDepth() == 0 && tile->getUnit() == 0, "real-smoke-render-preconditions");
+    require(occupant->getPosition() == parked && !occupant->getVisible() &&
+            occupant->getTile() == battle->getTile(parked) && occupant->getTile()->getUnit() == occupant,
+            "fixed-hidden-occupant-preconditions");
+    smokeVisits = 0;
+#else
     require(occupant->getTile() == battle->getTile(occupant->getPosition()) &&
             occupant->getTile()->getUnit() == occupant &&
             battle->getTile(hover)->getUnit() == (world == 1 ? 0 : occupant) &&
             occupant->getVisible() == (world == 2), "real-occupancy-visibility-preconditions");
+#endif
     empty();
     challenge = randomChallenge();
     const std::string request = epoch + admission + challenge;
@@ -310,6 +381,17 @@ void visited(const Tile *tile, int animationPhase)
     require(tile && tile->getPosition() == hover && animationPhase == phase, "actual-renderer-tile-and-phase");
     ++visits;
 }
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+void smokeBlitted(const Tile *tile, int animationPhase, int frameNumber, int shade)
+{
+    if (!recording) return;
+    require(tile && tile->getPosition() == hover && animationPhase == phase &&
+            tile->getSmoke() == densities[world] && shade == initialShade,
+            "actual-smoke-blit-tile-phase-shade");
+    smokeFrames[world][phase] = frameNumber;
+    ++smokeVisits;
+}
+#endif
 void capture(SDL_Surface *surface, int bw, int bh, bool allowed,
              const Observer::HudFrame &hud, const Observer::PixelCrop &crop)
 {
@@ -318,6 +400,9 @@ void capture(SDL_Surface *surface, int bw, int bh, bool allowed,
     require(Observer::supportedPresentedSurface(surface, bw, bh, allowed) && Observer::validCrop(crop),
             "supported-focused-presentation");
     require(visits == 1, "actual-renderer-hover-visit");
+#ifdef OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE
+    require(smokeVisits == 1, "actual-renderer-smoke-blit");
+#endif
     Frame &frame = histories[world].back();
     require(frame.rgb.empty(), "exactly-one-final-frame");
     frame.width = surface->w; frame.height = surface->h;

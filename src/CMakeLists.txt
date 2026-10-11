@@ -496,7 +496,12 @@ if ( EXPERIMENTAL_CURSOR_OBSERVER )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER )
 endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-10.
-if ( EXPERIMENTAL_BATTLE_PAIR_GATE )
+# Reuse the controlled rendering/transport seams, with only one fixture profile.
+# SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-11.
+if ( EXPERIMENTAL_SMOKE_DENSITY_GATE )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SMOKE_DENSITY_GATE )
+endif()
+if ( EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE )
   target_sources ( openxcom PRIVATE ../tests/battle-observer/RenderPairGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE )
 endif()

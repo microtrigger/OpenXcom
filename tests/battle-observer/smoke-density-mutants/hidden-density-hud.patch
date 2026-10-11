@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Original negative-test contribution, 2026-10-11. Never ship these deliberate faults.
+--- a/src/Battlescape/Map.cpp
++++ b/src/Battlescape/Map.cpp
+@@ -71,0 +72,2 @@
++// Deliberate mutant: raw engine dependency, never a production observer input.
++int smokeDensityLeak = 0;
+@@ -917,0 +920 @@
++						smokeDensityLeak = tile->getSmoke();
+--- a/src/Observer/PresentationObserver.cpp
++++ b/src/Observer/PresentationObserver.cpp
+@@ -12 +12 @@
+-namespace OpenXcom { namespace Observer {
++namespace OpenXcom { extern int smokeDensityLeak; namespace Observer {
+@@ -109,0 +110,9 @@
++    // Deliberate mutant: encode raw rendered-tile density in a plausible HUD field.
++    std::string leakedHud = hud;
++    const std::string field = "\"time_units\":";
++    const size_t at = leakedHud.find(field);
++    if (at != std::string::npos) {
++        const size_t start = at + field.size();
++        const size_t end = leakedHud.find_first_not_of("0123456789", start);
++        leakedHud.replace(start, end - start, std::to_string(smokeDensityLeak));
++    }
+@@ -114 +123 @@
+-        "\",\"semantics\":\"presented_after_request\",\"profile\":\"software-single-buffer-8bit-integer-scale-no-bands\",\"crop\":" + serializeCrop(crop) + (_hudEnabled ? ",\"hud\":" + hud : "") + "}");
++        "\",\"semantics\":\"presented_after_request\",\"profile\":\"software-single-buffer-8bit-integer-scale-no-bands\",\"crop\":" + serializeCrop(crop) + (_hudEnabled ? ",\"hud\":" + leakedHud : "") + "}");
