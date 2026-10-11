@@ -9,7 +9,10 @@ Other clipping/occlusion, the hidden-movement overlay/queue and offscreen death
 remain proposals. These narrow pairs and the paired UI tests do not close stage 5
 or authorize a controller. A separate [bounded request-effects gate](OBSERVER-EFFECTS-GATE.md)
 now exercises normal kneel/stand execution and engine-RNG comparison; it does
-not implement the remaining hidden-world or timing matrix.
+not implement the remaining hidden-world or timing matrix. A separate
+[bounded native timing calibration](TIMING-CALIBRATION.md) has now completed
+its four fixed profiles; its UFO delay control is inconclusive, so timing
+sensitivity and the full timing gate remain open.
 Source feasibility is pinned to `b8d9806aa83151c4da1805c691f50903512c7f65`.
 
 ## Smallest credible path
@@ -112,8 +115,28 @@ positive controls and deliberate leaks from actual tested engine dependencies to
 be detected. Keep hidden diagnostics private inside the harness.
 
 Latency needs a separate repeated, randomized paired measurement with a declared
-noise model; correctness tests are not a timing proof. Post-mix PCM capture itself
-does not prove speaker audibility or external window/volume conditions.
+noise model; correctness tests are not a timing proof. The first [bounded native
+calibration](TIMING-CALIBRATION.md) completed all four fixed profiles and 304 half
+samples, including warmups: 16 measured A/A and 32 A/B pairs per normal master,
+and 16 measured A/B pairs per delay-mutant master. Complete-display RGB and
+normalized full native transcripts agree in every pair. No samples were trimmed
+or excluded and no runs were retried or replaced; see [aggregate
+evidence](timing-calibration-evidence.json).
+
+The deliberate nominal 5 ms delay meets the frozen sensitivity rule in TFTD but
+is **inconclusive in UFO**: UFO has 13 positive round-trip A-minus-B differences
+out of 16, below the required 14, despite 16 positive post-flip differences and
+both medians exceeding the required 3 ms. Both metrics measure a same-process,
+same-thread native return path, not independently scheduled receipt or MCP stdio
+latency. Request placement, both RNG seeds and animation phase 1 are fixed;
+simulation/timer-driven thinking and audio are excluded. This result does not
+establish timing equivalence, absence of a timing leak or controller readiness.
+
+Before further timing runs or a wider matrix, review the measurement/scheduling
+limits and define any new calibration's bounded budget and sensitivity rule.
+Preserve this completed outcome and its original criteria; additional runs must
+not replace unfavorable results. Post-mix PCM capture itself does not prove
+speaker audibility or external window/volume conditions.
 
 Completing these initial cases would still leave the wider required world/event
 matrix, UFO/TFTD profiles, load/reconnect/history behavior, sound cases, timing,

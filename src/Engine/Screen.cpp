@@ -267,6 +267,11 @@ void Screen::flip()
 #endif
 		throw Exception(SDL_GetError());
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#ifdef OPENXCOM_EXPERIMENTAL_TIMING_CALIBRATION
+	RenderPairGate::timingFlipped();
+#endif
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	// Only final display bytes after all scaling, palette application and flip.
 	// Software single-buffer pixels remain the just-presented image; swapping or

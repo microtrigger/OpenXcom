@@ -509,6 +509,10 @@ if ( EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE OR EXPERIM
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE )
 endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-10.
+if ( EXPERIMENTAL_TIMING_CALIBRATION )
+  target_sources ( openxcom PRIVATE ../tests/battle-observer/TimingCalibrationGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE OPENXCOM_EXPERIMENTAL_TIMING_CALIBRATION )
+endif()
 if ( EXPERIMENTAL_OBSERVER_EFFECTS_GATE )
   target_sources ( openxcom PRIVATE ../tests/battle-observer/ObserverEffectsGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_OBSERVER_EFFECTS_GATE )

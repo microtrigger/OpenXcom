@@ -1,0 +1,456 @@
+{
+  "_license": "SPDX-License-Identifier: GPL-3.0-or-later",
+  "_notice": "Original project evidence, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md.",
+  "schema": "timing-calibration-evidence/1",
+  "date": "2026-10-11",
+  "scope": "fixed-phase same-process same-thread native return-path descriptive calibration",
+  "summary": {
+    "attempted_profiles": 4,
+    "completed_profiles": 4,
+    "profile_attempts_each": 1,
+    "observed_samples": 304,
+    "completed_equal_output_pairs": 152,
+    "warmup_samples": 48,
+    "measured_samples": 256,
+    "remaining_not_run_samples": 0,
+    "unpaired_samples": 0,
+    "sample_replacements": 0,
+    "retries": 0,
+    "trimmed_samples": 0,
+    "mutant_control": {
+      "xcom1": "inconclusive",
+      "xcom2": "detectable-control"
+    },
+    "timing_equivalence_claimed": false,
+    "confidentiality_certification_claimed": false,
+    "full_gate_completion_claimed": false
+  },
+  "frozen_artifacts_sha256": {
+    "normal-openxcom": "a5cf61a0a27063c93ee5a4201c258379a92463340d3050e614cc638eedb46794",
+    "off-openxcom": "ef48dbd5e287b425bcddd727ae6d2a982dc7802081f377c40d314d164b3d0908",
+    "mutant-openxcom": "196ad6331fab96e1650b42692b57c2e2d7a7d42e6f451a5ec6b999d09811b61a",
+    "run-timing-calibration.py": "9fe813f4d9ceb6b68d0b585986213052481592e6e9e64326c2ebc0ae50dcee6a"
+  },
+  "frozen_implementation_sha256": {
+    "CMakeLists.txt": "d6b11da2de1ffb14b98e949b42b280b3d81af992ebfea943694881d8776c50e6",
+    "src/CMakeLists.txt": "25d6ef318467bc92aeeb41c3b2af6f62f2006d2dabaaba928fb48e22574f819d",
+    "src/Engine/Game.cpp": "845860a6f94fe997033b4cac343774112325c8ed14046969597fcf788efb831e",
+    "src/Engine/Screen.cpp": "1ff1114f855ae12cd7438de905651df3f44afb1020402383d47e2eeb4fd4f584",
+    "tests/battle-observer/RenderPairGate.h": "a4cda885e69c1e141bf3aec1b1201b4e3910fd424cb121edc63d12b50c2067d9",
+    "tests/battle-observer/TimingCalibrationGate.cpp": "5eca50f76fcaa0b08167b0bc0081efdc3d2fda607b87703a471c0622b067c521",
+    "tests/battle-observer/make-timing-mutant.py": "658d208b2b32623bbb41735a0a6d33ffca9b99f1b907fc9fd184ce8ffd1b4905",
+    "tests/battle-observer/run-timing-calibration.py": "9fe813f4d9ceb6b68d0b585986213052481592e6e9e64326c2ebc0ae50dcee6a",
+    "tests/battle-observer/test_timing_calibration_wrapper.py": "fefa5fc20bdf49a64ba3c6ac75577c42260623cabee295c7ba5fe463738b25c8",
+    "tests/battle-observer/test_timing_structure.py": "85eed08943201ae7147da33f5aba9f191cb10e250139afbf633f4179ea0cfc71"
+  },
+  "frozen_production_observer_sha256": {
+    "normal": "0dfb11b19a3a4253e9b7b775df1f126617d4b5bed433fcbe72241f1ece155461",
+    "delay_mutant": "5625053b2e2601e6a6a85b8376ec2cd2d35a45bfbf81dafcb5b0027f4a4517b4"
+  },
+  "build_options": {
+    "normal_and_mutant": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "BUILD_PACKAGE": false,
+      "EXPERIMENTAL_CURSOR_OBSERVER": true,
+      "EXPERIMENTAL_TIMING_CALIBRATION": true,
+      "other_experimental_options": false
+    },
+    "off": "all experimental options disabled"
+  },
+  "aggregate": {
+    "audio": "subsystem-disabled",
+    "limits_seconds": {
+      "mutant_profile": 90,
+      "normal_profile": 120,
+      "whole": 480
+    },
+    "metrics": {
+      "post_flip_ns": "post-flip-native-harness-return-path",
+      "round_trip_ns": "native-harness-return-path"
+    },
+    "profiles": [
+      {
+        "control": null,
+        "counts_and_statistics": {
+          "completed_pairs": 56,
+          "expected_samples": 112,
+          "kinds": {
+            "aa": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 16,
+                  "max": 233578,
+                  "mean": 31490.3125,
+                  "median": 31864.0,
+                  "min": -130471,
+                  "sign_counts": {
+                    "negative": 7,
+                    "positive": 9,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 16,
+                  "max": 12921780,
+                  "mean": 975751.5625,
+                  "median": -309652.5,
+                  "min": -4271336,
+                  "sign_counts": {
+                    "negative": 9,
+                    "positive": 7,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 16,
+              "expected_pairs": 16,
+              "order_counts": {
+                "AB": 9,
+                "BA": 7
+              }
+            },
+            "ab": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 32,
+                  "max": 1572823,
+                  "mean": -69410.5625,
+                  "median": 31569.5,
+                  "min": -1975213,
+                  "sign_counts": {
+                    "negative": 12,
+                    "positive": 20,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 32,
+                  "max": 138830713,
+                  "mean": 1769874.03125,
+                  "median": -448138.0,
+                  "min": -43454550,
+                  "sign_counts": {
+                    "negative": 19,
+                    "positive": 13,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 32,
+              "expected_pairs": 32,
+              "order_counts": {
+                "AB": 15,
+                "BA": 17
+              }
+            },
+            "warmup": {
+              "completed_pairs": 8,
+              "expected_pairs": 8,
+              "order_counts": {
+                "AB": 4,
+                "BA": 4
+              }
+            }
+          },
+          "observed_samples": 112,
+          "remaining_not_run_samples": 0,
+          "unpaired_samples": 0,
+          "unvalidated_or_unrun_samples": 0
+        },
+        "master": "xcom1",
+        "mode": "normal",
+        "reason": null,
+        "status": "complete"
+      },
+      {
+        "control": null,
+        "counts_and_statistics": {
+          "completed_pairs": 56,
+          "expected_samples": 112,
+          "kinds": {
+            "aa": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 16,
+                  "max": 203993,
+                  "mean": -150251.875,
+                  "median": -68891.5,
+                  "min": -846365,
+                  "sign_counts": {
+                    "negative": 10,
+                    "positive": 6,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 16,
+                  "max": 7106203,
+                  "mean": -2093680.75,
+                  "median": -1028177.5,
+                  "min": -24776469,
+                  "sign_counts": {
+                    "negative": 13,
+                    "positive": 3,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 16,
+              "expected_pairs": 16,
+              "order_counts": {
+                "AB": 9,
+                "BA": 7
+              }
+            },
+            "ab": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 32,
+                  "max": 777284,
+                  "mean": 80730.9375,
+                  "median": 36584.0,
+                  "min": -643057,
+                  "sign_counts": {
+                    "negative": 14,
+                    "positive": 18,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 32,
+                  "max": 4773126,
+                  "mean": 39434.9375,
+                  "median": -40102.5,
+                  "min": -7138263,
+                  "sign_counts": {
+                    "negative": 17,
+                    "positive": 15,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 32,
+              "expected_pairs": 32,
+              "order_counts": {
+                "AB": 15,
+                "BA": 17
+              }
+            },
+            "warmup": {
+              "completed_pairs": 8,
+              "expected_pairs": 8,
+              "order_counts": {
+                "AB": 4,
+                "BA": 4
+              }
+            }
+          },
+          "observed_samples": 112,
+          "remaining_not_run_samples": 0,
+          "unpaired_samples": 0,
+          "unvalidated_or_unrun_samples": 0
+        },
+        "master": "xcom2",
+        "mode": "normal",
+        "reason": null,
+        "status": "complete"
+      },
+      {
+        "control": {
+          "detectable_control": false,
+          "result": "inconclusive"
+        },
+        "counts_and_statistics": {
+          "completed_pairs": 20,
+          "expected_samples": 40,
+          "kinds": {
+            "aa": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 0,
+                  "max": null,
+                  "mean": null,
+                  "median": null,
+                  "min": null,
+                  "sign_counts": {
+                    "negative": 0,
+                    "positive": 0,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 0,
+                  "max": null,
+                  "mean": null,
+                  "median": null,
+                  "min": null,
+                  "sign_counts": {
+                    "negative": 0,
+                    "positive": 0,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 0,
+              "expected_pairs": 0,
+              "order_counts": {
+                "AB": 0,
+                "BA": 0
+              }
+            },
+            "ab": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 16,
+                  "max": 9653222,
+                  "mean": 5460449.75,
+                  "median": 5119208.0,
+                  "min": 4587556,
+                  "sign_counts": {
+                    "negative": 0,
+                    "positive": 16,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 16,
+                  "max": 12237544,
+                  "mean": -12700526.5625,
+                  "median": 4818187.5,
+                  "min": -287572706,
+                  "sign_counts": {
+                    "negative": 3,
+                    "positive": 13,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 16,
+              "expected_pairs": 16,
+              "order_counts": {
+                "AB": 8,
+                "BA": 8
+              }
+            },
+            "warmup": {
+              "completed_pairs": 4,
+              "expected_pairs": 4,
+              "order_counts": {
+                "AB": 2,
+                "BA": 2
+              }
+            }
+          },
+          "observed_samples": 40,
+          "remaining_not_run_samples": 0,
+          "unpaired_samples": 0,
+          "unvalidated_or_unrun_samples": 0
+        },
+        "master": "xcom1",
+        "mode": "mutant",
+        "reason": null,
+        "status": "complete"
+      },
+      {
+        "control": {
+          "detectable_control": true,
+          "result": "detectable-control"
+        },
+        "counts_and_statistics": {
+          "completed_pairs": 20,
+          "expected_samples": 40,
+          "kinds": {
+            "aa": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 0,
+                  "max": null,
+                  "mean": null,
+                  "median": null,
+                  "min": null,
+                  "sign_counts": {
+                    "negative": 0,
+                    "positive": 0,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 0,
+                  "max": null,
+                  "mean": null,
+                  "median": null,
+                  "min": null,
+                  "sign_counts": {
+                    "negative": 0,
+                    "positive": 0,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 0,
+              "expected_pairs": 0,
+              "order_counts": {
+                "AB": 0,
+                "BA": 0
+              }
+            },
+            "ab": {
+              "a_minus_b": {
+                "post_flip_ns": {
+                  "count": 16,
+                  "max": 7017207,
+                  "mean": 5114686.625,
+                  "median": 5224016.5,
+                  "min": 2612949,
+                  "sign_counts": {
+                    "negative": 0,
+                    "positive": 16,
+                    "zero": 0
+                  }
+                },
+                "round_trip_ns": {
+                  "count": 16,
+                  "max": 75512613,
+                  "mean": 10017146.6875,
+                  "median": 7235343.0,
+                  "min": -10416741,
+                  "sign_counts": {
+                    "negative": 2,
+                    "positive": 14,
+                    "zero": 0
+                  }
+                }
+              },
+              "completed_pairs": 16,
+              "expected_pairs": 16,
+              "order_counts": {
+                "AB": 8,
+                "BA": 8
+              }
+            },
+            "warmup": {
+              "completed_pairs": 4,
+              "expected_pairs": 4,
+              "order_counts": {
+                "AB": 2,
+                "BA": 2
+              }
+            }
+          },
+          "observed_samples": 40,
+          "remaining_not_run_samples": 0,
+          "unpaired_samples": 0,
+          "unvalidated_or_unrun_samples": 0
+        },
+        "master": "xcom2",
+        "mode": "mutant",
+        "reason": null,
+        "status": "complete"
+      }
+    ],
+    "schema": "timing-calibration/1",
+    "simulation": false,
+    "status": "complete",
+    "timing_equivalence_claimed": false
+  }
+}

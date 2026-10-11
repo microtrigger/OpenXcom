@@ -83,6 +83,15 @@ if ( EXPERIMENTAL_SMOKE_CLIPPING_GATE AND (EXPERIMENTAL_SMOKE_DENSITY_GATE OR EX
   message ( FATAL_ERROR "Smoke clipping gate requires a separate test binary" )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; test-only addition, 2026-10-11.
+option ( EXPERIMENTAL_TIMING_CALIBRATION "Build isolated native paired timing calibration" OFF )
+if ( EXPERIMENTAL_TIMING_CALIBRATION AND NOT EXPERIMENTAL_CURSOR_OBSERVER )
+  message ( FATAL_ERROR "Timing calibration requires EXPERIMENTAL_CURSOR_OBSERVER" )
+endif()
+if ( EXPERIMENTAL_TIMING_CALIBRATION AND (EXPERIMENTAL_SMOKE_CLIPPING_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE OR EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_OBSERVER_EFFECTS_GATE OR EXPERIMENTAL_NATURAL_FOV_GATE OR EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE OR EXPERIMENTAL_HUD_OBSERVER OR EXPERIMENTAL_MIXED_AUDIO_OBSERVER) )
+  message ( FATAL_ERROR "Timing calibration requires a separate test binary" )
+endif()
+
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )
 option ( BUILD_PACKAGE "Prepares build for creation of a package with CPack" ON )
 option ( ENABLE_WARNING "Always show warnings (even for release builds)" OFF )

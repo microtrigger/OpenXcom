@@ -27,6 +27,13 @@ void smokeClipped(const Tile *tile, int animationPhase, int frameNumber, int sha
 #endif
 void capture(SDL_Surface *surface, int baseWidth, int baseHeight, bool allowed,
              const Observer::HudFrame &hud, const Observer::PixelCrop &crop);
+// SPDX-License-Identifier: GPL-3.0-or-later; timing-only hooks, 2026-10-11.
+#ifdef OPENXCOM_EXPERIMENTAL_TIMING_CALIBRATION
+void timingFlipped();
+void timingEvent(const SDL_Event &event);
+// Used only by the separately applied production-source sensitivity mutant.
+bool timingInvisibleHoverOccupant();
+#endif
 void afterFrame(Game *game);
 int exitStatus();
 } }

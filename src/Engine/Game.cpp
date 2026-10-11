@@ -233,6 +233,9 @@ void Game::run()
 		while (SDL_PollEvent(&_event))
 		{
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
+#ifdef OPENXCOM_EXPERIMENTAL_TIMING_CALIBRATION
+			RenderPairGate::timingEvent(_event);
+#endif
 			// Fixed render-fixture input; still permit closing the test window.
 			if (RenderPairGate::active() && _event.type != SDL_QUIT && _event.type != SDL_ACTIVEEVENT) continue;
 #endif
