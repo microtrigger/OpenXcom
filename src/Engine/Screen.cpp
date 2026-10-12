@@ -237,6 +237,20 @@ bool Screen::stanceAllowed() const
         _observerPaletteExact && _topBlackBand == 0 && _bottomBlackBand == 0 && _leftBlackBand == 0 && _rightBlackBand == 0 &&
         _baseWidth == 320 && _baseHeight == 200;
 }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+bool Screen::inventoryWaitingAllowed() const
+{
+    // Inventory construction can normally reset the display before I arrives;
+    // State::init then defers its full palette until the first ordinary flip.
+    // Waiting/arming may survive that pending palette, never an unsupported
+    // profile. Capture still requires stanceAllowed() after successful flip.
+    const Uint8 required = SDL_APPACTIVE | SDL_APPINPUTFOCUS | SDL_APPMOUSEFOCUS;
+    return (SDL_GetAppState() & required) == required && !useOpenGL() && !use32bitScaler() && !Options::debug &&
+        (_observerPaletteExact || (_firstColor == 0 && _numColors == 256)) &&
+        _topBlackBand == 0 && _bottomBlackBand == 0 && _leftBlackBand == 0 && _rightBlackBand == 0 &&
+        _baseWidth == 320 && _baseHeight == 200;
+}
+#endif
 #endif
 void Screen::beginObserverFrame()
 {
@@ -296,7 +310,7 @@ void Screen::flip()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
-    if (_stanceController) _stanceController->presented(_screen, _baseWidth, _baseHeight, stanceAllowed() && !_stancePanelBlocked);
+    if (_stanceController) _stanceController->presented(_screen, _baseWidth, _baseHeight, stanceAllowed(), !_stancePanelBlocked);
 #endif
     // Only final display bytes after all scaling, palette application and flip.
 	// Software single-buffer pixels remain the just-presented image; swapping or

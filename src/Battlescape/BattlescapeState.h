@@ -65,6 +65,10 @@ private:
     bool _stanceShownKneeled = false;
     bool stanceContext(Observer::StanceContext &context, bool covered) const;
     bool selectionControlVisible() const;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    friend class InventoryState;
+    bool inventoryControlVisible() const;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     bool turnContext(Observer::TurnContext &context, bool covered) const;
     bool turnObservationWaiting(const BattleUnit *expectedActor) const;

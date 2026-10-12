@@ -1,3 +1,7 @@
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
+#include "../../tests/inventory-open-control/InventoryOpenControlGate.h"
+#endif
+// Fork modification 2026-10-12: default-off capless presented inventory view; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -274,6 +278,9 @@ InventoryState::~InventoryState()
  */
 void InventoryState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    _inventoryInitialized = false;
+#endif
 	State::init();
 	BattleUnit *unit = _battleGame->getSelectedUnit();
 
@@ -365,7 +372,39 @@ void InventoryState::init()
 
 	updateStats();
 	_refreshMouse();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    _inventoryInitialized = true;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
+    InventoryOpenControlGate::inventoryInitialized(this);
+#endif
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+bool InventoryState::inventoryViewAllowed() const
+{
+    // Validate lifetime before accessing parent/save. This is a pixels-only
+    // observer: no item enumeration, held-item inspection or redraw helpers.
+    if (!_inventoryInitialized || !_tu || _modal || !_game->isState(const_cast<InventoryState *>(this)) ||
+        !_game->inventoryParentState(_parent) || !_game->getSavedGame() ||
+        _game->getSavedGame()->getSavedBattle() != _battleGame || !_battleGame ||
+        _parent->_save != _battleGame || !_battleGame->getTileEngine() ||
+        _battleGame->getDebugMode() || _battleGame->getSide() != FACTION_PLAYER ||
+        !_game->getScreen()->inventoryWaitingAllowed()) return false;
+    BattleUnit *actor = _battleGame->getSelectedUnit();
+    if (!actor || actor->getFaction() != FACTION_PLAYER || actor->getOriginalFaction() != FACTION_PLAYER ||
+        actor->getType() != "SOLDIER" || actor->isOut()) return false;
+    return _bg->turnContextVisible() && _bg->getX() == 0 && _bg->getY() == 0 &&
+        _bg->getWidth() == 320 && _bg->getHeight() == 200 &&
+        _inv->turnContextVisible() && _inv->getX() == 0 && _inv->getY() == 0 &&
+        _inv->getWidth() == 320 && _inv->getHeight() == 200;
+}
+void InventoryState::blit()
+{
+    State::blit();
+    _game->getStanceController()->armInventory(this);
+}
+#endif
 
 /**
  * Updates the soldier stats (Weight, TU).

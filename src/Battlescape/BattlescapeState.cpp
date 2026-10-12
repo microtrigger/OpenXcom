@@ -1,3 +1,6 @@
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
+#include "../../tests/inventory-open-control/InventoryOpenControlGate.h"
+#endif
 // Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 // Fork modification 2026-10-12: default-off supervised map left-click pilot; GPL-3.0-or-later.
 #ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
@@ -1040,6 +1043,9 @@ void BattlescapeState::btnKneelClick(Action *)
  */
 void BattlescapeState::btnInventoryClick(Action *)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
+    InventoryOpenControlGate::inventoryOpenEntered(this);
+#endif
 	if (_save->getDebugMode())
 	{
 		for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
@@ -2344,6 +2350,17 @@ bool BattlescapeState::stanceContext(Observer::StanceContext &c, bool covered) c
     c.tu = actor->getTimeUnits(); c.energy = actor->getEnergy(); c.health = actor->getHealth();
     c.morale = actor->getMorale(); c.stun = actor->getStunlevel(); c.reserved = _save->getTUReserved();
     c.name = _txtName->getText(); return true;
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+// Only the actual displayed control is checked. The ordinary handler owns
+// inventory eligibility, action cancellation, construction and ground layout.
+bool BattlescapeState::inventoryControlVisible() const
+{
+    return _btnInventory->stanceContextVisible() && _btnInventory->getX() >= 0 &&
+        _btnInventory->getY() >= 144 && _btnInventory->getX() + _btnInventory->getWidth() <= 320 &&
+        _btnInventory->getY() + _btnInventory->getHeight() <= 200;
 }
 #endif
 

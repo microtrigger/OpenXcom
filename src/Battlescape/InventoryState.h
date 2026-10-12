@@ -1,3 +1,4 @@
+// Fork modification 2026-10-12: default-off capless presented inventory view; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -33,6 +34,9 @@ class SavedBattleGame;
 class BattlescapeState;
 class BattleUnit;
 class BattlescapeButton;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+namespace Observer { class StanceController; }
+#endif
 
 /**
  * Screen which displays soldier's inventory.
@@ -40,6 +44,11 @@ class BattlescapeButton;
 class InventoryState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    friend class Observer::StanceController;
+    bool _inventoryInitialized = false;
+    bool inventoryViewAllowed() const;
+#endif
 	Surface *_bg, *_soldier;
 	Text *_txtName, *_txtItem, *_txtAmmo, *_txtWeight, *_txtTus, *_txtFAcc, *_txtReact, *_txtPSkill, *_txtPStr;
 	BattlescapeButton *_btnOk, *_btnPrev, *_btnNext, *_btnUnload, *_btnGround, *_btnRank;
@@ -58,6 +67,10 @@ public:
 	~InventoryState();
 	/// Updates all soldier info.
 	void init();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    /// Observe only after the ordinary inventory has actually blitted.
+    void blit() override;
+#endif
 	/// Updates the soldier info (Weight, TU).
 	void updateStats();
 	/// Saves the soldiers' equipment-layout.

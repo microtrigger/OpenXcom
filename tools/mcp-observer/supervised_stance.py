@@ -26,9 +26,11 @@ from snapshots import Unavailable, exact, integer, require
 HELLO_SCHEMA = 'experimental-stance/1'
 CONTEXT_SCHEMA = 'experimental-stance-context/1'
 TACTICAL_CONTEXT_SCHEMA = 'experimental-tactical-context/1'
+INVENTORY_VIEW_SCHEMA = 'experimental-inventory-view/1'
 STATUS_SCHEMA = 'experimental-stance-status/1'
 PUBLIC_CONTEXT_SCHEMA = 'openxcom-mcp-stance-context/1'
 PUBLIC_TACTICAL_CONTEXT_SCHEMA = 'openxcom-mcp-tactical-context/1'
+PUBLIC_INVENTORY_VIEW_SCHEMA = 'openxcom-mcp-inventory-view/1'
 PUBLIC_STATUS_SCHEMA = 'openxcom-mcp-stance-status/1'
 MAX_PACKET = 128 * 1024
 MAX_COMMANDS = 64
@@ -96,7 +98,20 @@ def validate_tactical_context(raw, challenge):
             and obj['semantics'] == 'presented_after_request')
     for name in ('challenge', 'control_epoch', 'capability'):
         token(obj[name])
-    view = obj['view']
+    return obj, validate_indexed_view(obj['view'])
+
+
+def validate_inventory_view(raw, challenge):
+    obj = parse(raw)
+    exact(obj, 'schema challenge semantics view')
+    require(obj['schema'] == INVENTORY_VIEW_SCHEMA and obj['challenge'] == challenge
+            and obj['semantics'] == 'presented_after_request')
+    token(obj['challenge'])
+    return obj, validate_indexed_view(obj['view'])
+
+
+def validate_indexed_view(view):
+    # Shared canonical visible-RGB rules. No palette aliases or hidden metadata.
     exact(view, 'width height indices_hex palette_hex')
     integer(view['width'], TACTICAL_WIDTH, TACTICAL_WIDTH)
     integer(view['height'], TACTICAL_HEIGHT, TACTICAL_HEIGHT)
@@ -118,7 +133,7 @@ def validate_tactical_context(raw, challenge):
     require(palette[used * 3:] == bytes(PALETTE_BYTES - used * 3))
     rgb = b''.join(colors[index] for index in indices)
     require(len(rgb) == TACTICAL_RGB_BYTES)
-    return obj, rgb
+    return rgb
 
 
 def validate_status(raw, command_id):
@@ -155,6 +170,12 @@ def validate_turn_arguments(arguments):
 
 def validate_map_left_click_arguments(arguments):
     validate_turn_arguments(arguments)
+
+
+def validate_open_inventory_arguments(arguments):
+    exact(arguments, 'capability control_epoch command_id')
+    for name in ('capability', 'control_epoch', 'command_id'):
+        token(arguments[name])
 
 
 def image_content(rgb):
@@ -212,13 +233,17 @@ class StanceClient:
     exchange enters CLOSED; only an explicit new launcher can create a client.
     Stance and selection use panel capabilities; map clicks use tactical
     capabilities. Both observations replace the previous grant. All commands
-    share one ledger. Duplicate explicit calls query S, never replay D, N, R or L.
+    share one ledger. Inventory I is capless and retires any previous grant.
+    A dispatched inventory open requires I before any other shared observation
+    or new action. Duplicate explicit calls query S, never replay D, N, R, L or B.
     """
     def __init__(self, channel, timeout=TIMEOUT, startup_timeout=STARTUP_TIMEOUT,
-                 selection_enabled=False, turn_enabled=False, map_left_click_enabled=False):
+                 selection_enabled=False, turn_enabled=False, map_left_click_enabled=False,
+                 inventory_enabled=False):
         require(type(selection_enabled) is bool and type(turn_enabled) is bool
-                and type(map_left_click_enabled) is bool)
+                and type(map_left_click_enabled) is bool and type(inventory_enabled) is bool)
         require(not map_left_click_enabled or turn_enabled)
+        require(not inventory_enabled or turn_enabled)
         for value, maximum in ((timeout, TIMEOUT), (startup_timeout, STARTUP_TIMEOUT)):
             require(type(value) in (int, float) and math.isfinite(value) and 0 < value <= maximum)
         require(isinstance(channel, socket.socket) and channel.family == socket.AF_UNIX
@@ -230,10 +255,12 @@ class StanceClient:
         self.selection_enabled = selection_enabled
         self.turn_enabled = turn_enabled
         self.map_left_click_enabled = map_left_click_enabled
+        self.inventory_enabled = inventory_enabled
         self.state = 'NEW'
         self.control_epoch = self.capability = self.active = None
         self.capability_kind = None
         self.tactical_verification_required = False
+        self.inventory_verification_required = False
         self.commands = {}
         self.flight = threading.Lock()
 
@@ -285,11 +312,16 @@ class StanceClient:
         require(self.turn_enabled)
         return self._observe('V', validate_tactical_context)
 
+    def observe_inventory(self):
+        require(self.inventory_enabled)
+        return self._observe('I', validate_inventory_view)
+
     def _observe(self, action, validate):
         with self.exclusive():
             # Do not replace context while the human confirmation is pending.
             require(self.state in ('NEW', 'READY', 'NEED_CONTEXT'))
             require(action == 'V' or not self.tactical_verification_required)
+            require(action == 'I' or not self.inventory_verification_required)
             try:
                 if self.state == 'NEW':
                     self.control_epoch = validate_hello(
@@ -306,7 +338,12 @@ class StanceClient:
                 obj, rgb = validate(self.exchange((action + challenge).encode('ascii'), MAX_PACKET,
                                                  timeout=timeout),
                                     challenge)
-                # Each observation grants a new one-use, action-bound capability.
+                if action == 'I':
+                    # Read-only inventory pixels never authorize any control action.
+                    self.inventory_verification_required = False
+                    self.state = 'NEED_CONTEXT'
+                    return obj, rgb
+                # Each O/V observation grants a new one-use, action-bound capability.
                 require(obj['capability'] != old_capability)
                 # The game may have changed control since the startup handshake.
                 self.control_epoch = obj['control_epoch']
@@ -346,6 +383,12 @@ class StanceClient:
         validate_map_left_click_arguments(arguments)
         return self._request('L', arguments, f'{x:03d}{y:03d}')
 
+    def request_open_inventory(self, capability, control_epoch, command_id):
+        require(self.inventory_enabled)
+        arguments = dict(capability=capability, control_epoch=control_epoch, command_id=command_id)
+        validate_open_inventory_arguments(arguments)
+        return self._request('B', arguments, 'o0')
+
     def _request(self, action, arguments, payload):
         capability, control_epoch, command_id = (arguments[name] for name in
                                                 ('capability', 'control_epoch', 'command_id'))
@@ -356,7 +399,8 @@ class StanceClient:
                 return self._status(command_id)
             require(self.state == 'READY' and capability == self.capability
                     and control_epoch == self.control_epoch
-                    and self.capability_kind == ('V' if action in ('R', 'L') else 'O'))
+                    and not self.inventory_verification_required and not self.tactical_verification_required
+                    and self.capability_kind == ('V' if action in ('R', 'L', 'B') else 'O'))
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
                 raise Unavailable('Unavailable')
@@ -397,6 +441,8 @@ class StanceClient:
         self.commands[command_id]['status'] = status
         if command_id == self.active and self.state == 'PENDING' and status != 'pending_confirmation':
             self.state = 'NEED_CONTEXT'
+            self.inventory_verification_required = (status == 'dispatched'
+                                                    and self.commands[command_id]['action'] == 'B')
             self.tactical_verification_required = (status == 'dispatched'
                                                    and self.commands[command_id]['action'] in ('R', 'L'))
         return obj

@@ -721,6 +721,15 @@ bool Game::isState(State *state) const
 	return !_states.empty() && _states.back() == state;
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+bool Game::inventoryParentState(State *parent) const
+{
+    if (!parent || _states.size() < 2) return false;
+    auto state = _states.rbegin();
+    return *++state == parent;
+}
+#endif
+
 /**
  * Checks if the game is currently quitting.
  * @return whether the game is shutting down or not.

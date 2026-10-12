@@ -28,6 +28,13 @@ a regular door, reaction-queue formation and movement continuing after observati
 failure are checked. All 18 actual-source faults are detected in both games,
 and prior stance/selection/right-click regressions pass; see [evidence and limits](docs/mcp-player-interface/SUPERVISED-MAP-LEFT-CLICK-EVIDENCE.md).
 
+The opt-in [inventory-opening slice](docs/mcp-player-interface/SUPERVISED-INVENTORY-OPEN-PILOT.md)
+adds locally confirmed ordinary opening and a capless final inventory image. All
+14 native profiles pass in both games, including 12 opening pairs and 24 additional
+worlds; all 15 actual-source faults are detected in each. Real official-SDK →
+production-game opening/view/manual-close checks also pass in UFO and TFTD.
+Item manipulation and closing remain manual; see [evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-OPEN-EVIDENCE.md).
+
 **Current plan and actual progress:** see the [English status checklist](docs/mcp-player-interface/README.md#plan-versus-actual-progress) or [Russian working checklist](docs/mcp-player-interface/PLAN.ru.md#план-и-фактическое-выполнение). Selected request-bound pixel/HUD checks cover both games, including the [bounded natural-FOV/pause gate](docs/mcp-player-interface/NATURAL-FOV-GATE.md). The earlier [mixed-audio slice](docs/mcp-player-interface/MIXED-AUDIO-NATIVE.md) adds fixed 500 ms final SDL_mixer PCM for a qualified 22050 Hz signed-16-bit stereo software-mixed profile; 190 Python tests and a native real-SDL dummy-mixer oracle pass. Selected [UFO/TFTD menu checks](docs/mcp-player-interface/mixed-audio-game-evidence.json) also pass: eight fresh clips include exact silence at verified zero volume, and four post-exit requests fail closed. These checks do not establish full gameplay audio parity, physical audibility, continuous sound history or frame/HUD synchronization. The full fairness gate, audio parity, gameplay controller and actual end-to-end token comparison remain open.
 
 The [bounded battlefield-audio gate](docs/mcp-player-interface/BATTLEFIELD-AUDIO-GATE.md) passes one land-only run each in UFO/TFTD: visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM, unchanged mixer output and paired state/engine-RNG equality. Six deliberate controls are rejected; see [aggregate evidence](docs/mcp-player-interface/battlefield-audio-evidence.json). Normal End Turn input and timers reach the next-turn input wait before hostile AI. This dummy-mixer result does not establish physical audibility, isolated grenade PCM, full audio parity, timing/libc-RNG equality or audiovisual synchronization. Stage 5 remains open; no observer fields or controller are added.

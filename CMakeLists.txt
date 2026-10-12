@@ -112,6 +112,11 @@ option ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK "Build local-confirmation ordina
 if ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK AND NOT EXPERIMENTAL_SUPERVISED_TURN )
   message ( FATAL_ERROR "Supervised map left-click requires EXPERIMENTAL_SUPERVISED_TURN" )
 endif()
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised inventory opening, 2026-10-12.
+option ( EXPERIMENTAL_SUPERVISED_INVENTORY "Build local-confirmation inventory opening and capless presented inventory view" OFF )
+if ( EXPERIMENTAL_SUPERVISED_INVENTORY AND NOT EXPERIMENTAL_SUPERVISED_TURN )
+  message ( FATAL_ERROR "Supervised inventory requires EXPERIMENTAL_SUPERVISED_TURN" )
+endif()
 option ( EXPERIMENTAL_STANCE_CONTROL_GATE "Build isolated finite stance-control test gate" OFF )
 if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Stance control gate requires EXPERIMENTAL_SUPERVISED_STANCE" )
@@ -130,6 +135,12 @@ endif()
 option ( EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE "Build isolated finite map left-click control test gate" OFF )
 if ( EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE AND (NOT EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK OR NOT EXPERIMENTAL_SUPERVISED_SELECTION OR NOT EXPERIMENTAL_STANCE_CONTROL_GATE) )
   message ( FATAL_ERROR "Map left-click control gate requires supervised map left-click, selection and stance control gate" )
+endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; finite supervised inventory-open gate, 2026-10-12.
+option ( EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE "Build isolated finite inventory-open control test gate" OFF )
+if ( EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE AND (NOT EXPERIMENTAL_SUPERVISED_INVENTORY OR NOT EXPERIMENTAL_SUPERVISED_SELECTION OR NOT EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK OR NOT EXPERIMENTAL_STANCE_CONTROL_GATE) )
+  message ( FATAL_ERROR "Inventory-open control gate requires supervised inventory, selection, map left-click and stance control gate" )
 endif()
 
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )

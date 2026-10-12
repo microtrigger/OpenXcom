@@ -639,3 +639,12 @@ if ( EXPERIMENTAL_TURN_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/turn-control/TurnControlGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised inventory opening, 2026-10-12.
+if ( EXPERIMENTAL_SUPERVISED_INVENTORY )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY )
+endif()
+if ( EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/inventory-open-control/InventoryOpenControlGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE )
+endif()

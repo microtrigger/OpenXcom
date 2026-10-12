@@ -10,7 +10,7 @@
 #include "../Battlescape/Position.h"
 #endif
 namespace OpenXcom {
-class Game; class State; class BattlescapeState; class BattleUnit; class SavedBattleGame;
+class Game; class State; class BattlescapeState; class BattleUnit; class SavedBattleGame; class InventoryState;
 namespace Observer {
 class StanceConfirmState;
 // Private binding only. None of these pointers, counters or values is serialized.
@@ -48,9 +48,13 @@ class StanceController {
     SDL_Color _palette[256];
     StanceConfirmState *_dialog, *_frameDialog;
     State *_expectedPush, *_expectedPop, *_challengeState;
-    char _action; // k/s: stance, n/p: selection, r/l: ordinary map button.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    bool _inventoryEnabled, _awaitingInventoryView;
+    InventoryState *_inventoryDestination, *_frameInventory;
+#endif
+    char _action; // k/s: stance, n/p: selection, r/l: ordinary map button, o: inventory open.
     bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R/L.
+    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R/L/B; I: capless pixels.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
@@ -70,14 +74,17 @@ public:
     ~StanceController();
     bool enabled() const { return _fd >= 0; }
     void close();
-    void invalidate(bool newEpoch = false, bool preserveMapWait = false);
+    void invalidate(bool newEpoch = false, bool preserveMapWait = false, bool preserveInventoryRead = false);
     void beforePush(State *state);
     void beforePop(State *state);
     void beforeEvent(const SDL_Event &event, State *top);
     void poll();
     void beginFrame();
     void arm(BattlescapeState *state);
-    void presented(SDL_Surface *surface, int baseWidth, int baseHeight, bool allowed);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    void armInventory(InventoryState *state);
+#endif
+    void presented(SDL_Surface *surface, int baseWidth, int baseHeight, bool profileAllowed, bool panelClear = true);
     void confirm(StanceConfirmState *dialog, bool accept);
     bool ownsDialog(State *state) const;
     const std::vector<unsigned char> &indices() const { return _indices; }
@@ -87,6 +94,7 @@ public:
     bool nextSelection() const { return _action == 'n'; }
     bool turnRequest() const { return _action == 'r'; }
     bool mapLeftClickRequest() const { return _action == 'l'; }
+    bool inventoryOpenRequest() const { return _action == 'o'; }
     int targetX() const { return _targetX; }
     int targetY() const { return _targetY; }
 private:

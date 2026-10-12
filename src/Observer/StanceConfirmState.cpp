@@ -13,20 +13,21 @@ StanceConfirmState::StanceConfirmState(StanceController *controller) : _controll
     _screen = true;
     setPalette(controller->palette());
     const bool turn = controller->turnRequest() || controller->mapLeftClickRequest();
-    Surface *panel = new Surface(320, turn ? 200 : 56, 0, turn ? 0 : 144);
+    const bool fullView = turn || controller->inventoryOpenRequest();
+    Surface *panel = new Surface(320, fullView ? 200 : 56, 0, fullView ? 0 : 144);
     const std::vector<unsigned char> &pixels = controller->indices();
     for (int y = 0; y < panel->getHeight(); ++y) for (int x = 0; x < 320; ++x)
         panel->setPixel(x, y, pixels[y * 320 + x]);
     add(panel);
-    Frame *frame = new Frame(turn ? 320 : 310, turn ? 32 : 136, turn ? 0 : 5, turn ? 0 : 4);
-    Text *text = new Text(turn ? 236 : 292, turn ? 30 : 96, turn ? 4 : 14, turn ? 1 : 10);
-    TextButton *yes = new TextButton(turn ? 76 : 100, turn ? 14 : 20, turn ? 242 : 45, turn ? 1 : 108);
-    TextButton *no = new TextButton(turn ? 76 : 100, turn ? 14 : 20, turn ? 242 : 175, turn ? 17 : 108);
+    Frame *frame = new Frame(fullView ? 320 : 310, fullView ? 32 : 136, fullView ? 0 : 5, fullView ? 0 : 4);
+    Text *text = new Text(fullView ? 236 : 292, fullView ? 30 : 96, fullView ? 4 : 14, fullView ? 1 : 10);
+    TextButton *yes = new TextButton(fullView ? 76 : 100, fullView ? 14 : 20, fullView ? 242 : 45, fullView ? 1 : 108);
+    TextButton *no = new TextButton(fullView ? 76 : 100, fullView ? 14 : 20, fullView ? 242 : 175, fullView ? 17 : 108);
     add(frame, "infoBoxOK", "battlescape");
     add(text, "infoBoxOK", "battlescape");
     add(yes, "infoBoxOKButton", "battlescape");
     add(no, "infoBoxOKButton", "battlescape");
-    frame->setThickness(turn ? 1 : 3); frame->setHighContrast(true);
+    frame->setThickness(fullView ? 1 : 3); frame->setHighContrast(true);
     text->setHighContrast(true); text->setWordWrap(true); text->setAlign(ALIGN_CENTER);
     if (turn)
     {
@@ -51,6 +52,8 @@ StanceConfirmState::StanceConfirmState(StanceController *controller) : _controll
         }
         panel->setPixel(controller->targetX(), controller->targetY(), light);
     }
+    else if (controller->inventoryOpenRequest())
+        text->setText("Ordinary inventory opening.\nRearranges the ground display.\nConfirm the soldier shown below.");
     else if (controller->selectionRequest())
         text->setText(std::string("SUPERVISED SELECTION PILOT\nUse the normal ") +
             (controller->nextSelection() ? "NEXT" : "PREVIOUS") +

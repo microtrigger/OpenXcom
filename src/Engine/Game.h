@@ -116,6 +116,10 @@ public:
     // Bind a pending observation to its admission state, not a previous action.
     State *turnControlState() const { return _states.empty() ? 0 : _states.back(); }
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    // Private-observer lifetime check: the inventory's live immediate parent.
+    bool inventoryParentState(State *parent) const;
+#endif
 	/// Returns whether the game is shutting down.
 	bool isQuitting() const;
 	/// Loads the default and current language.

@@ -1,0 +1,952 @@
+{
+  "schema": "supervised-inventory-open-evidence/1",
+  "license": "GPL-3.0-or-later",
+  "date": "2026-10-12",
+  "base_commit": "c701a13b24d0555e560622739bd5be19950d5793",
+  "scope": "finite practical-play/1 inventory OPEN plus capless presented view; manual close",
+  "normal_native_runs": [
+    {
+      "master": "xcom1",
+      "profiles_passed": [
+        "core",
+        "focus",
+        "overlay",
+        "pop",
+        "state",
+        "save",
+        "display",
+        "ledger-limit",
+        "post-r",
+        "post-l",
+        "disabled",
+        "turn-disabled",
+        "nontu",
+        "debug"
+      ],
+      "profile_count": 14,
+      "manual_controlled_pairs": 12,
+      "paired_worlds": 24,
+      "additional_core_worlds": 24,
+      "total_core_worlds": 48,
+      "independent_physical_rgb_oracle": true,
+      "engine_rng_comparison": true,
+      "libc_rng_equality_claimed": false,
+      "delivered_focus_event_test": true,
+      "platform_focus_loss_induced": false
+    },
+    {
+      "master": "xcom2",
+      "profiles_passed": [
+        "core",
+        "focus",
+        "overlay",
+        "pop",
+        "state",
+        "save",
+        "display",
+        "ledger-limit",
+        "post-r",
+        "post-l",
+        "disabled",
+        "turn-disabled",
+        "nontu",
+        "debug"
+      ],
+      "profile_count": 14,
+      "manual_controlled_pairs": 12,
+      "paired_worlds": 24,
+      "additional_core_worlds": 24,
+      "total_core_worlds": 48,
+      "independent_physical_rgb_oracle": true,
+      "engine_rng_comparison": true,
+      "libc_rng_equality_claimed": false,
+      "delivered_focus_event_test": true,
+      "platform_focus_loss_induced": false
+    }
+  ],
+  "builds": {
+    "production_sha256": "dda22420cd7134f127e458aa42bb72eb61ece1983a9d91dde42b7efbfc908b6b",
+    "gate_sha256": "ccfc1c2ed68b371c462396cdaf4dbef29580733b9abc54fe0e7ada4aaf8a6e34",
+    "default_off_sha256": "5f9dd82f5ff0af34146da6602f0ca27ff307dfa319209ccdda26b7a43c446056",
+    "default_off_byte_identical_to_prior": false,
+    "default_off_only_code_delta": "existing OpenGL screenshot diagnostic source-line immediate 652 to666",
+    "default_off_other_byte_delta": "20-byte GNU build ID",
+    "default_off_old_and_current_relink_exact": true,
+    "default_off_experimental_symbols_absent": true,
+    "negative_cmake_dependencies": [
+      "inventory without TURN",
+      "inventory gate without aggregate prerequisites",
+      "inventory gate without map-left-click"
+    ]
+  },
+  "python": {
+    "normal_tests_run": 390,
+    "normal_passed": 388,
+    "optimized_tests_run": 390,
+    "optimized_passed": 388,
+    "expected_native_only_skips_each": 2,
+    "focused_inventory_tests": 38,
+    "wrapper_tests": 17,
+    "mutation_setup_tests": 12,
+    "sdk_smoke_programs": 7,
+    "modes_each": [
+      "normal",
+      "optimized"
+    ],
+    "sdk_version": "1.29.0",
+    "protocol": "2025-11-25",
+    "synthetic_inventory_png_bytes": 65063
+  },
+  "real_sdk_game_runs": [
+    {
+      "master": "xcom1",
+      "attempt": 1,
+      "sdk_version": "1.29.0",
+      "protocol": "2025-11-25",
+      "nongate_production_binary": true,
+      "normal_new_battle_ui": true,
+      "public_calls": [
+        "read_tactical_context",
+        "request_open_inventory",
+        "read_stance_status",
+        "read_inventory_view",
+        "read_tactical_context"
+      ],
+      "status_sequence": [
+        "pending_confirmation",
+        "dispatched"
+      ],
+      "local_confirmation": "Y key",
+      "actual_modal_and_pngs_visually_verified": true,
+      "manual_inventory_close": true,
+      "fresh_post_close_tactical_view": true,
+      "initial_and_post_close_png_equal": true,
+      "observer_stop_left_visible_game_running": true,
+      "normal_game_exit_verified": true,
+      "observations": [
+        {
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 10512,
+          "png_sha256": "af5a7d64ae61e55b398f3aac96d923b8cf344355e2b26746f01f6a3b886fa525"
+        },
+        {
+          "tool": "read_inventory_view",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 6856,
+          "png_sha256": "927480eff8d55986b02647579abc5f4e753761542486e9548ae16970aa21f5c5"
+        },
+        {
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 10512,
+          "png_sha256": "af5a7d64ae61e55b398f3aac96d923b8cf344355e2b26746f01f6a3b886fa525"
+        }
+      ],
+      "hidden_engine_or_save_read": false,
+      "model_or_token_run": false
+    },
+    {
+      "master": "xcom2",
+      "attempt": 1,
+      "sdk_version": "1.29.0",
+      "protocol": "2025-11-25",
+      "nongate_production_binary": true,
+      "normal_new_battle_ui": true,
+      "public_calls": [
+        "read_tactical_context",
+        "request_open_inventory",
+        "read_stance_status",
+        "read_inventory_view",
+        "read_tactical_context"
+      ],
+      "status_sequence": [
+        "pending_confirmation",
+        "dispatched"
+      ],
+      "local_confirmation": "Confirm button",
+      "actual_modal_and_pngs_visually_verified": true,
+      "manual_inventory_close": true,
+      "fresh_post_close_tactical_view": true,
+      "initial_and_post_close_png_equal": false,
+      "observer_stop_left_visible_game_running": true,
+      "normal_game_exit_verified": true,
+      "observations": [
+        {
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12378,
+          "png_sha256": "fff1db62aa92bc7ecfd6f309ff570ec5de9c766322e906c63b07e47c11d2e5d7"
+        },
+        {
+          "tool": "read_inventory_view",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 9165,
+          "png_sha256": "f6552985364706cc4f4b4b64e9971672dbfee96375ea5386b573df19fdafc97b"
+        },
+        {
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12460,
+          "png_sha256": "96fb232799bc4cc5723a39dad8de2aa32e8f953d86018f710627b509afa98d7f"
+        }
+      ],
+      "hidden_engine_or_save_read": false,
+      "model_or_token_run": false
+    }
+  ],
+  "earlier_native_attempts": [
+    {
+      "attempt": 1,
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "outcome": "failed",
+      "assertion": 213,
+      "cause": "Immediate I rejected in first maximized-information-screen world; aggregate labels retained, raw child output not retained.",
+      "raw_child_output_retained": false
+    },
+    {
+      "attempt": 2,
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "outcome": "failed",
+      "assertion": 221,
+      "cause": "Fixed diagnostics confirmed world12/init1; full deferred palette was rejected before its first ordinary flip.",
+      "raw_child_output_retained": true
+    },
+    {
+      "attempt": 3,
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "outcome": "failed",
+      "assertion": 222,
+      "cause": "I fixed; fixture requested post-close V before the ordinary restored tactical palette flip.",
+      "raw_child_output_retained": true
+    },
+    {
+      "attempt": 4,
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "outcome": "failed",
+      "assertion": 531,
+      "cause": "Selection pixel-change premise invalid: cloned soldiers had identical visible inventory screens; SELECT-only second name made distinct.",
+      "raw_child_output_retained": true
+    },
+    {
+      "attempt": 5,
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "outcome": "failed",
+      "assertion": 517,
+      "cause": "Post-R fixture attempted its sole manual inventory open while ordinary turn was busy; now waits natural idle first.",
+      "raw_child_output_retained": true
+    },
+    {
+      "attempt": 6,
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "outcome": "failed",
+      "assertion": 189,
+      "cause": "Partial-palette fixture accidentally merged pending ranges into a full palette; same-firstcolor count1 now establishes genuine partial range.",
+      "raw_child_output_retained": true
+    }
+  ],
+  "passing_native_attempts": [
+    {
+      "attempt": 7,
+      "gate_sha256": "310210674bf44b5753de0c212a61d0dac33d9b8a30877b55f7bd9b15c3dfbdf9",
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "all14_profiles_pass": true,
+      "superseded_by_stronger_wrong_handler_witness": true
+    },
+    {
+      "attempt": 8,
+      "gate_sha256": "ccfc1c2ed68b371c462396cdaf4dbef29580733b9abc54fe0e7ada4aaf8a6e34",
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "all14_profiles_pass": true,
+      "final_sensitivity_baseline": true
+    }
+  ],
+  "native_mutations": {
+    "status": "all_detected_at_expected_semantic_assertions",
+    "mutants": 15,
+    "runs": 30,
+    "baseline_link_objects": 328,
+    "unchanged_link_objects_each": 327,
+    "dependency_inputs": 922,
+    "toolchain_files": 6,
+    "source_snapshot_files": 1327,
+    "all_binary_hashes_verified": true,
+    "no_watchdog_timeout_or_crash_substitution": true,
+    "earlier_build_set_superseded_without_runtime_use": true,
+    "results": [
+      {
+        "kind": "B-barrier-bypass",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "2d193c2b193f07181042c5d45abf12ba21e2fe5cd3d62cb0e9deb24ac86cf2a4",
+        "mutation_patch_sha256": "b3692e55716b9bbc94e809d649199402a8a22afe0634e75a97079c23abcde931",
+        "binary_sha256": "d95340d45c63993ebd3fed0747764c150af66f75fdaea93c4671851eba391c3b",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 189,
+            "profile": "focus",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 189,
+            "profile": "focus",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "I-clears-post-map-barrier",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "d08a82f2193040c939a5fb7b7eb29397a0ba82f507807247364992731acbcda6",
+        "mutation_patch_sha256": "0adf6d73a9799778db1d99b6b10e93ac920ef01f500bfeabd6cd24c8b675550b",
+        "binary_sha256": "3603d396d432a3940b9c0ff44a647ae262e313ac719c253de5f6e05afeea4082",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 189,
+            "profile": "post-r",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 189,
+            "profile": "post-r",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "deadline-extension",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "cba698cf290ed95e0303e9917fc4c8492be41160c63e25a78f1e53dfe9937262",
+        "mutation_patch_sha256": "6cd72775c7d1da864ef8d26aa421c61dcd6f63fc58c62f914046163f87edfa3b",
+        "binary_sha256": "0d4eff90752663209d940ab7c9d737d3db0eb1031affaf6ea1d2db0cc1037618",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 189,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 189,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "duplicate-open",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "2821fbf858dc6d56ef5bebc8ef322f2cc5a041e5763e534cb066f21ceca0821c",
+        "mutation_patch_sha256": "7f1638937b9ba1df01ce5e5d86753cbecce48691bff1f974952a041db3f3febd",
+        "binary_sha256": "a274705deb353f40ca016e994eb9f50f5f7f2239f84ab108726e77b86c58b6aa",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 569,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 569,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "forced-init",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "4bf0804cd16a803e93db44fde6e15cfe99269f33a4f91aa22b8dc2b0b47be3d5",
+        "mutation_patch_sha256": "1949d5f9d81e91c330210708b14382969f371fa6ad4af7acf2487ef4db4edb63",
+        "binary_sha256": "c460e115009ce2782d08bb7fafcaf1b70d643cfeab536c0bdf8c35e63277944f",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 539,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 539,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "id-conflict-bypass",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "39608e3c6f1874490876368c12d67fb638ab154b517ce5c4be69648fb78a4283",
+        "mutation_patch_sha256": "e7a1a2a7ee14838d73e083c0d5c20c7b776acd5298b17663a9d7253703a02e8d",
+        "binary_sha256": "8c0763637c8ffa79c6fb0b1395f094672fb91af2a372d9602544d7eed012a0e5",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 192,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 192,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "inventory-capability",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "726a46e21424c3553809a156e188c0ae22c6fe59a0b828ae8ceed11838a91224",
+        "mutation_patch_sha256": "b481f55f20ab46ecfff17fc741563368b2103caa48aca4743b64e429efa72e73",
+        "binary_sha256": "9095e9e0febee80230db841f0e339f004ae85f35f3ea3b4609092e4dce2ff802",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 223,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 223,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "missing-first-flip-palette-wait",
+        "changed_source": "src/Engine/Screen.cpp",
+        "original_source_sha256": "2cd4fcc64c3363a20429d4a727c723e00b952d5e661659a086fe9dd548e4ac16",
+        "mutated_source_sha256": "370e51bb16e8bb4c17d9e706b4abdb63916db85d977110f0101b5637ab0c2040",
+        "mutation_patch_sha256": "c3aada7f1f5b68ca6b9c67bb7f05b5f91c2e669a596e320b2a8499c9ba1150a1",
+        "binary_sha256": "fa614b1bfa7ad8a6b91f0e7de30b670a39f3d99f15425c7807bb64f9e9a1b6fa",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 223,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 223,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "pending-I-input-cancel",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "8c2928793bb0f961c9cf2f86e70a38ff0f0c2094f74ed518bfa97031e497af04",
+        "mutation_patch_sha256": "b0de4c17a2270ae64a78a4d1024dcc1f9b126e59487790059c302d721e34dbcd",
+        "binary_sha256": "ff6438d8d7c7ddbbc09a70acecab59cc3dfab8170727b3885e0896884eecec0f",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 223,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 223,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "spend-TU",
+        "changed_source": "src/Battlescape/BattlescapeState.cpp",
+        "original_source_sha256": "abc7f0988325997daab510196d9834af7b477121b5447f622a1b348d7a8529cd",
+        "mutated_source_sha256": "aaae186c74b9f51b913655ca75849b092211d71439eae45a8878a5598829a4d2",
+        "mutation_patch_sha256": "9ace4f325bc0cabe63a1c5f7fcbbcdc694d1a99f96c01349dd343e9833456a36",
+        "binary_sha256": "603e8f511a51f53712eb3f135a64f4edf185177cc170458a49243984c40c409e",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 271,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 271,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "stale-camera",
+        "changed_source": "src/Battlescape/Camera.cpp",
+        "original_source_sha256": "4fc547ec051555dfb88fc184143ce913cc2ca065207708aaa8a5fc611dcfa42d",
+        "mutated_source_sha256": "c1e59ba516c5a84c75658b53b69b27381ff367e6e30356f10cb3e28d15018f8a",
+        "mutation_patch_sha256": "2d8277d6b474e022f8e2809f19c022445854101257d3b5b17f21f361997f5f36",
+        "binary_sha256": "7bdce135681a31a07f963f41e040b7762afcda871d383bbad24252e7ad62554e",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 192,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 192,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "stale-pose",
+        "changed_source": "src/Savegame/BattleUnit.cpp",
+        "original_source_sha256": "3f40ac513e6aedf073c9904272de617c749d45f907f69396c7f2863349c2b7fe",
+        "mutated_source_sha256": "ee9a66491fc5ad6489462b3f87f65db9b3fc32c671f3d4258c06303073327f38",
+        "mutation_patch_sha256": "c6cd00abfb1573c7e355d15d03d0414f481a5da01db3439503c77ee3f959a7bf",
+        "binary_sha256": "82e3a63ed7e093dbb87e5019b59c4984b1789de5a0f29c75ffc1d2b6b06e6a47",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 192,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 192,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "unseen-modal",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "4f98219d2a1f2285901f498ecdd7f2cb9ed136f1fdbe082581c56fc1bcb42a3a",
+        "mutation_patch_sha256": "87576e55b3b4259045b512bf74f536ed07140c5f94330c403173f8a22f651ff6",
+        "binary_sha256": "0e3430d673da955c5bba97463d804dd2b363ff1d50d7fa03593396506a9c39b2",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 370,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 370,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "wire-pixel",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "d499529e307f76d043ffe928be1253bf414e0998c044228c2b956c7ffaa3b017",
+        "mutation_patch_sha256": "c56215044c352e8827beecbc39e64ef7dfd759ad4d15354c2f37a11ca25bad04",
+        "binary_sha256": "255a223ad817852e3bd6455f9492b49946591fc3ce0f8f83048d69ff452de2db",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 217,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 217,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      },
+      {
+        "kind": "wrong-handler",
+        "changed_source": "src/Observer/StanceController.cpp",
+        "original_source_sha256": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+        "mutated_source_sha256": "0f735dc9d8b49af3ba93ad7d68c503d67f4baf876f1a3f2c5485d6702ae88089",
+        "mutation_patch_sha256": "4bdd53d35b58fd3a0621f3604ebaafed9dfbc0ae29fe2c0d82c9a1cfe211e56d",
+        "binary_sha256": "41d843fa02c4cdcde1619aaa6900faa392bc0768dd7d4f8c1b9d369d62c3e35a",
+        "changed_source_count": 1,
+        "substituted_link_objects": 1,
+        "unchanged_link_objects": 327,
+        "compile_exit": 0,
+        "link_exit": 0,
+        "runs": [
+          {
+            "master": "xcom1",
+            "detected": true,
+            "assertion": 486,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          },
+          {
+            "master": "xcom2",
+            "detected": true,
+            "assertion": 486,
+            "profile": "core",
+            "child_exit": 1,
+            "attempt": 1
+          }
+        ]
+      }
+    ]
+  },
+  "prior_control_regressions": [
+    {
+      "schema": "selection-control-gate/1",
+      "master": "xcom1",
+      "parity_pairs": 10,
+      "adversarial_worlds": 19,
+      "three_eligible_actors": true,
+      "actual_panel_oracle": true,
+      "post_action_panels": 10,
+      "shared_stance_ledger": true,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "stance-control-gate/1",
+      "master": "xcom1",
+      "parity_pairs": 12,
+      "adversarial_worlds": 19,
+      "actual_panel_oracle": true,
+      "actual_reaction_queue": true,
+      "post_action_panels": 2,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "turn-control-gate/1",
+      "master": "xcom1",
+      "parity_pairs": 15,
+      "adversarial_worlds": 29,
+      "ordinary_timer_outcomes": true,
+      "actual_full_view_oracle": true,
+      "post_outcome_views": 30,
+      "first_contact_interrupt": true,
+      "ordinary_door": true,
+      "shared_action_ledger": true,
+      "animation_grant_survives": true,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "map-left-click-control-gate/1",
+      "master": "xcom1",
+      "parity_pairs": 19,
+      "adversarial_worlds": 36,
+      "ordinary_timer_outcomes": true,
+      "actual_full_view_oracle": true,
+      "post_outcome_views": 38,
+      "first_contact_interrupt": true,
+      "ordinary_door": true,
+      "reaction_queue": true,
+      "reaction_damage_verified": false,
+      "manual_cancel": true,
+      "timeout_walk_continues": true,
+      "disconnect_walk_continues": true,
+      "extended_natural_wait": true,
+      "shared_action_ledger": true,
+      "animation_grant_survives": true,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "selection-control-gate/1",
+      "master": "xcom2",
+      "parity_pairs": 10,
+      "adversarial_worlds": 19,
+      "three_eligible_actors": true,
+      "actual_panel_oracle": true,
+      "post_action_panels": 10,
+      "shared_stance_ledger": true,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "stance-control-gate/1",
+      "master": "xcom2",
+      "parity_pairs": 12,
+      "adversarial_worlds": 19,
+      "actual_panel_oracle": true,
+      "actual_reaction_queue": true,
+      "post_action_panels": 2,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "turn-control-gate/1",
+      "master": "xcom2",
+      "parity_pairs": 15,
+      "adversarial_worlds": 29,
+      "ordinary_timer_outcomes": true,
+      "actual_full_view_oracle": true,
+      "post_outcome_views": 30,
+      "first_contact_interrupt": true,
+      "ordinary_door": true,
+      "shared_action_ledger": true,
+      "animation_grant_survives": true,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    },
+    {
+      "schema": "map-left-click-control-gate/1",
+      "master": "xcom2",
+      "parity_pairs": 19,
+      "adversarial_worlds": 36,
+      "ordinary_timer_outcomes": true,
+      "actual_full_view_oracle": true,
+      "post_outcome_views": 38,
+      "first_contact_interrupt": true,
+      "ordinary_door": true,
+      "reaction_queue": true,
+      "reaction_damage_verified": false,
+      "manual_cancel": true,
+      "timeout_walk_continues": true,
+      "disconnect_walk_continues": true,
+      "extended_natural_wait": true,
+      "shared_action_ledger": true,
+      "animation_grant_survives": true,
+      "local_confirmation": true,
+      "timing_equal": false,
+      "full_fairness": false
+    }
+  ],
+  "native_scripts_passed": [
+    "observer",
+    "cursor-observer",
+    "paired-observer",
+    "mixed-audio-native",
+    "diagnostic-isolation"
+  ],
+  "source_sha256": {
+    "CMakeLists.txt": "448fb6bb50fb6691012bbef2ae5766f03aa05d2d69f210479c1ecddbb70a6d7c",
+    "src/Battlescape/BattlescapeState.cpp": "abc7f0988325997daab510196d9834af7b477121b5447f622a1b348d7a8529cd",
+    "src/Battlescape/BattlescapeState.h": "6735e84ebcd574c2b5749748cecf3140acb144c7cfa1821300c899d8f60902bf",
+    "src/Battlescape/InventoryState.cpp": "7ba2afc1f9823ab45498bdeeb507d196bd9f433e5670ea5a3a2eb58e4f92d876",
+    "src/Battlescape/InventoryState.h": "f5dcca3c9c6927d748c943410f598b1d614dc1c4bfdd7a8783a161e5b3511775",
+    "src/CMakeLists.txt": "e42a243e65950adb8bbd44328c69104f66e02bfba9c70ecc65c112f177ffd19c",
+    "src/Engine/Game.cpp": "6b3bab23dac3b04c7623e2e3ca1d3efc1a7ad102f87fbc3bd55e7926821a9447",
+    "src/Engine/Game.h": "eab81307d62243e9f7472d914297c01dfea8fc4595ed392eef501957e89688d7",
+    "src/Engine/Screen.cpp": "2cd4fcc64c3363a20429d4a727c723e00b952d5e661659a086fe9dd548e4ac16",
+    "src/Engine/Screen.h": "36ed7f0ceea31270cb0d8a72326c64bfc85784a53f4edf9fba7dcd94f5d833d8",
+    "src/Observer/StanceConfirmState.cpp": "959c65d23fe10b73773fe3ce20679f5b8f050b0e3ebc5db54f8ea5240e9b0acf",
+    "src/Observer/StanceController.cpp": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+    "src/Observer/StanceController.h": "41648dd9eb1163f2d9715f6af8022da22ed13b9d9cdc5f537099453e1670a8a5",
+    "tests/inventory-open-control/InventoryOpenControlGate.cpp": "63ee7fbe193e494a6a13f5a3f3f7f99b08861991bca2501c3229fb41b2e1f75e",
+    "tests/inventory-open-control/InventoryOpenControlGate.h": "28ff471ecbb1d9257281c2b11ac3dd568a12dd7006f5324bdee8a16196256625",
+    "tests/inventory-open-control/make-inventory-open-mutant.py": "fb83dcd929c2d4cd8288086fc9dece734c919f4b5f81664716de628d94bfde04",
+    "tests/inventory-open-control/run-inventory-open-control.py": "668c5c4585115fc2836d7712387c184c0548ef8446f8525dabf137bd05e64ccf",
+    "tests/inventory-open-control/test_inventory_open_mutants.py": "2e4884d0c87b1a9ed45e6321922bc67c3df40e58129fc4c635de3f7bebc038fa",
+    "tests/inventory-open-control/test_inventory_open_wrapper.py": "cdf8834549eaa79983c3a92313f8d9bd82b227cb8e7b2b4aa9f5605624c1bfb3",
+    "tests/stance-control/StanceControlGate.cpp": "9c94326ec80037e12436a031028a63b4ecbae98f182019b9739ff7bcea2f580d",
+    "tools/mcp-observer/adapter.py": "299c0468d2a173dbf73d379311f085c5034f6971dab400e07d8c17c49c410e39",
+    "tools/mcp-observer/launch_presentation.py": "c6ddbfb0d465257237041367f6d58218634b4265a4f947086265fce9fe5081de",
+    "tools/mcp-observer/sdk_supervised_inventory_smoke.py": "820f1e62289e9a4c24246e18cae0cc70ef41b551015004dd6981752fea020bd3",
+    "tools/mcp-observer/supervised_stance.py": "55885d1793626f04836526246d9a8cd7df496da108a2b4e81de01f5f8d66ac27",
+    "tools/mcp-observer/test_supervised_inventory.py": "66999520b197dba732812ed360714ba4b3a3bb17a74480c8ee1e6afe9ca52fff",
+    "tools/mcp-observer/test_supervised_stance.py": "8f2ada045d87d26962e117116cc6dfd162ec11728fb3711d4980cd84b26e1adb"
+  },
+  "limits": {
+    "full_fairness": false,
+    "timing_equality": false,
+    "controller_complete": false,
+    "stage5_complete": false,
+    "inventory_close_tool": false,
+    "item_manipulation_tools": false,
+    "campaign_acceptance": false,
+    "sequential_batches": false,
+    "actual_model_token_benchmark": false,
+    "isolated_save_only_invalidation_test": false,
+    "actual_driver_palette_failure_induced": false,
+    "disabled_native_profiles_probe_B_only": true,
+    "captures_assets_raw_packets_private_paths_published": false
+  }
+}

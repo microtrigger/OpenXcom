@@ -89,6 +89,74 @@ run `python sdk_supervised_map_left_click_smoke.py` in an environment with the
 official `mcp` package. These synthetic checks establish adapter/transport
 behavior only; they do not test native UI approval, game movement or fairness.
 
+## Optional supervised inventory OPEN and read-only view
+
+`--supervised-inventory` requires `--supervised-stance` and `--supervised-turn`,
+without requiring selection or map left-click. Build the game with
+`EXPERIMENTAL_SUPERVISED_INVENTORY=ON` and its prerequisites. All these features
+remain default OFF. The launcher scrubs inherited `OPENXCOM_INVENTORY_ENABLED`
+and sets exactly `1` only for the explicit flag. It shares the existing stance
+socket; no extra channel, negotiation or fallback is added.
+
+```
+python launch_presentation.py --supervised-stance --supervised-turn --supervised-inventory -- /path/to/openxcom [operator game arguments]
+```
+
+`request_open_inventory(capability, control_epoch, command_id)` accepts exactly
+three lowercase 32-character hexadecimal tokens from a fresh tactical `V`
+context and the caller's command ID. It sends exactly 99 ASCII bytes:
+`B` + epoch32 + capability32 + command_id32 + `o0`. This requests local human
+confirmation of the ordinary selected-player inventory-open handler. The tool
+cannot approve itself and accepts no actor, item, action, close or coordinate
+fields. There is no close packet or item-manipulation command; `c0` is invalid.
+Inventory remains open until the user closes it through the ordinary UI.
+
+A panel `O` grant continues to authorize only stance/selection (`D`/`N`). A
+fresh tactical `V` grant permits one enabled right-click, left-click or inventory
+open (`R`/`L`/`B`). Inventory `I` pixels authorize no action. All five action
+kinds share the existing 64-command non-evicting ledger and unchanged status
+schema. Exact duplicates send only `S`; changed arguments or reuse across action
+kinds fail without dispatch. A dispatched receipt is never proof of success.
+
+After dispatched `B`, `read_inventory_view({})` is mandatory before any further
+shared supervised observation or new action. Status queries and exact old
+duplicates neither satisfy nor rearm this barrier. Conversely, `I` cannot
+satisfy the required post-`R`/`L` tactical `V` verification. Historical,
+presentation and audio channels remain independent.
+
+`read_inventory_view({})` sends `I` plus a fresh 32-character challenge, exactly
+33 bytes. It may also read an already manually opened supported inventory. The
+native response has exactly `schema`, `challenge`, `semantics` and `view`, using
+`experimental-inventory-view/1`, `presented_after_request`, and a 320×200 view
+with `width`, `height`, `indices_hex`, and `palette_hex`. The canonical first-seen
+RGB palette rules are identical to `V`: no index aliases, duplicate used colors
+or nonzero unused entries. No epoch, capability, semantic item list, names, IDs,
+slot descriptions, hidden stats or extra metadata are accepted.
+
+The MCP result contains compact text and the same `structuredContent`, followed
+by a lossless PNG image. Its exact public metadata is `schema` =
+`openxcom-mcp-inventory-view/1`, `challenge`, `semantics` =
+`presented_after_request`, and `view` = `{width:320,height:200,format:"image/png"}`.
+Native palette/index fields are discarded after exact visible RGB reconstruction.
+A successful `I` retires any previous grant, clears required inventory
+verification and leaves the client needing a fresh `O`/`V` grant before any
+action. It does not close inventory. Close it manually before requesting the
+next normal tactical or panel context; unsupported observations fail closed.
+
+The normal native 1.5-second and client two-second deadlines are unchanged;
+`I` never uses the optional post-left-click movement allowance. Failed reads,
+malformed/replayed/extra replies, disconnects and uncertain outcomes close the
+shared client without resend, automatic reconnect or terminating the game.
+Only an explicit new launcher establishes another control channel.
+
+Run `python -m unittest test_supervised_inventory -v` from this directory for
+strict shape/argument, O/V/I × D/N/R/L/B matrix, shared-ledger replay, observation
+barrier, deadline, exact RGB/PNG, opt-in and real-launcher tests. Run
+`python sdk_supervised_inventory_smoke.py` with the official `mcp` package for
+an actual SDK/launcher synthetic smoke. These are code/transport correctness
+checks. They do not exercise native human approval or game UI, close inventory
+automatically, or measure model tokens, gameplay parity or campaign readiness.
+
 ## Run and boundary
 
 Python 3.10+ on POSIX with `flock` and `O_NOFOLLOW`; the server itself uses only the

@@ -78,6 +78,10 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     void setStanceController(Observer::StanceController *controller) { _stanceController = controller; }
     bool stanceAllowed() const;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
+    // Continuity only: a normal full palette may still await its first flip.
+    bool inventoryWaitingAllowed() const;
+#endif
 #endif
 	static const int ORIGINAL_WIDTH;
 	static const int ORIGINAL_HEIGHT;
