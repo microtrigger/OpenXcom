@@ -19,6 +19,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#include <cstdint>
 #include "../Interface/TextButton.h"
 #include "../Savegame/EquipmentLayoutItem.h"
 
@@ -35,7 +36,7 @@ class BattlescapeState;
 class BattleUnit;
 class BattlescapeButton;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
-namespace Observer { class StanceController; }
+namespace Observer { class StanceController; class InventoryCloseOverlay; struct InventoryCloseContext; }
 #endif
 
 /**
@@ -48,6 +49,19 @@ private:
     friend class Observer::StanceController;
     bool _inventoryInitialized = false;
     bool inventoryViewAllowed() const;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    friend struct InventoryCloseGateAccess;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    Observer::InventoryCloseOverlay *_inventoryCloseOverlay = 0;
+    std::uint64_t _inventoryUiRevision = 0;
+    BattleUnit *_inventoryCloseShownActor = 0;
+    bool _inventoryCloseConsumeEvent = false;
+    bool inventoryCloseContext(Observer::InventoryCloseContext &context, bool overlay = false) const;
+    bool showInventoryCloseOverlay(Observer::StanceController *controller);
+    void dismissInventoryCloseOverlay();
+    bool inventoryCloseOverlayActive() const;
 #endif
 	Surface *_bg, *_soldier;
 	Text *_txtName, *_txtItem, *_txtAmmo, *_txtWeight, *_txtTus, *_txtFAcc, *_txtReact, *_txtPSkill, *_txtPStr;

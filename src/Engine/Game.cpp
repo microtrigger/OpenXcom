@@ -668,6 +668,9 @@ SavedGame *Game::getSavedGame() const
  */
 void Game::setSavedGame(SavedGame *save)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    _stanceController.beforeSaveChange();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     _stanceController.invalidate(true);
 #endif

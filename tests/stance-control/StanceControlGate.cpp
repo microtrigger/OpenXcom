@@ -4,6 +4,9 @@
 // display pixels, normal kneel entry and the actual reaction queue are tested.
 // Oracle values, resources and captures remain private in memory.
 #include "StanceControlGate.h"
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+#include "../inventory-close-control/InventoryCloseControlGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
 #include "../inventory-open-control/InventoryOpenControlGate.h"
 #endif
@@ -441,6 +444,9 @@ void actionOracle()
 
 void prepare()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::prepare(); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::prepare(); return; }
 #endif
@@ -472,6 +478,9 @@ void prepare()
 }
 void silence()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::silence(); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::silence(); return; }
 #endif
@@ -489,6 +498,9 @@ void silence()
 }
 bool loaded(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { return InventoryCloseControlGate::loaded(game); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { return InventoryOpenControlGate::loaded(game); }
 #endif
@@ -513,6 +525,9 @@ bool loaded(Game *game)
 }
 void afterCleanup(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::afterCleanup(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::afterCleanup(game); return; }
 #endif
@@ -568,6 +583,9 @@ void afterCleanup(Game *game)
 }
 void beforeEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::beforeEvents(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::beforeEvents(game); return; }
 #endif
@@ -661,6 +679,9 @@ void beforeEvents(Game *game)
 }
 bool acceptEvent(const SDL_Event &e)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { return InventoryCloseControlGate::acceptEvent(e); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { return InventoryOpenControlGate::acceptEvent(e); }
 #endif
@@ -694,6 +715,9 @@ bool acceptEvent(const SDL_Event &e)
 }
 void afterEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::afterEvents(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::afterEvents(game); return; }
 #endif
@@ -731,6 +755,9 @@ void afterEvents(Game *game)
 }
 void beforeFrame(Game *game, State *top)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::beforeFrame(game,top); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::beforeFrame(game,top); return; }
 #endif
@@ -763,6 +790,9 @@ void beforeFrame(Game *game, State *top)
 }
 void afterFrame(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::afterFrame(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::afterFrame(game); return; }
 #endif
@@ -793,6 +823,9 @@ void afterFrame(Game *game)
 }
 void kneelClicked(BattlescapeState *who)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::kneelClicked(who); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::kneelClicked(who); return; }
 #endif
@@ -810,6 +843,9 @@ void kneelClicked(BattlescapeState *who)
 }
 void selectionClicked(BattlescapeState *who, bool next)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { InventoryCloseControlGate::selectionClicked(who,next); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { InventoryOpenControlGate::selectionClicked(who,next); return; }
 #endif
@@ -825,6 +861,9 @@ void selectionClicked(BattlescapeState *who, bool next)
 }
 int exitStatus()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (InventoryCloseControlGate::active()) { return InventoryCloseControlGate::exitStatus(); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     if (InventoryOpenControlGate::active()) { return InventoryOpenControlGate::exitStatus(); }
 #endif

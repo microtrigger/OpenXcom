@@ -108,12 +108,13 @@ context and the caller's command ID. It sends exactly 99 ASCII bytes:
 `B` + epoch32 + capability32 + command_id32 + `o0`. This requests local human
 confirmation of the ordinary selected-player inventory-open handler. The tool
 cannot approve itself and accepts no actor, item, action, close or coordinate
-fields. There is no close packet or item-manipulation command; `c0` is invalid.
-Inventory remains open until the user closes it through the ordinary UI.
+fields. There is no item-manipulation command; `c0` remains invalid. With this
+opening-only opt-in, inventory stays open until an ordinary manual close. The
+separately enabled CLOSE tool below uses its own J capability and C packet.
 
 A panel `O` grant continues to authorize only stance/selection (`D`/`N`). A
 fresh tactical `V` grant permits one enabled right-click, left-click or inventory
-open (`R`/`L`/`B`). Inventory `I` pixels authorize no action. All five action
+open (`R`/`L`/`B`). Inventory `I` pixels authorize no action. Enabled action
 kinds share the existing 64-command non-evicting ledger and unchanged status
 schema. Exact duplicates send only `S`; changed arguments or reuse across action
 kinds fail without dispatch. A dispatched receipt is never proof of success.
@@ -139,9 +140,9 @@ by a lossless PNG image. Its exact public metadata is `schema` =
 `presented_after_request`, and `view` = `{width:320,height:200,format:"image/png"}`.
 Native palette/index fields are discarded after exact visible RGB reconstruction.
 A successful `I` retires any previous grant, clears required inventory
-verification and leaves the client needing a fresh `O`/`V` grant before any
-action. It does not close inventory. Close it manually before requesting the
-next normal tactical or panel context; unsupported observations fail closed.
+verification and requires a fresh action grant. It does not close inventory.
+Opening-only users close it manually before requesting the next `O`/`V`; with
+CLOSE enabled, a fresh `J` may authorize only `C`. Unsupported observations fail closed.
 
 The normal native 1.5-second and client two-second deadlines are unchanged;
 `I` never uses the optional post-left-click movement allowance. Failed reads,
@@ -156,6 +157,47 @@ barrier, deadline, exact RGB/PNG, opt-in and real-launcher tests. Run
 an actual SDK/launcher synthetic smoke. These are code/transport correctness
 checks. They do not exercise native human approval or game UI, close inventory
 automatically, or measure model tokens, gameplay parity or campaign readiness.
+
+## Optional supervised inventory CLOSE
+
+`--supervised-inventory-close` additionally requires `--supervised-inventory`.
+Build with default-OFF `EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE=ON` and its
+inventory/turn/stance prerequisites. The launcher scrubs inherited
+`OPENXCOM_INVENTORY_CLOSE_ENABLED` and sets literal `1` only for this opt-in.
+
+```
+python launch_presentation.py --supervised-stance --supervised-turn --supervised-inventory --supervised-inventory-close -- /path/to/openxcom [operator game arguments]
+```
+
+`read_inventory_close_context({})` sends exact J33 and returns schema
+`openxcom-mcp-inventory-close-context/1`, fresh challenge, control_epoch,
+capability, `presented_after_request` semantics and the same canonical final
+320×200 PNG shape as V. The native schema is
+`experimental-inventory-close-context/1`. This is a supported TU inventory
+context with no held item, not an item-list/slot/hidden-eligibility service.
+
+`request_close_inventory(capability, control_epoch, command_id)` sends exact
+C97: C + epoch32 + capability32 + command_id32, with no suffix or selector.
+Only J authorizes C; O/V/I do not. It uses the shared 64-entry ledger and status
+API, with exact duplicates reduced to status and no automatic action retry.
+The inventory-owned in-place overlay requires a fresh actual local confirmation;
+the MCP tool cannot approve it. Cancellation does not push/pop/init inventory
+or rearrange ground. Its proposal background is frozen while ordinary underlying
+animation continues. A dispatched receipt means ordinary OK-handler invocation.
+
+After dispatched C, fresh V from the exact original battlescape parent is
+mandatory. Native restoration waits for ordinary deferred destruction/init and
+strict applied-palette readiness; it never forces those operations or suppresses
+normal gravity, terrain lighting or FOV. The fixed native 1.5-second restoration
+bound and existing client timeout do not refresh. Failure is not proof of close
+success and never retries C or terminates the game.
+
+Run `python -m unittest test_supervised_inventory_close -v` from this directory
+for the focused client/adapter/launcher suite, and
+`python sdk_supervised_inventory_close_smoke.py` for synthetic official-SDK
+transport checks. Actual native/local-consent and production-game results are
+separate: see [contract](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-CLOSE-PILOT.md)
+and [evidence/limits](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-CLOSE-EVIDENCE.md).
 
 ## Run and boundary
 

@@ -4,7 +4,8 @@
 This bounded `practical-play/1` slice proposes ordinary inventory opening from
 a fresh tactical view, then observes only the actual presented inventory image.
 It does not move, equip, reload, prime, drop, pick up or describe items. Closing
-remains an ordinary manual game action.
+remains manual with this opening-only opt-in. A later, separately enabled
+[CLOSE slice](SUPERVISED-INVENTORY-CLOSE-PILOT.md) proposes ordinary OK closing.
 
 ## Explicit opt-in and proposal
 
@@ -54,9 +55,9 @@ after the successful flip. No observer forces initialization or palette updates.
 State/save/display replacement or focus loss cancels an outstanding read,
 including away-and-back transitions before presentation.
 
-Successful I retires prior action-grant fields and leaves a new O/V necessary
-before an action. The user closes the inventory manually, then requests a fresh
-battle context. Losing the expected destination before the mandatory I succeeds
+Successful I retires prior action-grant fields. Opening-only users close the
+inventory manually, then request a fresh O/V before another action. With the
+separate CLOSE opt-in, a fresh J may instead authorize only a C proposal. Losing the expected destination before the mandatory I succeeds
 fails closed; it does not permit bypassing the obligation with V. Failure never
 retries the open, clicks items, closes the game or drives its initialization.
 
@@ -73,10 +74,11 @@ terrain-lighting/FOV updates and any display restoration. Deployment/non-TU
 inventory and debug mode are unsupported. No observer reads raw item collections
 or fingerprints undisplayed item properties to decide availability.
 
-Automatic closing is deliberately deferred. Returning from a canceled confirmation
-modal would normally reinitialize inventory, reset its ground page and rearrange
-manually placed display slots. A future closing slice requires a narrowly tested
-noninterfering modal-return design; there is no dormant close dispatcher here.
+Closing was deferred in this opening slice: returning from a canceled confirmation
+State would normally reinitialize inventory, reset its ground page and rearrange
+manually placed display slots. The later, separate
+[CLOSE slice](SUPERVISED-INVENTORY-CLOSE-PILOT.md) uses an inventory-owned in-place
+overlay instead. Enabling opening alone still grants no close authority.
 
 ## Transport
 

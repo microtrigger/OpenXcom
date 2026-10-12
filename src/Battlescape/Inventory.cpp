@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Inventory.h"
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+#include "../../tests/inventory-close-control/InventoryCloseControlGate.h"
+#endif
 #include <algorithm>
 #include <cmath>
 #include "../Mod/Mod.h"
@@ -856,6 +859,9 @@ bool Inventory::unload()
  */
 void Inventory::arrangeGround(bool alterOffset)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    InventoryCloseControlGate::inventoryGroundArranged(this);
+#endif
 	RuleInventory *ground = _game->getMod()->getInventory("STR_GROUND", true);
 
 	int slotsX = (Screen::ORIGINAL_WIDTH - ground->getX()) / RuleInventory::SLOT_W;

@@ -10,9 +10,22 @@
 #include "../Battlescape/Position.h"
 #endif
 namespace OpenXcom {
-class Game; class State; class BattlescapeState; class BattleUnit; class SavedBattleGame; class InventoryState;
+class Game; class SavedGame; class State; class BattlescapeState; class BattleUnit; class SavedBattleGame; class InventoryState;
 namespace Observer {
 class StanceConfirmState;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+class InventoryCloseOverlay;
+// Private action binding. No item identity, layout or collection is inspected.
+struct InventoryCloseContext {
+    InventoryState *state = 0;
+    BattlescapeState *parent = 0;
+    SavedGame *savedGame = 0;
+    SavedBattleGame *save = 0;
+    BattleUnit *actor = 0;
+    std::uint64_t selectionRevision = 0, actorRevision = 0, uiRevision = 0;
+    bool operator==(const InventoryCloseContext &other) const;
+};
+#endif
 // Private binding only. None of these pointers, counters or values is serialized.
 struct StanceContext {
     BattlescapeState *state = 0;
@@ -52,9 +65,20 @@ class StanceController {
     bool _inventoryEnabled, _awaitingInventoryView;
     InventoryState *_inventoryDestination, *_frameInventory;
 #endif
-    char _action; // k/s: stance, n/p: selection, r/l: ordinary map button, o: inventory open.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    bool _inventoryCloseEnabled, _closeRestoring, _awaitingCloseView;
+    InventoryCloseContext _closeContext, _frameCloseContext;
+    InventoryState *_closeInventory, *_frameCloseInventory;
+    BattlescapeState *_closeParent;
+    SavedGame *_closeSavedGame;
+    SavedBattleGame *_closeSave;
+    std::uint64_t _closeDispatchTime;
+    void retireCloseOverlay();
+    bool closeParentCurrent() const;
+#endif
+    char _action; // k/s: stance, n/p: selection, r/l: ordinary map button, o/c: ordinary inventory open/close.
     bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R/L/B; I: capless pixels.
+    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R/L/B; I: capless pixels; J: close-only view.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
@@ -83,6 +107,10 @@ public:
     void arm(BattlescapeState *state);
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
     void armInventory(InventoryState *state);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    void confirmInventoryClose(InventoryState *state, bool accept);
+    void beforeSaveChange();
 #endif
     void presented(SDL_Surface *surface, int baseWidth, int baseHeight, bool profileAllowed, bool panelClear = true);
     void confirm(StanceConfirmState *dialog, bool accept);

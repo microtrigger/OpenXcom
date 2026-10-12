@@ -49,6 +49,9 @@ class FpsCounter;
  */
 class Game
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    friend struct InventoryCloseGateAccess;
+#endif
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     Observer::StanceController _stanceController;
@@ -119,6 +122,10 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
     // Private-observer lifetime check: the inventory's live immediate parent.
     bool inventoryParentState(State *parent) const;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    // Only reports natural deferred cleanup and top-state initialization.
+    bool inventoryCloseRestored(State *parent) const { return _init && _deleted.empty() && isState(parent); }
+#endif
 #endif
 	/// Returns whether the game is shutting down.
 	bool isQuitting() const;

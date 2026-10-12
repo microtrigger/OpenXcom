@@ -43,6 +43,9 @@ enum CursorType { CT_NONE, CT_NORMAL, CT_AIM, CT_PSI, CT_WAYPOINT, CT_THROW };
  */
 class Map : public InteractiveSurface
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    friend struct InventoryCloseGateAccess;
+#endif
 private:
 	static const int SCROLL_INTERVAL = 15;
 	static const int BULLET_SPRITES = 35;

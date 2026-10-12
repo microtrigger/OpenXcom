@@ -38,6 +38,9 @@ class Timer;
  */
 class Inventory : public InteractiveSurface
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    friend struct InventoryCloseGateAccess;
+#endif
 private:
 	Game *_game;
 	Surface *_grid, *_items, *_selection;

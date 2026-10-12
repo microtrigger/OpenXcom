@@ -64,6 +64,8 @@ def run():
                         help='also enable local-UI-confirmed ordinary map left-click (may move, select or do nothing); requires --supervised-stance and --supervised-turn')
     parser.add_argument('--supervised-inventory', action='store_true',
                         help='also enable local-UI-confirmed inventory open and read-only inventory pixels; requires --supervised-stance and --supervised-turn')
+    parser.add_argument('--supervised-inventory-close', action='store_true',
+                        help='also enable local-UI-confirmed ordinary inventory OK/close; requires --supervised-inventory, --supervised-stance and --supervised-turn')
     parser.add_argument('--audio-only', action='store_true',
                         help='enable mixed audio without a presentation channel')
     parser.add_argument('command', nargs=argparse.REMAINDER)
@@ -81,6 +83,8 @@ def run():
         parser.error('--supervised-map-left-click requires --supervised-stance and --supervised-turn')
     if args.supervised_inventory and not (args.supervised_stance and args.supervised_turn):
         parser.error('--supervised-inventory requires --supervised-stance and --supervised-turn')
+    if args.supervised_inventory_close and not args.supervised_inventory:
+        parser.error('--supervised-inventory-close requires --supervised-inventory')
     if args.audio_only and (args.presented_hud or args.supervised_stance):
         parser.error('--audio-only cannot be combined with visual channels')
     env = os.environ.copy()
@@ -88,7 +92,7 @@ def run():
     for key in ('OPENXCOM_PRESENTATION_FD', 'OPENXCOM_PRESENTATION_VERSION',
                 'OPENXCOM_MIXED_AUDIO_FD', 'OPENXCOM_STANCE_FD', 'OPENXCOM_SELECTION_ENABLED',
                 'OPENXCOM_TURN_ENABLED', 'OPENXCOM_MAP_LEFT_CLICK_ENABLED',
-                'OPENXCOM_INVENTORY_ENABLED'):
+                'OPENXCOM_INVENTORY_ENABLED', 'OPENXCOM_INVENTORY_CLOSE_ENABLED'):
         env.pop(key, None)
     with ExitStack() as cleanup:
         children = []
@@ -122,10 +126,13 @@ def run():
                 env['OPENXCOM_MAP_LEFT_CLICK_ENABLED'] = '1'
             if args.supervised_inventory:
                 env['OPENXCOM_INVENTORY_ENABLED'] = '1'
+            if args.supervised_inventory_close:
+                env['OPENXCOM_INVENTORY_CLOSE_ENABLED'] = '1'
             stance = StanceClient(parent, selection_enabled=args.supervised_selection,
                                   turn_enabled=args.supervised_turn,
                                   map_left_click_enabled=args.supervised_map_left_click,
-                                  inventory_enabled=args.supervised_inventory)
+                                  inventory_enabled=args.supervised_inventory,
+                                  inventory_close_enabled=args.supervised_inventory_close)
             cleanup.callback(stance.close)
         # Discard both diagnostics streams at the OS boundary, including startup,
         # logger fallback and shutdown. No pipe, decoding, reader or log buffer.

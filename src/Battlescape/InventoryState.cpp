@@ -21,6 +21,12 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "InventoryState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+#include "../Observer/InventoryCloseOverlay.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+#include "../../tests/inventory-close-control/InventoryCloseControlGate.h"
+#endif
 #include <algorithm>
 #include "Inventory.h"
 #include "../Engine/Game.h"
@@ -235,6 +241,10 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent) : _tu(tu), _pa
 	_txtReact->setVisible(Options::showMoreStatsInInventoryView && !_tu);
 	_txtPSkill->setVisible(Options::showMoreStatsInInventoryView && !_tu);
 	_txtPStr->setVisible(Options::showMoreStatsInInventoryView && !_tu);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    _inventoryCloseOverlay = new Observer::InventoryCloseOverlay(this, _game->getMod()->getInterface("battlescape"));
+    add(_inventoryCloseOverlay);
+#endif
 }
 
 static void _clearInventoryTemplate(std::vector<EquipmentLayoutItem*> &inventoryTemplate)
@@ -252,6 +262,9 @@ static void _clearInventoryTemplate(std::vector<EquipmentLayoutItem*> &inventory
  */
 InventoryState::~InventoryState()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    InventoryCloseControlGate::inventoryDestroyed(this);
+#endif
 	_clearInventoryTemplate(_curInventoryTemplate);
 
 	if (_battleGame->getTileEngine())
@@ -278,6 +291,10 @@ InventoryState::~InventoryState()
  */
 void InventoryState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    ++_inventoryUiRevision;
+    _inventoryCloseShownActor = 0;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
     _inventoryInitialized = false;
 #endif
@@ -374,6 +391,12 @@ void InventoryState::init()
 	_refreshMouse();
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
     _inventoryInitialized = true;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    _inventoryCloseShownActor = unit;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    InventoryCloseControlGate::inventoryInitialized(this);
+#endif
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     InventoryOpenControlGate::inventoryInitialized(this);
@@ -403,6 +426,65 @@ void InventoryState::blit()
 {
     State::blit();
     _game->getStanceController()->armInventory(this);
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+bool InventoryState::inventoryCloseOverlayActive() const
+{
+    return _inventoryCloseOverlay && _modal == _inventoryCloseOverlay && _inventoryCloseOverlay->active();
+}
+bool InventoryState::inventoryCloseContext(Observer::InventoryCloseContext &context, bool overlay) const
+{
+    // The exact inventory and immediate parent must still be alive before any
+    // save/actor dereference. Held-item inspection is refusal-only.
+    if (!_inventoryInitialized || !_tu || !_game->isState(const_cast<InventoryState *>(this)) ||
+        !_game->inventoryParentState(_parent) || !_game->getSavedGame() ||
+        _game->getSavedGame()->getSavedBattle() != _battleGame || !_battleGame ||
+        _parent->_save != _battleGame || !_battleGame->getTileEngine() ||
+        _battleGame->getDebugMode() || _battleGame->getSide() != FACTION_PLAYER ||
+        !_game->getScreen()->stanceAllowed() || SDL_GetModState() != KMOD_NONE ||
+        (overlay ? !inventoryCloseOverlayActive() : (_modal || SDL_GetMouseState(0, 0))) ||
+        _inv->getSelectedItem()) return false;
+    BattleUnit *actor = _battleGame->getSelectedUnit();
+    if (!actor || actor != _inventoryCloseShownActor || actor->getFaction() != FACTION_PLAYER ||
+        actor->getOriginalFaction() != FACTION_PLAYER || actor->getType() != "SOLDIER" ||
+        actor->isOut() || actor->isFloating() || actor->getStatus() != STATUS_STANDING ||
+        _txtName->getText().empty() || _txtName->getText() != actor->getName(_game->getLanguage())) return false;
+    Surface *widgets[] = {_bg, _inv, _txtName, _btnOk};
+    for (Surface *widget : widgets)
+        if (!widget->turnContextVisible() || widget->getX() < 0 || widget->getY() < 0 ||
+            widget->getX() + widget->getWidth() > 320 || widget->getY() + widget->getHeight() > 200) return false;
+    if (!_txtName->stanceContextVisible() || !_btnOk->stanceContextVisible() ||
+        _bg->getWidth() != 320 || _bg->getHeight() != 200 || _inv->getWidth() != 320 || _inv->getHeight() != 200) return false;
+    context.state = const_cast<InventoryState *>(this); context.parent = _parent;
+    context.savedGame = _game->getSavedGame(); context.save = _battleGame; context.actor = actor;
+    context.selectionRevision = _battleGame->stanceControlRevision();
+    context.actorRevision = actor->stanceControlRevision(); context.uiRevision = _inventoryUiRevision;
+    return true;
+}
+bool InventoryState::showInventoryCloseOverlay(Observer::StanceController *controller)
+{
+    if (_modal || !_inventoryCloseOverlay) return false;
+    _inventoryCloseOverlay->show(controller);
+    if (!_inventoryCloseOverlay->active()) return false;
+    setModal(_inventoryCloseOverlay);
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    InventoryCloseControlGate::closeOverlayShown(this);
+#endif
+    return true;
+}
+void InventoryState::dismissInventoryCloseOverlay()
+{
+    if (!_inventoryCloseOverlay) return;
+    const bool active = inventoryCloseOverlayActive();
+    if (_modal == _inventoryCloseOverlay) setModal(0);
+    _inventoryCloseOverlay->dismiss();
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    if (active) InventoryCloseControlGate::closeOverlayDismissed(this);
+#else
+    (void)active;
+#endif
 }
 #endif
 
@@ -494,6 +576,9 @@ void InventoryState::saveEquipmentLayout()
  */
 void InventoryState::btnOkClick(Action *)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
+    InventoryCloseControlGate::inventoryCloseEntered(this);
+#endif
 	if (_inv->getSelectedItem() != 0)
 		return;
 	_game->popState();
@@ -961,6 +1046,17 @@ void InventoryState::invMouseOut(Action *)
  */
 void InventoryState::handle(Action *action)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
+    // Remember ownership before routing: callbacks can retire the overlay.
+    // The dismissal gesture must never reach widgets or the X1/X2 tail below.
+    if (_inventoryCloseConsumeEvent || inventoryCloseOverlayActive())
+    {
+        _inventoryCloseConsumeEvent = false;
+        if (inventoryCloseOverlayActive()) State::handle(action);
+        return;
+    }
+    ++_inventoryUiRevision;
+#endif
 	State::handle(action);
 
 
