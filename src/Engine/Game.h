@@ -55,6 +55,9 @@ class Game
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     friend struct InventoryClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    friend struct InventoryRightClickGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif

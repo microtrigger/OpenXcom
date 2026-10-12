@@ -14,6 +14,9 @@ class Game; class SavedGame; class State; class BattlescapeState; class BattleUn
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
 struct InventoryClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+struct InventoryRightClickGateAccess;
+#endif
 namespace Observer {
 class StanceConfirmState;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
@@ -26,7 +29,7 @@ struct InventoryCloseContext {
     SavedBattleGame *save = 0;
     BattleUnit *actor = 0;
     std::uint64_t selectionRevision = 0, actorRevision = 0, uiRevision = 0;
-    #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
     std::uint64_t heldRevision = 0;
     int selectionX = 0, selectionY = 0;
 #endif
@@ -58,6 +61,9 @@ struct TurnContext {
 class StanceController {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     friend struct ::OpenXcom::InventoryClickGateAccess;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    friend struct ::OpenXcom::InventoryRightClickGateAccess;
 #endif
     struct Command { std::string request, status; };
     Game *_game;
@@ -92,9 +98,19 @@ class StanceController {
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
     bool _inventoryClickEnabled;
 #endif
-    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g/e: inventory open/close/Ground/left-click.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK
+    bool _inventoryRightClickEnabled;
+    bool _inventoryRightDispatching, _inventoryRightPopped, _inventoryRightUnexpected;
+    InventoryState *_inventoryRightOrigin;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK
+    // RIGHT overlay-owned input tails must survive retirement, state pop and disconnect.
+    std::uint8_t _inventoryConsumedButtons;
+    bool _inventoryOwnedYRelease;
+#endif
+    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g/e/x: inventory open/close/Ground/left/right click.
     bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K/H: close/Ground/click-only view.
+    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K/H/U: close/Ground/left/right-only view.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
@@ -117,7 +133,7 @@ public:
     void invalidate(bool newEpoch = false, bool preserveMapWait = false, bool preserveInventoryRead = false);
     void beforePush(State *state);
     void beforePop(State *state);
-    void beforeEvent(const SDL_Event &event, State *top);
+    bool beforeEvent(const SDL_Event &event, State *top);
     void poll();
     void beginFrame();
     void arm(BattlescapeState *state);
@@ -141,6 +157,7 @@ public:
     bool inventoryOpenRequest() const { return _action == 'o'; }
     bool inventoryGroundRequest() const { return _action == 'g'; }
     bool inventoryClickRequest() const { return _action == 'e'; }
+    bool inventoryRightClickRequest() const { return _action == 'x'; }
     int targetX() const { return _targetX; }
     int targetY() const { return _targetY; }
 private:

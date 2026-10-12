@@ -2,12 +2,20 @@
 
 ## Fair-Play MCP Interface Project
 
+The default-off [ordinary inventory RIGHT-click pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-RIGHT-CLICK-PILOT.md)
+is now available with local confirmation for held-selection cancellation or ordinary
+closing. Focused checks pass 16/16, full checks 92/92 and prior-control regressions
+298/298 across UFO/TFTD; actual SDK/game runs also pass. Source-fault results remain
+qualified: 46 mapped detections, two survivors and two inconclusive intentional-mutant
+runs out of 50. Fault-phase acceptance remains false; see
+[evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-RIGHT-CLICK-EVIDENCE.md).
+
 A [verified inventory-click correction](docs/mcp-player-interface/INVENTORY-CLICK-RELEASE-FIX-EVIDENCE.md)
 prevents a lost confirmation-button release from swallowing a later ordinary
 manual click. The old behavior is reproduced and the fix passes in UFO/TFTD;
 all 54 prior CLICK profiles also pass in each game.
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; a separately enabled bounded inventory RIGHT-click pilot is also available. Dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,
@@ -68,6 +76,13 @@ a two-click transfer is not atomic and cancellation preserves a held item.
 Source-fault results are 64 detections, four survivors and two inconclusive runs
 out of 70; [evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-EVIDENCE.md)
 also preserve earlier failures and the qualified prior-control regressions.
+
+The default-off [ordinary inventory RIGHT-click pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-RIGHT-CLICK-PILOT.md)
+requires the CLOSE chain and separate local confirmation. It cancels a held
+selection; otherwise it closes inventory with normal restoration. Context and
+receipts give no hidden branch hint. The caller explicitly chooses fresh I for
+the surviving inventory or V for the original battlescape parent, with no
+fallback between them. CLOSE/Ground still refuse held items.
 
 The [combined official-SDK → production-game smoke](docs/mcp-player-interface/COMBINED-SDK-LIVE-EVIDENCE.md)
 now verifies selection, turn, actual movement, inventory opening/view and manual

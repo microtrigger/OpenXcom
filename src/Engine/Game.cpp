@@ -271,7 +271,7 @@ void Game::run()
 			if (!BattlefieldAudioGate::acceptEvent(_event)) continue;
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
-            _stanceController.beforeEvent(_event, _states.back());
+            if (_stanceController.beforeEvent(_event, _states.back())) continue;
 #endif
             if (CrossPlatform::isQuitShortcut(_event))
 				_event.type = SDL_QUIT;

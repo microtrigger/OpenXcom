@@ -45,11 +45,14 @@ class Inventory : public InteractiveSurface
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     friend struct InventoryClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    friend struct InventoryRightClickGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif
 private:
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
     friend class InventoryState;
     std::uint64_t _heldSelectionRevision = 0;
     bool inventoryClickPresentationAllowed() const;

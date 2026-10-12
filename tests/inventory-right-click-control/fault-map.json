@@ -1,0 +1,135 @@
+{
+  "schema": "inventory-right-click-fault-map/1",
+  "classification": {
+    "detected": "ordinary failure exit with exactly mapped assertion in mapped profile",
+    "survived": "exact native profile PASS with exit 0",
+    "inconclusive": "anything else; never remap after observing runtime"
+  },
+  "faults": {
+    "right-runtime-bypass": {
+      "profile": "disabled",
+      "assertion": 112,
+      "composite": false
+    },
+    "close-prerequisite-bypass": {
+      "profile": "close-disabled",
+      "assertion": 112,
+      "composite": false
+    },
+    "missing-right-click": {
+      "profile": "core",
+      "assertion": 101,
+      "composite": false
+    },
+    "duplicate-right-click": {
+      "profile": "core",
+      "assertion": 101,
+      "composite": false
+    },
+    "missing-right-hover": {
+      "profile": "core",
+      "assertion": 101,
+      "composite": false
+    },
+    "wrong-right-button": {
+      "profile": "core",
+      "assertion": 101,
+      "composite": false
+    },
+    "missing-prehandler-barrier": {
+      "profile": "core",
+      "assertion": 102,
+      "composite": false
+    },
+    "late-prehandler-barrier": {
+      "profile": "core",
+      "assertion": 102,
+      "composite": false
+    },
+    "missing-callback-tail": {
+      "profile": "core",
+      "assertion": 103,
+      "composite": false
+    },
+    "unexpected-transition-ignored": {
+      "profile": "nested-transition",
+      "assertion": 120,
+      "composite": false
+    },
+    "surviving-destination-omitted": {
+      "profile": "core",
+      "assertion": 106,
+      "composite": false
+    },
+    "lost-I-barrier-cleared": {
+      "profile": "lost-I",
+      "assertion": 107,
+      "composite": false
+    },
+    "failed-I-send-clears": {
+      "profile": "send-failure-I",
+      "assertion": 114,
+      "composite": false
+    },
+    "failed-V-send-clears": {
+      "profile": "send-failure-V",
+      "assertion": 114,
+      "composite": false
+    },
+    "right-domain-bypass": {
+      "profile": "domain",
+      "assertion": 111,
+      "composite": false
+    },
+    "right-kind-confusion": {
+      "profile": "cross-kind",
+      "assertion": 117,
+      "composite": false
+    },
+    "wire-U-pixel": {
+      "profile": "core",
+      "assertion": 105,
+      "composite": false
+    },
+    "right-overlay-predicts-only-cancel": {
+      "profile": "core",
+      "assertion": 113,
+      "composite": false
+    },
+    "invalid-child-clickthrough": {
+      "profile": "invalid-child-right",
+      "assertion": 108,
+      "composite": false
+    },
+    "orphan-Y-new-pair-swallowed": {
+      "profile": "orphan-Y-V",
+      "assertion": 119,
+      "composite": false
+    },
+    "Y-tail-after-close": {
+      "profile": "release-Y",
+      "assertion": 119,
+      "composite": false
+    },
+    "mouse-tail-after-close": {
+      "profile": "release-mouse",
+      "assertion": 119,
+      "composite": false
+    },
+    "orphan-mouse-new-pair-swallowed": {
+      "profile": "orphan-left-held",
+      "assertion": 119,
+      "composite": true
+    },
+    "paired-release-clickthrough": {
+      "profile": "invalid-child-right",
+      "assertion": 108,
+      "composite": false
+    },
+    "synchronous-save-notice-ignored": {
+      "profile": "nested-save-notice",
+      "assertion": 120,
+      "composite": false
+    }
+  }
+}

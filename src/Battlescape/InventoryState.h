@@ -56,6 +56,9 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     friend struct InventoryClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    friend struct InventoryRightClickGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif
@@ -74,13 +77,18 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
     bool inventoryGroundControlVisible() const;
 #endif
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
     // Exact owned-down tails survive proposal retirement, never state lifetime.
     std::uint8_t _inventoryClickConsumedButtons = 0;
     friend class Observer::InventoryCloseOverlay;
     bool inventoryClickContext(Observer::InventoryCloseContext &context, bool overlay = false) const;
     int inventoryClickBannerY() const;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
     void inventoryControlClick(int x, int y);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK
+    void inventoryControlRightClick(int x, int y);
 #endif
 	Surface *_bg, *_soldier;
 	Text *_txtName, *_txtItem, *_txtAmmo, *_txtWeight, *_txtTus, *_txtFAcc, *_txtReact, *_txtPSkill, *_txtPStr;

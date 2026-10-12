@@ -23,6 +23,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
 #include "../../tests/inventory-click-control/InventoryClickControlGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+#include "../../tests/inventory-right-click-control/InventoryRightClickControlGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
 #include "../../tests/inventory-ground-control/InventoryGroundControlGate.h"
 #endif
@@ -419,11 +422,11 @@ BattleItem *Inventory::getSelectedItem() const
  */
 void Inventory::setSelectedItem(BattleItem *item)
 {
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
     BattleItem *previous = _selItem;
 #endif
 	_selItem = (item && !item->getRules()->isFixed()) ? item : 0;
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
     if (_selItem != previous) ++_heldSelectionRevision;
 #endif
 	if (_selItem == 0)
@@ -487,7 +490,7 @@ void Inventory::blit(Surface *surface)
  * @param action Pointer to an action.
  * @param state State that the action handlers belong to.
  */
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
 bool Inventory::inventoryClickPresentationAllowed() const
 {
     if (!turnContextVisible() || getX() != 0 || getY() != 0 || getWidth() != 320 || getHeight() != 200 ||
@@ -543,6 +546,9 @@ void Inventory::mouseOver(Action *action, State *state)
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryMouseOverEntered(this, action, state);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryMouseOverEntered(this, action, state);
+#endif
 	_selection->setX((int)floor(action->getAbsoluteXMouse()) - _selection->getWidth()/2 - getX());
 	_selection->setY((int)floor(action->getAbsoluteYMouse()) - _selection->getHeight()/2 - getY());
 	if (_selUnit == 0)
@@ -579,6 +585,9 @@ void Inventory::mouseClick(Action *action, State *state)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryClickEntered(this, action, state);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryClickEntered(this, action, state);
 #endif
 	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 	{
@@ -933,6 +942,9 @@ void Inventory::arrangeGround(bool alterOffset)
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryGroundArranged(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryGroundArranged(this);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryGroundArranged(this);

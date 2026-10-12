@@ -30,6 +30,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
 #include "../../tests/inventory-click-control/InventoryClickControlGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+#include "../../tests/inventory-right-click-control/InventoryRightClickControlGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
 #include "../../tests/inventory-ground-control/InventoryGroundControlGate.h"
 #endif
@@ -254,6 +257,9 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent) : _tu(tu), _pa
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryConstructed(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryConstructed(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryConstructed(this);
 #endif
@@ -279,6 +285,9 @@ InventoryState::~InventoryState()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryDestroyed(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryDestroyed(this);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryDestroyed(this);
@@ -418,6 +427,9 @@ void InventoryState::init()
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryInitialized(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryInitialized(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryInitialized(this);
 #endif
@@ -453,6 +465,9 @@ void InventoryState::blit()
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryDisplayed(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryDisplayed(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryDisplayed(this);
 #endif
@@ -484,7 +499,7 @@ bool InventoryState::inventoryCloseContext(Observer::InventoryCloseContext &cont
 {
     return inventoryControlContext(context, overlay, false);
 }
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
 bool InventoryState::inventoryClickContext(Observer::InventoryCloseContext &context, bool overlay) const
 {
     if (!inventoryControlContext(context, overlay, true) || !_inv->inventoryClickPresentationAllowed() ||
@@ -507,6 +522,8 @@ bool InventoryState::inventoryClickContext(Observer::InventoryCloseContext &cont
     return true;
 }
 int InventoryState::inventoryClickBannerY() const { return _inv->inventoryClickBannerY(); }
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
 void InventoryState::inventoryControlClick(int x, int y)
 {
     // Canonical pointer coordinates, not a requested item/slot destination.
@@ -520,6 +537,21 @@ void InventoryState::inventoryControlClick(int x, int y)
     _inv->mouseClick(&action, this);
     // Inventory::mouseClick retains its ordinary InteractiveSurface callback
     // tail, including InventoryState::invClick and normal stats refresh.
+}
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK
+void InventoryState::inventoryControlRightClick(int x, int y)
+{
+    // Dispatch exactly the ordinary pointer path, including its registered
+    // callback tail. TU mode is checked by the held-presentation context.
+    SDL_Event event = {}; event.type = SDL_MOUSEBUTTONUP;
+    event.button.button = SDL_BUTTON_RIGHT; event.button.state = SDL_RELEASED;
+    event.button.x = x; event.button.y = y;
+    Action rightAction(&event, 1.0, 1.0, 0, 0);
+    rightAction.setSender(_inv); rightAction.setMouseAction(x, y, _inv->getX(), _inv->getY());
+    _inv->mouseOver(&rightAction, this);
+    _inv->mouseClick(&rightAction, this);
+    // The ordinary handler may have popped this state. Do not access it here.
 }
 #endif
 bool InventoryState::inventoryControlContext(Observer::InventoryCloseContext &context, bool overlay, bool allowHeld) const
@@ -564,6 +596,9 @@ bool InventoryState::showInventoryCloseOverlay(Observer::StanceController *contr
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::clickOverlayShown(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::clickOverlayShown(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::groundOverlayShown(this);
 #endif
@@ -577,6 +612,9 @@ void InventoryState::dismissInventoryCloseOverlay()
     _inventoryCloseOverlay->dismiss();
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     if (owned) InventoryClickControlGate::clickOverlayDismissed(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    if (owned) InventoryRightClickControlGate::clickOverlayDismissed(this);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     if (owned) InventoryGroundControlGate::groundOverlayDismissed(this);
@@ -682,6 +720,9 @@ void InventoryState::btnOkClick(Action *)
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryCloseEntered(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryCloseEntered(this);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryCloseEntered(this);
@@ -1063,6 +1104,9 @@ void InventoryState::invClick(Action *)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     InventoryClickControlGate::inventoryInvClickEntered(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    InventoryRightClickControlGate::inventoryInvClickEntered(this);
 #endif
 	updateStats();
 }

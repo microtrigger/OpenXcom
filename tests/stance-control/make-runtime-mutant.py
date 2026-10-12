@@ -41,7 +41,7 @@ def mutate(kind, source):
             raise ValueError('include-anchor')
         result = result.replace(include, include + '#include "../Savegame/SavedBattleGame.h"\n')
     if kind == 'unseen-modal':
-        guard = '    const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n'
+        guard = '    const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n    const bool selectionValid = valid && (!selectionRequest() ||\n'
         if result.count(guard) != 1:
             raise ValueError('guard-anchor')
         result = result.replace(guard, guard.replace(' && _dialogPresented', ''))

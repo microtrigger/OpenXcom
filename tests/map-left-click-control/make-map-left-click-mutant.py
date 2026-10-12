@@ -52,8 +52,8 @@ MUTATIONS = {
         '        if (position != oldPosition || direction != oldDirection || turret != oldTurret) ++revision;\n',
         '        if (false) ++revision;\n'),
     'wire-pixel': ('src/Observer/StanceController.cpp',
-        '        if (!canonicalView(rgb, indicesHex, paletteHex)) { invalidate(); unavailable(); return; }\n',
-        "        if (!canonicalView(rgb, indicesHex, paletteHex)) { invalidate(); unavailable(); return; }\n        indicesHex[1] = indicesHex[1] == '0' ? '1' : '0';\n"),
+        '        if (!canonicalView(rgb, indicesHex, paletteHex)) { invalidate(); unavailable(); return; }\n        _rgb.assign(rgb.begin() + 320 * 144 * 3, rgb.end());\n',
+        "        if (!canonicalView(rgb, indicesHex, paletteHex)) { invalidate(); unavailable(); return; }\n        indicesHex[1] = indicesHex[1] == '0' ? '1' : '0';\n        _rgb.assign(rgb.begin() + 320 * 144 * 3, rgb.end());\n"),
     'unseen-modal': ('src/Observer/StanceController.cpp',
         '            _confirmEventAllowed = _dialogPresented && !_yDown && event.key.keysym.mod == KMOD_NONE;\n',
         '            _confirmEventAllowed = !_yDown && event.key.keysym.mod == KMOD_NONE;\n'),
@@ -75,7 +75,7 @@ def mutate(kind, source):
         raise ValueError('source-anchor')
     result = source.replace(anchor, '    // Map left-click sensitivity fault: ' + kind + '\n' + replacement)
     if kind == 'unseen-modal':
-        guard = '    const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n'
+        guard = '    const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n    const bool selectionValid = valid && (!selectionRequest() ||\n'
         if result.count(guard) != 1:
             raise ValueError('guard-anchor')
         result = result.replace(guard, guard.replace(' && _dialogPresented', ''))

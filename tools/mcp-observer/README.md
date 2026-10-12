@@ -586,3 +586,45 @@ and then a fresh capless `read_inventory_view({})`. Cancelling/expiring a propos
 does not cancel an already held item. CLOSE/Ground still refuse while one is held.
 No item lists, slot IDs, hidden eligibility or predicted success are returned.
 See the [complete bounded contract](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-PILOT.md).
+
+
+## Experimental ordinary inventory right click
+
+This available, bounded default-OFF pilot requires
+`EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK=ON` and the CLOSE build chain;
+LEFT and Ground remain independently optional. The launcher flag
+`--supervised-inventory-right-click` requires `--supervised-inventory-close`
+and its prerequisites. Inherited activation is scrubbed; only the explicit
+opt-in sets literal `OPENXCOM_INVENTORY_RIGHT_CLICK_ENABLED=1`. Both tools are
+absent while RIGHT is disabled. Only supported TU battle inventory is admitted;
+pre-battle grenade priming and deactivation remain outside this pilot.
+
+`read_inventory_right_click_context({})` returns U-bound canonical 320×200
+pixels, epoch and capability. `request_inventory_right_click(capability, control_epoch, command_id, x, y)` accepts the same strict integer hand/ground
+pointer regions as LEFT. U33 authorizes X103 only, using the shared non-evicting
+64-command ledger. Context and receipt contain no held-state, item, eligibility,
+outcome or next-view hint. A live local overlay warns about both ordinary
+outcomes: cancel a held selection, or otherwise close inventory with normal
+restoration. Fresh local consent dispatches the ordinary hover/RIGHT-click
+handler once. Decline, expiry or disconnect does not cancel a held item;
+CLOSE/Ground keep refusing held items.
+
+After `dispatched`, explicitly choose `read_inventory_view({})` (I) for the
+surviving inventory or `read_tactical_context({})` (V) for its exact original
+parent, based on the visible situation. The native producer enforces the actual
+destination. Do not probe I then fall back to V, or vice versa: a wrong or unavailable
+read closes control and leaves the native obligation unsatisfied. Status or
+duplicates do not replace that image. See the
+[complete contract](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-RIGHT-CLICK-PILOT.md).
+
+The r3 focused checks pass 16/16 and the separate full native run passes 92/92
+across UFO/TFTD. Actual SDK/game runs were independently audited, with 20 tool
+calls plus stop per game. All 298 prior-control regressions pass, 149 per game,
+with no failures, inconclusive results, retries or drift.
+
+The 50 source-fault runs yield 46 mapped detections, two surviving CLOSE-prerequisite
+mutants and two inconclusive intentional duplicate-RIGHT mutants. The latter report
+native segmentation faults without mapped assertion 101; they are not detections.
+Fault-phase acceptance remains false and full sensitivity is unproven. See
+[evidence and limits](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-RIGHT-CLICK-EVIDENCE.md).
+These bounded checks establish no full-fairness or model-token claim.

@@ -7,6 +7,9 @@ class InventoryState; class Frame; class Text; class TextButton; class RuleInter
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
 struct InventoryClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+struct InventoryRightClickGateAccess;
+#endif
 namespace Observer {
 class StanceController;
 // State-owned presentation only. No inventory or item manipulation lives here.
@@ -14,13 +17,16 @@ class InventoryCloseOverlay : public InteractiveSurface {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
     friend struct ::OpenXcom::InventoryClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
+    friend struct ::OpenXcom::InventoryRightClickGateAccess;
+#endif
     InventoryState *_owner;
     StanceController *_controller;
     Frame *_frame;
     Text *_text;
     TextButton *_yes, *_no;
     int _pressedChoice;
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
     bool _clickMode;
     Surface *_pointer;
 #endif

@@ -91,7 +91,10 @@ class NativeMutations(unittest.TestCase):
         changed = mutant.mutate('unseen-modal', original)
         self.assertIn('_confirmEventAllowed = !_yDown && event.key.keysym.mod == KMOD_NONE;', changed)
         self.assertIn('valid = accept && _confirmEventAllowed', changed)
-        self.assertNotIn('valid = accept && _dialogPresented', changed)
+        tactical = changed[changed.index('void StanceController::confirm(StanceConfirmState *'): ]
+        self.assertNotIn('valid = accept && _dialogPresented', tactical)
+        overlay = original[original.index('void StanceController::confirmInventoryClose('):original.index('void StanceController::confirm(StanceConfirmState *')]
+        self.assertIn(overlay, changed)
 
     def test_missing_first_flip_wait_changes_only_pending_palette_allowance(self):
         path, before, after = mutant.MUTATIONS['missing-first-flip-palette-wait']

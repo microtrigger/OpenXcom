@@ -29,12 +29,12 @@ MUTATIONS = {
     'inventory-capability': (CONTROLLER,
         '        const std::string packet = "{\\"schema\\":\\"experimental-inventory-view/1\\",\\"challenge\\":\\"" + challenge +\n',
         '        const std::string packet = "{\\"schema\\":\\"experimental-inventory-view/1\\",\\"capability\\":\\"00000000000000000000000000000000\\",\\"challenge\\":\\"" + challenge +\n'),
-    'B-barrier-bypass': (CONTROLLER,
-        '        _awaitingInventoryView = true; _inventoryDestination = 0;\n',
-        '        _awaitingInventoryView = false; _inventoryDestination = 0;\n'),
-    'I-clears-post-map-barrier': (CONTROLLER,
-        '        _capability.clear();\n        if (!_challenge.empty() || _dialog || _awaitingView) { unavailable(); return; }\n',
-        '        _capability.clear(); _awaitingView = false;\n        if (!_challenge.empty() || _dialog || _awaitingView) { unavailable(); return; }\n'),
+    'B-barrier-bypass': ('src/Observer/StanceController.cpp',
+        "    if (_action == 'o')\n    {\n        _awaitingInventoryView = true; _inventoryDestination = 0;\n",
+        "    if (_action == 'o')\n    {\n        _awaitingInventoryView = false; _inventoryDestination = 0;\n"),
+    'I-clears-post-map-barrier': ('src/Observer/StanceController.cpp',
+        '        _capability.clear();\n        if (!_challenge.empty() || _dialog || _awaitingView\n',
+        '        _capability.clear(); _awaitingView = false;\n        if (!_challenge.empty() || _dialog || _awaitingView\n'),
     'pending-I-input-cancel': (CONTROLLER,
         '    invalidate(true, false, sameInventoryRead);\n',
         '    invalidate(true, false, false);\n'),
@@ -62,8 +62,8 @@ MUTATIONS = {
 }
 EXTRA_EDITS = {
     'unseen-modal': (
-        ('    const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n',
-         '    const bool valid = accept && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n'),
+        ('    const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n    const bool selectionValid = valid && (!selectionRequest() ||\n',
+         '    const bool valid = accept && _confirmEventAllowed && !id.empty() && bindingCurrent(true);\n    const bool selectionValid = valid && (!selectionRequest() ||\n'),
     ),
 }
 FAIL = 'INVENTORY_OPEN_RUNTIME_MUTANT INCOMPLETE source-or-arguments'
