@@ -1,3 +1,4 @@
+// Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -41,6 +42,24 @@
 
 namespace OpenXcom
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+// SPDX-License-Identifier: GPL-3.0-or-later; private pose generations, 2026-10-12.
+namespace {
+struct TurnPoseRevision {
+    std::uint64_t &revision;
+    const Position &position;
+    const int &direction, &turret;
+    Position oldPosition;
+    int oldDirection, oldTurret;
+    TurnPoseRevision(std::uint64_t &r, const Position &p, const int &d, const int &t) :
+        revision(r), position(p), direction(d), turret(t), oldPosition(p), oldDirection(d), oldTurret(t) { }
+    ~TurnPoseRevision() {
+        if (position != oldPosition || direction != oldDirection || turret != oldTurret) ++revision;
+    }
+};
+}
+#endif
+
 
 /**
  * Initializes a BattleUnit from a Soldier
@@ -316,6 +335,9 @@ BattleUnit::~BattleUnit()
  */
 void BattleUnit::load(const YAML::Node &node)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     ++_stanceControlRevision;
 #endif
@@ -494,6 +516,9 @@ int BattleUnit::getId() const
  */
 void BattleUnit::setPosition(Position pos, bool updateLastPos)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 	if (updateLastPos) { _lastPos = _pos; }
 	_pos = pos;
 }
@@ -532,6 +557,9 @@ Position BattleUnit::getDestination() const
  */
 void BattleUnit::setDirection(int direction)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 	_direction = direction;
 	_toDirection = direction;
 	_directionTurret = direction;
@@ -611,6 +639,9 @@ UnitStatus BattleUnit::getStatus() const
  */
 void BattleUnit::startWalking(int direction, Position destination, Tile *tileBelowMe, bool cache)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 	if (direction >= Pathfinding::DIR_UP)
 	{
 		_verticalDirection = direction;
@@ -658,6 +689,9 @@ void BattleUnit::startWalking(int direction, Position destination, Tile *tileBel
  */
 void BattleUnit::keepWalking(Tile *tileBelowMe, bool cache)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 	int middle, end;
 	if (_verticalDirection)
 	{
@@ -787,6 +821,9 @@ void BattleUnit::lookAt(Position point, bool turret)
  */
 void BattleUnit::lookAt(int direction, bool force)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 	if (!force)
 	{
 		if (direction < 0 || direction >= 8) return;
@@ -809,6 +846,9 @@ void BattleUnit::lookAt(int direction, bool force)
  */
 void BattleUnit::turn(bool turret)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnPoseRevision poseRevision(_turnControlPoseRevision, _pos, _direction, _directionTurret);
+#endif
 	int a = 0;
 
 	if (turret)

@@ -4,6 +4,9 @@
 // display pixels, normal kneel entry and the actual reaction queue are tested.
 // Oracle values, resources and captures remain private in memory.
 #include "StanceControlGate.h"
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+#include "../turn-control/TurnControlGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
 #include "SelectionControlGate.h"
 #endif
@@ -432,6 +435,9 @@ void actionOracle()
 
 void prepare()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::prepare(); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::prepare(); return; }
 #endif
@@ -454,6 +460,9 @@ void prepare()
 }
 void silence()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::silence(); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::silence(); return; }
 #endif
@@ -462,6 +471,9 @@ void silence()
 }
 bool loaded(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { return TurnControlGate::loaded(game); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { return SelectionControlGate::loaded(game); }
 #endif
@@ -477,6 +489,9 @@ bool loaded(Game *game)
 }
 void afterCleanup(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::afterCleanup(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::afterCleanup(game); return; }
 #endif
@@ -523,6 +538,9 @@ void afterCleanup(Game *game)
 }
 void beforeEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::beforeEvents(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::beforeEvents(game); return; }
 #endif
@@ -607,6 +625,9 @@ void beforeEvents(Game *game)
 }
 bool acceptEvent(const SDL_Event &e)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { return TurnControlGate::acceptEvent(e); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { return SelectionControlGate::acceptEvent(e); }
 #endif
@@ -631,6 +652,9 @@ bool acceptEvent(const SDL_Event &e)
 }
 void afterEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::afterEvents(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::afterEvents(game); return; }
 #endif
@@ -659,6 +683,9 @@ void afterEvents(Game *game)
 }
 void beforeFrame(Game *game, State *top)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::beforeFrame(game,top); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::beforeFrame(game,top); return; }
 #endif
@@ -682,6 +709,9 @@ void beforeFrame(Game *game, State *top)
 }
 void afterFrame(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::afterFrame(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::afterFrame(game); return; }
 #endif
@@ -703,6 +733,9 @@ void afterFrame(Game *game)
 }
 void kneelClicked(BattlescapeState *who)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::kneelClicked(who); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { SelectionControlGate::kneelClicked(who); return; }
 #endif
@@ -711,12 +744,18 @@ void kneelClicked(BattlescapeState *who)
 }
 void selectionClicked(BattlescapeState *who, bool next)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { TurnControlGate::selectionClicked(who,next); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) SelectionControlGate::selectionClicked(who,next);
 #endif
 }
 int exitStatus()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+    if (TurnControlGate::active()) { return TurnControlGate::exitStatus(); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (SelectionControlGate::active()) { return SelectionControlGate::exitStatus(); }
 #endif

@@ -1,3 +1,4 @@
+// Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
@@ -63,6 +64,11 @@ private:
     bool _stanceShownKneeled = false;
     bool stanceContext(Observer::StanceContext &context, bool covered) const;
     bool selectionControlVisible() const;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    bool turnContext(Observer::TurnContext &context, bool covered) const;
+    bool turnObservationWaiting(const BattleUnit *expectedActor) const;
+    void turnControlClick(int x, int y);
+#endif
 #endif
 	#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 	Observer::HudFileObserver *_hudObserver;

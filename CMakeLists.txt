@@ -102,12 +102,23 @@ option ( EXPERIMENTAL_SUPERVISED_SELECTION "Build local-confirmation next/previo
 if ( EXPERIMENTAL_SUPERVISED_SELECTION AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Supervised selection requires EXPERIMENTAL_SUPERVISED_STANCE" )
 endif()
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised turn, 2026-10-12.
+option ( EXPERIMENTAL_SUPERVISED_TURN "Build local-confirmation normal right-click pilot" OFF )
+if ( EXPERIMENTAL_SUPERVISED_TURN AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
+  message ( FATAL_ERROR "Supervised turn requires EXPERIMENTAL_SUPERVISED_STANCE" )
+endif()
 option ( EXPERIMENTAL_STANCE_CONTROL_GATE "Build isolated finite stance-control test gate" OFF )
 if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Stance control gate requires EXPERIMENTAL_SUPERVISED_STANCE" )
 endif()
 if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND (EXPERIMENTAL_TIMING_CALIBRATION OR EXPERIMENTAL_SMOKE_CLIPPING_GATE OR EXPERIMENTAL_SMOKE_DENSITY_GATE OR EXPERIMENTAL_BATTLE_PAIR_GATE OR EXPERIMENTAL_OBSERVER_EFFECTS_GATE OR EXPERIMENTAL_NATURAL_FOV_GATE OR EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE) )
   message ( FATAL_ERROR "Stance control gate requires a separate test binary" )
+endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; finite supervised-turn gate, 2026-10-12.
+option ( EXPERIMENTAL_TURN_CONTROL_GATE "Build isolated finite turn-control test gate" OFF )
+if ( EXPERIMENTAL_TURN_CONTROL_GATE AND (NOT EXPERIMENTAL_SUPERVISED_TURN OR NOT EXPERIMENTAL_SUPERVISED_SELECTION OR NOT EXPERIMENTAL_STANCE_CONTROL_GATE) )
+  message ( FATAL_ERROR "Turn control gate requires supervised turn, selection and stance control gate" )
 endif()
 
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )

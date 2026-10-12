@@ -138,6 +138,10 @@ public:
     bool getVisible() const;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     virtual bool stanceContextVisible() const { return _visible && !_hidden && !_redraw && !_crop.w && !_crop.h; }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    // A queued map animation redraw does not invalidate an already presented view.
+    bool turnContextVisible() const { return _visible && !_hidden && !_crop.w && !_crop.h; }
+#endif
 #endif
 	/// Resets the cropping rectangle for the surface.
 	void resetCrop();

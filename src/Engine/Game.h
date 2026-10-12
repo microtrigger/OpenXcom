@@ -112,6 +112,10 @@ public:
 	void setMouseActive(bool active);
 	/// Returns whether current state is the param state
 	bool isState(State *state) const;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    // Bind a pending observation to its admission state, not a previous action.
+    State *turnControlState() const { return _states.empty() ? 0 : _states.back(); }
+#endif
 	/// Returns whether the game is shutting down.
 	bool isQuitting() const;
 	/// Loads the default and current language.

@@ -1,5 +1,9 @@
+// Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 #ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
 #include "../../tests/stance-control/StanceControlGate.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+#include "../../tests/turn-control/TurnControlGate.h"
 #endif
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
@@ -893,6 +897,9 @@ void BattlescapeState::mapClick(Action *action)
 		if ((action->getDetails()->button.button == SDL_BUTTON_RIGHT || (action->getDetails()->button.button == SDL_BUTTON_LEFT && (SDL_GetModState() & KMOD_ALT) != 0)) && playableUnitSelected())
 		{
 			_battleGame->secondaryAction(pos);
+#ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
+            TurnControlGate::mapClicked(this);
+#endif
 		}
 		else if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 		{
@@ -2323,6 +2330,62 @@ bool BattlescapeState::stanceContext(Observer::StanceContext &c, bool covered) c
     c.tu = actor->getTimeUnits(); c.energy = actor->getEnergy(); c.health = actor->getHealth();
     c.morale = actor->getMorale(); c.stun = actor->getStunlevel(); c.reserved = _save->getTUReserved();
     c.name = _txtName->getText(); return true;
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+// SPDX-License-Identifier: GPL-3.0-or-later; normal right-click pilot, 2026-10-12.
+bool BattlescapeState::turnObservationWaiting(const BattleUnit *expectedActor) const
+{
+    // Only the natural busy interval following our normal right-click may wait
+    // for a fresh view. No queue contents or busy reasons cross the boundary.
+    BattleUnit *actor = _save->getSelectedUnit();
+    return _game->isState(const_cast<BattlescapeState *>(this)) && _game->getScreen()->stanceAllowed() &&
+        !_firstInit && _gameTimer->isRunning() && _popups.empty() && _save->getSide() == FACTION_PLAYER &&
+        !_save->getDebugMode() && _battleGame->getPanicHandled() && _battleGame->isBusy() &&
+        !_map->getProjectile() && _map->getExplosions()->empty() && !_save->getUnitsFalling() &&
+        _save->getFallingUnits()->empty() && actor && actor == expectedActor && actor->getFaction() == FACTION_PLAYER &&
+        actor->getOriginalFaction() == FACTION_PLAYER && actor->getType() == "SOLDIER" &&
+        !actor->isOut() && !actor->isFloating() &&
+        (actor->getStatus() == STATUS_TURNING || actor->getStatus() == STATUS_STANDING) &&
+        SDL_GetModState() == KMOD_NONE && SDL_GetMouseState(0, 0) == 0 &&
+        !_isMouseScrolling && !_isMouseScrolled && !_mouseOverIcons && _map->getCamera()->turnControlIdle() &&
+        _map->getCursorType() == CT_NORMAL && _battleGame->getCurrentAction()->type == BA_NONE &&
+        !_battleGame->getCurrentAction()->targeting && _battleGame->getCurrentAction()->waypoints.empty() &&
+        _map->getWaypoints()->empty() && !_save->getPathfinding()->isPathPreviewed();
+}
+bool BattlescapeState::turnContext(Observer::TurnContext &c, bool covered) const
+{
+    Observer::StanceContext hud;
+    if (!stanceContext(hud, covered) || SDL_GetModState() != KMOD_NONE ||
+        (SDL_GetMouseState(0, 0) & ~(covered ? SDL_BUTTON_LMASK : 0)) != 0 || _isMouseScrolling || _isMouseScrolled || _mouseOverIcons ||
+        _map->getCursorType() != CT_NORMAL || !_map->getCamera()->turnControlIdle() ||
+        _battleGame->getCurrentAction()->type != BA_NONE || _battleGame->getCurrentAction()->targeting ||
+        !_battleGame->getCurrentAction()->waypoints.empty() || !_map->getWaypoints()->empty() ||
+        _save->getPathfinding()->isPathPreviewed() ||
+        !_map->turnContextVisible() || _map->getX() != 0 || _map->getY() != 0 ||
+        _map->getWidth() != 320 || _map->getHeight() != 200) return false;
+    const Camera *camera = _map->getCamera();
+    c.position = hud.actor->getPosition(); c.direction = hud.actor->getDirection();
+    c.turretDirection = hud.actor->getTurretDirection(); c.poseRevision = hud.actor->turnControlPoseRevision();
+    c.cameraOffset = camera->getMapOffset(); c.cameraRevision = camera->turnControlRevision();
+    c.allLayers = camera->getShowAllLayers(); c.geometry = camera->turnControlGeometry();
+    c.geometry.push_back(_map->getX()); c.geometry.push_back(_map->getY());
+    c.geometry.push_back(_map->getWidth()); c.geometry.push_back(_map->getHeight());
+    return true;
+}
+void BattlescapeState::turnControlClick(int x, int y)
+{
+    // The ordinary Map mouse-over path establishes its cached selector, including
+    // the sprite-height offset. The ordinary right-click then owns all gameplay.
+    SDL_Event event = {};
+    event.type = SDL_MOUSEBUTTONUP;
+    event.button.button = SDL_BUTTON_RIGHT; event.button.state = SDL_RELEASED;
+    event.button.x = x; event.button.y = y;
+    Action action(&event, 1.0, 1.0, 0, 0);
+    action.setMouseAction(x, y, _map->getX(), _map->getY()); action.setSender(_map);
+    _map->mouseOver(&action, this);
+    mapClick(&action);
 }
 #endif
 

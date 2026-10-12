@@ -1,3 +1,4 @@
+// Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
@@ -65,6 +66,9 @@ class BattleUnit
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     std::uint64_t _stanceControlRevision = 0;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    std::uint64_t _turnControlPoseRevision = 0;
+#endif
 #endif
 	static const int SPEC_WEAPON_MAX = 3;
 
@@ -141,6 +145,9 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     std::uint64_t stanceControlRevision() const { return _stanceControlRevision; }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    std::uint64_t turnControlPoseRevision() const { return _turnControlPoseRevision; }
+#endif
 #endif
 	static const int MAX_SOLDIER_ID = 1000000;
 	/// Creates a BattleUnit from solder.

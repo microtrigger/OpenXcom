@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11; selection extension, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection/turn extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #include "StanceController.h"
 #include "StanceConfirmState.h"
 #include "DiagnosticProfile.h"
@@ -17,6 +17,36 @@
 #include <unistd.h>
 namespace OpenXcom { namespace Observer {
 namespace {
+std::string hexBytes(const std::vector<unsigned char> &bytes)
+{
+    const char *hex = "0123456789abcdef";
+    std::string result; result.reserve(bytes.size() * 2);
+    for (unsigned char b : bytes) { result += hex[b >> 4]; result += hex[b & 15]; }
+    return result;
+}
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+bool canonicalView(const std::vector<unsigned char> &rgb, std::string &indicesHex, std::string &paletteHex)
+{
+    if (rgb.size() != 320 * 200 * 3) return false;
+    std::map<unsigned, unsigned char> colors;
+    std::vector<unsigned char> indices, palette(256 * 3, 0);
+    indices.reserve(320 * 200);
+    for (std::size_t i = 0; i < rgb.size(); i += 3)
+    {
+        const unsigned color = (unsigned(rgb[i]) << 16) | (unsigned(rgb[i + 1]) << 8) | rgb[i + 2];
+        auto entry = colors.find(color);
+        if (entry == colors.end())
+        {
+            if (colors.size() == 256) return false;
+            const unsigned char index = static_cast<unsigned char>(colors.size());
+            entry = colors.insert(std::make_pair(color, index)).first;
+            palette[index * 3] = rgb[i]; palette[index * 3 + 1] = rgb[i + 1]; palette[index * 3 + 2] = rgb[i + 2];
+        }
+        indices.push_back(entry->second);
+    }
+    indicesHex = hexBytes(indices); paletteHex = hexBytes(palette); return true;
+}
+#endif
 bool token(const std::string &s) { return s.size() == 32 && s.find_first_not_of("0123456789abcdef") == std::string::npos; }
 bool randomToken(std::string &out)
 {
@@ -46,13 +76,25 @@ bool StanceContext::operator==(const StanceContext &o) const
         kneelReserved == o.kneelReserved && tu == o.tu && energy == o.energy && health == o.health &&
         morale == o.morale && stun == o.stun && reserved == o.reserved && name == o.name;
 }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+bool TurnContext::operator==(const TurnContext &o) const
+{
+    return position == o.position && cameraOffset == o.cameraOffset && poseRevision == o.poseRevision &&
+        cameraRevision == o.cameraRevision && direction == o.direction && turretDirection == o.turretDirection &&
+        allLayers == o.allLayers && geometry == o.geometry;
+}
+#endif
 StanceController::StanceController(Game *game, const char *descriptor) : _game(game), _fd(-1),
-    _dialog(0), _frameDialog(0), _expectedPush(0), _expectedPop(0), _action('s'), _selectionEnabled(false), _armed(false), _desired(false),
-    _dialogPresented(false), _confirmEventAllowed(false), _yDown(false), _mouseDown(false), _mouseArmed(false), _contextTime(0)
+    _dialog(0), _frameDialog(0), _expectedPush(0), _expectedPop(0), _challengeState(0), _action('s'), _selectionEnabled(false), _turnEnabled(false), _awaitingView(false), _waitingTurnFrame(false), _contextKind('O'), _targetX(0), _targetY(0), _armed(false), _desired(false),
+    _dialogPresented(false), _confirmEventAllowed(false), _yDown(false), _mouseDown(false), _mouseArmed(false), _contextTime(0), _challengeTime(0)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     const char *selection = std::getenv("OPENXCOM_SELECTION_ENABLED");
     _selectionEnabled = selection && std::string(selection) == "1";
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    const char *turn = std::getenv("OPENXCOM_TURN_ENABLED");
+    _turnEnabled = turn && std::string(turn) == "1";
 #endif
     std::memset(_palette, 0, sizeof(_palette));
 #ifndef MSG_NOSIGNAL
@@ -103,6 +145,8 @@ bool StanceController::sendPacket(const std::string &packet)
 void StanceController::invalidate(bool newEpoch)
 {
     _capability.clear(); _confirmEventAllowed = false;
+    if (newEpoch && _contextKind == 'V' && !_challenge.empty())
+    { _challenge.clear(); unavailable(); }
     if (!_pendingId.empty())
     {
         _commands[_pendingId].status = "unavailable";
@@ -171,7 +215,17 @@ bool StanceController::bindingCurrent(bool modal) const
         now() - _contextTime > 120000 ||
         (modal ? !_dialog || !_game->isState(_dialog) : !_game->isState(_context.state))) return false;
     StanceContext current;
-    return _context.state->stanceContext(current, modal) && current == _context;
+    if (!_context.state->stanceContext(current, modal) || !(current == _context)) return false;
+    if (_contextKind == 'V')
+    {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+        TurnContext turn;
+        return _turnEnabled && _context.state->turnContext(turn, modal) && turn == _turnContext;
+#else
+        return false;
+#endif
+    }
+    return true;
 }
 void StanceController::replyStatus(const std::string &id)
 {
@@ -185,23 +239,39 @@ void StanceController::poll()
     if (_fd < 0) return;
     if (!diagnosticProfileQualified() || !connected()) { close(); return; }
     if ((!_capability.empty() || !_pendingId.empty()) && !bindingCurrent(_dialog != 0)) invalidate();
-    char bytes[100]; iovec part = {bytes, sizeof(bytes)}; msghdr msg = {};
+    if (_contextKind == 'V' && !_challenge.empty() &&
+        (now() - _challengeTime >= 1500 || !focused() || !_game->getScreen()->stanceAllowed() ||
+        (!_challengeState || !_game->isState(_challengeState))))
+    { _challenge.clear(); unavailable(); }
+    char bytes[104]; iovec part = {bytes, sizeof(bytes)}; msghdr msg = {};
     msg.msg_iov = &part; msg.msg_iovlen = 1;
     const ssize_t n = recvmsg(_fd, &msg, MSG_DONTWAIT);
     if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
     if (n <= 0 || (msg.msg_flags & MSG_TRUNC)) { close(); return; }
     const std::string request(bytes, n);
-    if (n == 33 && request[0] == 'O' && token(request.substr(1)))
+    if (n == 33 && (request[0] == 'O' || (_turnEnabled && request[0] == 'V')) && token(request.substr(1)))
     {
-        if (!_challenge.empty() || _dialog) { unavailable(); return; }
-        invalidate(); _challenge = request.substr(1); return;
+        if (!_challenge.empty() || _dialog || (_awaitingView && request[0] != 'V')) { unavailable(); return; }
+        invalidate(); _contextKind = request[0];
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+        if (_contextKind == 'V')
+        {
+            _challengeState = dynamic_cast<BattlescapeState *>(_game->turnControlState());
+            if (!_challengeState) { unavailable(); return; }
+        }
+#endif
+        _challenge = request.substr(1); _challengeTime = now(); return;
     }
     if (n == 33 && request[0] == 'S' && token(request.substr(1))) { replyStatus(request.substr(1)); return; }
     const bool stance = n == 99 && request[0] == 'D' &&
         (request[97] == 'k' || request[97] == 's') && (request[98] == 'k' || request[98] == 's');
     const bool selection = _selectionEnabled && n == 99 && request[0] == 'N' &&
         (request[97] == 'n' || request[97] == 'p') && request[98] == '0';
-    if ((!stance && !selection) || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
+    const bool turn = _turnEnabled && n == 103 && request[0] == 'R' &&
+        request.substr(97).find_first_not_of("0123456789") == std::string::npos;
+    const int x = turn ? std::atoi(request.substr(97, 3).c_str()) : 0;
+    const int y = turn ? std::atoi(request.substr(100, 3).c_str()) : 0;
+    if ((!stance && !selection && !turn) || (turn && (x < 16 || x > 303 || y < 40 || y > 127)) || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
         !token(request.substr(65, 32))) { unavailable(); close(); return; }
     const std::string id = request.substr(65, 32);
     const auto prior = _commands.find(id);
@@ -214,14 +284,15 @@ void StanceController::poll()
     // Never evict entries: eviction would turn command IDs into replay tokens.
     if (_commands.size() >= 64) { unavailable(); close(); return; }
     _commands[id] = {request, "unavailable"};
-    if (_dialog || !_challenge.empty() || _capability.empty() || request.substr(1, 32) != _epoch ||
-        request.substr(33, 32) != _capability ||
+    if (_awaitingView || _dialog || !_challenge.empty() || _capability.empty() || request.substr(1, 32) != _epoch ||
+        request.substr(33, 32) != _capability || turn != (_contextKind == 'V') ||
         (stance && ((request[97] == 'k') != _context.kneeled || request[97] == request[98])) ||
         !bindingCurrent() || (selection && !_context.state->selectionControlVisible())) { replyStatus(id); return; }
     // Reserving this exact capability is already one-use. Local confirmation
     // cannot create a new capability, change the actor, or change the command.
     _capability.clear();
-    _action = selection ? request[97] : request[98];
+    _action = turn ? 'r' : selection ? request[97] : request[98];
+    _targetX = x; _targetY = y;
     _desired = request[98] == 'k'; _pendingId = id;
     _dialogPresented = _confirmEventAllowed = _mouseArmed = false;
     _yDown = _yDown || SDL_GetKeyState(0)[SDLK_y] != 0;
@@ -234,13 +305,22 @@ void StanceController::poll()
 void StanceController::beginFrame()
 {
     poll();
-    _armed = false;
+    _armed = false; _waitingTurnFrame = false;
     _frameDialog = _dialog && _game->isState(_dialog) ? _dialog : 0;
 }
 void StanceController::arm(BattlescapeState *state)
 {
     if (_fd < 0 || _dialog || !_game->isState(state)) return;
     _armed = state->stanceContext(_frameContext, false);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    if (_contextKind == 'V')
+    {
+        if (!_challenge.empty() && state != _challengeState) { _armed = false; return; }
+        if (_armed) _armed = _turnEnabled && state->turnContext(_frameTurnContext, false);
+        _waitingTurnFrame = !_armed && _awaitingView && !_challenge.empty() && state == _context.state &&
+            state->turnObservationWaiting(_context.actor);
+    }
+#endif
 }
 void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool allowed)
 {
@@ -264,14 +344,22 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool allo
         return;
     }
     if (_challenge.empty() && _capability.empty()) return;
-    if (!_armed || bw != 320 || bh != 200 || !supportedPresentedSurface(surface, bw, bh, allowed))
+    if (bw != 320 || bh != 200 || !supportedPresentedSurface(surface, bw, bh, allowed) || (_contextKind == 'V' && !focused()))
     { invalidate(); if (!_challenge.empty()) { _challenge.clear(); unavailable(); } return; }
+    if (!_armed)
+    {
+        if (_waitingTurnFrame && now() - _challengeTime < 1500) return;
+        invalidate(); if (!_challenge.empty()) { _challenge.clear(); unavailable(); } return;
+    }
     const int scale = surface->w / bw;
+    // The stable bottom HUD guards both kinds of grant. A new tactical request
+    // also captures the complete final frame, but later animation is not compared.
+    const bool fullView = _contextKind == 'V' && !_challenge.empty();
     std::vector<unsigned char> rgb, indices;
-    rgb.reserve(320 * 56 * 3); indices.reserve(320 * 56);
+    rgb.reserve(320 * (fullView ? 200 : 56) * 3); indices.reserve(320 * (fullView ? 200 : 56));
     if (SDL_LockSurface(surface) != 0) { close(); return; }
     bool exact = true;
-    for (int y = 144; y < 200 && exact; ++y) for (int x = 0; x < 320 && exact; ++x)
+    for (int y = fullView ? 0 : 144; y < 200 && exact; ++y) for (int x = 0; x < 320 && exact; ++x)
     {
         const unsigned char index = *(static_cast<unsigned char *>(surface->pixels) + y * scale * surface->pitch + x * scale);
         const SDL_Color color = surface->format->palette->colors[index];
@@ -285,17 +373,41 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool allo
     }
     SDL_UnlockSurface(surface);
     if (!exact) { invalidate(); if (!_challenge.empty()) { _challenge.clear(); unavailable(); } return; }
-    if (_challenge.empty()) { if (!(_frameContext == _context) || rgb != _rgb) invalidate(); return; }
+    if (_challenge.empty())
+    {
+        bool stable = _frameContext == _context && rgb == _rgb;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+        if (_contextKind == 'V') stable = stable && _frameTurnContext == _turnContext;
+#endif
+        if (!stable) invalidate();
+        return;
+    }
     const std::string challenge = _challenge; _challenge.clear();
     if (!randomToken(_capability)) { close(); return; }
-    _context = _frameContext; _rgb.swap(rgb); _indices.swap(indices); _contextTime = now();
+    _context = _frameContext; _indices.swap(indices); _contextTime = now();
     std::memcpy(_palette, surface->format->palette->colors, sizeof(_palette));
-    const char *hex = "0123456789abcdef";
-    std::string pixels; pixels.reserve(_rgb.size() * 2);
-    for (unsigned char b : _rgb) { pixels += hex[b >> 4]; pixels += hex[b & 15]; }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    if (fullView)
+    {
+        std::string indicesHex, paletteHex;
+        // Canonical first-seen RGB colors, never original SDL indices/palette.
+        // Equal final pixels yield equal wire images even with palette aliases.
+        if (!canonicalView(rgb, indicesHex, paletteHex)) { invalidate(); unavailable(); return; }
+        _rgb.assign(rgb.begin() + 320 * 144 * 3, rgb.end());
+        _turnContext = _frameTurnContext;
+        const std::string packet = "{\"schema\":\"experimental-tactical-context/1\",\"challenge\":\"" + challenge +
+            "\",\"control_epoch\":\"" + _epoch + "\",\"capability\":\"" + _capability +
+            "\",\"semantics\":\"presented_after_request\",\"view\":{\"width\":320,\"height\":200,\"indices_hex\":\"" + indicesHex +
+            "\",\"palette_hex\":\"" + paletteHex + "\"}}";
+        if (packet.size() >= 128 * 1024) { close(); return; }
+        if (sendPacket(packet)) _awaitingView = false;
+        return;
+    }
+#endif
+    _rgb.swap(rgb);
     sendPacket("{\"schema\":\"experimental-stance-context/1\",\"challenge\":\"" + challenge +
         "\",\"control_epoch\":\"" + _epoch + "\",\"capability\":\"" + _capability +
-        "\",\"semantics\":\"presented_after_request\",\"panel\":{\"width\":320,\"height\":56,\"rgb_hex\":\"" + pixels + "\"}}");
+        "\",\"semantics\":\"presented_after_request\",\"panel\":{\"width\":320,\"height\":56,\"rgb_hex\":\"" + hexBytes(_rgb) + "\"}}");
 }
 void StanceController::confirm(StanceConfirmState *dialog, bool accept)
 {
@@ -314,6 +426,9 @@ void StanceController::confirm(StanceConfirmState *dialog, bool accept)
         (selectionRequest() && !_context.state->selectionControlVisible())) { invalidate(); return; }
     _pendingId.clear(); _capability.clear();
     _commands[id].status = "dispatched";
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    if (_action == 'r') { _awaitingView = true; _context.state->turnControlClick(_targetX, _targetY); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (_action == 'n') { _context.state->btnNextSoldierClick(0); return; }
     if (_action == 'p') { _context.state->btnPrevSoldierClick(0); return; }

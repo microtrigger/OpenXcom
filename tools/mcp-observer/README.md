@@ -1,5 +1,5 @@
 <!-- New project documentation: SPDX-License-Identifier: GPL-3.0-or-later. See repository LICENSE.txt and LICENSE-NOTICES.md. -->
-# Local OpenXcom observation and supervised stance MCP prototype
+# Local OpenXcom observation and supervised-control MCP prototype
 
 The default tools are read-only observations. A separately opted-in
 [supervised stance pilot](../../docs/mcp-player-interface/SUPERVISED-STANCE-PILOT.md)
@@ -23,6 +23,24 @@ is no feature negotiation or transparent fallback. It uses the same
 fresh panel capability and `read_stance_status` ledger, requires local
 confirmation, and dispatches the ordinary unit-cycling handlers. A dispatch
 receipt does not claim selection changed; inspect a fresh context afterward.
+
+The separately opted-in [ordinary right-click extension](../../docs/mcp-player-interface/SUPERVISED-TURN-PILOT.md)
+adds `read_tactical_context({})` and `request_turn` with `--supervised-turn` alongside
+`--supervised-stance`, and requires `EXPERIMENTAL_SUPERVISED_TURN=ON` in the game.
+A fresh 320×200 final-pixel PNG authorizes only a locally confirmed right-click at
+integer screen coordinates x=16–303/y=40–127. Normal gameplay may turn or open a
+door, subject to TU and reservations. It shares `read_stance_status` and the
+64-command non-evicting ledger; panel and tactical capabilities are type-bound.
+After dispatched R, a fresh tactical view is mandatory before another action.
+Timeout, malformed response or unavailable post-action view closes control without
+automatic resend. A visible TU/reservation warning can make that view unavailable.
+No world-coordinate, hidden-target or passability query is introduced.
+
+The turn extension has 41 focused checks within the 315-test Python suite
+(two expected native-only skips in ordinary runs). Run the optional official-SDK
+transport check with `python sdk_supervised_turn_smoke.py`; it uses synthetic
+pixels/receipts through the actual launcher, not native UI approval or gameplay.
+See the [separate runtime evidence](../../docs/mcp-player-interface/SUPERVISED-TURN-EVIDENCE.md).
 
 ## Run and boundary
 

@@ -10,7 +10,7 @@ observer-request functional-effects gates, a diagnostic-isolation boundary,
 controlled smoke-density and full right-edge smoke-clipping render-equivalence
 gates with isolated negative-test patches, a default-off locally confirmed
 stance-control pilot, an independently opted-in locally confirmed next/previous
-unit-selection extension, and associated tests, build helpers,
+unit-selection extension, an opt-in ordinary map right-click pilot, and associated tests, build helpers,
 documentation and evidence metadata.
 Existing upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
@@ -23,7 +23,7 @@ or, at your option, any later version, without warranty:
 - `src/Observer/`
 - `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/`,
   `tests/battle-observer/`, `tests/mixed-audio-native/` and
-  `tests/diagnostic-isolation/` and `tests/stance-control/`
+  `tests/diagnostic-isolation/`, `tests/stance-control/` and `tests/turn-control/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)

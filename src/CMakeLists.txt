@@ -620,3 +620,13 @@ endif()
 if ( EXPERIMENTAL_SUPERVISED_SELECTION AND EXPERIMENTAL_STANCE_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/stance-control/SelectionControlGate.cpp )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised turn, 2026-10-12.
+if ( EXPERIMENTAL_SUPERVISED_TURN )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN )
+endif()
+
+if ( EXPERIMENTAL_TURN_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/turn-control/TurnControlGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE )
+endif()

@@ -1,3 +1,4 @@
+// Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -26,6 +27,38 @@
 
 namespace OpenXcom
 {
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+// SPDX-License-Identifier: GPL-3.0-or-later; private view generations, 2026-10-12.
+namespace {
+struct TurnViewRevision {
+    std::uint64_t &revision;
+    const Position &offset;
+    const int &width, &height, &visible;
+    const bool &layers;
+    Position oldOffset;
+    int oldWidth, oldHeight, oldVisible;
+    bool oldLayers;
+    TurnViewRevision(std::uint64_t &r, const Position &o, const int &w, const int &h, const int &v, const bool &l) :
+        revision(r), offset(o), width(w), height(h), visible(v), layers(l),
+        oldOffset(o), oldWidth(w), oldHeight(h), oldVisible(v), oldLayers(l) { }
+    ~TurnViewRevision() {
+        if (offset != oldOffset || width != oldWidth || height != oldHeight || visible != oldVisible || layers != oldLayers)
+            ++revision;
+    }
+};
+}
+bool Camera::turnControlIdle() const
+{
+    return !_scrollTrigger && !_scrollMouseX && !_scrollMouseY && !_scrollKeyX && !_scrollKeyY &&
+        (!_scrollMouseTimer || !_scrollMouseTimer->isRunning()) && (!_scrollKeyTimer || !_scrollKeyTimer->isRunning());
+}
+std::vector<int> Camera::turnControlGeometry() const
+{
+    return {_spriteWidth, _spriteHeight, _screenWidth, _screenHeight, _visibleMapHeight,
+        _mapsize_x, _mapsize_y, _mapsize_z};
+}
+#endif
 
 /**
  * Sets up a camera.
@@ -325,6 +358,9 @@ void Camera::scrollKey()
  */
 void Camera::scrollXY(int x, int y, bool redraw)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	_mapOffset.x += x;
 	_mapOffset.y += y;
 
@@ -355,6 +391,9 @@ void Camera::scrollXY(int x, int y, bool redraw)
  */
 void Camera::jumpXY(int x, int y)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	_mapOffset.x += x;
 	_mapOffset.y += y;
 	convertScreenToMap((_screenWidth / 2), (_visibleMapHeight / 2), &_center.x, &_center.y);
@@ -366,6 +405,9 @@ void Camera::jumpXY(int x, int y)
  */
 void Camera::up()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	if (_mapOffset.z < _mapsize_z - 1)
 	{
 		_mapOffset.z++;
@@ -379,6 +421,9 @@ void Camera::up()
  */
 void Camera::down()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	if (_mapOffset.z > 0)
 	{
 		_mapOffset.z--;
@@ -393,6 +438,9 @@ void Camera::down()
  */
 void Camera::setViewLevel(int viewlevel)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	_mapOffset.z = Clamp(viewlevel, 0, _mapsize_z - 1);
 	_map->draw();
 }
@@ -405,6 +453,9 @@ void Camera::setViewLevel(int viewlevel)
  */
 void Camera::centerOnPosition(Position mapPos, bool redraw)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	Position screenPos;
 	_center = mapPos;
 	_center.x = Clamp(_center.x, -1, _mapsize_x);
@@ -525,6 +576,9 @@ Position Camera::getMapOffset() const
  */
 void Camera::setMapOffset(const Position& pos)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	_mapOffset = pos;
 }
 
@@ -534,6 +588,9 @@ void Camera::setMapOffset(const Position& pos)
  */
 int Camera::toggleShowAllLayers()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    ++_turnControlRevision;
+#endif
 	_showAllLayers = !_showAllLayers;
 	return _showAllLayers?2:1;
 }
@@ -609,6 +666,9 @@ __________
  */
 void Camera::resize()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
+#endif
 	_screenWidth = _map->getWidth();
 	_screenHeight = _map->getHeight();
 	_visibleMapHeight = _map->getHeight() - _map->getIconHeight();

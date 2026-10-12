@@ -1,3 +1,4 @@
+// Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
 #pragma once
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -18,6 +19,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Position.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+#include <cstdint>
+#include <vector>
+#endif
 
 namespace OpenXcom
 {
@@ -33,6 +38,9 @@ class Map;
 class Camera
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    std::uint64_t _turnControlRevision = 0;
+#endif
 	Timer *_scrollMouseTimer, *_scrollKeyTimer;
 	int _spriteWidth, _spriteHeight;
 	int _mapsize_x, _mapsize_y, _mapsize_z;
@@ -44,6 +52,11 @@ private:
 	bool _showAllLayers;
 	Map *_map;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+    std::uint64_t turnControlRevision() const { return _turnControlRevision; }
+    bool turnControlIdle() const;
+    std::vector<int> turnControlGeometry() const;
+#endif
 	static const int SCROLL_BORDER = 5;
 	static const int SCROLL_DIAGONAL_EDGE = 60;
 	/// Creates a new camera.

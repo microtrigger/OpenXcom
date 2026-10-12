@@ -2,9 +2,9 @@
 # New contribution maintained in this OpenXcom fork, 2026-10-11.
 # Free software under GNU GPL version 3 or later; without warranty.
 # See repository LICENSE.txt and LICENSE-NOTICES.md.
-"""Experimental local-UI-confirmed stance/selection requests; never an approval API.
+"""Experimental local-UI-confirmed controls; never an approval API.
 
-Only ordinary presented panel pixels are observed. A dispatch receipt is not
+Only ordinary presented panel or tactical pixels are observed. A dispatch receipt is not
 success. After each terminal command, a new context must be displayed before
 another request. No transport failure, timeout or malformed response is retried.
 """
@@ -25,13 +25,19 @@ from snapshots import Unavailable, exact, integer, require
 
 HELLO_SCHEMA = 'experimental-stance/1'
 CONTEXT_SCHEMA = 'experimental-stance-context/1'
+TACTICAL_CONTEXT_SCHEMA = 'experimental-tactical-context/1'
 STATUS_SCHEMA = 'experimental-stance-status/1'
 PUBLIC_CONTEXT_SCHEMA = 'openxcom-mcp-stance-context/1'
+PUBLIC_TACTICAL_CONTEXT_SCHEMA = 'openxcom-mcp-tactical-context/1'
 PUBLIC_STATUS_SCHEMA = 'openxcom-mcp-stance-status/1'
 MAX_PACKET = 128 * 1024
 MAX_COMMANDS = 64
 WIDTH, HEIGHT = 320, 56
 RGB_BYTES = WIDTH * HEIGHT * 3
+TACTICAL_WIDTH, TACTICAL_HEIGHT = 320, 200
+TACTICAL_PIXELS = TACTICAL_WIDTH * TACTICAL_HEIGHT
+TACTICAL_RGB_BYTES = TACTICAL_PIXELS * 3
+PALETTE_BYTES = 256 * 3
 TIMEOUT, STARTUP_TIMEOUT = 2.0, 31.0
 STANCES = {'kneel': 'k', 'stand': 's'}
 DIRECTIONS = {'next': 'n', 'previous': 'p'}
@@ -75,6 +81,43 @@ def validate_context(raw, challenge):
     return obj, bytes.fromhex(pixels)
 
 
+def validate_tactical_context(raw, challenge):
+    """Accept only canonical first-seen indexing of the actual displayed RGB.
+
+    Index aliases and unused palette entries cannot carry an extra data channel.
+    The transport palette is discarded after lossless reconstruction of RGB24.
+    """
+    obj = parse(raw)
+    exact(obj, 'schema challenge control_epoch capability semantics view')
+    require(obj['schema'] == TACTICAL_CONTEXT_SCHEMA and obj['challenge'] == challenge
+            and obj['semantics'] == 'presented_after_request')
+    for name in ('challenge', 'control_epoch', 'capability'):
+        token(obj[name])
+    view = obj['view']
+    exact(view, 'width height indices_hex palette_hex')
+    integer(view['width'], TACTICAL_WIDTH, TACTICAL_WIDTH)
+    integer(view['height'], TACTICAL_HEIGHT, TACTICAL_HEIGHT)
+    for name, length in (('indices_hex', TACTICAL_PIXELS * 2),
+                         ('palette_hex', PALETTE_BYTES * 2)):
+        require(type(view[name]) is str and len(view[name]) == length
+                and re.fullmatch('[0-9a-f]+', view[name]) is not None)
+    indices = bytes.fromhex(view['indices_hex'])
+    palette = bytes.fromhex(view['palette_hex'])
+    colors = tuple(palette[i:i + 3] for i in range(0, PALETTE_BYTES, 3))
+    used, seen = 0, set()
+    for index in indices:
+        if index == used:
+            require(colors[index] not in seen)
+            seen.add(colors[index])
+            used += 1
+        else:
+            require(index < used)
+    require(palette[used * 3:] == bytes(PALETTE_BYTES - used * 3))
+    rgb = b''.join(colors[index] for index in indices)
+    require(len(rgb) == TACTICAL_RGB_BYTES)
+    return obj, rgb
+
+
 def validate_status(raw, command_id):
     obj = parse(raw, 256)
     exact(obj, 'schema command_id status')
@@ -99,6 +142,14 @@ def validate_selection_arguments(arguments):
     require(type(arguments['direction']) is str and arguments['direction'] in DIRECTIONS)
 
 
+def validate_turn_arguments(arguments):
+    exact(arguments, 'capability control_epoch command_id x y')
+    for name in ('capability', 'control_epoch', 'command_id'):
+        token(arguments[name])
+    integer(arguments['x'], 16, 303)
+    integer(arguments['y'], 40, 127)
+
+
 def image_content(rgb):
     """Losslessly encode only the fixed displayed RGB panel, with no metadata."""
     require(type(rgb) is bytes and len(rgb) == RGB_BYTES)
@@ -115,18 +166,50 @@ def image_content(rgb):
             'data': base64.b64encode(png).decode('ascii')}
 
 
+def tactical_image_content(rgb):
+    """Encode only visible RGB as a canonical lossless indexed PNG.
+
+    Rebuild the palette from validated RGB, never from an SDL palette. This
+    bounds even index noise below the existing MCP response limit. Only fixed
+    IHDR/PLTE/IDAT/IEND chunks are emitted, without ancillary metadata.
+    """
+    require(type(rgb) is bytes and len(rgb) == TACTICAL_RGB_BYTES)
+    palette, indices, lookup = bytearray(), bytearray(), {}
+    for offset in range(0, len(rgb), 3):
+        color = rgb[offset:offset + 3]
+        if color not in lookup:
+            require(len(lookup) < 256)
+            lookup[color] = len(lookup)
+            palette.extend(color)
+        indices.append(lookup[color])
+    palette.extend(bytes(PALETTE_BYTES - len(palette)))
+    def chunk(kind, payload):
+        return (struct.pack('>I', len(payload)) + kind + payload
+                + struct.pack('>I', zlib.crc32(kind + payload) & 0xffffffff))
+    rows = b''.join(b'\0' + indices[i:i + TACTICAL_WIDTH]
+                    for i in range(0, TACTICAL_PIXELS, TACTICAL_WIDTH))
+    png = (b'\x89PNG\r\n\x1a\n'
+           + chunk(b'IHDR', struct.pack('>IIBBBBB', TACTICAL_WIDTH, TACTICAL_HEIGHT, 8, 3, 0, 0, 0))
+           + chunk(b'PLTE', bytes(palette))
+           + chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+    require(len(png) <= TACTICAL_PIXELS + TACTICAL_HEIGHT + PALETTE_BYTES + 256)
+    return {'type': 'image', 'mimeType': 'image/png',
+            'data': base64.b64encode(png).decode('ascii')}
+
+
 class StanceClient:
     """Finite fail-closed pilot. Command IDs have a bounded, non-evicting ledger.
 
     NEW -> READY -> PENDING -> NEED_CONTEXT -> READY. An immediate native
     rejection also needs a fresh context. Any failed observation or uncertain
     exchange enters CLOSED; only an explicit new launcher can create a client.
-    Stance and selection share one capability and command ledger. Duplicate
-    explicit request calls query S, never replay D or N.
+    Stance and selection use panel capabilities; right-click uses tactical
+    capabilities. Both observations replace the previous grant. All commands
+    share one ledger. Duplicate explicit calls query S, never replay D, N or R.
     """
     def __init__(self, channel, timeout=TIMEOUT, startup_timeout=STARTUP_TIMEOUT,
-                 selection_enabled=False):
-        require(type(selection_enabled) is bool)
+                 selection_enabled=False, turn_enabled=False):
+        require(type(selection_enabled) is bool and type(turn_enabled) is bool)
         for value, maximum in ((timeout, TIMEOUT), (startup_timeout, STARTUP_TIMEOUT)):
             require(type(value) in (int, float) and math.isfinite(value) and 0 < value <= maximum)
         require(isinstance(channel, socket.socket) and channel.family == socket.AF_UNIX
@@ -136,8 +219,11 @@ class StanceClient:
         self.channel = channel
         self.timeout, self.startup_timeout = timeout, startup_timeout
         self.selection_enabled = selection_enabled
+        self.turn_enabled = turn_enabled
         self.state = 'NEW'
         self.control_epoch = self.capability = self.active = None
+        self.capability_kind = None
+        self.tactical_verification_required = False
         self.commands = {}
         self.flight = threading.Lock()
 
@@ -145,6 +231,7 @@ class StanceClient:
         channel, self.channel = self.channel, None
         self.state = 'CLOSED'
         self.capability = None
+        self.capability_kind = None
         if channel is not None:
             channel.close()
 
@@ -182,9 +269,17 @@ class StanceClient:
         return raw
 
     def observe(self):
+        return self._observe('O', validate_context)
+
+    def observe_tactical(self):
+        require(self.turn_enabled)
+        return self._observe('V', validate_tactical_context)
+
+    def _observe(self, action, validate):
         with self.exclusive():
             # Do not replace context while the human confirmation is pending.
             require(self.state in ('NEW', 'READY', 'NEED_CONTEXT'))
+            require(action == 'V' or not self.tactical_verification_required)
             try:
                 if self.state == 'NEW':
                     self.control_epoch = validate_hello(
@@ -192,13 +287,16 @@ class StanceClient:
                 challenge = secrets.token_hex(16)
                 old_capability = self.capability
                 self.capability = None
-                obj, rgb = validate_context(self.exchange(b'O' + challenge.encode('ascii'), MAX_PACKET),
-                                            challenge)
-                # O is a new one-use capability even when the displayed pixels match.
+                self.capability_kind = None
+                obj, rgb = validate(self.exchange((action + challenge).encode('ascii'), MAX_PACKET),
+                                    challenge)
+                # Each observation grants a new one-use, action-bound capability.
                 require(obj['capability'] != old_capability)
                 # The game may have changed control since the startup handshake.
                 self.control_epoch = obj['control_epoch']
                 self.capability = obj['capability']
+                self.capability_kind = action
+                self.tactical_verification_required = False
                 self.state = 'READY'
                 return obj, rgb
             except FAILURES:
@@ -218,6 +316,13 @@ class StanceClient:
         validate_selection_arguments(arguments)
         return self._request('N', arguments, DIRECTIONS[direction] + '0')
 
+    def request_turn(self, capability, control_epoch, command_id, x, y):
+        require(self.turn_enabled)
+        arguments = dict(capability=capability, control_epoch=control_epoch,
+                         command_id=command_id, x=x, y=y)
+        validate_turn_arguments(arguments)
+        return self._request('R', arguments, f'{x:03d}{y:03d}')
+
     def _request(self, action, arguments, payload):
         capability, control_epoch, command_id = (arguments[name] for name in
                                                 ('capability', 'control_epoch', 'command_id'))
@@ -227,14 +332,16 @@ class StanceClient:
                 require(previous['action'] == action and previous['arguments'] == arguments)
                 return self._status(command_id)
             require(self.state == 'READY' and capability == self.capability
-                    and control_epoch == self.control_epoch)
+                    and control_epoch == self.control_epoch
+                    and self.capability_kind == ('V' if action == 'R' else 'O'))
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
                 raise Unavailable('Unavailable')
             request = (action + control_epoch + capability + command_id + payload).encode('ascii')
-            require(len(request) == 99)
+            require(len(request) == (103 if action == 'R' else 99))
             # Consume before the send. No exception can make it eligible again.
             self.capability = None
+            self.capability_kind = None
             self.active = command_id
             self.state = 'PENDING'
             self.commands[command_id] = {'action': action, 'arguments': arguments, 'status': None}
@@ -267,4 +374,6 @@ class StanceClient:
         self.commands[command_id]['status'] = status
         if command_id == self.active and self.state == 'PENDING' and status != 'pending_confirmation':
             self.state = 'NEED_CONTEXT'
+            self.tactical_verification_required = (status == 'dispatched'
+                                                   and self.commands[command_id]['action'] == 'R')
         return obj

@@ -2,7 +2,7 @@
 
 ## Fair-Play MCP Interface Project
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand and next/previous unit-selection pilots are now available under the practical-play/1 scope. Movement, inventory, firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right-click pilots are now available under the practical-play/1 scope. Movement, inventory, firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,
@@ -11,6 +11,14 @@ UFO/TFTD gate checks ten manual/controlled pairs and nineteen adversarial worlds
 per game; existing stance checks also pass in both. See [verification and limits](docs/mcp-player-interface/SUPERVISED-SELECTION-EVIDENCE.md).
 It does not enumerate hidden units, replace normal gameplay validation or establish
 full fairness or token savings.
+
+The [ordinary map right-click pilot](docs/mcp-player-interface/SUPERVISED-TURN-PILOT.md)
+now adds a fresh full tactical view and locally confirmed screen location. Its
+normal turn/door path passes 15 manual/controlled pairs and 29 adversarial worlds
+in each game, with 30 paired outcome views; nine actual-source fault controls are
+detected in both. Camera/pose generations, type-bound capabilities and mandatory
+post-action viewing protect this limited control. See [evidence and earlier failures](docs/mcp-player-interface/SUPERVISED-TURN-EVIDENCE.md).
+Sliding doors, full controller acceptance and token measurements remain open.
 
 **Current plan and actual progress:** see the [English status checklist](docs/mcp-player-interface/README.md#plan-versus-actual-progress) or [Russian working checklist](docs/mcp-player-interface/PLAN.ru.md#план-и-фактическое-выполнение). Selected request-bound pixel/HUD checks cover both games, including the [bounded natural-FOV/pause gate](docs/mcp-player-interface/NATURAL-FOV-GATE.md). The earlier [mixed-audio slice](docs/mcp-player-interface/MIXED-AUDIO-NATIVE.md) adds fixed 500 ms final SDL_mixer PCM for a qualified 22050 Hz signed-16-bit stereo software-mixed profile; 190 Python tests and a native real-SDL dummy-mixer oracle pass. Selected [UFO/TFTD menu checks](docs/mcp-player-interface/mixed-audio-game-evidence.json) also pass: eight fresh clips include exact silence at verified zero volume, and four post-exit requests fail closed. These checks do not establish full gameplay audio parity, physical audibility, continuous sound history or frame/HUD synchronization. The full fairness gate, audio parity, gameplay controller and actual end-to-end token comparison remain open.
 
@@ -26,7 +34,7 @@ The default-off [bounded native timing calibration](docs/mcp-player-interface/TI
 
 The [supervised stance pilot](docs/mcp-player-interface/SUPERVISED-STANCE-PILOT.md) now supports one explicit kneel/stand proposal at a time, approved through a displayed local game dialog. Fresh rendered context, one-use actor/session binding and duplicate protection preserve the normal action path. Both UFO/TFTD pass 12 UI/controller parity pairs, 19 safety cases and five deliberate fault controls each. Separate actual MCP/game demonstrations verify standing 40 TU → kneeling 36 TU → standing 28 TU in both games, with seven tool calls and two local confirmations per game. [Evidence and earlier failures](docs/mcp-player-interface/SUPERVISED-STANCE-EVIDENCE.md) retain the corrected TFTD button-surface issue and stopped demonstration attempts. This is a limited practical-play/1 pilot; the original full Stage 5, broader control and actual token comparison remain open.
 
-**Fork modification notice (2026-10-11):** this work adds optional read-only HUD/cursor/mixed-audio observers, isolated render gates including smoke density and viewport clipping, bounded native timing calibration, tests, build evidence and an MCP adapter with an optional locally confirmed stance pilot. New project code/documentation uses GPL-3.0-or-later; upstream and third-party notices remain intact. See [license and redistribution notices](LICENSE-NOTICES.md). No original X-COM game resources or new binaries are included in these additions.
+**Fork modification notice (2026-10-12):** this work adds optional read-only HUD/cursor/mixed-audio observers, isolated render gates including smoke density and viewport clipping, bounded native timing calibration, tests, build evidence and an MCP adapter with optional locally confirmed stance, unit-selection and ordinary right-click pilots. New project code/documentation uses GPL-3.0-or-later; upstream and third-party notices remain intact. See [license and redistribution notices](LICENSE-NOTICES.md). No original X-COM game resources or new binaries are included in these additions.
 
 [workflow-badge]: https://github.com/OpenXcom/OpenXcom/workflows/ci/badge.svg
 [actions-url]: https://github.com/OpenXcom/OpenXcom/actions
