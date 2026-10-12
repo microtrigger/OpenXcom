@@ -52,6 +52,9 @@ class Map : public InteractiveSurface
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     friend struct InventoryRightClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    friend struct InventoryUnloadGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif

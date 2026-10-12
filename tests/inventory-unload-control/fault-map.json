@@ -1,0 +1,190 @@
+{
+  "schema": "inventory-unload-fault-map/1",
+  "classification": {
+    "detected": "ordinary failure exit with exactly mapped assertion in mapped profile",
+    "survived": "exact native profile PASS with exit 0",
+    "inconclusive": "anything else, including crashes, timeouts, build/launch errors or unrelated endpoints; never remap after observing runtime"
+  },
+  "faults": {
+    "unload-runtime-bypass": {
+      "profile": "disabled",
+      "assertion": 112,
+      "composite": false
+    },
+    "close-prerequisite-bypass": {
+      "profile": "close-disabled",
+      "assertion": 112,
+      "composite": false
+    },
+    "missing-down": {
+      "profile": "core",
+      "assertion": 121,
+      "composite": false
+    },
+    "duplicate-down": {
+      "profile": "core",
+      "assertion": 121,
+      "composite": false
+    },
+    "missing-up": {
+      "profile": "core",
+      "assertion": 101,
+      "composite": false
+    },
+    "duplicate-up": {
+      "profile": "core",
+      "assertion": 121,
+      "composite": false
+    },
+    "direct-button-shortcut": {
+      "profile": "core",
+      "assertion": 121,
+      "composite": false
+    },
+    "wrong-fixed-coordinate": {
+      "profile": "core",
+      "assertion": 101,
+      "composite": false
+    },
+    "missing-prehandler-barrier": {
+      "profile": "core",
+      "assertion": 102,
+      "composite": false
+    },
+    "late-prehandler-barrier": {
+      "profile": "core",
+      "assertion": 102,
+      "composite": false
+    },
+    "missing-invclick-tail": {
+      "profile": "core",
+      "assertion": 121,
+      "composite": false
+    },
+    "duplicate-invclick-tail": {
+      "profile": "core",
+      "assertion": 121,
+      "composite": false
+    },
+    "ignored-between-edge-transition": {
+      "profile": "nested-transition",
+      "assertion": 120,
+      "composite": false
+    },
+    "ignored-synchronous-save-notice": {
+      "profile": "nested-save-notice",
+      "assertion": 120,
+      "composite": false
+    },
+    "surviving-destination-omitted": {
+      "profile": "core",
+      "assertion": 106,
+      "composite": false
+    },
+    "lost-I-barrier-cleared": {
+      "profile": "lost-I",
+      "assertion": 107,
+      "composite": false
+    },
+    "failed-I-send-clears": {
+      "profile": "send-failure-I",
+      "assertion": 114,
+      "composite": false
+    },
+    "unload-kind-confusion": {
+      "profile": "cross-kind",
+      "assertion": 117,
+      "composite": false
+    },
+    "wire-Q-pixel": {
+      "profile": "core",
+      "assertion": 105,
+      "composite": false
+    },
+    "unload-overlay-promises-success": {
+      "profile": "core",
+      "assertion": 113,
+      "composite": false
+    },
+    "hidden-button-admitted": {
+      "profile": "hidden-button",
+      "assertion": 126,
+      "composite": false
+    },
+    "held-position-not-bound": {
+      "profile": "stale-held-position",
+      "assertion": 116,
+      "composite": false
+    },
+    "held-revision-not-bound": {
+      "profile": "stale-held",
+      "assertion": 116,
+      "composite": false
+    },
+    "invalid-child-clickthrough": {
+      "profile": "invalid-child-left",
+      "assertion": 108,
+      "composite": false
+    },
+    "orphan-Y-new-pair-swallowed": {
+      "profile": "orphan-Y",
+      "assertion": 119,
+      "composite": false
+    },
+    "orphan-mouse-new-pair-swallowed": {
+      "profile": "orphan-left-held",
+      "assertion": 119,
+      "composite": true
+    },
+    "ordinary-seven-TU": {
+      "profile": "core",
+      "assertion": 123,
+      "composite": false
+    },
+    "ordinary-zero-ammo-refused": {
+      "profile": "core",
+      "assertion": 123,
+      "composite": false
+    },
+    "ordinary-hands-check-omitted": {
+      "profile": "core",
+      "assertion": 122,
+      "composite": false
+    },
+    "ordinary-no-ammo-warning-omitted": {
+      "profile": "core",
+      "assertion": 124,
+      "composite": false
+    },
+    "ordinary-hands-warning-wrong": {
+      "profile": "core",
+      "assertion": 124,
+      "composite": false
+    },
+    "ordinary-detach-omitted": {
+      "profile": "core",
+      "assertion": 123,
+      "composite": false
+    },
+    "ordinary-selection-clear-omitted": {
+      "profile": "core",
+      "assertion": 123,
+      "composite": false
+    },
+    "ordinary-sound-lookup-omitted": {
+      "profile": "core",
+      "assertion": 122,
+      "composite": false
+    },
+    "ordinary-sound-depth-wrong": {
+      "profile": "core",
+      "assertion": 122,
+      "composite": false
+    },
+    "ordinary-preview-clear-omitted": {
+      "profile": "core",
+      "assertion": 123,
+      "composite": false
+    }
+  }
+}

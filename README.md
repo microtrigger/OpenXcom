@@ -2,6 +2,14 @@
 
 ## Fair-Play MCP Interface Project
 
+The default-off [ordinary inventory Unload pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-UNLOAD-PILOT.md)
+adds a separately confirmed normal Unload button press and mandatory fresh inventory
+view. Corrected focused/full checks pass 28/28 and 124/124 across UFO/TFTD;
+390 prior-control regressions and both 24-call official-SDK/game paths also pass.
+The fixed 72-case source-fault matrix records 70 detections and two survivors,
+not complete sensitivity. Earlier palette-fixture failures and the redundant-guard
+limit remain in the [evidence report](docs/mcp-player-interface/SUPERVISED-INVENTORY-UNLOAD-EVIDENCE.md).
+
 The default-off [ordinary inventory RIGHT-click pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-RIGHT-CLICK-PILOT.md)
 is now available with local confirmation for held-selection cancellation or ordinary
 closing. Focused checks pass 16/16, full checks 92/92 and prior-control regressions
@@ -15,7 +23,7 @@ prevents a lost confirmation-button release from swallowing a later ordinary
 manual click. The old behavior is reproduced and the fix passes in UFO/TFTD;
 all 54 prior CLICK profiles also pass in each game.
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; a separately enabled bounded inventory RIGHT-click pilot is also available. Dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; separately enabled bounded inventory RIGHT-click and ordinary Unload-button pilots are also available. Dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,

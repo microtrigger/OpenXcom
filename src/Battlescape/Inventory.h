@@ -48,15 +48,21 @@ class Inventory : public InteractiveSurface
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     friend struct InventoryRightClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    friend struct InventoryUnloadGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif
 private:
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     friend class InventoryState;
     std::uint64_t _heldSelectionRevision = 0;
     bool inventoryClickPresentationAllowed() const;
     int inventoryClickBannerY() const;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD
+    bool inventoryUnloadPresentationAllowed() const;
 #endif
 	Game *_game;
 	Surface *_grid, *_items, *_selection;

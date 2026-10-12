@@ -33,6 +33,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
 #include "../../tests/inventory-right-click-control/InventoryRightClickControlGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+#include "../../tests/inventory-unload-control/InventoryUnloadControlGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
 #include "../../tests/inventory-ground-control/InventoryGroundControlGate.h"
 #endif
@@ -260,6 +263,9 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent) : _tu(tu), _pa
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::inventoryConstructed(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryConstructed(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryConstructed(this);
 #endif
@@ -288,6 +294,9 @@ InventoryState::~InventoryState()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::inventoryDestroyed(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryDestroyed(this);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryDestroyed(this);
@@ -430,6 +439,9 @@ void InventoryState::init()
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::inventoryInitialized(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryInitialized(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryInitialized(this);
 #endif
@@ -468,6 +480,9 @@ void InventoryState::blit()
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::inventoryDisplayed(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryDisplayed(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryDisplayed(this);
 #endif
@@ -499,7 +514,7 @@ bool InventoryState::inventoryCloseContext(Observer::InventoryCloseContext &cont
 {
     return inventoryControlContext(context, overlay, false);
 }
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
 bool InventoryState::inventoryClickContext(Observer::InventoryCloseContext &context, bool overlay) const
 {
     if (!inventoryControlContext(context, overlay, true) || !_inv->inventoryClickPresentationAllowed() ||
@@ -554,6 +569,50 @@ void InventoryState::inventoryControlRightClick(int x, int y)
     // The ordinary handler may have popped this state. Do not access it here.
 }
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD
+bool InventoryState::inventoryUnloadContext(Observer::InventoryCloseContext &context, bool overlay) const
+{
+    if (!inventoryClickContext(context, overlay) || !_inv->inventoryUnloadPresentationAllowed() ||
+        !_btnUnload->turnContextVisible() || !_btnUnload->stanceContextVisible() || _btnUnload->stanceToggled() ||
+        _btnUnload->getX() != 288 || _btnUnload->getY() != 32 ||
+        _btnUnload->getWidth() != 32 || _btnUnload->getHeight() != 25) return false;
+    // State::handle reverse-routes every surface. Prove the actual inventory is
+    // encountered before the actual Unload button, with no overlapping control.
+    bool inventorySeen = false, unloadSeen = false;
+    for (auto i = _surfaces.rbegin(); i != _surfaces.rend(); ++i)
+    {
+        Surface *surface = *i;
+        if (surface == _inv) { inventorySeen = true; continue; }
+        if (surface == _btnUnload) { if (!inventorySeen) return false; unloadSeen = true; continue; }
+        if (surface == _inventoryCloseOverlay || !surface->getVisible()) continue;
+        const int x = surface->getX(), y = surface->getY(), w = surface->getWidth(), h = surface->getHeight();
+        if (x < 320 && x + w > 288 && y < 57 && y + h > 32 &&
+            dynamic_cast<InteractiveSurface *>(surface)) return false;
+    }
+    return inventorySeen && unloadSeen;
+}
+int InventoryState::inventoryUnloadBannerY() const
+{
+    // The live selection surface is always 48px high. These disjoint bands
+    // leave the soldier name and Unload button exposed and cannot both cross it.
+    const int top = _inv->_selection->getY(), bottom = top + _inv->_selection->getHeight();
+    return top < 184 && bottom > 152 ? 64 : 152;
+}
+void InventoryState::inventoryControlUnloadEvent(Uint8 type)
+{
+    SDL_Event event = {}; event.type = type;
+    event.button.button = SDL_BUTTON_LEFT;
+    event.button.state = type == SDL_MOUSEBUTTONDOWN ? SDL_PRESSED : SDL_RELEASED;
+    event.button.x = 304; event.button.y = 44;
+    Action action(&event, 1.0, 1.0, 0, 0);
+    ++_inventoryUiRevision;
+    // Bypass only InventoryState's consume latch: it belongs to the REAL local
+    // confirmation event, not this synthetic pair. Never clear its ownership.
+    // Preserve every ordinary surface, hover, pressed/inversion and callback.
+    State::handle(&action);
+    // The ordinary route may have changed the stack. Do not touch this again.
+}
+#endif
 bool InventoryState::inventoryControlContext(Observer::InventoryCloseContext &context, bool overlay, bool allowHeld) const
 {
     // The exact inventory and immediate parent must still be alive before any
@@ -599,6 +658,9 @@ bool InventoryState::showInventoryCloseOverlay(Observer::StanceController *contr
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::clickOverlayShown(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::clickOverlayShown(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::groundOverlayShown(this);
 #endif
@@ -615,6 +677,9 @@ void InventoryState::dismissInventoryCloseOverlay()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     if (owned) InventoryRightClickControlGate::clickOverlayDismissed(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    if (owned) InventoryUnloadControlGate::clickOverlayDismissed(this);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     if (owned) InventoryGroundControlGate::groundOverlayDismissed(this);
@@ -724,6 +789,9 @@ void InventoryState::btnOkClick(Action *)
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::inventoryCloseEntered(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryCloseEntered(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     InventoryGroundControlGate::inventoryCloseEntered(this);
 #endif
@@ -805,8 +873,13 @@ void InventoryState::btnNextClick(Action *)
  * Unloads the selected weapon.
  * @param action Pointer to an action.
  */
-void InventoryState::btnUnloadClick(Action *)
+void InventoryState::btnUnloadClick(Action *action)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryUnloadButtonEntered(this, action);
+#else
+    (void)action;
+#endif
 	if (_inv->unload())
 	{
 		_txtItem->setText("");
@@ -1107,6 +1180,9 @@ void InventoryState::invClick(Action *)
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     InventoryRightClickControlGate::inventoryInvClickEntered(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::inventoryInvClickEntered(this);
 #endif
 	updateStats();
 }

@@ -19,6 +19,9 @@
 // Fork modification 2026-10-10: default-off mixed-audio observation.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "Mod.h"
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+#include "../../tests/inventory-unload-control/InventoryUnloadControlGate.h"
+#endif
 #include <algorithm>
 #include <functional>
 #include <sstream>
@@ -648,6 +651,9 @@ std::vector<Uint16> *Mod::getVoxelData()
  */
 Sound *Mod::getSoundByDepth(unsigned int depth, unsigned int sound, bool error) const
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryUnloadControlGate::soundLookup(depth, sound);
+#endif
 	if (depth == 0)
 		return getSound("BATTLE.CAT", sound, error);
 	else

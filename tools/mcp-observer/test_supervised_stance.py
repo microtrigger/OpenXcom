@@ -59,7 +59,8 @@ class NativeFixture:
     """One deterministic responder; call records prove absence of automatic sends."""
     def __init__(self, hello=None, response=None, selection_enabled=False, turn_enabled=False,
                  map_left_click_enabled=False, inventory_enabled=False, inventory_close_enabled=False,
-                 inventory_ground_enabled=False, inventory_click_enabled=False, inventory_right_click_enabled=False):
+                 inventory_ground_enabled=False, inventory_click_enabled=False, inventory_right_click_enabled=False,
+                 inventory_unload_enabled=False):
         parent, self.peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         self.client = s.StanceClient(parent, timeout=0.3, startup_timeout=0.3,
                                      selection_enabled=selection_enabled, turn_enabled=turn_enabled,
@@ -67,7 +68,8 @@ class NativeFixture:
                                      inventory_enabled=inventory_enabled, inventory_close_enabled=inventory_close_enabled,
                                      inventory_ground_enabled=inventory_ground_enabled,
                                      inventory_click_enabled=inventory_click_enabled,
-                                     inventory_right_click_enabled=inventory_right_click_enabled)
+                                     inventory_right_click_enabled=inventory_right_click_enabled,
+                                     inventory_unload_enabled=inventory_unload_enabled)
         self.hello = dump({'schema': s.HELLO_SCHEMA, 'control_epoch': EPOCH}) if hello is None else hello
         self.response = response
         self.requests = []

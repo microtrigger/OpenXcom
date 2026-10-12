@@ -49,7 +49,7 @@ def error(ident, code, message):
 def definitions(presentation=False, presented_hud=False, mixed_audio=False, supervised_stance=False,
                 supervised_selection=False, supervised_turn=False, supervised_map_left_click=False,
                 supervised_inventory=False, supervised_inventory_close=False, supervised_inventory_ground=False,
-                supervised_inventory_click=False, supervised_inventory_right_click=False):
+                supervised_inventory_click=False, supervised_inventory_right_click=False, supervised_inventory_unload=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -285,6 +285,30 @@ def definitions(presentation=False, presented_hud=False, mixed_audio=False, supe
                                      {'properties': {'x': {'minimum': 0, 'maximum': 319}, 'y': {'minimum': 152, 'maximum': 199}}}]},
                              'annotations': {'readOnlyHint': False, 'destructiveHint': True,
                                              'idempotentHint': True, 'openWorldHint': False}}])
+                    if supervised_inventory_unload is True:
+                        for tool in result:
+                            if tool['name'] in ('request_open_inventory', 'request_close_inventory'):
+                                tool['description'] = tool['description'].replace(' No item-manipulation tool is provided.', '').replace(' No item manipulation is provided.', '')
+                                tool['description'] += ' A separate fresh read_inventory_unload_context can authorize an ordinary Unload attempt.'
+                            elif tool['name'] == 'read_inventory_view':
+                                tool['description'] += ' This capless view cannot authorize Unload. After every dispatched Unload attempt, including a no-op or ordinary refusal, this exact read is mandatory before another shared observation or action.'
+                            elif tool['name'] == 'read_stance_status':
+                                tool['description'] += ' This also reads request_inventory_unload receipts. After every dispatched Unload attempt, read_inventory_view is required first; duplicate receipts never replace or rearm that read.'
+                            elif tool['name'] in ('read_stance_context', 'read_tactical_context', 'read_inventory_close_context', 'read_inventory_ground_context', 'read_inventory_click_context', 'read_inventory_right_click_context'):
+                                tool['description'] += ' This capability cannot authorize request_inventory_unload. A separate fresh read_inventory_unload_context is required; after dispatched Unload, read_inventory_view is required first.'
+                        result.extend([
+                            {'name': 'read_inventory_unload_context',
+                             'description': 'Read one actual 320x200 supported inventory presentation after this request as a lossless PNG and receive a one-use capability for an ordinary inventory Unload attempt only. This separate context retires the previous grant and cannot authorize any other control. Pixels only: no item or held-state metadata, ammunition, actor IDs, eligibility, costs, preflight or outcome fields. Existing read_inventory_view remains capless. Blocked while local confirmation or mandatory post-action verification is pending. Failed observation or uncertain transport closes control without retry or terminating the game.',
+                             'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+                             'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                                             'idempotentHint': False, 'openWorldHint': False}},
+                            {'name': 'request_inventory_unload',
+                             'description': 'Experimental supervised pilot: ask the local in-place inventory UI to confirm one ordinary Unload button attempt using a fresh read_inventory_unload_context capability. Normal game rules may unload a held loaded weapon, do nothing or show a warning. In the stock supported tactical case, a successful unload spends 8 TU, places the weapon in the right hand and ammunition in the left, and clears held selection. Each attempt requires fresh human confirmation using ordinary local game controls. Exactly three opaque tokens; no coordinates, button, modifiers, items, held-state, eligibility, ammunition, preflight, outcome or model approval fields. Cancelling confirmation, timeout or disconnect does not cancel held selection. All controls share command IDs. pending_confirmation is not dispatch; dispatched means an ordinary button-gesture dispatch attempt, never successful unloading. Poll read_stance_status, then obtain a fresh capless read_inventory_view after every dispatched attempt, including a no-op or ordinary refusal, before another shared observation or new action. read_tactical_context cannot replace this read. If the required view is unavailable, stop for manual reconciliation; never probe another view or replay Unload. An exact duplicate only queries status and never rearms a fulfilled verification barrier; conflicting command-ID reuse fails.',
+                             'inputSchema': {'type': 'object', 'properties': {
+                                 'capability': dict(opaque), 'control_epoch': dict(opaque), 'command_id': dict(opaque)},
+                                 'required': ['capability', 'control_epoch', 'command_id'], 'additionalProperties': False},
+                             'annotations': {'readOnlyHint': False, 'destructiveHint': True,
+                                             'idempotentHint': True, 'openWorldHint': False}}])
     return result
 
 
@@ -310,6 +334,8 @@ class Server:
             and getattr(supervised_stance, 'inventory_click_enabled', False) is True)
         self.supervised_inventory_right_click_enabled = (self.supervised_inventory_close_enabled
             and getattr(supervised_stance, 'inventory_right_click_enabled', False) is True)
+        self.supervised_inventory_unload_enabled = (self.supervised_inventory_close_enabled
+            and getattr(supervised_stance, 'inventory_unload_enabled', False) is True)
         self.presented_hud_enabled = presentation is not None and getattr(presentation, 'version', 1) == 2
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
@@ -352,7 +378,8 @@ class Server:
                                           self.supervised_selection_enabled, self.supervised_turn_enabled,
                                           self.supervised_map_left_click_enabled, self.supervised_inventory_enabled,
                                           self.supervised_inventory_close_enabled, self.supervised_inventory_ground_enabled,
-                                          self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled)}
+                                          self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled,
+                                          self.supervised_inventory_unload_enabled)}
         elif (method == 'tools/call' and self.supervised_stance is not None
                 and (params.get('name') in ('read_stance_context', 'request_stance', 'read_stance_status')
                      or (params.get('name') == 'request_selection' and self.supervised_selection_enabled)
@@ -369,12 +396,14 @@ class Server:
                      or (params.get('name') in ('request_inventory_click', 'read_inventory_click_context')
                          and self.supervised_inventory_click_enabled)
                      or (params.get('name') in ('request_inventory_right_click', 'read_inventory_right_click_context')
-                         and self.supervised_inventory_right_click_enabled))):
+                         and self.supervised_inventory_right_click_enabled)
+                     or (params.get('name') in ('request_inventory_unload', 'read_inventory_unload_context')
+                         and self.supervised_inventory_unload_enabled))):
             from supervised_stance import (token, validate_arguments, validate_selection_arguments,
                                            validate_turn_arguments, validate_map_left_click_arguments,
                                            validate_open_inventory_arguments, validate_close_inventory_arguments,
                                            validate_inventory_ground_arguments, validate_inventory_click_arguments,
-                                           validate_inventory_right_click_arguments)
+                                           validate_inventory_right_click_arguments, validate_inventory_unload_arguments)
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
             try:
@@ -398,6 +427,8 @@ class Server:
                     validate_inventory_click_arguments(arguments)
                 elif params['name'] == 'request_inventory_right_click':
                     validate_inventory_right_click_arguments(arguments)
+                elif params['name'] == 'request_inventory_unload':
+                    validate_inventory_unload_arguments(arguments)
                 elif params['name'] == 'read_stance_status':
                     exact(arguments, 'command_id'); token(arguments['command_id'])
                 else:
@@ -438,6 +469,7 @@ class Server:
                                        PUBLIC_STATUS_SCHEMA, PUBLIC_INVENTORY_VIEW_SCHEMA,
                                        PUBLIC_INVENTORY_CLOSE_CONTEXT_SCHEMA, PUBLIC_INVENTORY_GROUND_CONTEXT_SCHEMA,
                                        PUBLIC_INVENTORY_CLICK_CONTEXT_SCHEMA, PUBLIC_INVENTORY_RIGHT_CLICK_CONTEXT_SCHEMA,
+                                       PUBLIC_INVENTORY_UNLOAD_CONTEXT_SCHEMA,
                                        image_content, tactical_image_content)
         from snapshots import Unavailable
         try:
@@ -467,6 +499,13 @@ class Server:
                 obj, rgb = self.supervised_stance.observe_inventory_ground()
                 meta = {k: obj[k] for k in ('challenge', 'control_epoch', 'capability', 'semantics')}
                 meta['schema'] = PUBLIC_INVENTORY_GROUND_CONTEXT_SCHEMA
+                meta['view'] = {'width': obj['view']['width'], 'height': obj['view']['height'],
+                                'format': 'image/png'}
+                image = tactical_image_content(rgb)
+            elif name == 'read_inventory_unload_context':
+                obj, rgb = self.supervised_stance.observe_inventory_unload()
+                meta = {k: obj[k] for k in ('challenge', 'control_epoch', 'capability', 'semantics')}
+                meta['schema'] = PUBLIC_INVENTORY_UNLOAD_CONTEXT_SCHEMA
                 meta['view'] = {'width': obj['view']['width'], 'height': obj['view']['height'],
                                 'format': 'image/png'}
                 image = tactical_image_content(rgb)
@@ -506,6 +545,8 @@ class Server:
                     obj = self.supervised_stance.request_close_inventory(**arguments)
                 elif name == 'request_inventory_ground':
                     obj = self.supervised_stance.request_inventory_ground(**arguments)
+                elif name == 'request_inventory_unload':
+                    obj = self.supervised_stance.request_inventory_unload(**arguments)
                 elif name == 'request_inventory_click':
                     obj = self.supervised_stance.request_inventory_click(**arguments)
                 elif name == 'request_inventory_right_click':

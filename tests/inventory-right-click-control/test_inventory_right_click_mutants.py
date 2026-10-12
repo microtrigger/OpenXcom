@@ -48,6 +48,19 @@ class Mutants(unittest.TestCase):
                 with self.assertRaises(ValueError):m.mutate(name,result)
                 with self.assertRaises(ValueError):m.mutate(name,'')
                 with self.assertRaises(ValueError):m.mutate(name,source+source)
+    def test_unload_branches_survive_right_only_faults(self):
+        source=(ROOT/'src/Observer/StanceController.cpp').read_text()
+        kind=m.mutate('right-kind-confusion',source)
+        self.assertNotIn('||  ||',kind)
+        self.assertIn("(_contextKind == 'Q' && inventoryUnload)",kind)
+        self.assertIn("!(((_contextKind == 'U' || _contextKind == 'H') && inventoryRightClick) || (_contextKind == 'Q'",kind)
+        paired=m.mutate('paired-release-clickthrough',source)
+        self.assertIn("if (owned && (false || _action == 'f') && event.type == SDL_MOUSEBUTTONDOWN)",paired)
+        save=m.mutate('synchronous-save-notice-ignored',source)
+        notice='    if (_inventoryUnloadDispatching) _inventoryUnloadUnexpected = true;'
+        self.assertEqual(save.count(notice),source.count(notice))
+        self.assertEqual(save.count('    if (_inventoryRightDispatching) _inventoryRightUnexpected = true;'),
+                         source.count('    if (_inventoryRightDispatching) _inventoryRightUnexpected = true;')-1)
     def test_disposable_only_single_fault_and_no_oracle_edits(self):
         for name,(relative,_) in m.MUTATIONS.items():
             with tempfile.TemporaryDirectory(prefix='right-mutant-test-') as temp:

@@ -59,6 +59,9 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     friend struct InventoryRightClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    friend struct InventoryUnloadGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif
@@ -77,7 +80,7 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
     bool inventoryGroundControlVisible() const;
 #endif
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     // Exact owned-down tails survive proposal retirement, never state lifetime.
     std::uint8_t _inventoryClickConsumedButtons = 0;
     friend class Observer::InventoryCloseOverlay;
@@ -89,6 +92,11 @@ private:
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK
     void inventoryControlRightClick(int x, int y);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD
+    bool inventoryUnloadContext(Observer::InventoryCloseContext &context, bool overlay = false) const;
+    int inventoryUnloadBannerY() const;
+    void inventoryControlUnloadEvent(Uint8 type);
 #endif
 	Surface *_bg, *_soldier;
 	Text *_txtName, *_txtItem, *_txtAmmo, *_txtWeight, *_txtTus, *_txtFAcc, *_txtReact, *_txtPSkill, *_txtPStr;

@@ -683,3 +683,13 @@ if ( EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/inventory-right-click-control/InventoryRightClickControlGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised inventory Unload, 2026-10-12.
+if ( EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD )
+endif()
+
+if ( EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/inventory-unload-control/InventoryUnloadControlGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE )
+endif()

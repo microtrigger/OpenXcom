@@ -34,6 +34,9 @@ enum InversionType {INVERT_NONE, INVERT_CLICK, INVERT_TOGGLE};
  */
 class BattlescapeButton : public InteractiveSurface
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    friend struct InventoryUnloadGateAccess;
+#endif
 protected:
 	Uint8 _color;
 	BattlescapeButton **_group;

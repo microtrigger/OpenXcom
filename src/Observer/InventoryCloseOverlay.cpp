@@ -3,7 +3,7 @@
 #include "InventoryCloseOverlay.h"
 #include "StanceController.h"
 #include "../Engine/Action.h"
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
 #include "../Battlescape/InventoryState.h"
 #endif
 #include "../Interface/Frame.h"
@@ -26,7 +26,7 @@ InventoryCloseOverlay::InventoryCloseOverlay(InventoryState *owner, RuleInterfac
     InteractiveSurface(320, 200), _owner(owner), _controller(0),
     _frame(new Frame(320, 32, 0, 104)), _text(new Text(236, 30, 4, 105)),
     _yes(new TextButton(76, 14, 242, 105)), _no(new TextButton(76, 14, 242, 121)), _pressedChoice(0)
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     , _clickMode(false), _pointer(new Surface(17, 17))
 #endif
 {
@@ -48,7 +48,7 @@ InventoryCloseOverlay::InventoryCloseOverlay(InventoryState *owner, RuleInterfac
 InventoryCloseOverlay::~InventoryCloseOverlay()
 {
     delete _frame; delete _text; delete _yes; delete _no;
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     delete _pointer;
 #endif
 }
@@ -61,7 +61,7 @@ void InventoryCloseOverlay::setPalette(SDL_Color *colors, int first, int count)
     InteractiveSurface::setPalette(colors, first, count);
     _frame->setPalette(colors, first, count); _text->setPalette(colors, first, count);
     _yes->setPalette(colors, first, count); _no->setPalette(colors, first, count);
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     _pointer->setPalette(colors, first, count);
 #endif
 }
@@ -75,11 +75,19 @@ void InventoryCloseOverlay::show(StanceController *controller)
 #endif
         "Ordinary inventory OK / close.\nNormal gravity, lighting and FOV.\nConfirm the soldier shown above.");
     int bannerY = 104;
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
-    _clickMode = controller->inventoryClickRequest() || controller->inventoryRightClickRequest();
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
+    _clickMode = controller->inventoryClickRequest() || controller->inventoryRightClickRequest() || controller->inventoryUnloadRequest();
     if (_clickMode)
     {
         bannerY = _owner->inventoryClickBannerY();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD
+        if (controller->inventoryUnloadRequest())
+        {
+            bannerY = _owner->inventoryUnloadBannerY();
+            _text->setText("Ordinary inventory Unload.\nMay spend 8 TU; normal refusal.\nConfirm the soldier shown above.");
+        }
+        else
+#endif
         if (controller->inventoryRightClickRequest())
             _text->setText("RIGHT (" + std::to_string(controller->targetX()) + "," + std::to_string(controller->targetY()) +
                 "): held = cancel.\nOtherwise closes inventory.\nNormal gravity, lighting/FOV.");
@@ -118,17 +126,22 @@ void InventoryCloseOverlay::dismiss()
 bool InventoryCloseOverlay::active() const
 {
     if (!_controller || !turnContextVisible()) return false;
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     if (_clickMode)
     {
-        const int y = _owner->inventoryClickBannerY();
+        const int y =
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD
+            _controller->inventoryUnloadRequest() ? _owner->inventoryUnloadBannerY() :
+#endif
+            _owner->inventoryClickBannerY();
         const auto shownAt = [](const Surface *s, int x, int y, int w, int h) {
             return s->turnContextVisible() && s->getX() == x && s->getY() == y && s->getWidth() == w && s->getHeight() == h;
         };
         return shownAt(this, 0, 0, 320, 200) && shownAt(_frame, 0, y, 320, 32) &&
             shownAt(_text, 4, y + 1, 236, 30) && shownAt(_yes, 242, y + 1, 76, 14) &&
             shownAt(_no, 242, y + 17, 76, 14) &&
-            shownAt(_pointer, _controller->targetX() - 8, _controller->targetY() - 8, 17, 17);
+            (_controller->inventoryUnloadRequest() ||
+                shownAt(_pointer, _controller->targetX() - 8, _controller->targetY() - 8, 17, 17));
     }
 #endif
     return true;
@@ -136,10 +149,10 @@ bool InventoryCloseOverlay::active() const
 void InventoryCloseOverlay::blit(Surface *surface)
 {
     if (!active()) return;
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     // State already drew the actual inventory, held sprite and animation.
     // Only the two disjoint-band controls and transparent pointer are new.
-    if (_clickMode) _pointer->blit(surface);
+    if (_clickMode) { if (!_controller->inventoryUnloadRequest()) _pointer->blit(surface); }
     else
 #endif
         Surface::blit(surface);

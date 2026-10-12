@@ -32,12 +32,15 @@ class Font;
  */
 class WarningMessage : public Surface
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    friend struct InventoryUnloadGateAccess;
+#endif
 private:
 	Text *_text;
 	Timer *_timer;
 	Uint8 _color, _fade;
 public:
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     // Presentation-only refusal; no warning text, reason or timer inspection.
     bool inventoryClickOccluding() const { return _visible && !_hidden; }
 #endif

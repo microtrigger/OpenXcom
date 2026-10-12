@@ -86,9 +86,8 @@ MUTATIONS = {'right-runtime-bypass': ('src/Observer/StanceController.cpp',
                            'y >= 152 && y < 200))) ||\n',
                            '        false ||\n'),)),
  'right-kind-confusion': ('src/Observer/StanceController.cpp',
-                          (("!((_contextKind == 'U' && inventoryRightClick) || (_contextKind == 'O'",
-                            "!(((_contextKind == 'U' || _contextKind == 'H') && inventoryRightClick) || "
-                            "(_contextKind == 'O'"),)),
+                          (("!((_contextKind == 'U' && inventoryRightClick)",
+                            "!(((_contextKind == 'U' || _contextKind == 'H') && inventoryRightClick)"),)),
  'wire-U-pixel': ('src/Observer/StanceController.cpp',
                   (("        if (_contextKind == 'U') schema = "
                     '"experimental-inventory-right-click-context/1";\n',
@@ -136,18 +135,24 @@ MUTATIONS = {'right-runtime-bypass': ('src/Observer/StanceController.cpp',
                                        '    if (false && !rightOwned && event.type == SDL_MOUSEBUTTONDOWN && '
                                        'event.button.button >= 1 && event.button.button <= 8)\n'))),
  'paired-release-clickthrough': ('src/Observer/StanceController.cpp',
-                                 (("            if (owned && _action == 'x' && event.type == "
+                                 (("            if (owned && (_action == 'x' || _action == 'f') && event.type == "
                                    'SDL_MOUSEBUTTONDOWN)\n',
-                                   "            if (false && owned && _action == 'x' && event.type == "
+                                   "            if (owned && (false || _action == 'f') && event.type == "
                                    'SDL_MOUSEBUTTONDOWN)\n'),)),
  'synchronous-save-notice-ignored': ('src/Observer/StanceController.cpp',
                                      (('void StanceController::beforeSaveChange()\n'
                                        '{\n'
+                                       '#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD\n'
+                                       '    if (_inventoryUnloadDispatching) _inventoryUnloadUnexpected = true;\n'
+                                       '#endif\n'
                                        '#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK\n'
                                        '    if (_inventoryRightDispatching) _inventoryRightUnexpected = '
                                        'true;\n',
                                        'void StanceController::beforeSaveChange()\n'
                                        '{\n'
+                                       '#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD\n'
+                                       '    if (_inventoryUnloadDispatching) _inventoryUnloadUnexpected = true;\n'
+                                       '#endif\n'
                                        '#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK\n'
                                        '    // Synchronous save notification incorrectly ignored.\n'),))}
 

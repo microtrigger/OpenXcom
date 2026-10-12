@@ -17,6 +17,9 @@ struct InventoryClickGateAccess;
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
 struct InventoryRightClickGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+struct InventoryUnloadGateAccess;
+#endif
 namespace Observer {
 class StanceConfirmState;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
@@ -29,7 +32,7 @@ struct InventoryCloseContext {
     SavedBattleGame *save = 0;
     BattleUnit *actor = 0;
     std::uint64_t selectionRevision = 0, actorRevision = 0, uiRevision = 0;
-#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK)
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     std::uint64_t heldRevision = 0;
     int selectionX = 0, selectionY = 0;
 #endif
@@ -64,6 +67,9 @@ class StanceController {
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_RIGHT_CLICK_CONTROL_GATE
     friend struct ::OpenXcom::InventoryRightClickGateAccess;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    friend struct ::OpenXcom::InventoryUnloadGateAccess;
 #endif
     struct Command { std::string request, status; };
     Game *_game;
@@ -103,14 +109,17 @@ class StanceController {
     bool _inventoryRightDispatching, _inventoryRightPopped, _inventoryRightUnexpected;
     InventoryState *_inventoryRightOrigin;
 #endif
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK
-    // RIGHT overlay-owned input tails must survive retirement, state pop and disconnect.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD
+    bool _inventoryUnloadEnabled, _inventoryUnloadDispatching, _inventoryUnloadUnexpected;
+#endif
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
+    // Held-safe overlay-owned input tails must survive retirement, state pop and disconnect.
     std::uint8_t _inventoryConsumedButtons;
     bool _inventoryOwnedYRelease;
 #endif
-    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g/e/x: inventory open/close/Ground/left/right click.
+    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g/e/x/f: inventory open/close/Ground/left/right/Unload.
     bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K/H/U: close/Ground/left/right-only view.
+    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K/H/U/Q: close/Ground/left/right/Unload-only view.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
@@ -158,6 +167,7 @@ public:
     bool inventoryGroundRequest() const { return _action == 'g'; }
     bool inventoryClickRequest() const { return _action == 'e'; }
     bool inventoryRightClickRequest() const { return _action == 'x'; }
+    bool inventoryUnloadRequest() const { return _action == 'f'; }
     int targetX() const { return _targetX; }
     int targetY() const { return _targetY; }
 private:

@@ -17,6 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "State.h"
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+#include "../../tests/inventory-unload-control/InventoryUnloadControlGate.h"
+#include "../Battlescape/InventoryState.h"
+#endif
 #include <climits>
 #include "InteractiveSurface.h"
 #include "Game.h"
@@ -281,6 +285,10 @@ void State::think()
  */
 void State::handle(Action *action)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    InventoryState *unloadInventory = dynamic_cast<InventoryState *>(this);
+    if (unloadInventory) InventoryUnloadControlGate::inventoryUnloadEventEntered(unloadInventory, action);
+#endif
 	if (!_modal)
 	{
 		for (std::vector<Surface*>::reverse_iterator i = _surfaces.rbegin(); i != _surfaces.rend(); ++i)
@@ -294,6 +302,9 @@ void State::handle(Action *action)
 	{
 		_modal->handle(action, this);
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
+    if (unloadInventory) InventoryUnloadControlGate::inventoryUnloadEventReturned(unloadInventory, action);
+#endif
 }
 
 /**
