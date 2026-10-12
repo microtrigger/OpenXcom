@@ -46,6 +46,9 @@ class Map : public InteractiveSurface
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     friend struct InventoryCloseGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    friend struct InventoryGroundGateAccess;
+#endif
 private:
 	static const int SCROLL_INTERVAL = 15;
 	static const int BULLET_SPRITES = 35;

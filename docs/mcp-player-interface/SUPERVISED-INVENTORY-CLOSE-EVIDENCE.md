@@ -110,8 +110,11 @@ zero/ordinary TU, a loaded weapon, filled slots, paged ground, a primed grenade,
 and positive flare/terrain-FOV consequences. The gate uses actual ordinary input,
 normal game loops and an independent physical SDL display oracle.
 
-Semantic saved-world/runtime comparisons and engine/libc RNG snapshots accompany
-pixel checks. A manual result is observed through all eight naturally occurring
+Semantic saved-world/runtime comparisons and simulation RNG snapshots accompany
+pixel checks. The snapshot reads `RNG::getSeed()`; libc/seedless RNG state was not
+measured. The earlier wording incorrectly included libc RNG and is corrected
+here without changing the recorded runtime outcomes. A manual result is observed
+through all eight naturally occurring
 map-animation phases; C's full RGB frame must exactly equal an actual manual
 frame at the same phase. No pixel mask, synthetic reference rendering, forced
 timer advancement or animation-phase reset is used. **126 physical frames per

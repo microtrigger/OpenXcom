@@ -2,7 +2,7 @@
 
 ## Fair-Play MCP Interface Project
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing are bounded pilots. Inventory item manipulation remains manual; firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Individual item transfer, reload and prime operations remain manual; firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,
@@ -33,7 +33,7 @@ adds locally confirmed ordinary opening and a capless final inventory image. All
 14 native profiles pass in both games, including 12 opening pairs and 24 additional
 worlds; all 15 actual-source faults are detected in each. Real official-SDK →
 production-game opening/view/manual-close checks also pass in UFO and TFTD.
-Item manipulation remains manual; closing requires its separate opt-in below. See [opening evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-OPEN-EVIDENCE.md).
+Individual item transfer, reload and prime remain manual; closing and Ground require their separate opt-ins below. See [opening evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-OPEN-EVIDENCE.md).
 
 The separately enabled [ordinary inventory CLOSE pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLOSE-PILOT.md)
 adds a fresh J image/capability and locally confirmed C proposal. Its inventory-owned
@@ -45,6 +45,15 @@ All ten prior-control regression runs pass and default-OFF bytes remain unchange
 Seventeen of 18 source faults are detected in both games; the surviving single-guard
 mutation is explicitly documented.
 See [evidence, earlier fixture failures and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLOSE-EVIDENCE.md).
+
+The separate [ordinary Ground button slice](docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-PILOT.md)
+adds normal ground-slot/stack rearrangement and page cycling with a K-only grant,
+fresh local consent and mandatory capless I. Both games pass 42 native profiles,
+including 20 manual/G pairs each; actual SDK/production-game chains pass once
+per game. Source-fault evidence separates 50 initial runs from two targeted
+repeats and retains the surviving UI-generation guard. See
+[evidence, corrections and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-EVIDENCE.md).
+Individual item transfer, reloading and priming remain manual.
 
 The [combined official-SDK → production-game smoke](docs/mcp-player-interface/COMBINED-SDK-LIVE-EVIDENCE.md)
 now verifies selection, turn, actual movement, inventory opening/view and manual

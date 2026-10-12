@@ -860,5 +860,17 @@
     "Full Stage5, timing fairness, campaign/controller acceptance and token measurement remain open",
     "Operator consent/liveness attestations are separate from retained SDK evidence",
     "Original logs for some early build/setup errors were not retained"
-  ]
+  ],
+  "documentation_corrections": [
+    {
+      "date": "2026-10-12",
+      "claim": "CLOSE evidence formerly said engine/libc RNG snapshots",
+      "correction": "Only simulation RNG::getSeed snapshots were compared; libc/seedless RNG state was not measured.",
+      "runtime_outcomes_changed": false
+    }
+  ],
+  "rng_validation": {
+    "simulation_rng_equality_checked": true,
+    "libc_seedless_rng_equality_checked": false
+  }
 }

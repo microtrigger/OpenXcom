@@ -56,6 +56,11 @@ void InventoryCloseOverlay::setPalette(SDL_Color *colors, int first, int count)
 void InventoryCloseOverlay::show(StanceController *controller)
 {
     _controller = controller; _pressedChoice = 0;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
+    _text->setText(controller->inventoryGroundRequest() ?
+        "Ordinary inventory Ground.\nRearranges ground slots/stacks\nand cycles the ground page." :
+        "Ordinary inventory OK / close.\nNormal gravity, lighting and FOV.\nConfirm the soldier shown above.");
+#endif
     const std::vector<unsigned char> &pixels = controller->indices();
     clear();
     if (pixels.size() != 320 * 200) { _controller = 0; return; }

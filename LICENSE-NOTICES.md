@@ -4,14 +4,15 @@
 
 New contributions maintained in this fork add optional, default-off read-only
 HUD, final-pixel cursor and fixed-window final-mix audio observers, a local
-read-only stdio MCP adapter with optional transient presentation acknowledgements
+stdio MCP adapter (read-only by default) with optional transient presentation acknowledgements
 and native MCP audio content, a separately opted-in final-pixel displayed-HUD decoder, isolated render-pair and
 observer-request functional-effects gates, a diagnostic-isolation boundary,
 controlled smoke-density and full right-edge smoke-clipping render-equivalence
 gates with isolated negative-test patches, a default-off locally confirmed
 stance-control pilot, an independently opted-in locally confirmed next/previous
-unit-selection extension, opt-in ordinary map right-click and left-click pilots, a supervised inventory-open
-and capless inventory-view slice, and associated tests, build helpers,
+unit-selection extension, opt-in ordinary map right-click and left-click pilots,
+supervised inventory-open/close and capless inventory-view slices, a separately
+opted-in ordinary inventory Ground rearrangement/page-cycle slice, and associated tests, build helpers,
 documentation and evidence metadata.
 Existing upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
@@ -25,7 +26,8 @@ or, at your option, any later version, without warranty:
 - `tests/observer/`, `tests/cursor-observer/`, `tests/paired-observer/`,
   `tests/battle-observer/`, `tests/mixed-audio-native/` and
   `tests/diagnostic-isolation/`, `tests/stance-control/`, `tests/turn-control/`,
-  `tests/map-left-click-control/` and `tests/inventory-open-control/`
+  `tests/map-left-click-control/`, `tests/inventory-open-control/`,
+  `tests/inventory-close-control/` and `tests/inventory-ground-control/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)

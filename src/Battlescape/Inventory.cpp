@@ -20,6 +20,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
 #include "../../tests/inventory-close-control/InventoryCloseControlGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+#include "../../tests/inventory-ground-control/InventoryGroundControlGate.h"
+#endif
 #include <algorithm>
 #include <cmath>
 #include "../Mod/Mod.h"
@@ -861,6 +864,9 @@ void Inventory::arrangeGround(bool alterOffset)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     InventoryCloseControlGate::inventoryGroundArranged(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryGroundArranged(this);
 #endif
 	RuleInventory *ground = _game->getMod()->getInventory("STR_GROUND", true);
 

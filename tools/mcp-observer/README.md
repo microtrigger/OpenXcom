@@ -535,3 +535,36 @@ against separately sampled screenshots matched; two did not, and one initial UFO
 menu unavailability remains unexplained. These are bounded checks, not full-frame
 or simultaneous-screenshot equivalence, hidden-state timing parity, or controller
 acceptance. Raw screenshots and packets are not published.
+
+
+## Experimental ordinary inventory Ground
+
+This separately opted-in bounded slice is verified. See the
+[contract and current limits](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-PILOT.md).
+Build with default-OFF `EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND=ON` in addition
+to CLOSE and its prerequisites. Launch with the full explicit chain:
+
+```sh
+python launch_presentation.py --supervised-stance --supervised-turn --supervised-inventory --supervised-inventory-close --supervised-inventory-ground -- /absolute/path/openxcom
+```
+
+Inherited `OPENXCOM_INVENTORY_GROUND_ENABLED` is scrubbed; explicit activation
+sets literal `1`, and Ground without CLOSE is rejected. With Ground disabled,
+neither new tool is exposed. `read_inventory_ground_context({})` returns one
+canonical final 320×200 PNG and K-only capability; `request_inventory_ground`
+accepts only capability, control_epoch and command_id. K33 authorizes G97 only;
+J still authorizes C, and I remains capless. No page or item query is added.
+
+The local overlay asks permission for the actual ordinary Ground button, which
+rearranges ground slots/stacks and cycles the display page. It is not read-only
+scrolling. Only fresh local consent can dispatch the normal handler once.
+After explicit dispatched status, obtain `read_inventory_view` before another
+shared context or action. Lost inventory lifetime leaves that obligation
+unsatisfied; do not replay G to repair a failed image. Exact repeats only query
+status, and completed duplicates never rearm the mandatory I barrier.
+
+`test_supervised_inventory_ground.py` and `sdk_supervised_inventory_ground_smoke.py`
+cover strict client/launcher/transport contracts. Synthetic SDK fixtures do not
+establish actual game behavior. Separate [production-game/native evidence](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-EVIDENCE.md)
+records the bounded checks, original failures, source-fault limits and operator
+attestations; no model-token result is claimed.

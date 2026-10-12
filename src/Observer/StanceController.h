@@ -76,9 +76,12 @@ class StanceController {
     void retireCloseOverlay();
     bool closeParentCurrent() const;
 #endif
-    char _action; // k/s: stance, n/p: selection, r/l: ordinary map button, o/c: ordinary inventory open/close.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
+    bool _inventoryGroundEnabled;
+#endif
+    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g: inventory open/close/Ground.
     bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R/L/B; I: capless pixels; J: close-only view.
+    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K: close/Ground-only view.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
@@ -123,6 +126,7 @@ public:
     bool turnRequest() const { return _action == 'r'; }
     bool mapLeftClickRequest() const { return _action == 'l'; }
     bool inventoryOpenRequest() const { return _action == 'o'; }
+    bool inventoryGroundRequest() const { return _action == 'g'; }
     int targetX() const { return _targetX; }
     int targetY() const { return _targetY; }
 private:

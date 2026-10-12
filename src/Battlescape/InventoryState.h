@@ -53,6 +53,9 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     friend struct InventoryCloseGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    friend struct InventoryGroundGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
     Observer::InventoryCloseOverlay *_inventoryCloseOverlay = 0;
     std::uint64_t _inventoryUiRevision = 0;
@@ -62,6 +65,9 @@ private:
     bool showInventoryCloseOverlay(Observer::StanceController *controller);
     void dismissInventoryCloseOverlay();
     bool inventoryCloseOverlayActive() const;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
+    bool inventoryGroundControlVisible() const;
 #endif
 	Surface *_bg, *_soldier;
 	Text *_txtName, *_txtItem, *_txtAmmo, *_txtWeight, *_txtTus, *_txtFAcc, *_txtReact, *_txtPSkill, *_txtPStr;

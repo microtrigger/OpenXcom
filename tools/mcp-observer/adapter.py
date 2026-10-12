@@ -48,7 +48,7 @@ def error(ident, code, message):
 
 def definitions(presentation=False, presented_hud=False, mixed_audio=False, supervised_stance=False,
                 supervised_selection=False, supervised_turn=False, supervised_map_left_click=False,
-                supervised_inventory=False, supervised_inventory_close=False):
+                supervised_inventory=False, supervised_inventory_close=False, supervised_inventory_ground=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -199,6 +199,30 @@ def definitions(presentation=False, presented_hud=False, mixed_audio=False, supe
                              'required': ['capability', 'control_epoch', 'command_id'], 'additionalProperties': False},
                          'annotations': {'readOnlyHint': False, 'destructiveHint': True,
                                          'idempotentHint': True, 'openWorldHint': False}}])
+                    if supervised_inventory_ground is True:
+                        for tool in result:
+                            if tool['name'] in ('request_open_inventory', 'request_close_inventory'):
+                                tool['description'] = tool['description'].replace(' No item-manipulation tool is provided.', '').replace(' No item manipulation is provided.', '')
+                                tool['description'] += ' A separate fresh read_inventory_ground_context can authorize ordinary Ground, which rearranges ground slots/stacks and cycles the page.'
+                            elif tool['name'] == 'read_inventory_view':
+                                tool['description'] += ' This capless view also cannot authorize Ground. After dispatched Ground, this read is mandatory before another shared observation or action.'
+                            elif tool['name'] == 'read_stance_status':
+                                tool['description'] += ' This also reads request_inventory_ground receipts. After dispatched Ground, read_inventory_view is required first; duplicate receipts never replace or rearm that read.'
+                            elif tool['name'] in ('read_stance_context', 'read_tactical_context', 'read_inventory_close_context'):
+                                tool['description'] += ' This capability cannot authorize request_inventory_ground. A separate fresh read_inventory_ground_context is required; after dispatched Ground, read_inventory_view is required first.'
+                        result.extend([
+                            {'name': 'read_inventory_ground_context',
+                             'description': 'Read one actual 320x200 supported inventory presentation after this request as a lossless PNG and receive a one-use capability for ordinary inventory Ground only. This separate context retires the previous grant and cannot authorize OK/close or any other control. No item IDs, item collections, slots, actor IDs, page enumeration, hidden metadata or eligibility predictions. Existing read_inventory_view remains capless. Blocked while local confirmation or mandatory post-action verification is pending. Failed observation or uncertain transport closes control without retry or terminating the game.',
+                             'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
+                             'annotations': {'readOnlyHint': True, 'destructiveHint': False,
+                                             'idempotentHint': False, 'openWorldHint': False}},
+                            {'name': 'request_inventory_ground',
+                             'description': 'Experimental supervised pilot: ask the local in-place inventory UI to confirm ordinary Ground using a fresh read_inventory_ground_context capability. Ground rearranges ground slots/stacks and cycles the page through the ordinary game handler. Only a human using ordinary local game controls can approve. Exactly three opaque tokens; no model approval, action selector, coordinates, actor, item, page or preflight arguments. All controls share command IDs. pending_confirmation is not dispatch; dispatched means ordinary handler dispatch, never a successful rearrangement or a particular page. Poll read_stance_status, then obtain a fresh capless read_inventory_view before another shared observation or action. If that view is unavailable, stop for manual reconciliation; never replay Ground. An exact duplicate only queries status; conflicting command-ID reuse fails.',
+                             'inputSchema': {'type': 'object', 'properties': {
+                                 'capability': dict(opaque), 'control_epoch': dict(opaque), 'command_id': dict(opaque)},
+                                 'required': ['capability', 'control_epoch', 'command_id'], 'additionalProperties': False},
+                             'annotations': {'readOnlyHint': False, 'destructiveHint': True,
+                                             'idempotentHint': True, 'openWorldHint': False}}])
     return result
 
 
@@ -218,6 +242,8 @@ class Server:
             and getattr(supervised_stance, 'inventory_enabled', False) is True)
         self.supervised_inventory_close_enabled = (self.supervised_inventory_enabled
             and getattr(supervised_stance, 'inventory_close_enabled', False) is True)
+        self.supervised_inventory_ground_enabled = (self.supervised_inventory_close_enabled
+            and getattr(supervised_stance, 'inventory_ground_enabled', False) is True)
         self.presented_hud_enabled = presentation is not None and getattr(presentation, 'version', 1) == 2
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
@@ -259,7 +285,7 @@ class Server:
                                           self.mixed_audio is not None, self.supervised_stance is not None,
                                           self.supervised_selection_enabled, self.supervised_turn_enabled,
                                           self.supervised_map_left_click_enabled, self.supervised_inventory_enabled,
-                                          self.supervised_inventory_close_enabled)}
+                                          self.supervised_inventory_close_enabled, self.supervised_inventory_ground_enabled)}
         elif (method == 'tools/call' and self.supervised_stance is not None
                 and (params.get('name') in ('read_stance_context', 'request_stance', 'read_stance_status')
                      or (params.get('name') == 'request_selection' and self.supervised_selection_enabled)
@@ -270,10 +296,13 @@ class Server:
                      or (params.get('name') in ('request_open_inventory', 'read_inventory_view')
                          and self.supervised_inventory_enabled)
                      or (params.get('name') in ('request_close_inventory', 'read_inventory_close_context')
-                         and self.supervised_inventory_close_enabled))):
+                         and self.supervised_inventory_close_enabled)
+                     or (params.get('name') in ('request_inventory_ground', 'read_inventory_ground_context')
+                         and self.supervised_inventory_ground_enabled))):
             from supervised_stance import (token, validate_arguments, validate_selection_arguments,
                                            validate_turn_arguments, validate_map_left_click_arguments,
-                                           validate_open_inventory_arguments, validate_close_inventory_arguments)
+                                           validate_open_inventory_arguments, validate_close_inventory_arguments,
+                                           validate_inventory_ground_arguments)
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
             try:
@@ -291,6 +320,8 @@ class Server:
                     validate_open_inventory_arguments(arguments)
                 elif params['name'] == 'request_close_inventory':
                     validate_close_inventory_arguments(arguments)
+                elif params['name'] == 'request_inventory_ground':
+                    validate_inventory_ground_arguments(arguments)
                 elif params['name'] == 'read_stance_status':
                     exact(arguments, 'command_id'); token(arguments['command_id'])
                 else:
@@ -329,7 +360,7 @@ class Server:
     def stance(self, name, arguments):
         from supervised_stance import (PUBLIC_CONTEXT_SCHEMA, PUBLIC_TACTICAL_CONTEXT_SCHEMA,
                                        PUBLIC_STATUS_SCHEMA, PUBLIC_INVENTORY_VIEW_SCHEMA,
-                                       PUBLIC_INVENTORY_CLOSE_CONTEXT_SCHEMA,
+                                       PUBLIC_INVENTORY_CLOSE_CONTEXT_SCHEMA, PUBLIC_INVENTORY_GROUND_CONTEXT_SCHEMA,
                                        image_content, tactical_image_content)
         from snapshots import Unavailable
         try:
@@ -355,6 +386,13 @@ class Server:
                 meta['view'] = {'width': obj['view']['width'], 'height': obj['view']['height'],
                                 'format': 'image/png'}
                 image = tactical_image_content(rgb)
+            elif name == 'read_inventory_ground_context':
+                obj, rgb = self.supervised_stance.observe_inventory_ground()
+                meta = {k: obj[k] for k in ('challenge', 'control_epoch', 'capability', 'semantics')}
+                meta['schema'] = PUBLIC_INVENTORY_GROUND_CONTEXT_SCHEMA
+                meta['view'] = {'width': obj['view']['width'], 'height': obj['view']['height'],
+                                'format': 'image/png'}
+                image = tactical_image_content(rgb)
             elif name == 'read_inventory_view':
                 obj, rgb = self.supervised_stance.observe_inventory()
                 meta = {k: obj[k] for k in ('challenge', 'semantics')}
@@ -375,6 +413,8 @@ class Server:
                     obj = self.supervised_stance.request_open_inventory(**arguments)
                 elif name == 'request_close_inventory':
                     obj = self.supervised_stance.request_close_inventory(**arguments)
+                elif name == 'request_inventory_ground':
+                    obj = self.supervised_stance.request_inventory_ground(**arguments)
                 else:
                     obj = self.supervised_stance.read_status(**arguments)
                 meta = {'schema': PUBLIC_STATUS_SCHEMA, 'command_id': obj['command_id'],

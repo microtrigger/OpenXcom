@@ -27,6 +27,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
 #include "../../tests/inventory-close-control/InventoryCloseControlGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+#include "../../tests/inventory-ground-control/InventoryGroundControlGate.h"
+#endif
 #include <algorithm>
 #include "Inventory.h"
 #include "../Engine/Game.h"
@@ -245,6 +248,9 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent) : _tu(tu), _pa
     _inventoryCloseOverlay = new Observer::InventoryCloseOverlay(this, _game->getMod()->getInterface("battlescape"));
     add(_inventoryCloseOverlay);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryConstructed(this);
+#endif
 }
 
 static void _clearInventoryTemplate(std::vector<EquipmentLayoutItem*> &inventoryTemplate)
@@ -264,6 +270,9 @@ InventoryState::~InventoryState()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     InventoryCloseControlGate::inventoryDestroyed(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryDestroyed(this);
 #endif
 	_clearInventoryTemplate(_curInventoryTemplate);
 
@@ -397,6 +406,9 @@ void InventoryState::init()
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     InventoryCloseControlGate::inventoryInitialized(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryInitialized(this);
+#endif
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
     InventoryOpenControlGate::inventoryInitialized(this);
@@ -426,6 +438,9 @@ void InventoryState::blit()
 {
     State::blit();
     _game->getStanceController()->armInventory(this);
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryDisplayed(this);
+#endif
 }
 #endif
 
@@ -434,6 +449,16 @@ bool InventoryState::inventoryCloseOverlayActive() const
 {
     return _inventoryCloseOverlay && _modal == _inventoryCloseOverlay && _inventoryCloseOverlay->active();
 }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
+bool InventoryState::inventoryGroundControlVisible() const
+{
+    // This is the actual ordinary Ground button, including its upstream
+    // one-column right-edge clipping. Never inspect items, pages or offsets.
+    return _btnGround->turnContextVisible() && _btnGround->stanceContextVisible() &&
+        _btnGround->getX() == 289 && _btnGround->getY() == 137 &&
+        _btnGround->getWidth() == 32 && _btnGround->getHeight() == 15;
+}
+#endif
 bool InventoryState::inventoryCloseContext(Observer::InventoryCloseContext &context, bool overlay) const
 {
     // The exact inventory and immediate parent must still be alive before any
@@ -472,6 +497,9 @@ bool InventoryState::showInventoryCloseOverlay(Observer::StanceController *contr
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     InventoryCloseControlGate::closeOverlayShown(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::groundOverlayShown(this);
+#endif
     return true;
 }
 void InventoryState::dismissInventoryCloseOverlay()
@@ -480,6 +508,9 @@ void InventoryState::dismissInventoryCloseOverlay()
     const bool active = inventoryCloseOverlayActive();
     if (_modal == _inventoryCloseOverlay) setModal(0);
     _inventoryCloseOverlay->dismiss();
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    if (active) InventoryGroundControlGate::groundOverlayDismissed(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     if (active) InventoryCloseControlGate::closeOverlayDismissed(this);
 #else
@@ -579,6 +610,9 @@ void InventoryState::btnOkClick(Action *)
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     InventoryCloseControlGate::inventoryCloseEntered(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryCloseEntered(this);
+#endif
 	if (_inv->getSelectedItem() != 0)
 		return;
 	_game->popState();
@@ -675,6 +709,9 @@ void InventoryState::btnUnloadClick(Action *)
  */
 void InventoryState::btnGroundClick(Action *)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
+    InventoryGroundControlGate::inventoryGroundEntered(this);
+#endif
 	_inv->arrangeGround();
 }
 

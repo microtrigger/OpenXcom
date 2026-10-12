@@ -67,8 +67,8 @@ MUTATIONS = {
         '        _inv->getSelectedItem()) return false;\n',
         '        false) return false;\n'),
     'wire-J-pixel': (CONTROLLER,
-        '        const std::string schema = closeView ? "experimental-inventory-close-context/1" : "experimental-tactical-context/1";\n',
-        '        if (closeView) indicesHex[1] = indicesHex[1] == \'0\' ? \'1\' : \'0\';\n        const std::string schema = closeView ? "experimental-inventory-close-context/1" : "experimental-tactical-context/1";\n'),
+        '        std::string schema = closeView ? "experimental-inventory-close-context/1" : "experimental-tactical-context/1";\n',
+        '        if (_contextKind == \'J\') indicesHex[1] = indicesHex[1] == \'0\' ? \'1\' : \'0\';\n        std::string schema = closeView ? "experimental-inventory-close-context/1" : "experimental-tactical-context/1";\n'),
 }
 EXTRA_EDITS = {
     'unseen-overlay': (

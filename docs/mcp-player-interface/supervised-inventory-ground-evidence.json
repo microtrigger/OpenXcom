@@ -1,0 +1,1344 @@
+{
+  "schema": "supervised-inventory-ground-evidence/1",
+  "date": "2026-10-12",
+  "source_baseline": "0d87e15b329a20279eb3a5060dfba72367743192",
+  "scope": "default-off locally confirmed ordinary Ground button; rearranges slots/stacks and cycles page; K only G; mandatory surviving-inventory I",
+  "full_fairness": false,
+  "full_controller_acceptance": false,
+  "model_or_token_benchmark_run": false,
+  "source_sha256": {
+    "CMakeLists.txt": "41850415cbbab2936df1e475fb1c945a3b25e47e3adc655fef5e87ad832231b5",
+    "src/Battlescape/Inventory.cpp": "982c65517b5418991d75629afe2328317319003c380380259bcf6863b3c61bf3",
+    "src/Battlescape/Inventory.h": "8ccfe6924b4d6525cb851de00c37e9a18fabeaee56eeae59fe1d6a5250feacfc",
+    "src/Battlescape/InventoryState.cpp": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+    "src/Battlescape/InventoryState.h": "9568cf7e7108115db34ee804e95fe62fa7e5a9c3de1432b4bc6245e4dd9bf087",
+    "src/Battlescape/Map.h": "6229c7dabd90af10cca2e7390ebe52fffcb5f099b65cca1b0a30b1832e180445",
+    "src/CMakeLists.txt": "5fa1e85f498c35a2b2eae18a59503a7e10fc1d9fb626b38a528775a8ed705597",
+    "src/Engine/Game.h": "56a8fb43515ddd2ebee46193669d493199ef132a23525e39999876cbc231e104",
+    "src/Observer/InventoryCloseOverlay.cpp": "69da034ace0dd2e0021dc96c8df36d0daade0386d936f07d0e36f681d7017402",
+    "src/Observer/StanceController.cpp": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+    "src/Observer/StanceController.h": "ea62529222cdcceca6c0f989dc1f5f4f175c9a2332611332ec4335f4327a44d5",
+    "tests/inventory-close-control/make-inventory-close-mutant.py": "bbdece41aace040ae7e02ec45653da418f304595f554c402f8cef6cf56c2bfa6",
+    "tests/inventory-ground-control/.gitignore": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+    "tests/inventory-ground-control/InventoryGroundControlGate.cpp": "15109b1dcefc79185817c880c11834f1210b58c1062d3792416ef2c94d23b329",
+    "tests/inventory-ground-control/InventoryGroundControlGate.h": "ae6fa677bc887b20c74bebbc1a0c59b19da3417902dd2790102a4f61f7f34252",
+    "tests/inventory-ground-control/make-inventory-ground-mutant.py": "9fc0ab15864fe754b234e195c9585b73985e4a9bca2e54a8f9557fc04f2e932f",
+    "tests/inventory-ground-control/run-inventory-ground-control.py": "76601a403cb50389808751fd4906ccb13e18498c4f6bd4b7b86f9292da563a9f",
+    "tests/inventory-ground-control/test_inventory_ground_mutants.py": "28a382aa83e0c1fe6c5ade9f48d6190b9d1bdd533876bcf45b041e2136f706ec",
+    "tests/inventory-ground-control/test_inventory_ground_wrapper.py": "cc83e008f604d3a8f5b4fd5ae7013a49835d0e68aeec552c52c8cac8e379290c",
+    "tests/stance-control/StanceControlGate.cpp": "30d7a586854adad1b3331b561a114a2f3abe620c83e6102460b8a5675284ef38",
+    "tools/mcp-observer/adapter.py": "58041a9f654a229702f1104530fa348d1651a3c3067b89c43118cb664f38d455",
+    "tools/mcp-observer/launch_presentation.py": "d756495a14f548697c3c29d873747dbece8241344050f8ccaee74a0727ace42c",
+    "tools/mcp-observer/sdk_supervised_inventory_ground_smoke.py": "0a2230025a8f231b5d576e75c9058bee1d29e35c7ed00a95281a8babc8789356",
+    "tools/mcp-observer/supervised_stance.py": "8103023b6cad913e4044cc66adc0c8ecff71298ec693843b88c6b66cb92c9d57",
+    "tools/mcp-observer/test_supervised_inventory_ground.py": "1e9364c2af5fcf7bd1318c8067eedd1a90ba3f9ec4cc8553688104b72050f836",
+    "tools/mcp-observer/test_supervised_stance.py": "484e2bfc17820c15b46cfa20284a1526a80bcb84ab977e716b47b5dc0451a3c1"
+  },
+  "binaries": {
+    "production_nongate": "30b740cc89faa9a5adebe34f9501e628bde38c863ebc0a064c3824970284129f",
+    "native_gate": "2bf90b25847495aee6651b91eadc6afa401b78a5acb93bc676593683bfabf49b",
+    "prior_control_regression": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+    "default_off": "5f9dd82f5ff0af34146da6602f0ca27ff307dfa319209ccdda26b7a43c446056",
+    "close_only_ground_off": "7713ef992cd71ce356cd6daa8c3a621be153cb1457f716b5c943dea921f90650"
+  },
+  "python": {
+    "normal": {
+      "run": 462,
+      "passed": 460,
+      "expected_native_only_skips": 2
+    },
+    "optimized": {
+      "run": 462,
+      "passed": 460,
+      "expected_native_only_skips": 2
+    },
+    "ground_focused_per_mode": 36,
+    "ground_native_pure_per_mode": 28,
+    "close_native_pure_per_mode": 28,
+    "ground_sdk_synthetic_modes": [
+      "normal",
+      "optimized"
+    ],
+    "prior_sdk_synthetic_smokes_normal": 8
+  },
+  "rng_validation": {
+    "simulation_rng_snapshot_compared": true,
+    "libc_or_seedless_rng_state_compared": false,
+    "seeding_libc_is_not_a_state_measurement": true
+  },
+  "native_final": {
+    "executions": 84,
+    "passed": 84,
+    "profiles_per_master": 42,
+    "masters": [
+      "xcom1",
+      "xcom2"
+    ],
+    "binary_sha256": "2bf90b25847495aee6651b91eadc6afa401b78a5acb93bc676593683bfabf49b",
+    "profiles": [
+      "core",
+      "cancel-page",
+      "cancel-layout",
+      "overlay-input",
+      "input-x2",
+      "input-wheel",
+      "input-hotkey",
+      "input-outside",
+      "input-modifier",
+      "held-item",
+      "stale-input",
+      "stale-actor",
+      "stale-reinit",
+      "focus",
+      "display",
+      "overlay",
+      "lifetime",
+      "reopen",
+      "save",
+      "parent",
+      "unseen",
+      "held-y",
+      "held-mouse",
+      "timeout",
+      "capability-timeout",
+      "disconnect",
+      "ledger",
+      "ledger-limit",
+      "disabled",
+      "close-disabled",
+      "nontu",
+      "debug",
+      "palette",
+      "capless-I",
+      "cross-kind",
+      "hidden-button",
+      "moved-button",
+      "hidden-after-context",
+      "held-after-context",
+      "held-confirm",
+      "duplicate-pending",
+      "failed-I"
+    ],
+    "manual_G_pairs_per_master": 20,
+    "independent_worlds_per_master": 40,
+    "physical_frames_per_master": 180,
+    "exact_same_phase_whole_frame_matches_total": 40,
+    "simulation_rng_only": true,
+    "libc_state_compared": false,
+    "actual_consent_expiry_per_master": true,
+    "actual_capability_expiry_per_master": true,
+    "each_expiry_wait_ms": 120100,
+    "forced_redraw_or_timer_freeze_or_masks": false,
+    "initial_I_pre_request_preservation": true,
+    "runtime_transport_send_failure_tested": false,
+    "failed_or_refused_I_observation_tested": true
+  },
+  "sensitivity_final": {
+    "distinct_fault_recipes": 25,
+    "recipes_detected_in_both_games_across_separate_panels": 24,
+    "initial_runs": 50,
+    "separately_predeclared_targeted_runs": 2,
+    "initial_wrong_handler_inconclusive_reclassified": false,
+    "stale_reinit_surviving_runs": 2,
+    "individual_ui_generation_guard_sensitivity_established": false,
+    "stale_reinit_explanation": "source-based redundant ordinary SDL_WarpMouse input invalidation; no new causal isolation experiment",
+    "all_detected": false,
+    "crash_timeout_or_compile_failure_counts_as_detection": false
+  },
+  "regressions_final": {
+    "controls": [
+      "selection",
+      "stance",
+      "turn",
+      "map-left-click",
+      "inventory-open",
+      "inventory-close"
+    ],
+    "masters": [
+      "xcom1",
+      "xcom2"
+    ],
+    "each_control_has_passing_result_in_both_games": true,
+    "initial_runner_passed": 11,
+    "initial_runner_invocations": 12,
+    "initial_close_UFO_watchdog_inconclusive": true,
+    "initial_watchdog_cause": "not established; existing wrapper did not retain child diagnostics or failed profile",
+    "isolated_close_core_both_passed": true,
+    "isolated_close_core_physical_frames_audited": 252,
+    "isolated_close_core_exact_parity_pairs_audited": 28,
+    "subsequent_UFO_close_full_profiles": 34,
+    "subsequent_UFO_close_full_passed": 34,
+    "source_or_watchdog_limits_changed": false,
+    "first_failure_not_relabelled_as_pass": true
+  },
+  "sdk_live": {
+    "tool_sequence": [
+      "V",
+      "B",
+      "S",
+      "I",
+      "K",
+      "G",
+      "S",
+      "I",
+      "J",
+      "C",
+      "S",
+      "V",
+      "stop"
+    ],
+    "sdk_version": "1.29.0",
+    "protocol": "2025-11-25",
+    "driver_sha256": "c0251921a3f97a0c74991600e84e2e41315829ffabf64f10612727e1c081afb5",
+    "unchanged_nonterminating_transport_sha256": "c227c13f8e78796a197f949a3d391439d83c375c2995dec163299be0c77e0997",
+    "driver_pure_tests_per_mode": 50,
+    "tool_calls": 24,
+    "pngs": 12,
+    "stop_receipts": 2,
+    "failed_tool_calls": 0,
+    "action_retries": 0,
+    "local_consent": "operator_attested",
+    "post_EOF_liveness": "operator_attested; fresh desktop view, no separate retained capture",
+    "identity": "native enforced; not independently established by SDK fields",
+    "receipt_and_png_audit": [
+      {
+        "master": "xcom1",
+        "tool_calls": 12,
+        "stop_receipts": 1,
+        "images": [
+          {
+            "sequence": 1,
+            "tool": "read_tactical_context",
+            "sha256": "b88bc70ebb768d7cc4eced65dc911bc6f5a04f96c77cc6da67a497222523a71a",
+            "bytes": 10981
+          },
+          {
+            "sequence": 4,
+            "tool": "read_inventory_view",
+            "sha256": "079caa50cd5b690d0029bb8c1d01b2e89cb6704fc5a0c307e9a9b92823dd0268",
+            "bytes": 6592
+          },
+          {
+            "sequence": 5,
+            "tool": "read_inventory_ground_context",
+            "sha256": "f2f8d25c42a5bd67aa02719eef46cc81b2b986180e75236ecdb6fe4175de7617",
+            "bytes": 6587
+          },
+          {
+            "sequence": 8,
+            "tool": "read_inventory_view",
+            "sha256": "079caa50cd5b690d0029bb8c1d01b2e89cb6704fc5a0c307e9a9b92823dd0268",
+            "bytes": 6592
+          },
+          {
+            "sequence": 9,
+            "tool": "read_inventory_close_context",
+            "sha256": "079caa50cd5b690d0029bb8c1d01b2e89cb6704fc5a0c307e9a9b92823dd0268",
+            "bytes": 6592
+          },
+          {
+            "sequence": 12,
+            "tool": "read_tactical_context",
+            "sha256": "b88bc70ebb768d7cc4eced65dc911bc6f5a04f96c77cc6da67a497222523a71a",
+            "bytes": 10981
+          }
+        ],
+        "K_differs_postG_I": true,
+        "postG_I_equals_pre_setup_I_and_close_J": true,
+        "all_receipts_ok": true,
+        "visual_review": "separate operator record; this audit checks files only"
+      },
+      {
+        "master": "xcom2",
+        "tool_calls": 12,
+        "stop_receipts": 1,
+        "images": [
+          {
+            "sequence": 1,
+            "tool": "read_tactical_context",
+            "sha256": "480d7bf1608824fbb119959e52fb2b07143b98adfa2754ba532dc92f7af5789f",
+            "bytes": 13256
+          },
+          {
+            "sequence": 4,
+            "tool": "read_inventory_view",
+            "sha256": "5d524d3ab305e5e465fad838af4ef37f37185cf6d3ad959f78f388b9b8532d8a",
+            "bytes": 8253
+          },
+          {
+            "sequence": 5,
+            "tool": "read_inventory_ground_context",
+            "sha256": "0d1763987398d04b64f2472050acd942456e7fbc646682491126604c7b81aa61",
+            "bytes": 8263
+          },
+          {
+            "sequence": 8,
+            "tool": "read_inventory_view",
+            "sha256": "5d524d3ab305e5e465fad838af4ef37f37185cf6d3ad959f78f388b9b8532d8a",
+            "bytes": 8253
+          },
+          {
+            "sequence": 9,
+            "tool": "read_inventory_close_context",
+            "sha256": "5d524d3ab305e5e465fad838af4ef37f37185cf6d3ad959f78f388b9b8532d8a",
+            "bytes": 8253
+          },
+          {
+            "sequence": 12,
+            "tool": "read_tactical_context",
+            "sha256": "05400930e5744ec0f6a634d74b73ef4a59b986d031bf5232184348bd44a60224",
+            "bytes": 13372
+          }
+        ],
+        "K_differs_postG_I": true,
+        "postG_I_equals_pre_setup_I_and_close_J": true,
+        "all_receipts_ok": true,
+        "visual_review": "separate operator record; this audit checks files only"
+      }
+    ],
+    "sessions": [
+      {
+        "master": "xcom1",
+        "scenario": "normal-ground",
+        "outcome": "full chain passed first attempt",
+        "visible_soldier": "Martina Bauer",
+        "visible_TU_before_after": 58,
+        "visible_scene": "ordinary Skyranger on farm map",
+        "setup": "normal New Battle/deployment; after mandatory opening I, ordinary local pick/place moved visible Electro-Flare from first ground slot to later empty slot; no save editing/native fixture",
+        "input_between_K_and_G": "none",
+        "input_between_J_and_C": "none",
+        "ground_result_visually_verified": "post-G I shows visible flare repacked to first ground slot; TU58 unchanged",
+        "close_verified_visually": true
+      },
+      {
+        "master": "xcom2",
+        "scenario": "normal-ground",
+        "outcome": "full chain passed first attempt",
+        "visible_soldier": "Atte Aaltonen",
+        "visible_TU_before_after": 58,
+        "visible_scene": "ordinary Triton on Atlantis underwater map",
+        "setup": "normal New Battle/deployment; after mandatory opening I, ordinary local pick/place moved visible Chemical-Flare from first ground slot to later empty slot; no save editing/native fixture",
+        "input_between_K_and_G": "none",
+        "input_between_J_and_C": "none",
+        "ground_result_visually_verified": "post-G I shows visible Chemical-Flare repacked to first ground slot; TU58 unchanged",
+        "close_verified_visually": true
+      }
+    ],
+    "setup_and_input_chronology": "operator_attested; no retained event trace"
+  },
+  "prior_evidence_correction": {
+    "report": "SUPERVISED-INVENTORY-CLOSE-EVIDENCE.md",
+    "previous_claim": "engine/libc RNG snapshots",
+    "corrected_claim": "simulation RNG snapshots only; libc/seedless state unmeasured",
+    "historical_outcomes_and_source_hashes_unchanged": true,
+    "new_causal_experiment": false
+  },
+  "build_isolation": {
+    "default_off_experimental_options": 23,
+    "default_off_identical_to_frozen_predecessor": true,
+    "default_off_ground_strings_absent": true,
+    "close_only_ground_off_build_passed": true,
+    "close_only_ground_strings_absent": true,
+    "close_only_byte_identity_claim": false,
+    "invalid_prerequisites_rejected": true,
+    "production_all_test_gates_disabled": true,
+    "regression_ground_compiled_in": true,
+    "prior_wrappers_ground_runtime_enabled": false
+  },
+  "native_attempts": [
+    {
+      "attempt": "attempt1-focused",
+      "executions": 16,
+      "passed": 16,
+      "failed": 0,
+      "binary_sha256": "c17094750f84835df184c82ba4c57387a59eccf8639dd6ab05cfd1e9b19ae975",
+      "failure_labels": [],
+      "raw_outcomes_retained": true,
+      "independent_pixel_audit": {
+        "retained_frames": 360,
+        "whole_frame_parity_pairs": 40,
+        "passed": true
+      }
+    },
+    {
+      "attempt": "attempt2-full",
+      "executions": 84,
+      "passed": 82,
+      "failed": 2,
+      "binary_sha256": "c17094750f84835df184c82ba4c57387a59eccf8639dd6ab05cfd1e9b19ae975",
+      "failure_labels": [
+        {
+          "master": "xcom1",
+          "profile": "overlay",
+          "label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-461"
+        },
+        {
+          "master": "xcom2",
+          "profile": "overlay",
+          "label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-461"
+        }
+      ],
+      "raw_outcomes_retained": true,
+      "independent_pixel_audit": {
+        "retained_frames": 360,
+        "whole_frame_parity_pairs": 40,
+        "passed": true
+      }
+    },
+    {
+      "attempt": "attempt3-focused",
+      "executions": 4,
+      "passed": 4,
+      "failed": 0,
+      "binary_sha256": "2bf90b25847495aee6651b91eadc6afa401b78a5acb93bc676593683bfabf49b",
+      "profiles": [
+        "overlay",
+        "cancel-layout"
+      ],
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "raw_outcomes_retained": true
+    }
+  ],
+  "oracle_revision": {
+    "production_changed": false,
+    "overlay_attribution": "cancel before test pop; one normal init/arrange after pop",
+    "initial_I_preservation": "snapshot before request, not after response",
+    "new_fault_predeclared_before_runtime": "initial-I-side-effect",
+    "earlier_24_mutant_binaries_executed": false,
+    "current_mutations_predeclared": 25,
+    "gate_sha256": "15109b1dcefc79185817c880c11834f1210b58c1062d3792416ef2c94d23b329"
+  },
+  "regression_attempts": [
+    {
+      "attempt": "initial aggregate runner",
+      "invocations": 12,
+      "passed": 11,
+      "failed": 1,
+      "failure": {
+        "master": "xcom1",
+        "gate": "inventory-close",
+        "label": "INVENTORY_CLOSE_CONTROL_GATE FAIL assertion-395",
+        "classification": "watchdog; inconclusive",
+        "child_diagnostics_retained": false,
+        "aggregate_outcome_retained": true
+      },
+      "xcom2_close_profiles_passed": 34
+    }
+  ],
+  "independent_reviews": {
+    "native_contract_and_oracles": "read-only source review; no remaining blocker",
+    "final_core_retained_files": {
+      "masters": [
+        "xcom1",
+        "xcom2"
+      ],
+      "physical_frames": 360,
+      "exact_same_phase_whole_frame_pairs": 40,
+      "manual_ticks": "0-7, one natural sequential inventory phase cycle1-8",
+      "hash_shapes_and_frame_records_verified": true
+    },
+    "draft_evidence": "read-only source, completed-fact and hash review; precision fixes applied",
+    "SDK_receipts_and_images": "read-only receipt/file audit; visual/local action chronology remain operator attestations",
+    "targeted_repeat": {
+      "executions": 2,
+      "exact_signature_detections": 2,
+      "physical_frames": 16,
+      "original_panel_files_unchanged": 580,
+      "plan_driver_binary_dependency_bindings_verified": true
+    }
+  },
+  "source_fault_initial_panel": {
+    "executions": 50,
+    "actual_source_recipes": 25,
+    "detected_at_predeclared_assertion": 46,
+    "survived": 2,
+    "inconclusive": 2,
+    "all_detected": false,
+    "plan_sha256": "765198ae4d8c67741fd79d69120c40579ccacf58e38948ca28f42fe9a0fb10d1",
+    "gate_sha256": "15109b1dcefc79185817c880c11834f1210b58c1062d3792416ef2c94d23b329",
+    "baseline_binary_sha256": "2bf90b25847495aee6651b91eadc6afa401b78a5acb93bc676593683bfabf49b",
+    "source_and_dependency_freeze_verified": true,
+    "independently_verified_retained_fault_PPMs": 458,
+    "runs": [
+      {
+        "kind": "cancel-arrange",
+        "master": "xcom1",
+        "profile": "cancel-page",
+        "outcome": "detected",
+        "expected_assertions": [
+          454,
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "ef117e01c63808ca51a087ee134615d65f320a55e6b4dddad2af0655adf6fa70",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "cancel-arrange",
+        "master": "xcom2",
+        "profile": "cancel-page",
+        "outcome": "detected",
+        "expected_assertions": [
+          454,
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "ef117e01c63808ca51a087ee134615d65f320a55e6b4dddad2af0655adf6fa70",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "cancel-init",
+        "master": "xcom1",
+        "profile": "cancel-page",
+        "outcome": "detected",
+        "expected_assertions": [
+          454,
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "85a82b2491e810d7d4e1d6667d22c7030102ce0e5162fc468a465c26788fee9d",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "cancel-init",
+        "master": "xcom2",
+        "profile": "cancel-page",
+        "outcome": "detected",
+        "expected_assertions": [
+          454,
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "85a82b2491e810d7d4e1d6667d22c7030102ce0e5162fc468a465c26788fee9d",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "capless-I-authority",
+        "master": "xcom1",
+        "profile": "disabled",
+        "outcome": "detected",
+        "expected_assertions": [
+          229
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-229",
+        "binary_sha256": "41adf5f647685feea78c0a214fa4a25a31f4b2fc9274861160dc529f38a964c2",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "capless-I-authority",
+        "master": "xcom2",
+        "profile": "disabled",
+        "outcome": "detected",
+        "expected_assertions": [
+          229
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-229",
+        "binary_sha256": "41adf5f647685feea78c0a214fa4a25a31f4b2fc9274861160dc529f38a964c2",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "dismiss-clickthrough",
+        "master": "xcom1",
+        "profile": "input-x2",
+        "outcome": "detected",
+        "expected_assertions": [
+          454,
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "b1c0ec1551c032907906e3589cfae9f6cf1c1a1bc9a4501a85f96deb23e726ba",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "dismiss-clickthrough",
+        "master": "xcom2",
+        "profile": "input-x2",
+        "outcome": "detected",
+        "expected_assertions": [
+          454,
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "b1c0ec1551c032907906e3589cfae9f6cf1c1a1bc9a4501a85f96deb23e726ba",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "duplicate-ground",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          609
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-609",
+        "binary_sha256": "136b5c36d0bfe25db38635793b104b86a7125ebcdeecf32dacc031094bcb513d",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "duplicate-ground",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          609
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-609",
+        "binary_sha256": "136b5c36d0bfe25db38635793b104b86a7125ebcdeecf32dacc031094bcb513d",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "exact-full-page-boundary",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          287
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-287",
+        "binary_sha256": "33e0803e533c5d24af22f775a8167a6388c85545729c85a813fedc264b40aa9b",
+        "retained_frame_count": 45
+      },
+      {
+        "kind": "exact-full-page-boundary",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          287
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-287",
+        "binary_sha256": "33e0803e533c5d24af22f775a8167a6388c85545729c85a813fedc264b40aa9b",
+        "retained_frame_count": 45
+      },
+      {
+        "kind": "failed-I-barrier-bypass",
+        "master": "xcom1",
+        "profile": "failed-I",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "25b88e03935f5b900b863469d1e5c2a518c37b45842737275c8b784c3112cffd",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "failed-I-barrier-bypass",
+        "master": "xcom2",
+        "profile": "failed-I",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "25b88e03935f5b900b863469d1e5c2a518c37b45842737275c8b784c3112cffd",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-TU-charge",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          284
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-284",
+        "binary_sha256": "4196147f550e90884c203ce4a83edc3fb9d2ef6d626d6e68f026472fc78cbec8",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-TU-charge",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          284
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-284",
+        "binary_sha256": "4196147f550e90884c203ce4a83edc3fb9d2ef6d626d6e68f026472fc78cbec8",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-barrier-bypass",
+        "master": "xcom1",
+        "profile": "ledger",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "467ae8d350a4782276c52d5f1964636c893c169eb9fd9a50159005802d5df7ca",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-barrier-bypass",
+        "master": "xcom2",
+        "profile": "ledger",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "467ae8d350a4782276c52d5f1964636c893c169eb9fd9a50159005802d5df7ca",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-kind-confusion",
+        "master": "xcom1",
+        "profile": "cross-kind",
+        "outcome": "detected",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-198",
+        "binary_sha256": "1d9755b8142937c4561cb514a9537dd6ed16df4ca3b62c1903370a8fbd35e992",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-kind-confusion",
+        "master": "xcom2",
+        "profile": "cross-kind",
+        "outcome": "detected",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-198",
+        "binary_sha256": "1d9755b8142937c4561cb514a9537dd6ed16df4ca3b62c1903370a8fbd35e992",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-no-page-change",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          287
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-287",
+        "binary_sha256": "b46a7f00b5285ada951908964a24cd7721ff7ab65a20e541f6cf649edece8ed6",
+        "retained_frame_count": 27
+      },
+      {
+        "kind": "ground-no-page-change",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          287
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-287",
+        "binary_sha256": "b46a7f00b5285ada951908964a24cd7721ff7ab65a20e541f6cf649edece8ed6",
+        "retained_frame_count": 27
+      },
+      {
+        "kind": "ground-stack-cache",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          290
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-290",
+        "binary_sha256": "76b220c3383af202cf74d76757372f07e215cd9cfd64c8bdf3e8b4a3388c40ea",
+        "retained_frame_count": 54
+      },
+      {
+        "kind": "ground-stack-cache",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          290
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-290",
+        "binary_sha256": "76b220c3383af202cf74d76757372f07e215cd9cfd64c8bdf3e8b4a3388c40ea",
+        "retained_frame_count": 54
+      },
+      {
+        "kind": "ground-visibility-bypass",
+        "master": "xcom1",
+        "profile": "hidden-button",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "2d1a6972edc837636ac83f958ffe0c304df2758b3d805a8e037ca1ca73989fb2",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-visibility-bypass",
+        "master": "xcom2",
+        "profile": "hidden-button",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "2d1a6972edc837636ac83f958ffe0c304df2758b3d805a8e037ca1ca73989fb2",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "ground-zero-TU-refusal",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          230
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-230",
+        "binary_sha256": "92053507450ea44fec85002026987b018ea496706020acea9a08685f8fa48b46",
+        "retained_frame_count": 71
+      },
+      {
+        "kind": "ground-zero-TU-refusal",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          230
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-230",
+        "binary_sha256": "92053507450ea44fec85002026987b018ea496706020acea9a08685f8fa48b46",
+        "retained_frame_count": 71
+      },
+      {
+        "kind": "held-item-grant",
+        "master": "xcom1",
+        "profile": "held-item",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "6f08ad5bc0e8b8cd1eb2f9f9c53a720fe9da1e2025cebf3b6c1021fc55ba9365",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "held-item-grant",
+        "master": "xcom2",
+        "profile": "held-item",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "6f08ad5bc0e8b8cd1eb2f9f9c53a720fe9da1e2025cebf3b6c1021fc55ba9365",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "id-conflict-bypass",
+        "master": "xcom1",
+        "profile": "ledger",
+        "outcome": "detected",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-198",
+        "binary_sha256": "80a89e279e3ade2bef633ef84b47d96ac5aa2a59293c449c1333cbb0f709f67f",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "id-conflict-bypass",
+        "master": "xcom2",
+        "profile": "ledger",
+        "outcome": "detected",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-198",
+        "binary_sha256": "80a89e279e3ade2bef633ef84b47d96ac5aa2a59293c449c1333cbb0f709f67f",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "initial-I-side-effect",
+        "master": "xcom1",
+        "profile": "cancel-layout",
+        "outcome": "detected",
+        "expected_assertions": [
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-268",
+        "binary_sha256": "757233786e19a78a4eafde7d457da14d6f87b77f92c9095fddc41c61ef1be452",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "initial-I-side-effect",
+        "master": "xcom2",
+        "profile": "cancel-layout",
+        "outcome": "detected",
+        "expected_assertions": [
+          268
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-268",
+        "binary_sha256": "757233786e19a78a4eafde7d457da14d6f87b77f92c9095fddc41c61ef1be452",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "lost-barrier-bypass",
+        "master": "xcom1",
+        "profile": "reopen",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "4f36bdc97d11d3957c2e5e13a5b469d15244688c87b2564be4d8c2b9d0561a83",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "lost-barrier-bypass",
+        "master": "xcom2",
+        "profile": "reopen",
+        "outcome": "detected",
+        "expected_assertions": [
+          195
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-195",
+        "binary_sha256": "4f36bdc97d11d3957c2e5e13a5b469d15244688c87b2564be4d8c2b9d0561a83",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "missing-ground",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          282
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-282",
+        "binary_sha256": "0c20bbf9361fcb2ac4273a2e39646d4df93f52b75b6e49f85d7e83209b9a9a26",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "missing-ground",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          282
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-282",
+        "binary_sha256": "0c20bbf9361fcb2ac4273a2e39646d4df93f52b75b6e49f85d7e83209b9a9a26",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "missing-overlay-blit",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          560
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-560",
+        "binary_sha256": "a775175ea040babe330ffacf40f7c2f6c23dda70794ffd89dfb009cb7f579b4b",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "missing-overlay-blit",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "detected",
+        "expected_assertions": [
+          560
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-560",
+        "binary_sha256": "a775175ea040babe330ffacf40f7c2f6c23dda70794ffd89dfb009cb7f579b4b",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "stale-actor",
+        "master": "xcom1",
+        "profile": "stale-actor",
+        "outcome": "detected",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-198",
+        "binary_sha256": "8b1d387fa937931e72c6196f6a4d055b1904b2fd1e838be43ab279cc6533bab5",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "stale-actor",
+        "master": "xcom2",
+        "profile": "stale-actor",
+        "outcome": "detected",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-198",
+        "binary_sha256": "8b1d387fa937931e72c6196f6a4d055b1904b2fd1e838be43ab279cc6533bab5",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "stale-reinit",
+        "master": "xcom1",
+        "profile": "stale-reinit",
+        "outcome": "survived",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": null,
+        "binary_sha256": "9890533532ccd0442051600078a920c317a1024d88c7124e171f98c44423a089",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "stale-reinit",
+        "master": "xcom2",
+        "profile": "stale-reinit",
+        "outcome": "survived",
+        "expected_assertions": [
+          198
+        ],
+        "observed_label": null,
+        "binary_sha256": "9890533532ccd0442051600078a920c317a1024d88c7124e171f98c44423a089",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "unseen-overlay",
+        "master": "xcom1",
+        "profile": "unseen",
+        "outcome": "detected",
+        "expected_assertions": [
+          454
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "2de396d432ece0199a767a1456a64302e70430fb86aeacd7f9a461dc12a32916",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "unseen-overlay",
+        "master": "xcom2",
+        "profile": "unseen",
+        "outcome": "detected",
+        "expected_assertions": [
+          454
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-454",
+        "binary_sha256": "2de396d432ece0199a767a1456a64302e70430fb86aeacd7f9a461dc12a32916",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "wire-K-pixel",
+        "master": "xcom1",
+        "profile": "ledger",
+        "outcome": "detected",
+        "expected_assertions": [
+          223
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-223",
+        "binary_sha256": "15986b5f4a1869bed754ed021e21fb337ba6a0654abc9649160869dcbd3412fc",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "wire-K-pixel",
+        "master": "xcom2",
+        "profile": "ledger",
+        "outcome": "detected",
+        "expected_assertions": [
+          223
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-223",
+        "binary_sha256": "15986b5f4a1869bed754ed021e21fb337ba6a0654abc9649160869dcbd3412fc",
+        "retained_frame_count": 0
+      },
+      {
+        "kind": "wrong-handler",
+        "master": "xcom1",
+        "profile": "core",
+        "outcome": "inconclusive",
+        "expected_assertions": [
+          281
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-611",
+        "binary_sha256": "519714db72cdfd1a1a1f0e10d87da77636dd3511fb4a1eb89a74b60c73085da5",
+        "retained_frame_count": 8
+      },
+      {
+        "kind": "wrong-handler",
+        "master": "xcom2",
+        "profile": "core",
+        "outcome": "inconclusive",
+        "expected_assertions": [
+          281
+        ],
+        "observed_label": "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-611",
+        "binary_sha256": "519714db72cdfd1a1a1f0e10d87da77636dd3511fb4a1eb89a74b60c73085da5",
+        "retained_frame_count": 8
+      }
+    ]
+  },
+  "source_fault_recipe_provenance": [
+    {
+      "kind": "missing-overlay-blit",
+      "source": "src/Observer/InventoryCloseOverlay.cpp",
+      "original_sha256": "69da034ace0dd2e0021dc96c8df36d0daade0386d936f07d0e36f681d7017402",
+      "mutated_sha256": "8e1eab2424b293ac33fac913687b62afc41c73b3e5fc6b5614a08cac2577bc79",
+      "composite_fault": false
+    },
+    {
+      "kind": "cancel-init",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "40a4d9dcf093a6a378e5e76aa8513f3862cd46df729ffeff6c39cbf521050766",
+      "composite_fault": false
+    },
+    {
+      "kind": "cancel-arrange",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "7f12853448f71ceecbb7a566091f3f39bbe670a7ff8a015621b710831250976c",
+      "composite_fault": false
+    },
+    {
+      "kind": "dismiss-clickthrough",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "d17e464be90d62a5c1c4b215b7e2d23715afc7e9d70b34b4550ffd7ff7d36826",
+      "composite_fault": false
+    },
+    {
+      "kind": "unseen-overlay",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "ed83960f0b35997cbeaa21e251db22585d0bf8ae804364533bd59ccd00cb088b",
+      "composite_fault": true
+    },
+    {
+      "kind": "stale-actor",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "c339afa4c9767e3a3ce70b9d498f52f7fec15e94b73e666fdeee84acf13aac22",
+      "composite_fault": false
+    },
+    {
+      "kind": "stale-reinit",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "64260014b7eb13613f14bf5f4fe9b34bd549183cc5fa3a0ef645169d4c1fef9c",
+      "composite_fault": false
+    },
+    {
+      "kind": "id-conflict-bypass",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "41cc12bab9a2fdeae875dd563789547fc060abfc127306067d183024eac47f61",
+      "composite_fault": false
+    },
+    {
+      "kind": "capless-I-authority",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "9032bb6d9c55010ff1664c6b89e35d58af2d3024e3d53bb8f408e123900b0b45",
+      "composite_fault": false
+    },
+    {
+      "kind": "held-item-grant",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "3933a94424f264f7ce1b418b8e702cd445d509e9fbb8c0db1b9174c8af86c7d7",
+      "composite_fault": false
+    },
+    {
+      "kind": "missing-ground",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "28a2c19a3344a7b4530ddc3905f19414ed2618ae0717550059b9acc9fe72bce2",
+      "composite_fault": false
+    },
+    {
+      "kind": "duplicate-ground",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "747c5c329c96abf599255eeea7c3e93e4b06358ef49474e611ff31f64daa23b0",
+      "composite_fault": false
+    },
+    {
+      "kind": "wrong-handler",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "7d8b5d7f41649a1a3afaf80ee6b128e555fb2765f8bb8e9fa309da215e3c3c90",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-barrier-bypass",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "6061d182bc7337f5ff2e2977ca57fa86e379dbe4c8d6dcabf16b46a26ff658c8",
+      "composite_fault": false
+    },
+    {
+      "kind": "lost-barrier-bypass",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "0b439844a573ba6c11b708dddc36798cc90a40702d5966e3c6e3229a72335257",
+      "composite_fault": false
+    },
+    {
+      "kind": "failed-I-barrier-bypass",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "8444cb3892e477b47d97e065f4734b49e2d5305d9b0240e5d7027d6a98e2026e",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-kind-confusion",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "523bac95ddffd01fe486eb9214594b162329ebbd62514b3b3dd4e282172c14d1",
+      "composite_fault": false
+    },
+    {
+      "kind": "wire-K-pixel",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "cc5ba20400c5e8a55e5fbaa3f8b1bf317ec1be01404b9c5d8d88dfc70d523637",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-visibility-bypass",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "8200b14a8c9401709c4becc1b6b66e9f60086096eff47f01c35b2f546c6d0eac",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-zero-TU-refusal",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "b0213d80579d53e09e009a2aa60cf47329cad2d2d7ce32f5ae4042b4fdc75739",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-TU-charge",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "f94b0280859901fa9f78930a636b790f3086e8b557189bb308c0488f5b504b4d",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-no-page-change",
+      "source": "src/Battlescape/InventoryState.cpp",
+      "original_sha256": "37b7880a144d6b4a8a0c359ffd0cd3a2ce5bd1923d6668b72dbae8eacb55ea87",
+      "mutated_sha256": "e102d0d6db7744d86adafcb873222d6802d915a611528936b3638adea3b9f255",
+      "composite_fault": false
+    },
+    {
+      "kind": "exact-full-page-boundary",
+      "source": "src/Battlescape/Inventory.cpp",
+      "original_sha256": "982c65517b5418991d75629afe2328317319003c380380259bcf6863b3c61bf3",
+      "mutated_sha256": "f7330c746ee79d4a499a316e3bdc259c36f2b7923d2aa91042bd92587d678003",
+      "composite_fault": false
+    },
+    {
+      "kind": "ground-stack-cache",
+      "source": "src/Battlescape/Inventory.cpp",
+      "original_sha256": "982c65517b5418991d75629afe2328317319003c380380259bcf6863b3c61bf3",
+      "mutated_sha256": "8d365ca99826c108f2cb7f5948effe9cdd790b661597b926364658af2f26b7db",
+      "composite_fault": false
+    },
+    {
+      "kind": "initial-I-side-effect",
+      "source": "src/Observer/StanceController.cpp",
+      "original_sha256": "59c156f1de4bc1235dec651ae2f6bb34b90d00730c81a63b3d92b20a7a575627",
+      "mutated_sha256": "e7e36632cf6c9d293e5b2878d6b5e4656bb9f5a5428a3ae09bfcddf7bb1f1749",
+      "composite_fault": false
+    }
+  ],
+  "source_fault_targeted_repeat": {
+    "executions": 2,
+    "detected": 2,
+    "survived": 0,
+    "inconclusive": 0,
+    "plan_sha256": "6f445b9efc38e8cae53b4534834e43280ff236b0600ea6629a1a03ac1bc76b01",
+    "driver_sha256": "b1acaca0e2728602b075f8bbcc8db383c3ba3ebae454fe5f02eca7ac8371fd12",
+    "same_native_gate_source_and_binaries": true,
+    "generic_lifecycle_assertion_alone_counts": false,
+    "original_panel_files_hash_guarded": 580,
+    "original_panel_outcomes_unchanged": true,
+    "classifier_pure_checks_per_mode": 35,
+    "independent_classifier_checks": 31,
+    "runs": [
+      {
+        "outcome": "detected",
+        "predeclared_assertion_and_fixture_signature_match": true,
+        "observed_diagnostic": {
+          "world": 1,
+          "phase": 14,
+          "inits": 1,
+          "ground": 0,
+          "arranged": 2,
+          "closes": 1,
+          "destroyed": 1,
+          "shown": 1,
+          "dismissed": 1
+        },
+        "observed_frame_serial_not_frozen": 65,
+        "observed_verdicts": [
+          "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-611"
+        ],
+        "kind": "wrong-handler",
+        "master": "xcom1",
+        "profile": "core",
+        "calls": [
+          {
+            "profile": "core",
+            "exit": 1
+          }
+        ],
+        "exception_class": "RuntimeError",
+        "plan_sha256": "6f445b9efc38e8cae53b4534834e43280ff236b0600ea6629a1a03ac1bc76b01",
+        "binary_sha256": "519714db72cdfd1a1a1f0e10d87da77636dd3511fb4a1eb89a74b60c73085da5",
+        "original_panel_reclassified": false,
+        "crash_is_detection": false,
+        "timeout_is_detection": false,
+        "generic_lifecycle_assertion_alone_is_detection": false,
+        "retained_frame_count": 8
+      },
+      {
+        "outcome": "detected",
+        "predeclared_assertion_and_fixture_signature_match": true,
+        "observed_diagnostic": {
+          "world": 1,
+          "phase": 14,
+          "inits": 1,
+          "ground": 0,
+          "arranged": 2,
+          "closes": 1,
+          "destroyed": 1,
+          "shown": 1,
+          "dismissed": 1
+        },
+        "observed_frame_serial_not_frozen": 67,
+        "observed_verdicts": [
+          "INVENTORY_GROUND_CONTROL_GATE FAIL assertion-611"
+        ],
+        "kind": "wrong-handler",
+        "master": "xcom2",
+        "profile": "core",
+        "calls": [
+          {
+            "profile": "core",
+            "exit": 1
+          }
+        ],
+        "exception_class": "RuntimeError",
+        "plan_sha256": "6f445b9efc38e8cae53b4534834e43280ff236b0600ea6629a1a03ac1bc76b01",
+        "binary_sha256": "519714db72cdfd1a1a1f0e10d87da77636dd3511fb4a1eb89a74b60c73085da5",
+        "original_panel_reclassified": false,
+        "crash_is_detection": false,
+        "timeout_is_detection": false,
+        "generic_lifecycle_assertion_alone_is_detection": false,
+        "retained_frame_count": 8
+      }
+    ],
+    "setup_revision": {
+      "initial_read_only_preflight": "build-object path binding error",
+      "corrected_before_native_execution": true,
+      "first_private_setup_revision_preserved": true
+    }
+  }
+}
