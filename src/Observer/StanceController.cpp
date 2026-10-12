@@ -266,6 +266,13 @@ void StanceController::beforeEvent(const SDL_Event &event, State *top)
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
     InventoryState *inventory = dynamic_cast<InventoryState *>(top);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    const bool clickOwned = inventory && inventory->inventoryCloseOverlayOwned() && _action == 'e';
+    // A later manual DOWN starts a new gesture if an owned release was lost.
+    if (inventory && !clickOwned && event.type == SDL_MOUSEBUTTONDOWN &&
+        event.button.button >= 1 && event.button.button <= 8)
+        inventory->_inventoryClickConsumedButtons &= ~std::uint8_t(1u << (event.button.button - 1));
+#endif
     // Latch ownership before presentation checks can invalidate and retire the
     // overlay. The same event must never reach the underlying held item.
     if (inventory)

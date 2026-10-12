@@ -57,7 +57,9 @@ approve. Showing, dismissing, expiring or invalidating a proposal does not
 initialize inventory, arrange ground, drop an item, or send a compensating
 right click. Cancelling a second proposal leaves the ordinary item held until
 the player chooses what to do. Dismissal input is consumed even when overlay
-presentation has become invalid. Pending authority is retired on disconnect,
+presentation has become invalid. If an owned mouse release is lost, a new
+ordinary same-button DOWN retires that old ownership so its new UP is not swallowed;
+see the [release correction](INVENTORY-CLICK-RELEASE-FIX-EVIDENCE.md). Pending authority is retired on disconnect,
 expiry or stale state; a held item is not an implicit rollback obligation.
 
 ## Ordinary dispatch and mandatory observation

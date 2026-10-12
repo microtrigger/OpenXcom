@@ -35,6 +35,14 @@ Historical evidence retains its original scope.
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
 
+### Inventory click release correction (2026-10-12)
+
+The [bounded correction](INVENTORY-CLICK-RELEASE-FIX-EVIDENCE.md) fixes a stale
+mouse-release latch in the published CLICK slice. A deliberately missing owned
+UP no longer swallows the UP of a subsequent ordinary gesture. Identical
+old/fixed fixtures reproduce and resolve the defect in both games; all 54 prior
+CLICK profiles per game pass. This does not add a new command or complete stage 6.
+
 ### Ordinary inventory left click (2026-10-12)
 
 The [separate left-click slice](SUPERVISED-INVENTORY-CLICK-PILOT.md) adds H-only

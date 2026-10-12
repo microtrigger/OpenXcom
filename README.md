@@ -2,6 +2,11 @@
 
 ## Fair-Play MCP Interface Project
 
+A [verified inventory-click correction](docs/mcp-player-interface/INVENTORY-CLICK-RELEASE-FIX-EVIDENCE.md)
+prevents a lost confirmation-button release from swallowing a later ordinary
+manual click. The old behavior is reproduced and the fix passes in UFO/TFTD;
+all 54 prior CLICK profiles also pass in each game.
+
 This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)

@@ -1,6 +1,11 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later. Original contribution 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md. -->
 # Supervised inventory left click: evidence and limits
 
+Later correction: [orphaned mouse-release handling](INVENTORY-CLICK-RELEASE-FIX-EVIDENCE.md)
+fixes a missing-UP/new-gesture case absent from this original evidence. The
+original results below remain historical; the new report records the exact
+old/fixed comparison and complete prior-profile rerun.
+
 **Bounded CLICK verification complete, with qualified prior-control regressions.**
 See the [bounded pilot contract](SUPERVISED-INVENTORY-CLICK-PILOT.md).
 Full controller acceptance and the complete fairness gate remain open.

@@ -5,7 +5,7 @@ pilot. It is neither a model benchmark nor a full-fairness verdict. Compile
 `EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE` and prerequisites; the separate
 runtime opt-in is `OPENXCOM_INVENTORY_CLICK_CONTROL_GATE=1`.
 
-`run-inventory-click-control.py` runs 54 finite, isolated profiles for `xcom1`
+`run-inventory-click-control.py` runs 55 finite, isolated profiles for `xcom1`
 or `xcom2`. Its output is bounded and child diagnostics stay private. Never run
 it alongside another native GUI operator. Pure checks need no game or assets:
 
@@ -53,6 +53,17 @@ required-I refusal versus actual I transport-send failure; lost/reopened
 inventory, replaced parent/save; and runtime/CLOSE/Ground activation boundaries.
 Hidden/moved overlay-child tests retain a preexisting ordinary right/X2 pressed
 state and require the invalidating DOWN/UP pair to leave the held item unchanged.
+
+## Orphaned release regression
+
+The additional `orphan-left-release` profile presents an E proposal while an
+item is held, owns a LEFT DOWN, cancels with Escape and deliberately omits UP.
+A new ordinary LEFT DOWN/UP must then reach the standard inventory click and
+callback exactly once, restore the item to its original hand without TU cost,
+and avoid init, rearrangement or closing. This models an omitted event rather
+than an actual operating-system focus-loss reproduction. The original 54
+profiles and their numbered assertions remain unchanged. See the separate
+[correction evidence](../../docs/mcp-player-interface/INVENTORY-CLICK-RELEASE-FIX-EVIDENCE.md).
 
 ## Recorded native results
 

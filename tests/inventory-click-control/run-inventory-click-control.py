@@ -16,11 +16,11 @@ import subprocess
 import sys
 import tempfile
 
-PROFILES = ('core', 'cancel-held', 'input-right', 'input-x2', 'input-wheel', 'input-hotkey', 'input-outside', 'input-modifier', 'stale-input', 'stale-actor', 'stale-reinit', 'stale-held', 'focus', 'display', 'overlay', 'lifetime', 'reopen', 'save', 'parent', 'unseen', 'held-y', 'held-mouse', 'timeout', 'capability-timeout', 'disconnect', 'ledger', 'ledger-limit', 'disabled', 'close-disabled', 'nontu', 'debug', 'palette', 'capless-I', 'cross-kind', 'hidden-widget', 'moved-widget', 'hidden-after-context', 'duplicate-pending', 'failed-I', 'warning', 'domain', 'actual-send-failure', 'manual-cancel', 'moved-name', 'extra-slot', 'hidden-selection', 'warning-crop', 'upper-band', 'ground-disabled', 'stale-widget-actor', 'stale-widget-mode', 'overlapping-widget', 'overlay-child-changed', 'overlay-child-moved')
+PROFILES = ('core', 'cancel-held', 'input-right', 'input-x2', 'input-wheel', 'input-hotkey', 'input-outside', 'input-modifier', 'stale-input', 'stale-actor', 'stale-reinit', 'stale-held', 'focus', 'display', 'overlay', 'lifetime', 'reopen', 'save', 'parent', 'unseen', 'held-y', 'held-mouse', 'timeout', 'capability-timeout', 'disconnect', 'ledger', 'ledger-limit', 'disabled', 'close-disabled', 'nontu', 'debug', 'palette', 'capless-I', 'cross-kind', 'hidden-widget', 'moved-widget', 'hidden-after-context', 'duplicate-pending', 'failed-I', 'warning', 'domain', 'actual-send-failure', 'manual-cancel', 'moved-name', 'extra-slot', 'hidden-selection', 'warning-crop', 'upper-band', 'ground-disabled', 'stale-widget-actor', 'stale-widget-mode', 'overlapping-widget', 'overlay-child-changed', 'overlay-child-moved', 'orphan-left-release')
 PASS = ('INVENTORY_CLICK_CONTROL_GATE PASS {"schema":"inventory-click-control-gate/1",'
         '"master":"MASTER","profile":"PROFILE","passed":true}')
 SUITE_PASS = ('INVENTORY_CLICK_CONTROL_SUITE PASS {"schema":"inventory-click-control-suite/1",'
-              '"master":"MASTER","profiles":54,"runtime_gate_pass":true,"full_fairness":false}')
+              '"master":"MASTER","profiles":55,"runtime_gate_pass":true,"full_fairness":false}')
 FAIL = 'INVENTORY_CLICK_CONTROL_SUITE FAIL'
 LABEL = re.compile(r'INVENTORY_CLICK_CONTROL_GATE FAIL assertion-[0-9]+')
 

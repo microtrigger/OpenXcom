@@ -110,7 +110,7 @@ enum Stage { WARM, WAIT_INVENTORY, PREPARE_INVENTORY, WAIT_PREPARED, WAIT_I,
     WAIT_TERMINAL_CLOSE, WAIT_TERMINAL_OPEN, TERMINAL_REQUEST, TERMINAL_REPLY,
     WAIT_FAILED_I, WAIT_FAILED_K, WAIT_SEND_FAILURE, WAIT_WARNING_REFUSAL, WAIT_WARNING_FADE, WAIT_MANUAL_CANCEL, DOMAIN_REPLY, FINISHED };
 bool enabled=false, running=false, completed=false, pendingSetup=false, moved=false;
-bool prepared=false, retry=false, terminalReplaced=false, clickSent=false, lostOriginal=false;
+bool prepared=false, retry=false, terminalReplaced=false, clickSent=false, lostOriginal=false; int orphanPhase=0; bool orphanAdvance(Game *game);
 int peer=-1, world=0, frames=0, inventoryFrames=0, modalFrames=0, inits=0, clicks=0;
 int closes=0, destroyed=0, constructed=0, displayed=0, shown=0, dismissed=0, arranged=0;
 int baselineInits=0, baselineArranged=0, baselineClicks=0, baselinePage=0, baselineAnimation=0;
@@ -155,7 +155,7 @@ bool stale() { return profile=="stale-input"||profile=="stale-actor"||profile=="
 int fixture() { if(core()) return (world/2)%FixtureCount;
     if(profile=="manual-cancel") return 10;
     if(profile=="upper-band"||profile=="overlay-child-changed"||profile=="overlay-child-moved") return 5;
-    if(cancelCase()||profile=="disconnect"||profile=="timeout"||profile=="stale-held") return 5;
+    if(cancelCase()||profile=="disconnect"||profile=="timeout"||profile=="stale-held"||profile=="orphan-left-release") return 5;
     if(profile=="warning"||profile=="warning-crop") return 19; return 0; }
 bool equal(const YAML::Node &a,const YAML::Node &b)
 {
@@ -409,7 +409,7 @@ bool active() { const char *s=std::getenv("OPENXCOM_INVENTORY_CLICK_CONTROL_GATE
 void prepare()
 {
     enabled=active(); if(!enabled) return; const char *p=std::getenv("OPENXCOM_INVENTORY_CLICK_PROFILE"); profile=p?p:"";
-    const std::set<std::string> profiles={"core","cancel-held","input-right","input-x2","input-wheel","input-hotkey","input-outside","input-modifier","stale-input","stale-actor","stale-reinit","stale-held","focus","display","overlay","lifetime","reopen","save","parent","unseen","held-y","held-mouse","timeout","capability-timeout","disconnect","ledger","ledger-limit","disabled","close-disabled","nontu","debug","palette","capless-I","cross-kind","hidden-widget","moved-widget","hidden-after-context","duplicate-pending","failed-I","warning","domain","actual-send-failure","manual-cancel","moved-name","extra-slot","hidden-selection","warning-crop","upper-band","ground-disabled","stale-widget-actor","stale-widget-mode","overlapping-widget","overlay-child-changed","overlay-child-moved"}; require(profiles.count(profile)==1);
+    const std::set<std::string> profiles={"core","cancel-held","input-right","input-x2","input-wheel","input-hotkey","input-outside","input-modifier","stale-input","stale-actor","stale-reinit","stale-held","focus","display","overlay","lifetime","reopen","save","parent","unseen","held-y","held-mouse","timeout","capability-timeout","disconnect","ledger","ledger-limit","disabled","close-disabled","nontu","debug","palette","capless-I","cross-kind","hidden-widget","moved-widget","hidden-after-context","duplicate-pending","failed-I","warning","domain","actual-send-failure","manual-cancel","moved-name","extra-slot","hidden-selection","warning-crop","upper-band","ground-disabled","stale-widget-actor","stale-widget-mode","overlapping-widget","overlay-child-changed","overlay-child-moved","orphan-left-release"}; require(profiles.count(profile)==1);
     require(!std::getenv("OPENXCOM_STANCE_CONTROL_GATE")&&!std::getenv("OPENXCOM_INVENTORY_OPEN_CONTROL_GATE")&&!std::getenv("OPENXCOM_INVENTORY_CLOSE_CONTROL_GATE"));
     require(Options::language=="en-US"&&!Options::playIntro);
     require(!std::getenv("OPENXCOM_STANCE_FD")&&!std::getenv("OPENXCOM_PRESENTATION_FD")&&!std::getenv("OPENXCOM_AUDIO_FD"));
@@ -482,7 +482,7 @@ void afterCleanup(Game *game)
 }
 void beforeEvents(Game *game)
 {
-    if(!running||pendingSetup) return;
+    if(!running||pendingSetup) return; if(profile=="orphan-left-release"&&orphanAdvance(game)) return;
     require(Clock::now()-started<std::chrono::seconds(core()?400:(profile=="timeout"||profile=="capability-timeout")?155:45));
     require(Clock::now()-worldStarted<std::chrono::seconds((profile=="timeout"||profile=="capability-timeout")?145:35)); quiet();
     if(!moved) { motion(); moved=true; return; }
@@ -773,3 +773,33 @@ int exitStatus()
 } }
 #undef require
 #undef fields
+
+// Isolated regression added after the frozen gate: existing numbered endpoints
+// and 54 profiles above retain their original physical source lines.
+namespace OpenXcom { namespace InventoryClickControlGate { namespace {
+bool orphanAdvance(Game *game)
+{
+    if(stage==CONFIRM&&modalFrames>0&&orphanPhase==0) {
+        Surface *yes=InventoryClickGateAccess::yes(inventory);
+        motion(yes->getX()+yes->getWidth()/2,yes->getY()+yes->getHeight()/2);
+        mouseEdge(yes->getX()+yes->getWidth()/2,yes->getY()+yes->getHeight()/2,true);
+        key(SDLK_ESCAPE); // The owned mouse UP is deliberately missing.
+        orphanPhase=1; stage=WAIT_RETIRE; return true;
+    }
+    if(orphanPhase==1&&inputs.empty()) {
+        check(inventory==originalInventory&&game->isState(inventory)&&!InventoryClickGateAccess::modal(inventory),9001);
+        check(clicks==baselineClicks&&callbacks==baselineCallbacks&&closes==0&&destroyed==0,9002);
+        check(InventoryClickGateAccess::widget(inventory)->getSelectedItem()==fixtureItem,9003);
+        check(InventoryClickGateAccess::consumedButtons(inventory)&SDL_BUTTON(SDL_BUTTON_LEFT),9004);
+        // This fresh ordinary pair is distinct from the missing owned tail.
+        click(16,80); orphanPhase=2; return true;
+    }
+    if(orphanPhase==2&&inputs.empty()) {
+        check(clicks==baselineClicks+1&&callbacks==baselineCallbacks+1,9005);
+        check(!InventoryClickGateAccess::widget(inventory)->getSelectedItem()&&fixtureItem->getOwner()==player&&fixtureItem->getSlot()->getId()=="STR_RIGHT_HAND"&&player->getTimeUnits()==initialTU,9006);
+        check(inits==baselineInits&&arranged==baselineArranged&&closes==0&&destroyed==0&&InventoryClickGateAccess::consumedButtons(inventory)==0,9007);
+        finish(); return true;
+    }
+    return orphanPhase!=0;
+}
+} } }
