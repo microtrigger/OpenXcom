@@ -1,0 +1,733 @@
+{
+  "schema": "openxcom-combined-sdk-live-evidence/1",
+  "license": "GPL-3.0-or-later",
+  "date": "2026-10-12",
+  "scope": "Bounded official-SDK to nongate production-game selection, turn, map-left-click, inventory-open/view and manual-close smoke; documentation-only publication.",
+  "source_revision": "34de1647b3fa63906f2ab0d20fe62a78c7bec16b",
+  "production": {
+    "binary_sha256": "dda22420cd7134f127e458aa42bb72eb61ece1983a9d91dde42b7efbfc908b6b",
+    "build_type": "Release",
+    "five_supervised_features_enabled": true,
+    "native_gate_enabled": false,
+    "source_or_binary_modified_for_combined_runs": false,
+    "provenance_basis": "Inspected launch scripts, build metadata and on-disk binary hash; no fresh rebuild or independent runtime executable attestation."
+  },
+  "source_sha256": {
+    "CMakeLists.txt": "448fb6bb50fb6691012bbef2ae5766f03aa05d2d69f210479c1ecddbb70a6d7c",
+    "src/Battlescape/BattlescapeState.cpp": "abc7f0988325997daab510196d9834af7b477121b5447f622a1b348d7a8529cd",
+    "src/Battlescape/BattlescapeState.h": "6735e84ebcd574c2b5749748cecf3140acb144c7cfa1821300c899d8f60902bf",
+    "src/Battlescape/InventoryState.cpp": "7ba2afc1f9823ab45498bdeeb507d196bd9f433e5670ea5a3a2eb58e4f92d876",
+    "src/Battlescape/InventoryState.h": "f5dcca3c9c6927d748c943410f598b1d614dc1c4bfdd7a8783a161e5b3511775",
+    "src/CMakeLists.txt": "e42a243e65950adb8bbd44328c69104f66e02bfba9c70ecc65c112f177ffd19c",
+    "src/Engine/Game.cpp": "6b3bab23dac3b04c7623e2e3ca1d3efc1a7ad102f87fbc3bd55e7926821a9447",
+    "src/Engine/Game.h": "eab81307d62243e9f7472d914297c01dfea8fc4595ed392eef501957e89688d7",
+    "src/Engine/Screen.cpp": "2cd4fcc64c3363a20429d4a727c723e00b952d5e661659a086fe9dd548e4ac16",
+    "src/Engine/Screen.h": "36ed7f0ceea31270cb0d8a72326c64bfc85784a53f4edf9fba7dcd94f5d833d8",
+    "src/Observer/StanceConfirmState.cpp": "959c65d23fe10b73773fe3ce20679f5b8f050b0e3ebc5db54f8ea5240e9b0acf",
+    "src/Observer/StanceController.cpp": "01d531e2fd4d9243944696292686f589bfa313704783e0d539e3bf4caebaf6a5",
+    "src/Observer/StanceController.h": "41648dd9eb1163f2d9715f6af8022da22ed13b9d9cdc5f537099453e1670a8a5",
+    "tools/mcp-observer/adapter.py": "299c0468d2a173dbf73d379311f085c5034f6971dab400e07d8c17c49c410e39",
+    "tools/mcp-observer/launch_presentation.py": "c6ddbfb0d465257237041367f6d58218634b4265a4f947086265fce9fe5081de",
+    "tools/mcp-observer/supervised_stance.py": "55885d1793626f04836526246d9a8cd7df496da108a2b4e81de01f5f8d66ac27"
+  },
+  "driver": {
+    "sha256": "b9d3ae58cefb17bb6da4a7043220f41d5773647b16130d5d46aebbd87147d75a",
+    "official_python_mcp_sdk": "1.29.0",
+    "protocol": "2025-11-25",
+    "official_ClientSession": true,
+    "transport": "custom nonterminating stdio",
+    "one_explicit_command_file_per_step": true,
+    "command_queue_rejected": true,
+    "one_proposal_per_action_type_per_run": true,
+    "automatic_gameplay_calls": false,
+    "automatic_status_polling": false,
+    "automatic_approval": false,
+    "action_replay": false,
+    "capabilities_and_command_ids_in_memory_only": true,
+    "fresh_post_action_observation_barriers": true,
+    "capless_inventory_view": true,
+    "pure_checks_normal": 19,
+    "pure_checks_optimized": 19,
+    "pure_checks_are_not_live_game_evidence": true
+  },
+  "totals": {
+    "attempts": 5,
+    "complete_combined_movement_chains": 2,
+    "retained_nonmovement_attempts": 3,
+    "recorded_tool_calls": 62,
+    "explicit_stops": 5,
+    "action_proposals": 18,
+    "images": 26,
+    "counting_note": "Tool-call totals exclude initialize/list_tools and explicit stop; stop is driver control, not an MCP game tool."
+  },
+  "attempts": [
+    {
+      "attempt_id": "live-xcom1-01",
+      "game": "UFO",
+      "attempt": 1,
+      "combined_movement_chain_pass": true,
+      "outcome": "complete_selection_turn_movement_inventory_return",
+      "tool_calls": 14,
+      "explicit_stop_sequence": 15,
+      "sequence": [
+        "read_stance_context",
+        "request_selection",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_turn",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_map_left_click",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_open_inventory",
+        "read_stance_status",
+        "read_inventory_view",
+        "read_tactical_context",
+        "stop_observation"
+      ],
+      "actions": [
+        {
+          "sequence": 2,
+          "action": "request_selection",
+          "direction": "next"
+        },
+        {
+          "sequence": 5,
+          "action": "request_turn",
+          "x": 144,
+          "y": 103
+        },
+        {
+          "sequence": 8,
+          "action": "request_map_left_click",
+          "x": 192,
+          "y": 72
+        },
+        {
+          "sequence": 11,
+          "action": "request_open_inventory"
+        }
+      ],
+      "all_recorded_tool_results_ok": true,
+      "each_action_pending_then_explicit_latest_id_matched_dispatched": true,
+      "one_proposal_per_action_type": true,
+      "required_fresh_observations_present": true,
+      "independent_receipt_and_pixel_review": true,
+      "visible_outcome": {
+        "selection_before": "Giuseppe Martini",
+        "selection_after": "Hugo Dupre",
+        "post_selection_turn_left_click_TU": [
+          56,
+          52,
+          38
+        ],
+        "post_selection_turn_left_click_energy": [
+          43,
+          43,
+          36
+        ],
+        "turn_orientation_change": true,
+        "left_click_outcome": "visible_displacement_relative_to_craft_and_terrain",
+        "movement_verified": true,
+        "inventory_soldier": "Hugo Dupre",
+        "inventory_TU": 38,
+        "tactical_return_soldier": "Hugo Dupre",
+        "tactical_return_TU": 38,
+        "tactical_return_energy": 36
+      },
+      "images": [
+        {
+          "sequence": 1,
+          "tool": "read_stance_context",
+          "width": 320,
+          "height": 56,
+          "png_bytes": 4566,
+          "png_sha256": "d1a7d96cc421a9ece7a7e2c2e84cac011be006246f386167180eecd56604c45b"
+        },
+        {
+          "sequence": 4,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 10667,
+          "png_sha256": "2c90dc9ff0d9a3bb5b1a673e4436b467a671a6b18a11f8266c8697ab9f5b9b0e"
+        },
+        {
+          "sequence": 7,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 10708,
+          "png_sha256": "28980cf6d8b4cf36d70daa07ee5f91ba6e694cc8da5dae9b5b509e2cc7f3a796"
+        },
+        {
+          "sequence": 10,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 8818,
+          "png_sha256": "0a4e6aced925ce8be0be65554bfcef78907c2361c96227b412a9a7ca8b7c9e7f"
+        },
+        {
+          "sequence": 13,
+          "tool": "read_inventory_view",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 7030,
+          "png_sha256": "0793d66687fac98117169856fc21923d2b1a51417fde8e4cb9a9c926ede7a8fb"
+        },
+        {
+          "sequence": 14,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 9032,
+          "png_sha256": "f80ff0b654260879597823fc6f7e6274745201cc5147baee36a5572694d795e3"
+        }
+      ],
+      "stop_receipt": {
+        "termination_signal_sent": false,
+        "game_liveness": "unverified"
+      },
+      "operator_attested_lifecycle": {
+        "game_visible_alive_after_stop": true,
+        "normal_window_close_verified": true
+      }
+    },
+    {
+      "attempt_id": "live-xcom2-01",
+      "game": "TFTD",
+      "attempt": 1,
+      "combined_movement_chain_pass": false,
+      "outcome": "retained_nonmovement_outcome",
+      "tool_calls": 14,
+      "explicit_stop_sequence": 15,
+      "sequence": [
+        "read_stance_context",
+        "request_selection",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_turn",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_map_left_click",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_open_inventory",
+        "read_stance_status",
+        "read_inventory_view",
+        "read_tactical_context",
+        "stop_observation"
+      ],
+      "actions": [
+        {
+          "sequence": 2,
+          "action": "request_selection",
+          "direction": "next"
+        },
+        {
+          "sequence": 5,
+          "action": "request_turn",
+          "x": 144,
+          "y": 96
+        },
+        {
+          "sequence": 8,
+          "action": "request_map_left_click",
+          "x": 160,
+          "y": 88
+        },
+        {
+          "sequence": 11,
+          "action": "request_open_inventory"
+        }
+      ],
+      "all_recorded_tool_results_ok": true,
+      "each_action_pending_then_explicit_latest_id_matched_dispatched": true,
+      "one_proposal_per_action_type": true,
+      "required_fresh_observations_present": true,
+      "independent_receipt_and_pixel_review": true,
+      "visible_outcome": {
+        "selection_before": "Hugo Garcia",
+        "selection_after": "Toma Krasimirov",
+        "post_selection_turn_left_click_TU": [
+          64,
+          63,
+          58
+        ],
+        "post_selection_turn_left_click_energy": [
+          65,
+          65,
+          54
+        ],
+        "turn_orientation_change": true,
+        "left_click_outcome": "selected_another_soldier",
+        "post_left_click_soldier": "Jaroslav Bosansky",
+        "movement_verified": false,
+        "inventory_soldier": "Jaroslav Bosansky",
+        "inventory_TU": 58,
+        "tactical_return_soldier": "Jaroslav Bosansky",
+        "tactical_return_TU": 58,
+        "tactical_return_energy": 54
+      },
+      "images": [
+        {
+          "sequence": 1,
+          "tool": "read_stance_context",
+          "width": 320,
+          "height": 56,
+          "png_bytes": 5379,
+          "png_sha256": "902e739bac1905858e428ef99937999e0de58ab45073c7e2a03c7431ff543224"
+        },
+        {
+          "sequence": 4,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 13098,
+          "png_sha256": "72a59e5c3a667782b1069b274a5d1cbd6f69344a412691db94a789a54888b370"
+        },
+        {
+          "sequence": 7,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 13123,
+          "png_sha256": "56672794942c247ed057bd601e91267b66cfda6f911e2a7eb24423f10a4aefd8"
+        },
+        {
+          "sequence": 10,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 13058,
+          "png_sha256": "f115a5755f62b0a1e54613155b11b1957e587bf1dfc109dcf860f3788a94a249"
+        },
+        {
+          "sequence": 13,
+          "tool": "read_inventory_view",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 6529,
+          "png_sha256": "7b3f0799b994c74660633172d86872e21a225402dde07e526f69022c4cc0d9cc"
+        },
+        {
+          "sequence": 14,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 13057,
+          "png_sha256": "d0bfa5828cd2a8a09d4a5701cd222173d1a250189d15736b29ee68d07c0eb005"
+        }
+      ],
+      "stop_receipt": {
+        "termination_signal_sent": false,
+        "game_liveness": "unverified"
+      },
+      "operator_attested_lifecycle": {
+        "game_visible_alive_after_stop": true,
+        "normal_window_close_verified": true
+      }
+    },
+    {
+      "attempt_id": "live-xcom2-02",
+      "game": "TFTD",
+      "attempt": 2,
+      "combined_movement_chain_pass": false,
+      "outcome": "retained_nonmovement_outcome",
+      "tool_calls": 10,
+      "explicit_stop_sequence": 11,
+      "sequence": [
+        "read_stance_context",
+        "request_selection",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_turn",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_map_left_click",
+        "read_stance_status",
+        "read_tactical_context",
+        "stop_observation"
+      ],
+      "actions": [
+        {
+          "sequence": 2,
+          "action": "request_selection",
+          "direction": "next"
+        },
+        {
+          "sequence": 5,
+          "action": "request_turn",
+          "x": 112,
+          "y": 80
+        },
+        {
+          "sequence": 8,
+          "action": "request_map_left_click",
+          "x": 112,
+          "y": 80
+        }
+      ],
+      "all_recorded_tool_results_ok": true,
+      "each_action_pending_then_explicit_latest_id_matched_dispatched": true,
+      "one_proposal_per_action_type": true,
+      "required_fresh_observations_present": true,
+      "independent_receipt_and_pixel_review": true,
+      "visible_outcome": {
+        "selection_before": "Hugo Garcia",
+        "selection_after": "Toma Krasimirov",
+        "post_selection_turn_left_click_TU": [
+          64,
+          62,
+          62
+        ],
+        "post_selection_turn_left_click_energy": [
+          65,
+          65,
+          65
+        ],
+        "left_click_outcome": "no_visible_movement_same_soldier_position_and_TU",
+        "movement_verified": false,
+        "inventory_requested": false,
+        "tactical_return_after_inventory": false
+      },
+      "images": [
+        {
+          "sequence": 1,
+          "tool": "read_stance_context",
+          "width": 320,
+          "height": 56,
+          "png_bytes": 5379,
+          "png_sha256": "902e739bac1905858e428ef99937999e0de58ab45073c7e2a03c7431ff543224"
+        },
+        {
+          "sequence": 4,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12506,
+          "png_sha256": "7bc6b4943cad76100da1c725a9b8cc8d0a905db983b5f0b9912c1f1fe8386ced"
+        },
+        {
+          "sequence": 7,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12525,
+          "png_sha256": "1bb6b8c6bbdd65779a86d91bd076f32b91e9b3811124c1c222bf20ce946c2bf2"
+        },
+        {
+          "sequence": 10,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12570,
+          "png_sha256": "fb64f43a5c840152c9b107561a7ce571fbb3a66a979e18211042bfde55ddca53"
+        }
+      ],
+      "stop_receipt": {
+        "termination_signal_sent": false,
+        "game_liveness": "unverified"
+      },
+      "operator_attested_lifecycle": {
+        "game_visible_alive_after_stop": true,
+        "normal_window_close_verified": true
+      }
+    },
+    {
+      "attempt_id": "live-xcom2-03",
+      "game": "TFTD",
+      "attempt": 3,
+      "combined_movement_chain_pass": false,
+      "outcome": "retained_nonmovement_outcome",
+      "tool_calls": 10,
+      "explicit_stop_sequence": 11,
+      "sequence": [
+        "read_stance_context",
+        "request_selection",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_turn",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_map_left_click",
+        "read_stance_status",
+        "read_tactical_context",
+        "stop_observation"
+      ],
+      "actions": [
+        {
+          "sequence": 2,
+          "action": "request_selection",
+          "direction": "previous"
+        },
+        {
+          "sequence": 5,
+          "action": "request_turn",
+          "x": 144,
+          "y": 104
+        },
+        {
+          "sequence": 8,
+          "action": "request_map_left_click",
+          "x": 144,
+          "y": 104
+        }
+      ],
+      "all_recorded_tool_results_ok": true,
+      "each_action_pending_then_explicit_latest_id_matched_dispatched": true,
+      "one_proposal_per_action_type": true,
+      "required_fresh_observations_present": true,
+      "independent_receipt_and_pixel_review": true,
+      "visible_outcome": {
+        "selection_before": "Hugo Garcia",
+        "selection_after": "Rostislav Slezak",
+        "post_selection_turn_left_click_TU": [
+          69,
+          69,
+          69
+        ],
+        "post_selection_turn_left_click_energy": [
+          77,
+          77,
+          77
+        ],
+        "turn_orientation_change_established": false,
+        "left_click_outcome": "no_visible_movement_same_soldier_position_and_TU",
+        "movement_verified": false,
+        "inventory_requested": false,
+        "tactical_return_after_inventory": false
+      },
+      "images": [
+        {
+          "sequence": 1,
+          "tool": "read_stance_context",
+          "width": 320,
+          "height": 56,
+          "png_bytes": 5379,
+          "png_sha256": "902e739bac1905858e428ef99937999e0de58ab45073c7e2a03c7431ff543224"
+        },
+        {
+          "sequence": 4,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12253,
+          "png_sha256": "d4bdbaa1f339b03796c5f99261142fdd81225469c930961e4aefc5258af7fc2e"
+        },
+        {
+          "sequence": 7,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12257,
+          "png_sha256": "84ef0ff878fd589228b6f994d2ef290348ff2d118e42a0c0df4491f584308a27"
+        },
+        {
+          "sequence": 10,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12232,
+          "png_sha256": "250dde4c863b0886d7fb267cfb8d1d2e3ee48b7c2f37409c6d51e1b569999aea"
+        }
+      ],
+      "stop_receipt": {
+        "termination_signal_sent": false,
+        "game_liveness": "unverified"
+      },
+      "operator_attested_lifecycle": {
+        "game_visible_alive_after_stop": true,
+        "normal_window_close_verified": true
+      },
+      "operator_attested_ordinary_setup": {
+        "first_generated_battle": "Ended automatically when the game reported all aliens killed in the submarine crash.",
+        "before_any_MCP_observation_or_gameplay_action": true,
+        "continuation": "Returned through normal UI and generated a second battle in the same SDK session.",
+        "additional_SDK_attempt": false,
+        "tool_failure": false
+      }
+    },
+    {
+      "attempt_id": "live-xcom2-04",
+      "game": "TFTD",
+      "attempt": 4,
+      "combined_movement_chain_pass": true,
+      "outcome": "complete_selection_turn_movement_inventory_return",
+      "tool_calls": 14,
+      "explicit_stop_sequence": 15,
+      "sequence": [
+        "read_stance_context",
+        "request_selection",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_turn",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_map_left_click",
+        "read_stance_status",
+        "read_tactical_context",
+        "request_open_inventory",
+        "read_stance_status",
+        "read_inventory_view",
+        "read_tactical_context",
+        "stop_observation"
+      ],
+      "actions": [
+        {
+          "sequence": 2,
+          "action": "request_selection",
+          "direction": "next"
+        },
+        {
+          "sequence": 5,
+          "action": "request_turn",
+          "x": 208,
+          "y": 72
+        },
+        {
+          "sequence": 8,
+          "action": "request_map_left_click",
+          "x": 208,
+          "y": 72
+        },
+        {
+          "sequence": 11,
+          "action": "request_open_inventory"
+        }
+      ],
+      "all_recorded_tool_results_ok": true,
+      "each_action_pending_then_explicit_latest_id_matched_dispatched": true,
+      "one_proposal_per_action_type": true,
+      "required_fresh_observations_present": true,
+      "independent_receipt_and_pixel_review": true,
+      "visible_outcome": {
+        "selection_before": "Hugo Garcia",
+        "selection_after": "Toma Krasimirov",
+        "post_selection_turn_left_click_TU": [
+          64,
+          60,
+          52
+        ],
+        "post_selection_turn_left_click_energy": [
+          65,
+          65,
+          61
+        ],
+        "turn_orientation_change": true,
+        "left_click_outcome": "visible_displacement_relative_to_craft_floor_and_walls",
+        "movement_verified": true,
+        "inventory_soldier": "Toma Krasimirov",
+        "inventory_TU": 52,
+        "tactical_return_soldier": "Toma Krasimirov",
+        "tactical_return_TU": 52,
+        "tactical_return_energy": 61
+      },
+      "images": [
+        {
+          "sequence": 1,
+          "tool": "read_stance_context",
+          "width": 320,
+          "height": 56,
+          "png_bytes": 5379,
+          "png_sha256": "902e739bac1905858e428ef99937999e0de58ab45073c7e2a03c7431ff543224"
+        },
+        {
+          "sequence": 4,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12238,
+          "png_sha256": "bf6204d8040aba8f5462a0708d4da230c3a9a88076f6091f4d01a03c42209724"
+        },
+        {
+          "sequence": 7,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12323,
+          "png_sha256": "7ad93a5b3421fd47ac3578a6fab027c5fd10fd0551d38d85ac888b28905106b6"
+        },
+        {
+          "sequence": 10,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12508,
+          "png_sha256": "918cd728a50e5e5a44b06b1713447221a73fe92ea884af908862332b4451077a"
+        },
+        {
+          "sequence": 13,
+          "tool": "read_inventory_view",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 7484,
+          "png_sha256": "7b1f1e492abad12bd611867dedd88596bb8fc24f2817d0173fc730f5279d5b8f"
+        },
+        {
+          "sequence": 14,
+          "tool": "read_tactical_context",
+          "width": 320,
+          "height": 200,
+          "png_bytes": 12636,
+          "png_sha256": "7625559abd4243029de0153caabe3ef83d111c29bccbe2412f65425feefc4a30"
+        }
+      ],
+      "stop_receipt": {
+        "termination_signal_sent": false,
+        "game_liveness": "unverified"
+      },
+      "operator_attested_lifecycle": {
+        "game_visible_alive_after_stop": true,
+        "normal_window_close_verified": true
+      },
+      "operator_attested_ordinary_setup": {
+        "method": "normal_generator_Crew_UI",
+        "assigned_crew_before": 14,
+        "assigned_crew_after": 2,
+        "retained_soldiers": [
+          "Hugo Garcia",
+          "Toma Krasimirov"
+        ],
+        "fixture_or_save_edits": false
+      }
+    }
+  ],
+  "independent_review": {
+    "all_five_archived_runs_reviewed": true,
+    "all_26_pngs_bytes_hashes_and_format_checked": true,
+    "original_returned_pixels_inspected": true,
+    "source_hashes_match_inventory_milestone": true,
+    "evidence_boundary": "Archive review confirms receipts and visible image endpoints. Local confirmation/input gestures, choice derivation, setup steps and post-stop lifecycle are operator-attested, without independent stored UI-event or post-stop-image proof.",
+    "latest_id_match_basis": "Recorded by the reviewed driver; raw IDs and grants were not retained for independent reconstruction."
+  },
+  "limits": {
+    "dispatch_is_not_success": true,
+    "hash_change_is_not_movement_proof": true,
+    "single_successful_movement_chain_per_game": true,
+    "controlled_UI_parity_gate": false,
+    "full_fairness": false,
+    "stage5_complete": false,
+    "full_controller_acceptance": false,
+    "campaign_acceptance": false,
+    "timing_equality": false,
+    "performance_benchmark": false,
+    "model_run": false,
+    "actual_model_token_benchmark": false,
+    "token_savings_claim": false,
+    "inventory_close_tool": false,
+    "item_manipulation_tools": false,
+    "stance_action_in_combined_runs": false,
+    "audio_validation_in_combined_runs": false,
+    "sequential_batches": false
+  },
+  "publication": {
+    "images_or_game_assets_included": false,
+    "binaries_or_saves_included": false,
+    "private_paths_or_raw_tokens_included": false,
+    "private_driver_or_raw_run_archive_included": false,
+    "contents": "English report, aggregate outcomes, reviewed hashes and documentation status updates only"
+  }
+}
