@@ -1,9 +1,13 @@
 // Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
+// Fork modification 2026-10-12: default-off supervised map left-click pilot; GPL-3.0-or-later.
 #ifdef OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE
 #include "../../tests/stance-control/StanceControlGate.h"
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
 #include "../../tests/turn-control/TurnControlGate.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+#include "../../tests/map-left-click-control/MapLeftClickControlGate.h"
 #endif
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
@@ -825,6 +829,10 @@ void BattlescapeState::mapPress(Action *action)
  */
 void BattlescapeState::mapClick(Action *action)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
+        MapLeftClickControlGate::mapClickEntered(this);
+#endif
 	// The following is the workaround for a rare problem where sometimes
 	// the mouse-release event is missed for any reason.
 	// However if the SDL is also missed the release event, then it is to no avail :(
@@ -900,10 +908,16 @@ void BattlescapeState::mapClick(Action *action)
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
             TurnControlGate::mapClicked(this);
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+            MapLeftClickControlGate::rightClicked(this);
+#endif
 		}
 		else if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 		{
 			_battleGame->primaryAction(pos);
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+            MapLeftClickControlGate::mapClicked(this);
+#endif
 		}
 	}
 }
@@ -2381,6 +2395,71 @@ void BattlescapeState::turnControlClick(int x, int y)
     SDL_Event event = {};
     event.type = SDL_MOUSEBUTTONUP;
     event.button.button = SDL_BUTTON_RIGHT; event.button.state = SDL_RELEASED;
+    event.button.x = x; event.button.y = y;
+    Action action(&event, 1.0, 1.0, 0, 0);
+    action.setMouseAction(x, y, _map->getX(), _map->getY()); action.setSender(_map);
+    _map->mouseOver(&action, this);
+    mapClick(&action);
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+// This option is checked for L only. Observing V and ordinary R remain usable
+// with the user's existing preview setting; the pilot never changes it.
+bool BattlescapeState::mapLeftClickControlAllowed() const
+{
+    return Options::battleNewPreviewPath == PATH_NONE;
+}
+bool BattlescapeState::mapLeftClickObservationContinuing(const BattleUnit *expectedActor, bool busy) const
+{
+    // A narrowly bounded continuation of the live ordinary walking action.
+    // There is no path/target inspection and no state advancement or abort.
+    // Normal movement and selection mark the HUD dirty before its next blit.
+    // This continuity check permits that redraw; granting a view still uses
+    // the fully painted, exact stanceContext/turnContext checks after blit.
+    BattleUnit *actor = _save->getSelectedUnit();
+    if (!_game->isState(const_cast<BattlescapeState *>(this)) || !_game->getScreen()->stanceAllowed() ||
+        _firstInit || !_gameTimer->isRunning() || !_popups.empty() || _warning->getVisible() ||
+        _save->getSide() != FACTION_PLAYER || _save->getDebugMode() || !_battleGame->getPanicHandled() ||
+        _battleGame->isBusy() != busy || _map->getProjectile() || !_map->getExplosions()->empty() ||
+        _save->getUnitsFalling() || !_save->getFallingUnits()->empty() ||
+        !actor || (busy && actor != expectedActor) || actor->getFaction() != FACTION_PLAYER ||
+        actor->getOriginalFaction() != FACTION_PLAYER || actor->getType() != "SOLDIER" ||
+        actor->isOut() || actor->isFloating() ||
+        (actor->getStatus() != STATUS_WALKING && actor->getStatus() != STATUS_TURNING && actor->getStatus() != STATUS_STANDING) ||
+        (!busy && actor->getStatus() != STATUS_STANDING) ||
+        SDL_GetModState() != KMOD_NONE || SDL_GetMouseState(0, 0) != 0 ||
+        _isMouseScrolling || _isMouseScrolled || _mouseOverIcons || !_map->getCamera()->turnControlIdle() ||
+        _map->getCursorType() != (busy ? CT_NONE : CT_NORMAL) || _battleGame->getCurrentAction()->type != BA_NONE ||
+        _battleGame->getCurrentAction()->targeting || !_battleGame->getCurrentAction()->waypoints.empty() ||
+        !_map->getWaypoints()->empty() || _save->getPathfinding()->isPathPreviewed() ||
+        !_map->turnContextVisible() || _map->getX() != 0 || _map->getY() != 0 ||
+        _map->getWidth() != 320 || _map->getHeight() != 200) return false;
+    Surface *widgets[] = {_icons, _txtName, _numTimeUnits, _numEnergy, _numHealth, _numMorale,
+        _btnKneel, _btnReserveNone, _btnReserveSnap, _btnReserveAimed, _btnReserveAuto, _btnReserveKneel};
+    for (Surface *widget : widgets)
+        if (!widget->turnContextVisible() || widget->getX() < 0 || widget->getY() < 144 ||
+            widget->getX() + widget->getWidth() > 320 || widget->getY() + widget->getHeight() > 200) return false;
+    return _icons->getWidth() == 320 && _icons->getHeight() == 56;
+}
+bool BattlescapeState::mapLeftClickObservationReady() const
+{
+    // An ordinary click may select another visible friendly. Only a newly
+    // selected supported soldier can subsequently produce a fresh grant.
+    return mapLeftClickObservationContinuing(0, false);
+}
+bool BattlescapeState::mapLeftClickObservationWaiting(const BattleUnit *expectedActor) const
+{
+    return mapLeftClickObservationContinuing(expectedActor, true);
+}
+void BattlescapeState::mapLeftClickControlClick(int x, int y)
+{
+    // Identical selector setup to the right-click pilot, followed by exactly
+    // one normal map left-click. primaryAction owns movement, selection, costs,
+    // reserves, contact interruption, reaction fire and every possible no-op.
+    SDL_Event event = {};
+    event.type = SDL_MOUSEBUTTONUP;
+    event.button.button = SDL_BUTTON_LEFT; event.button.state = SDL_RELEASED;
     event.button.x = x; event.button.y = y;
     Action action(&event, 1.0, 1.0, 0, 0);
     action.setMouseAction(x, y, _map->getX(), _map->getY()); action.setSender(_map);

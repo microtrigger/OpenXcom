@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11; selection/turn extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection/turn/map-left-click extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #pragma once
 #include <SDL.h>
 #include <cstdint>
@@ -48,12 +48,17 @@ class StanceController {
     SDL_Color _palette[256];
     StanceConfirmState *_dialog, *_frameDialog;
     State *_expectedPush, *_expectedPop, *_challengeState;
-    char _action; // k/s: desired stance, n/p: ordinary selection direction.
-    bool _selectionEnabled, _turnEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R only.
+    char _action; // k/s: stance, n/p: selection, r/l: ordinary map button.
+    bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
+    char _contextKind; // O: HUD-bound D/N; V: tactical-view-bound R/L.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
-    std::uint64_t _contextTime, _challengeTime;
+    std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    // Private, one-way permission to wait through the normal post-click walk.
+    bool _mapLeftClickObservationActive, _confirmEventFromKey, _mapLeftClickConfirmKeyRelease;
+    std::uint64_t _mapLeftClickDispatchTime;
+#endif
     std::map<std::string, Command> _commands;
     bool sendPacket(const std::string &packet);
     bool connected() const;
@@ -65,7 +70,7 @@ public:
     ~StanceController();
     bool enabled() const { return _fd >= 0; }
     void close();
-    void invalidate(bool newEpoch = false);
+    void invalidate(bool newEpoch = false, bool preserveMapWait = false);
     void beforePush(State *state);
     void beforePop(State *state);
     void beforeEvent(const SDL_Event &event, State *top);
@@ -81,6 +86,7 @@ public:
     bool selectionRequest() const { return _action == 'n' || _action == 'p'; }
     bool nextSelection() const { return _action == 'n'; }
     bool turnRequest() const { return _action == 'r'; }
+    bool mapLeftClickRequest() const { return _action == 'l'; }
     int targetX() const { return _targetX; }
     int targetY() const { return _targetY; }
 private:

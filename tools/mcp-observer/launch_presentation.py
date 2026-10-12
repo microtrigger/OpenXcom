@@ -60,6 +60,8 @@ def run():
                         help='also enable local-UI-confirmed next/previous eligible player unit selection; requires --supervised-stance')
     parser.add_argument('--supervised-turn', action='store_true',
                         help='also enable local-UI-confirmed ordinary tactical right-click (turn or open a door); requires --supervised-stance')
+    parser.add_argument('--supervised-map-left-click', action='store_true',
+                        help='also enable local-UI-confirmed ordinary map left-click (may move, select or do nothing); requires --supervised-stance and --supervised-turn')
     parser.add_argument('--audio-only', action='store_true',
                         help='enable mixed audio without a presentation channel')
     parser.add_argument('command', nargs=argparse.REMAINDER)
@@ -73,13 +75,15 @@ def run():
         parser.error('--supervised-selection requires --supervised-stance')
     if args.supervised_turn and not args.supervised_stance:
         parser.error('--supervised-turn requires --supervised-stance')
+    if args.supervised_map_left_click and not (args.supervised_stance and args.supervised_turn):
+        parser.error('--supervised-map-left-click requires --supervised-stance and --supervised-turn')
     if args.audio_only and (args.presented_hud or args.supervised_stance):
         parser.error('--audio-only cannot be combined with visual channels')
     env = os.environ.copy()
     # Ambient descriptors and versions cannot silently enable another stream.
     for key in ('OPENXCOM_PRESENTATION_FD', 'OPENXCOM_PRESENTATION_VERSION',
                 'OPENXCOM_MIXED_AUDIO_FD', 'OPENXCOM_STANCE_FD', 'OPENXCOM_SELECTION_ENABLED',
-                'OPENXCOM_TURN_ENABLED'):
+                'OPENXCOM_TURN_ENABLED', 'OPENXCOM_MAP_LEFT_CLICK_ENABLED'):
         env.pop(key, None)
     with ExitStack() as cleanup:
         children = []
@@ -109,8 +113,11 @@ def run():
                 env['OPENXCOM_SELECTION_ENABLED'] = '1'
             if args.supervised_turn:
                 env['OPENXCOM_TURN_ENABLED'] = '1'
+            if args.supervised_map_left_click:
+                env['OPENXCOM_MAP_LEFT_CLICK_ENABLED'] = '1'
             stance = StanceClient(parent, selection_enabled=args.supervised_selection,
-                                  turn_enabled=args.supervised_turn)
+                                  turn_enabled=args.supervised_turn,
+                                  map_left_click_enabled=args.supervised_map_left_click)
             cleanup.callback(stance.close)
         # Discard both diagnostics streams at the OS boundary, including startup,
         # logger fallback and shutdown. No pipe, decoding, reader or log buffer.

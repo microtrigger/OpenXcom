@@ -7,7 +7,7 @@ Status as of October 12, 2026. We maintain the Russian version for day-to-day pr
 
 ## Plan versus actual progress
 
-Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The earlier [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) has [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. The latest boundary correction is [diagnostic isolation](../../tools/mcp-observer/DIAGNOSTIC-ISOLATION.md), with separate [bounded menu and test evidence](diagnostic-isolation-evidence.json). The new [smoke-density render gate](SMOKE-DENSITY-GATE.md) passes its first normal UFO/TFTD runs and rejects both source mutants in each game; see [aggregate evidence](smoke-density-evidence.json), 2026-10-11. The separate [smoke viewport-clipping gate](SMOKE-CLIPPING-GATE.md) passes its first normal UFO/TFTD runs on one frozen binary and rejects the HUD-leak and centered-positive-control mutants in both games; see [aggregate evidence](smoke-clipping-evidence.json). The [bounded native timing calibration](TIMING-CALIBRATION.md) completed all four planned profiles; its deliberate delay control meets the frozen rule in TFTD but is inconclusive in UFO, so timing remains open; see [aggregate evidence](timing-calibration-evidence.json). Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; observation prototypes and limited locally confirmed stance/unit-selection/right-click pilots, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
+Displayed-HUD evidence baseline: [b8d9806](https://github.com/microtrigger/OpenXcom/commit/b8d9806aa83151c4da1805c691f50903512c7f65). The [natural-FOV/pause gate](natural-fov-evidence.json) is based on `a8750ad` plus recorded source hashes. The earlier [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) has [aggregate runtime evidence](battlefield-audio-evidence.json), 2026-10-10. The latest boundary correction is [diagnostic isolation](../../tools/mcp-observer/DIAGNOSTIC-ISOLATION.md), with separate [bounded menu and test evidence](diagnostic-isolation-evidence.json). The new [smoke-density render gate](SMOKE-DENSITY-GATE.md) passes its first normal UFO/TFTD runs and rejects both source mutants in each game; see [aggregate evidence](smoke-density-evidence.json), 2026-10-11. The separate [smoke viewport-clipping gate](SMOKE-CLIPPING-GATE.md) passes its first normal UFO/TFTD runs on one frozen binary and rejects the HUD-leak and centered-positive-control mutants in both games; see [aggregate evidence](smoke-clipping-evidence.json). The [bounded native timing calibration](TIMING-CALIBRATION.md) completed all four planned profiles; its deliberate delay control meets the frozen rule in TFTD but is inconclusive in UFO, so timing remains open; see [aggregate evidence](timing-calibration-evidence.json). Earlier [request-bound mixed audio](MIXED-AUDIO-NATIVE.md) and its [adapter measurements](../../tools/mcp-observer/mixed-audio-evidence.json) remain separate evidence. **Overall: in progress; observation prototypes and limited locally confirmed stance/unit-selection/right-click/left-click pilots, not a completed player interface.** Update this summary and the Russian working version after each verified delivery, with its evidence revision, remaining gates, and failed/not-run checks. A delivered subset does not close its parent stage.
 
 **Selected limited route (2026-10-11):** the owner accepted
 [`practical-play/1`](PERCEPTION-CONTRACT.md#practical-first-version-acceptance-profile):
@@ -17,7 +17,7 @@ limitation. The locally human-confirmed kneel/stand implementation and bounded t
 demonstration are verified below. Actual token benchmarking remains pending. This is a separate
 bounded acceptance profile; the original full Stage 5/controller gate stays
 open. The scope decision alone was not implementation evidence; the separate results
-below establish only the limited stance milestone, with no savings claim.
+below establish the individually bounded control milestones, with no savings claim.
 Historical evidence retains its original scope.
 
 | Stage / planned outcome | Actual result | Remaining acceptance gate |
@@ -28,12 +28,34 @@ Historical evidence retains its original scope.
 | 3 · Native observer | Historical HUD/cursor slices, request-bound pixels, optional four-number displayed HUD and default-off [500 ms final-mix audio](MIXED-AUDIO-NATIVE.md) implemented. | Full approved projection, event coverage, broader game-audio/lifecycle validation and parity. |
 | 4 · IPC/MCP | Local read-only stdio tools, request-bound `/1`/`/2` visual protocols and a separate [native MCP audio tool](../../tools/mcp-observer/AUDIO-ADAPTER.md) implemented; SDK checks pass. | Production recovery and broader observation coverage; no audiovisual synchronization. |
 | 5 · Non-disclosure gate | Native/synthetic, source-boundary and transport tests pass; [15 production UI/transport paired tests and two deliberate leak controls](PAIRED-UI-GATE.md), plus [one controlled in-engine hidden-occupant render pair](HIDDEN-OCCUPANT-GATE.md) in UFO/TFTD, also pass. A separate [request-effects gate](OBSERVER-EFFECTS-GATE.md) passes normal kneel/stand checkpoints in both games and rejects engine-RNG consumption mutants. The [natural-FOV/pause gate](NATURAL-FOV-GATE.md) passes six real input/timer-driven presentations with independent crop/HUD pixel checks in each game. A real-SDL synthetic audio oracle checks byte-exact final-mix capture and rejects deliberate corruptions. The [normal battlefield-audio gate](BATTLEFIELD-AUDIO-GATE.md) passes visible/outside-player-team-FOV grenade events, exact independent same-buffer PCM and idle/requested-observer state/engine-RNG comparisons in each game, rejecting PCM-corruption, extra-RNG-draw and missing-cue controls in both. The separate [smoke-density gate](SMOKE-DENSITY-GATE.md) passes eight whole-frame 7/8 matches, 24 native responses and eight density-6 positive phases per game, with both source mutants rejected in each game. The separate [smoke viewport-clipping gate](SMOKE-CLIPPING-GATE.md) passes eight equal clipped complete frames and equal complete native transcripts, 32 native responses and eight centered 6/7 positive phases per game; the HUD-leak and centered-positive-control mutants are rejected in both games. The [bounded timing calibration](TIMING-CALIBRATION.md) completed four profiles and 304 half samples with pairwise RGB/transcript equality; the 5 ms sensitivity control is inconclusive in UFO and meets the frozen rule in TFTD. | Full paired hidden-engine-state, audio and timing tests, including an established timing sensitivity method; controller gate remains open. |
-| 6 · Normal-action controller | Default-off locally confirmed stance pilot implemented; [bounded native and actual MCP/game checks](SUPERVISED-STANCE-EVIDENCE.md) pass in both games. The separately opted-in [next/previous selection extension](SUPERVISED-SELECTION-EVIDENCE.md) adds bounded native parity and interruption/replay checks. The [ordinary right-click extension](SUPERVISED-TURN-EVIDENCE.md) adds full-view binding and bounded turn/door checks. | Full controller: Stage 5 and agreed commands. Limited stance pilot: `practical-play/1` checks and local in-game confirmation. |
+| 6 · Normal-action controller | Default-off locally confirmed stance pilot implemented; [bounded native and actual MCP/game checks](SUPERVISED-STANCE-EVIDENCE.md) pass in both games. The separately opted-in [next/previous selection extension](SUPERVISED-SELECTION-EVIDENCE.md) adds bounded native parity and interruption/replay checks. The [ordinary right-click extension](SUPERVISED-TURN-EVIDENCE.md) adds full-view binding and bounded turn/door checks. The [ordinary left-click pilot](SUPERVISED-MAP-LEFT-CLICK-EVIDENCE.md) adds bounded movement/selection and consequence checks. | Full controller: Stage 5 and agreed commands. Limited pilots: focused `practical-play/1` checks and local in-game confirmation. |
 | 7 · Sequential batches | Not implemented. | Controller, interruption and duplicate-execution guarantees. |
 | 8 · UFO/TFTD matrix | Selected visual and [diagnostic-profile menu checks](diagnostic-isolation-evidence.json), [mixed-audio menu/zero-volume/exit checks](mixed-audio-game-evidence.json), the [bounded land-only battlefield-audio slice](battlefield-audio-evidence.json), the [controlled land-only smoke-density render pair](SMOKE-DENSITY-GATE.md) and the [full right-edge smoke-clipping pair](SMOKE-CLIPPING-GATE.md) pass in both games; earlier failures and unmatched comparisons are retained in [bounded visual evidence](presented-hud-build-evidence.json). All four [timing-calibration profiles](timing-calibration-evidence.json) completed, but UFO sensitivity remains unestablished. | Full regression matrix, including unsupported/not-run cases. |
 | 9 · Resource comparison | Protocol, offline harness and usage-ledger format prepared ([benchmark documentation](../../tools/benchmarks/README.md)); bounded audio byte counts and component microbenchmarks recorded. | Actual end-to-end model-token/latency/resource measurement; no token-savings claim. |
 | 10 · Guide and joint pilot | Prototype usage documentation exists; gameplay guide and campaign pilot not completed. | Earlier acceptance gates and agreement on a bounded pilot. |
 | 11 · Full HD / YouTube | Deferred. | Separate recording and publication approval. |
+
+### Ordinary map left-click (2026-10-12)
+
+The bounded [left-click pilot](SUPERVISED-MAP-LEFT-CLICK-PILOT.md) uses fresh
+presented tactical pixels and local confirmation. One ordinary map click may
+walk, select a visible friendly or do nothing. The first profile requires the
+normal default path-preview setting, never changes it and never synthesizes a
+second click. No hidden route, occupancy or predicted-cost query is added.
+
+Both games pass 19 manual/control pairs, 36 adversarial worlds and 38 paired
+outcome views, covering normal TU/energy/reserves, first contact, a regular door,
+a real reaction-fire queue and manual cancellation. Natural movement continues
+after an observation timeout or disconnection. The post-L wait has a fixed
+8-second dispatch deadline; unrelated input revokes it and a fresh V remains
+mandatory. 352 Python tests pass normally and with optimization, with two
+expected native-only skips each; six synthetic-peer SDK smokes pass.
+
+[Evidence and earlier failure](SUPERVISED-MAP-LEFT-CLICK-EVIDENCE.md) record the
+fixture-only out-of-bounds timeout target correction. All 18 actual-source faults
+are detected in both games; prior stance, selection and right-click gates also pass. Completed reaction damage,
+falling, broader terrain coverage, preview-path movement, combined SDK/live-game
+left-click, full Stage 5 and real token measurements remain open.
 
 ### Verified ordinary map right-click extension (2026-10-12)
 
@@ -67,8 +89,8 @@ hidden eligibility query. Native UFO/TFTD checks compare ten manual/controlled
 pairs and nineteen adversarial worlds per game, including a three-unit ring,
 wrap/skip/no-op behavior and a fresh post-selection panel for every pair.
 The original stance gate is rerun separately. See [verification and limits](SUPERVISED-SELECTION-EVIDENCE.md).
-Movement, inventory, firing, end-turn control and safe batches remain unimplemented;
-this does not close Stage 5 or establish token savings.
+This selection-only delivery did not include movement, inventory, firing,
+end-turn control or safe batches; it does not close Stage 5 or establish token savings.
 
 ### Verified supervised stance pilot (2026-10-11)
 
@@ -384,7 +406,7 @@ Implement an observer first. Full control still requires the full non-disclosure
 
 ### 6. Minimal controller through the normal action pipeline
 
-**Status:** the default-off supervised stance pilot is implemented and verified in the bounded native and actual MCP/game demonstrations above. The separately opted-in next/previous unit-selection extension is also implemented with bounded native checks; see its [evidence](SUPERVISED-SELECTION-EVIDENCE.md). The separately opted-in ordinary right-click pilot also passes bounded turn/door checks in both games; see its [evidence](SUPERVISED-TURN-EVIDENCE.md). Full controller acceptance remains blocked by stage 5; movement, inventory, firing and end-turn commands remain unimplemented.
+**Status:** the default-off supervised stance pilot is implemented and verified in the bounded native and actual MCP/game demonstrations above. The separately opted-in next/previous unit-selection extension is also implemented with bounded native checks; see its [evidence](SUPERVISED-SELECTION-EVIDENCE.md). The separately opted-in ordinary right-click pilot also passes bounded turn/door checks in both games; see its [evidence](SUPERVISED-TURN-EVIDENCE.md). The separately opted-in [ordinary left-click pilot](SUPERVISED-MAP-LEFT-CLICK-EVIDENCE.md) adds bounded movement/selection and consequence checks. Full controller acceptance remains blocked by stage 5; broader movement, inventory, firing and end-turn commands remain open.
 
 **Dependencies:** full controller: stages 1–5 and agreed commands. Limited stance pilot: the source/presentation boundary and focused correctness, one-use request, local confirmation and safe-stop checks in `practical-play/1`. The broader command list below remains outside that pilot.
 

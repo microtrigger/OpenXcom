@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11; selection/turn extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection/turn/map-left-click extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #include "StanceController.h"
 #include "StanceConfirmState.h"
 #include "DiagnosticProfile.h"
@@ -85,8 +85,11 @@ bool TurnContext::operator==(const TurnContext &o) const
 }
 #endif
 StanceController::StanceController(Game *game, const char *descriptor) : _game(game), _fd(-1),
-    _dialog(0), _frameDialog(0), _expectedPush(0), _expectedPop(0), _challengeState(0), _action('s'), _selectionEnabled(false), _turnEnabled(false), _awaitingView(false), _waitingTurnFrame(false), _contextKind('O'), _targetX(0), _targetY(0), _armed(false), _desired(false),
-    _dialogPresented(false), _confirmEventAllowed(false), _yDown(false), _mouseDown(false), _mouseArmed(false), _contextTime(0), _challengeTime(0)
+    _dialog(0), _frameDialog(0), _expectedPush(0), _expectedPop(0), _challengeState(0), _action('s'), _selectionEnabled(false), _turnEnabled(false), _mapLeftClickEnabled(false), _awaitingView(false), _waitingTurnFrame(false), _contextKind('O'), _targetX(0), _targetY(0), _armed(false), _desired(false),
+    _dialogPresented(false), _confirmEventAllowed(false), _yDown(false), _mouseDown(false), _mouseArmed(false), _contextTime(0), _challengeTime(0), _challengeDeadline(0)
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    , _mapLeftClickObservationActive(false), _confirmEventFromKey(false), _mapLeftClickConfirmKeyRelease(false), _mapLeftClickDispatchTime(0)
+#endif
 {
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     const char *selection = std::getenv("OPENXCOM_SELECTION_ENABLED");
@@ -95,6 +98,10 @@ StanceController::StanceController(Game *game, const char *descriptor) : _game(g
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     const char *turn = std::getenv("OPENXCOM_TURN_ENABLED");
     _turnEnabled = turn && std::string(turn) == "1";
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    const char *leftClick = std::getenv("OPENXCOM_MAP_LEFT_CLICK_ENABLED");
+    _mapLeftClickEnabled = _turnEnabled && leftClick && std::string(leftClick) == "1";
 #endif
     std::memset(_palette, 0, sizeof(_palette));
 #ifndef MSG_NOSIGNAL
@@ -142,9 +149,16 @@ bool StanceController::sendPacket(const std::string &packet)
 #endif
     close(); return false;
 }
-void StanceController::invalidate(bool newEpoch)
+void StanceController::invalidate(bool newEpoch, bool preserveMapWait)
 {
     _capability.clear(); _confirmEventAllowed = false;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    _confirmEventFromKey = false;
+    if (newEpoch || !preserveMapWait)
+        _mapLeftClickObservationActive = _mapLeftClickConfirmKeyRelease = false;
+#else
+    (void)preserveMapWait;
+#endif
     if (newEpoch && _contextKind == 'V' && !_challenge.empty())
     { _challenge.clear(); unavailable(); }
     if (!_pendingId.empty())
@@ -169,7 +183,22 @@ bool StanceController::ownsDialog(State *state) const { return _dialog && state 
 void StanceController::beforeEvent(const SDL_Event &event, State *top)
 {
     _confirmEventAllowed = false;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    _confirmEventFromKey = false;
+#endif
     if (_fd < 0) return;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    if (_mapLeftClickObservationActive && _mapLeftClickConfirmKeyRelease && !_dialog &&
+        _awaitingView && _action == 'l' && _game->isState(_context.state) &&
+        event.type == SDL_KEYUP && event.key.keysym.sym == SDLK_y &&
+        event.key.keysym.mod == KMOD_NONE && SDL_GetModState() == KMOD_NONE)
+    {
+        // Exactly the release completing the accepted KEYDOWN confirmation.
+        // The engine still receives this event normally. Every other input
+        // follows the ordinary invalidation path and revokes this one-use tail.
+        _yDown = false; _mapLeftClickConfirmKeyRelease = false; return;
+    }
+#endif
     if (ownsDialog(top) && _game->isState(_dialog))
     {
         if (event.type == SDL_MOUSEMOTION) return;
@@ -191,6 +220,9 @@ void StanceController::beforeEvent(const SDL_Event &event, State *top)
         {
             _confirmEventAllowed = _dialogPresented && !_yDown && event.key.keysym.mod == KMOD_NONE;
             if (!_confirmEventAllowed) invalidate();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+            _confirmEventFromKey = _confirmEventAllowed;
+#endif
             _yDown = true;
             return;
         }
@@ -220,6 +252,9 @@ bool StanceController::bindingCurrent(bool modal) const
     {
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
         TurnContext turn;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+        if (_dialog && mapLeftClickRequest() && !_context.state->mapLeftClickControlAllowed()) return false;
+#endif
         return _turnEnabled && _context.state->turnContext(turn, modal) && turn == _turnContext;
 #else
         return false;
@@ -239,10 +274,33 @@ void StanceController::poll()
     if (_fd < 0) return;
     if (!diagnosticProfileQualified() || !connected()) { close(); return; }
     if ((!_capability.empty() || !_pendingId.empty()) && !bindingCurrent(_dialog != 0)) invalidate();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    if (_mapLeftClickObservationActive)
+    {
+        // Observe continuity even before a replacement V arrives. Unsupported
+        // transients cannot disappear and restore permission to wait. This
+        // changes only control availability, never the natural walking state.
+        const bool sameState = _context.state && _game->isState(_context.state);
+        const bool idle = sameState && _context.state->mapLeftClickObservationReady();
+        if (!focused() || !_game->getScreen()->stanceAllowed() || !sameState ||
+            (!idle && !_context.state->mapLeftClickObservationWaiting(_context.actor)))
+        {
+            _mapLeftClickObservationActive = _mapLeftClickConfirmKeyRelease = false;
+            if (!_challenge.empty()) { _challenge.clear(); unavailable(); }
+        }
+        else if (now() - _mapLeftClickDispatchTime >= 8000)
+        {
+            // Expire the continuation even if the actor is already idle. An
+            // idle-admitted V keeps its own frozen presentation deadline;
+            // a busy-admitted V expires below at dispatch + eight seconds.
+            _mapLeftClickObservationActive = _mapLeftClickConfirmKeyRelease = false;
+        }
+    }
+#endif
     if (_contextKind == 'V' && !_challenge.empty() &&
-        (now() - _challengeTime >= 1500 || !focused() || !_game->getScreen()->stanceAllowed() ||
+        (now() >= _challengeDeadline || !focused() || !_game->getScreen()->stanceAllowed() ||
         (!_challengeState || !_game->isState(_challengeState))))
-    { _challenge.clear(); unavailable(); }
+    { invalidate(); _challenge.clear(); unavailable(); }
     char bytes[104]; iovec part = {bytes, sizeof(bytes)}; msghdr msg = {};
     msg.msg_iov = &part; msg.msg_iovlen = 1;
     const ssize_t n = recvmsg(_fd, &msg, MSG_DONTWAIT);
@@ -252,15 +310,23 @@ void StanceController::poll()
     if (n == 33 && (request[0] == 'O' || (_turnEnabled && request[0] == 'V')) && token(request.substr(1)))
     {
         if (!_challenge.empty() || _dialog || (_awaitingView && request[0] != 'V')) { unavailable(); return; }
-        invalidate(); _contextKind = request[0];
+        // Replacing the consumed grant with V does not itself revoke the
+        // surviving post-L wait. Every external invalidation still does.
+        invalidate(false, request[0] == 'V'); _contextKind = request[0];
+        _challengeTime = now(); _challengeDeadline = _challengeTime + 1500;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
         if (_contextKind == 'V')
         {
             _challengeState = dynamic_cast<BattlescapeState *>(_game->turnControlState());
             if (!_challengeState) { unavailable(); return; }
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+            if (_mapLeftClickObservationActive && _challengeState == _context.state &&
+                _context.state->mapLeftClickObservationWaiting(_context.actor))
+                _challengeDeadline = _mapLeftClickDispatchTime + 8000;
+#endif
         }
 #endif
-        _challenge = request.substr(1); _challengeTime = now(); return;
+        _challenge = request.substr(1); return;
     }
     if (n == 33 && request[0] == 'S' && token(request.substr(1))) { replyStatus(request.substr(1)); return; }
     const bool stance = n == 99 && request[0] == 'D' &&
@@ -269,9 +335,12 @@ void StanceController::poll()
         (request[97] == 'n' || request[97] == 'p') && request[98] == '0';
     const bool turn = _turnEnabled && n == 103 && request[0] == 'R' &&
         request.substr(97).find_first_not_of("0123456789") == std::string::npos;
-    const int x = turn ? std::atoi(request.substr(97, 3).c_str()) : 0;
-    const int y = turn ? std::atoi(request.substr(100, 3).c_str()) : 0;
-    if ((!stance && !selection && !turn) || (turn && (x < 16 || x > 303 || y < 40 || y > 127)) || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
+    const bool leftClick = _mapLeftClickEnabled && n == 103 && request[0] == 'L' &&
+        request.substr(97).find_first_not_of("0123456789") == std::string::npos;
+    const bool mapClick = turn || leftClick;
+    const int x = mapClick ? std::atoi(request.substr(97, 3).c_str()) : 0;
+    const int y = mapClick ? std::atoi(request.substr(100, 3).c_str()) : 0;
+    if ((!stance && !selection && !mapClick) || (mapClick && (x < 16 || x > 303 || y < 40 || y > 127)) || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
         !token(request.substr(65, 32))) { unavailable(); close(); return; }
     const std::string id = request.substr(65, 32);
     const auto prior = _commands.find(id);
@@ -285,13 +354,16 @@ void StanceController::poll()
     if (_commands.size() >= 64) { unavailable(); close(); return; }
     _commands[id] = {request, "unavailable"};
     if (_awaitingView || _dialog || !_challenge.empty() || _capability.empty() || request.substr(1, 32) != _epoch ||
-        request.substr(33, 32) != _capability || turn != (_contextKind == 'V') ||
+        request.substr(33, 32) != _capability || mapClick != (_contextKind == 'V') ||
         (stance && ((request[97] == 'k') != _context.kneeled || request[97] == request[98])) ||
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+        (leftClick && !_context.state->mapLeftClickControlAllowed()) ||
+#endif
         !bindingCurrent() || (selection && !_context.state->selectionControlVisible())) { replyStatus(id); return; }
     // Reserving this exact capability is already one-use. Local confirmation
     // cannot create a new capability, change the actor, or change the command.
     _capability.clear();
-    _action = turn ? 'r' : selection ? request[97] : request[98];
+    _action = leftClick ? 'l' : turn ? 'r' : selection ? request[97] : request[98];
     _targetX = x; _targetY = y;
     _desired = request[98] == 'k'; _pendingId = id;
     _dialogPresented = _confirmEventAllowed = _mouseArmed = false;
@@ -318,7 +390,11 @@ void StanceController::arm(BattlescapeState *state)
         if (!_challenge.empty() && state != _challengeState) { _armed = false; return; }
         if (_armed) _armed = _turnEnabled && state->turnContext(_frameTurnContext, false);
         _waitingTurnFrame = !_armed && _awaitingView && !_challenge.empty() && state == _context.state &&
-            state->turnObservationWaiting(_context.actor);
+            (
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+                (_action == 'l' && _mapLeftClickObservationActive && state->mapLeftClickObservationWaiting(_context.actor)) ||
+#endif
+                (_action == 'r' && state->turnObservationWaiting(_context.actor)));
     }
 #endif
 }
@@ -344,11 +420,13 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool allo
         return;
     }
     if (_challenge.empty() && _capability.empty()) return;
+    if (_contextKind == 'V' && !_challenge.empty() && now() >= _challengeDeadline)
+    { invalidate(); _challenge.clear(); unavailable(); return; }
     if (bw != 320 || bh != 200 || !supportedPresentedSurface(surface, bw, bh, allowed) || (_contextKind == 'V' && !focused()))
     { invalidate(); if (!_challenge.empty()) { _challenge.clear(); unavailable(); } return; }
     if (!_armed)
     {
-        if (_waitingTurnFrame && now() - _challengeTime < 1500) return;
+        if (_waitingTurnFrame && now() < _challengeDeadline) return;
         invalidate(); if (!_challenge.empty()) { _challenge.clear(); unavailable(); } return;
     }
     const int scale = surface->w / bw;
@@ -400,7 +478,13 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool allo
             "\",\"semantics\":\"presented_after_request\",\"view\":{\"width\":320,\"height\":200,\"indices_hex\":\"" + indicesHex +
             "\",\"palette_hex\":\"" + paletteHex + "\"}}";
         if (packet.size() >= 128 * 1024) { close(); return; }
-        if (sendPacket(packet)) _awaitingView = false;
+        if (sendPacket(packet))
+        {
+            _awaitingView = false;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+            _mapLeftClickObservationActive = _mapLeftClickConfirmKeyRelease = false;
+#endif
+        }
         return;
     }
 #endif
@@ -418,16 +502,32 @@ void StanceController::confirm(StanceConfirmState *dialog, bool accept)
     const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);
     const bool selectionValid = valid && (!selectionRequest() ||
         (_selectionEnabled && _context.state->selectionControlVisible()));
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    const bool leftClickValid = valid && (!mapLeftClickRequest() ||
+        (_mapLeftClickEnabled && _context.state->mapLeftClickControlAllowed()));
+#endif
     _confirmEventAllowed = false;
     _expectedPop = dialog;
     _game->popState();
     _dialog = 0;
     if (!valid || !selectionValid || !bindingCurrent(false) ||
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+        !leftClickValid || (mapLeftClickRequest() && !_context.state->mapLeftClickControlAllowed()) ||
+#endif
         (selectionRequest() && !_context.state->selectionControlVisible())) { invalidate(); return; }
     _pendingId.clear(); _capability.clear();
     _commands[id].status = "dispatched";
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     if (_action == 'r') { _awaitingView = true; _context.state->turnControlClick(_targetX, _targetY); return; }
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    if (_action == 'l')
+    {
+        _awaitingView = true;
+        _mapLeftClickObservationActive = true; _mapLeftClickDispatchTime = now();
+        _mapLeftClickConfirmKeyRelease = _confirmEventFromKey;
+        _context.state->mapLeftClickControlClick(_targetX, _targetY); return;
+    }
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
     if (_action == 'n') { _context.state->btnNextSoldierClick(0); return; }

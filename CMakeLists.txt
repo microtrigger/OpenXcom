@@ -107,6 +107,11 @@ option ( EXPERIMENTAL_SUPERVISED_TURN "Build local-confirmation normal right-cli
 if ( EXPERIMENTAL_SUPERVISED_TURN AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Supervised turn requires EXPERIMENTAL_SUPERVISED_STANCE" )
 endif()
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised map left-click, 2026-10-12.
+option ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK "Build local-confirmation ordinary map left-click pilot" OFF )
+if ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK AND NOT EXPERIMENTAL_SUPERVISED_TURN )
+  message ( FATAL_ERROR "Supervised map left-click requires EXPERIMENTAL_SUPERVISED_TURN" )
+endif()
 option ( EXPERIMENTAL_STANCE_CONTROL_GATE "Build isolated finite stance-control test gate" OFF )
 if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Stance control gate requires EXPERIMENTAL_SUPERVISED_STANCE" )
@@ -119,6 +124,12 @@ endif()
 option ( EXPERIMENTAL_TURN_CONTROL_GATE "Build isolated finite turn-control test gate" OFF )
 if ( EXPERIMENTAL_TURN_CONTROL_GATE AND (NOT EXPERIMENTAL_SUPERVISED_TURN OR NOT EXPERIMENTAL_SUPERVISED_SELECTION OR NOT EXPERIMENTAL_STANCE_CONTROL_GATE) )
   message ( FATAL_ERROR "Turn control gate requires supervised turn, selection and stance control gate" )
+endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; finite supervised map left-click gate, 2026-10-12.
+option ( EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE "Build isolated finite map left-click control test gate" OFF )
+if ( EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE AND (NOT EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK OR NOT EXPERIMENTAL_SUPERVISED_SELECTION OR NOT EXPERIMENTAL_STANCE_CONTROL_GATE) )
+  message ( FATAL_ERROR "Map left-click control gate requires supervised map left-click, selection and stance control gate" )
 endif()
 
 option ( DEV_BUILD "Development Build. Disable this for release builds" ON )

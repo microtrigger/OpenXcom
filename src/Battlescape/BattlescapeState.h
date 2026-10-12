@@ -1,4 +1,5 @@
 // Fork modification 2026-10-12: default-off supervised turn pilot; GPL-3.0-or-later.
+// Fork modification 2026-10-12: default-off supervised map left-click pilot; GPL-3.0-or-later.
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
 /*
@@ -68,6 +69,13 @@ private:
     bool turnContext(Observer::TurnContext &context, bool covered) const;
     bool turnObservationWaiting(const BattleUnit *expectedActor) const;
     void turnControlClick(int x, int y);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
+    bool mapLeftClickControlAllowed() const;
+    bool mapLeftClickObservationContinuing(const BattleUnit *expectedActor, bool busy) const;
+    bool mapLeftClickObservationReady() const;
+    bool mapLeftClickObservationWaiting(const BattleUnit *expectedActor) const;
+    void mapLeftClickControlClick(int x, int y);
 #endif
 #endif
 	#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER

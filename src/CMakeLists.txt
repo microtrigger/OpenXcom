@@ -626,6 +626,15 @@ if ( EXPERIMENTAL_SUPERVISED_TURN )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised map left-click, 2026-10-12.
+if ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK )
+endif()
+if ( EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/map-left-click-control/MapLeftClickControlGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE )
+endif()
+
 if ( EXPERIMENTAL_TURN_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/turn-control/TurnControlGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE )

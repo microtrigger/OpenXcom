@@ -4,6 +4,9 @@
 // display pixels, normal kneel entry and the actual reaction queue are tested.
 // Oracle values, resources and captures remain private in memory.
 #include "StanceControlGate.h"
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+#include "../map-left-click-control/MapLeftClickControlGate.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
 #include "../turn-control/TurnControlGate.h"
 #endif
@@ -435,6 +438,9 @@ void actionOracle()
 
 void prepare()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::prepare(); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::prepare(); return; }
 #endif
@@ -460,6 +466,9 @@ void prepare()
 }
 void silence()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::silence(); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::silence(); return; }
 #endif
@@ -471,6 +480,9 @@ void silence()
 }
 bool loaded(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { return MapLeftClickControlGate::loaded(game); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { return TurnControlGate::loaded(game); }
 #endif
@@ -489,6 +501,9 @@ bool loaded(Game *game)
 }
 void afterCleanup(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::afterCleanup(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::afterCleanup(game); return; }
 #endif
@@ -538,6 +553,9 @@ void afterCleanup(Game *game)
 }
 void beforeEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::beforeEvents(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::beforeEvents(game); return; }
 #endif
@@ -625,6 +643,9 @@ void beforeEvents(Game *game)
 }
 bool acceptEvent(const SDL_Event &e)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { return MapLeftClickControlGate::acceptEvent(e); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { return TurnControlGate::acceptEvent(e); }
 #endif
@@ -652,6 +673,9 @@ bool acceptEvent(const SDL_Event &e)
 }
 void afterEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::afterEvents(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::afterEvents(game); return; }
 #endif
@@ -683,6 +707,9 @@ void afterEvents(Game *game)
 }
 void beforeFrame(Game *game, State *top)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::beforeFrame(game,top); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::beforeFrame(game,top); return; }
 #endif
@@ -709,6 +736,9 @@ void beforeFrame(Game *game, State *top)
 }
 void afterFrame(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::afterFrame(game); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::afterFrame(game); return; }
 #endif
@@ -733,6 +763,9 @@ void afterFrame(Game *game)
 }
 void kneelClicked(BattlescapeState *who)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::kneelClicked(who); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::kneelClicked(who); return; }
 #endif
@@ -744,6 +777,9 @@ void kneelClicked(BattlescapeState *who)
 }
 void selectionClicked(BattlescapeState *who, bool next)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { MapLeftClickControlGate::selectionClicked(who,next); return; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { TurnControlGate::selectionClicked(who,next); return; }
 #endif
@@ -753,6 +789,9 @@ void selectionClicked(BattlescapeState *who, bool next)
 }
 int exitStatus()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
+    if (MapLeftClickControlGate::active()) { return MapLeftClickControlGate::exitStatus(); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
     if (TurnControlGate::active()) { return TurnControlGate::exitStatus(); }
 #endif

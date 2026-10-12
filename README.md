@@ -2,7 +2,7 @@
 
 ## Fair-Play MCP Interface Project
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right-click pilots are now available under the practical-play/1 scope. Movement, inventory, firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement is a bounded pilot; inventory, firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,
@@ -19,6 +19,14 @@ in each game, with 30 paired outcome views; nine actual-source fault controls ar
 detected in both. Camera/pose generations, type-bound capabilities and mandatory
 post-action viewing protect this limited control. See [evidence and earlier failures](docs/mcp-player-interface/SUPERVISED-TURN-EVIDENCE.md).
 Sliding doors, full controller acceptance and token measurements remain open.
+
+The [ordinary map left-click pilot](docs/mcp-player-interface/SUPERVISED-MAP-LEFT-CLICK-PILOT.md)
+proposes one locally confirmed normal click, which may walk, select a visible
+friendly or do nothing. Both games pass 19 manual/controlled pairs, 36 adversarial
+worlds and 38 paired outcome views. Ordinary TU/energy/reserves, first contact,
+a regular door, reaction-queue formation and movement continuing after observation
+failure are checked. All 18 actual-source faults are detected in both games,
+and prior stance/selection/right-click regressions pass; see [evidence and limits](docs/mcp-player-interface/SUPERVISED-MAP-LEFT-CLICK-EVIDENCE.md).
 
 **Current plan and actual progress:** see the [English status checklist](docs/mcp-player-interface/README.md#plan-versus-actual-progress) or [Russian working checklist](docs/mcp-player-interface/PLAN.ru.md#план-и-фактическое-выполнение). Selected request-bound pixel/HUD checks cover both games, including the [bounded natural-FOV/pause gate](docs/mcp-player-interface/NATURAL-FOV-GATE.md). The earlier [mixed-audio slice](docs/mcp-player-interface/MIXED-AUDIO-NATIVE.md) adds fixed 500 ms final SDL_mixer PCM for a qualified 22050 Hz signed-16-bit stereo software-mixed profile; 190 Python tests and a native real-SDL dummy-mixer oracle pass. Selected [UFO/TFTD menu checks](docs/mcp-player-interface/mixed-audio-game-evidence.json) also pass: eight fresh clips include exact silence at verified zero volume, and four post-exit requests fail closed. These checks do not establish full gameplay audio parity, physical audibility, continuous sound history or frame/HUD synchronization. The full fairness gate, audio parity, gameplay controller and actual end-to-end token comparison remain open.
 

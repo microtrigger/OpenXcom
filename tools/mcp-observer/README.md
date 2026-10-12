@@ -36,11 +36,58 @@ Timeout, malformed response or unavailable post-action view closes control witho
 automatic resend. A visible TU/reservation warning can make that view unavailable.
 No world-coordinate, hidden-target or passability query is introduced.
 
-The turn extension has 41 focused checks within the 315-test Python suite
-(two expected native-only skips in ordinary runs). Run the optional official-SDK
+The turn extension has 41 focused checks. Run the optional official-SDK
 transport check with `python sdk_supervised_turn_smoke.py`; it uses synthetic
 pixels/receipts through the actual launcher, not native UI approval or gameplay.
 See the [separate runtime evidence](../../docs/mcp-player-interface/SUPERVISED-TURN-EVIDENCE.md).
+
+## Optional supervised ordinary map left-click
+
+`--supervised-map-left-click` requires both `--supervised-stance` and
+`--supervised-turn`. The game must also be built with
+`EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK=ON` and its prerequisites. The launcher
+always removes ambient `OPENXCOM_MAP_LEFT_CLICK_ENABLED`, then sets the literal
+value `1` only for this explicit flag. Default tools and existing launch modes
+are unchanged; no additional socket or negotiation is introduced.
+
+The only new tool is `request_map_left_click(capability, control_epoch,
+command_id, x, y)`. Coordinates are exact integers, never booleans or floats,
+within x=16–303/y=40–127 of the 320×200 `read_tactical_context` PNG. It proposes
+one ordinary left-click for local human confirmation. The normal handler may
+move, select a visible player unit, or do nothing, under normal TU, reservation,
+contact and reaction-fire rules. It does not promise movement or success.
+Only the default disabled path-preview setting is supported; neither launcher
+nor game rewrites it. No hidden option query, target list, world-coordinate
+input, path/cost prediction, preflight check or model approval field is added.
+
+The native packet is exactly 103 ASCII bytes: `L` + epoch32 + capability32 +
+command_id32 + x3 + y3, with zero-padded coordinates. A fresh tactical `V`
+capability authorizes either `R` or `L` once; panel `O` capabilities still
+authorize only stance/selection (`D`/`N`). All four actions share the same
+64-command, action-tagged, non-evicting ledger and `read_stance_status` schema.
+Exact duplicates query `S` only. Changed coordinates, changed capability/epoch,
+or cross-action reuse of a command ID is rejected without another dispatch.
+
+After a known dispatched `L` receipt, a fresh tactical `V` is mandatory before
+another action or panel observation. Only that post-`L` read uses a ten-second
+client deadline. The normal two-second client budgets for actions, status,
+initial reads and post-`R` reads are unchanged. A successful `V` resets the
+longer budget; polling an old dispatched command never restores it. The native
+movement-settling window is eight seconds from actual `L` dispatch, never
+extended by status or view polling. Already-idle presentation keeps its normal
+native deadline. Ordinary same-actor walking/turning can settle naturally;
+unsupported transients, overlays/warnings, focus or manual-input interruption,
+actor loss and state changes fail closed while the game continues. No new
+busy, timing, queue or outcome fields are exposed. Timeout, disconnect or a
+failed post-action view closes control without any automatic resend or retry.
+
+Run checks from this directory with `python -m unittest discover -q` and
+`python -O -m unittest discover -q`. The suite includes 37 focused left-click
+checks and real-launcher synthetic L/R/O/D/N flows, including a delayed post-L
+frame that exceeds the unchanged post-R budget. For the optional official SDK,
+run `python sdk_supervised_map_left_click_smoke.py` in an environment with the
+official `mcp` package. These synthetic checks establish adapter/transport
+behavior only; they do not test native UI approval, game movement or fairness.
 
 ## Run and boundary
 

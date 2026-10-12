@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11; selection/turn extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection/turn/map-left-click extensions, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #include "StanceConfirmState.h"
 #include "StanceController.h"
 #include "../Engine/Action.h"
@@ -12,7 +12,7 @@ StanceConfirmState::StanceConfirmState(StanceController *controller) : _controll
 {
     _screen = true;
     setPalette(controller->palette());
-    const bool turn = controller->turnRequest();
+    const bool turn = controller->turnRequest() || controller->mapLeftClickRequest();
     Surface *panel = new Surface(320, turn ? 200 : 56, 0, turn ? 0 : 144);
     const std::vector<unsigned char> &pixels = controller->indices();
     for (int y = 0; y < panel->getHeight(); ++y) for (int x = 0; x < 320; ++x)
@@ -30,7 +30,9 @@ StanceConfirmState::StanceConfirmState(StanceController *controller) : _controll
     text->setHighContrast(true); text->setWordWrap(true); text->setAlign(ALIGN_CENTER);
     if (turn)
     {
-        text->setText("Ordinary right-click: turn/open door.\nNormal TU and reserves apply.\nConfirm the marked location.");
+        text->setText(controller->mapLeftClickRequest() ?
+            "Ordinary left-click: may move/select.\nNormal TU, reserves and reactions.\nConfirm the marked location." :
+            "Ordinary right-click: turn/open door.\nNormal TU and reserves apply.\nConfirm the marked location.");
         // A two-tone ring centered on the exact requested logical pixel. The
         // original captured map and bottom HUD remain behind this small marker.
         int light = 0, dark = 0;

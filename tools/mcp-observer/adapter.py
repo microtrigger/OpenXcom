@@ -47,7 +47,7 @@ def error(ident, code, message):
 
 
 def definitions(presentation=False, presented_hud=False, mixed_audio=False, supervised_stance=False,
-                supervised_selection=False, supervised_turn=False):
+                supervised_selection=False, supervised_turn=False, supervised_map_left_click=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -131,6 +131,25 @@ def definitions(presentation=False, presented_hud=False, mixed_audio=False, supe
                      'additionalProperties': False},
                  'annotations': {'readOnlyHint': False, 'destructiveHint': True,
                                  'idempotentHint': True, 'openWorldHint': False}}])
+            if supervised_map_left_click:
+                for tool in result:
+                    if tool['name'] == 'read_stance_context':
+                        tool['description'] += ' This panel capability also cannot authorize request_map_left_click. After a dispatched map left-click, read_tactical_context is required first.'
+                    elif tool['name'] == 'read_stance_status':
+                        tool['description'] += ' This also reads request_map_left_click receipts from the same ledger.'
+                    elif tool['name'] == 'read_tactical_context':
+                        tool['description'] += ' This same one-use tactical capability may instead authorize request_map_left_click. After a dispatched map left-click, the mandatory fresh tactical read allows up to ten seconds for the native bounded ordinary movement wait; all other client waits are unchanged. No busy reason or predicted outcome is exposed.'
+                result.append({
+                    'name': 'request_map_left_click',
+                    'description': 'Experimental supervised pilot: ask the local game UI to confirm one ordinary left-click at a pixel in a fresh read_tactical_context image. Ordinary left-click may move, select a visible player unit, or do nothing, under normal game rules, time-unit costs, reservations, contacts and reaction fire. Only the default disabled path-preview option is supported; settings are never rewritten. Only a human using ordinary local game controls can approve. No target lists, world coordinates, path or cost predictions, preflight queries or model approval. Coordinates are exact logical image integers: x 16..303, y 40..127. The tactical capability authorizes either right-click or left-click once. All control actions share command IDs. pending_confirmation is not dispatch; dispatched is never success. Poll read_stance_status, then obtain a fresh tactical image before another action to verify the visible outcome. A failed observation or uncertainty stops control; never resend. An exact duplicate only queries status; changed coordinates or cross-action command-ID reuse fails.',
+                    'inputSchema': {'type': 'object', 'properties': {
+                        'capability': dict(opaque), 'control_epoch': dict(opaque),
+                        'command_id': dict(opaque), 'x': {'type': 'integer', 'minimum': 16, 'maximum': 303},
+                        'y': {'type': 'integer', 'minimum': 40, 'maximum': 127}},
+                        'required': ['capability', 'control_epoch', 'command_id', 'x', 'y'],
+                        'additionalProperties': False},
+                    'annotations': {'readOnlyHint': False, 'destructiveHint': True,
+                                    'idempotentHint': True, 'openWorldHint': False}})
     return result
 
 
@@ -144,6 +163,8 @@ class Server:
                                              and getattr(supervised_stance, 'selection_enabled', False) is True)
         self.supervised_turn_enabled = (supervised_stance is not None
                                        and getattr(supervised_stance, 'turn_enabled', False) is True)
+        self.supervised_map_left_click_enabled = (self.supervised_turn_enabled
+            and getattr(supervised_stance, 'map_left_click_enabled', False) is True)
         self.presented_hud_enabled = presentation is not None and getattr(presentation, 'version', 1) == 2
         self.paths = {'hud': hud_dir, 'cursor': cursor_dir}
 
@@ -183,14 +204,17 @@ class Server:
                 return error(ident, -32602, 'Invalid params')
             result = {'tools': definitions(self.presentation is not None, self.presented_hud_enabled,
                                           self.mixed_audio is not None, self.supervised_stance is not None,
-                                          self.supervised_selection_enabled, self.supervised_turn_enabled)}
+                                          self.supervised_selection_enabled, self.supervised_turn_enabled,
+                                          self.supervised_map_left_click_enabled)}
         elif (method == 'tools/call' and self.supervised_stance is not None
                 and (params.get('name') in ('read_stance_context', 'request_stance', 'read_stance_status')
                      or (params.get('name') == 'request_selection' and self.supervised_selection_enabled)
                      or (params.get('name') in ('read_tactical_context', 'request_turn')
-                         and self.supervised_turn_enabled))):
+                         and self.supervised_turn_enabled)
+                     or (params.get('name') == 'request_map_left_click'
+                         and self.supervised_map_left_click_enabled))):
             from supervised_stance import (token, validate_arguments, validate_selection_arguments,
-                                           validate_turn_arguments)
+                                           validate_turn_arguments, validate_map_left_click_arguments)
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
             try:
@@ -202,6 +226,8 @@ class Server:
                     validate_selection_arguments(arguments)
                 elif params['name'] == 'request_turn':
                     validate_turn_arguments(arguments)
+                elif params['name'] == 'request_map_left_click':
+                    validate_map_left_click_arguments(arguments)
                 elif params['name'] == 'read_stance_status':
                     exact(arguments, 'command_id'); token(arguments['command_id'])
                 else:
@@ -264,6 +290,8 @@ class Server:
                     obj = self.supervised_stance.request_selection(**arguments)
                 elif name == 'request_turn':
                     obj = self.supervised_stance.request_turn(**arguments)
+                elif name == 'request_map_left_click':
+                    obj = self.supervised_stance.request_map_left_click(**arguments)
                 else:
                     obj = self.supervised_stance.read_status(**arguments)
                 meta = {'schema': PUBLIC_STATUS_SCHEMA, 'command_id': obj['command_id'],

@@ -39,6 +39,9 @@ TACTICAL_PIXELS = TACTICAL_WIDTH * TACTICAL_HEIGHT
 TACTICAL_RGB_BYTES = TACTICAL_PIXELS * 3
 PALETTE_BYTES = 256 * 3
 TIMEOUT, STARTUP_TIMEOUT = 2.0, 31.0
+# Only a verified dispatched left-click can select this observation deadline.
+# The native producer permits at most eight seconds of ordinary settling.
+MAP_LEFT_CLICK_VIEW_TIMEOUT = 10.0
 STANCES = {'kneel': 'k', 'stand': 's'}
 DIRECTIONS = {'next': 'n', 'previous': 'p'}
 STATUSES = ('pending_confirmation', 'dispatched', 'unavailable')
@@ -150,6 +153,10 @@ def validate_turn_arguments(arguments):
     integer(arguments['y'], 40, 127)
 
 
+def validate_map_left_click_arguments(arguments):
+    validate_turn_arguments(arguments)
+
+
 def image_content(rgb):
     """Losslessly encode only the fixed displayed RGB panel, with no metadata."""
     require(type(rgb) is bytes and len(rgb) == RGB_BYTES)
@@ -203,13 +210,15 @@ class StanceClient:
     NEW -> READY -> PENDING -> NEED_CONTEXT -> READY. An immediate native
     rejection also needs a fresh context. Any failed observation or uncertain
     exchange enters CLOSED; only an explicit new launcher can create a client.
-    Stance and selection use panel capabilities; right-click uses tactical
+    Stance and selection use panel capabilities; map clicks use tactical
     capabilities. Both observations replace the previous grant. All commands
-    share one ledger. Duplicate explicit calls query S, never replay D, N or R.
+    share one ledger. Duplicate explicit calls query S, never replay D, N, R or L.
     """
     def __init__(self, channel, timeout=TIMEOUT, startup_timeout=STARTUP_TIMEOUT,
-                 selection_enabled=False, turn_enabled=False):
-        require(type(selection_enabled) is bool and type(turn_enabled) is bool)
+                 selection_enabled=False, turn_enabled=False, map_left_click_enabled=False):
+        require(type(selection_enabled) is bool and type(turn_enabled) is bool
+                and type(map_left_click_enabled) is bool)
+        require(not map_left_click_enabled or turn_enabled)
         for value, maximum in ((timeout, TIMEOUT), (startup_timeout, STARTUP_TIMEOUT)):
             require(type(value) in (int, float) and math.isfinite(value) and 0 < value <= maximum)
         require(isinstance(channel, socket.socket) and channel.family == socket.AF_UNIX
@@ -220,6 +229,7 @@ class StanceClient:
         self.timeout, self.startup_timeout = timeout, startup_timeout
         self.selection_enabled = selection_enabled
         self.turn_enabled = turn_enabled
+        self.map_left_click_enabled = map_left_click_enabled
         self.state = 'NEW'
         self.control_epoch = self.capability = self.active = None
         self.capability_kind = None
@@ -257,11 +267,11 @@ class StanceClient:
                 and not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC))
         return raw
 
-    def exchange(self, request, maximum):
+    def exchange(self, request, maximum, timeout=None):
         # Caller closes the channel on ANY failure; send is attempted once only.
         require(self.channel is not None)
         require(not select.select([self.channel], [], [], 0)[0])
-        deadline = time.monotonic() + self.timeout
+        deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
         require(time.monotonic() < deadline and self.channel.send(request) == len(request))
         raw = self.packet(deadline, maximum)
         require(time.monotonic() < deadline)
@@ -288,7 +298,13 @@ class StanceClient:
                 old_capability = self.capability
                 self.capability = None
                 self.capability_kind = None
-                obj, rgb = validate(self.exchange((action + challenge).encode('ascii'), MAX_PACKET),
+                # Longer waiting never applies to initial views, actions, status,
+                # R, cancellation, or an old duplicate dispatched receipt.
+                timeout = (MAP_LEFT_CLICK_VIEW_TIMEOUT
+                           if action == 'V' and self.tactical_verification_required
+                           and self.commands[self.active]['action'] == 'L' else self.timeout)
+                obj, rgb = validate(self.exchange((action + challenge).encode('ascii'), MAX_PACKET,
+                                                 timeout=timeout),
                                     challenge)
                 # Each observation grants a new one-use, action-bound capability.
                 require(obj['capability'] != old_capability)
@@ -323,6 +339,13 @@ class StanceClient:
         validate_turn_arguments(arguments)
         return self._request('R', arguments, f'{x:03d}{y:03d}')
 
+    def request_map_left_click(self, capability, control_epoch, command_id, x, y):
+        require(self.map_left_click_enabled)
+        arguments = dict(capability=capability, control_epoch=control_epoch,
+                         command_id=command_id, x=x, y=y)
+        validate_map_left_click_arguments(arguments)
+        return self._request('L', arguments, f'{x:03d}{y:03d}')
+
     def _request(self, action, arguments, payload):
         capability, control_epoch, command_id = (arguments[name] for name in
                                                 ('capability', 'control_epoch', 'command_id'))
@@ -333,12 +356,12 @@ class StanceClient:
                 return self._status(command_id)
             require(self.state == 'READY' and capability == self.capability
                     and control_epoch == self.control_epoch
-                    and self.capability_kind == ('V' if action == 'R' else 'O'))
+                    and self.capability_kind == ('V' if action in ('R', 'L') else 'O'))
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
                 raise Unavailable('Unavailable')
             request = (action + control_epoch + capability + command_id + payload).encode('ascii')
-            require(len(request) == (103 if action == 'R' else 99))
+            require(len(request) == (103 if action in ('R', 'L') else 99))
             # Consume before the send. No exception can make it eligible again.
             self.capability = None
             self.capability_kind = None
@@ -375,5 +398,5 @@ class StanceClient:
         if command_id == self.active and self.state == 'PENDING' and status != 'pending_confirmation':
             self.state = 'NEED_CONTEXT'
             self.tactical_verification_required = (status == 'dispatched'
-                                                   and self.commands[command_id]['action'] == 'R')
+                                                   and self.commands[command_id]['action'] in ('R', 'L'))
         return obj
