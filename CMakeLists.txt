@@ -97,6 +97,11 @@ option ( EXPERIMENTAL_SUPERVISED_STANCE "Build local-confirmation desired-stance
 if ( EXPERIMENTAL_SUPERVISED_STANCE AND NOT EXPERIMENTAL_CURSOR_OBSERVER )
   message ( FATAL_ERROR "Supervised stance requires EXPERIMENTAL_CURSOR_OBSERVER" )
 endif()
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised selection, 2026-10-12.
+option ( EXPERIMENTAL_SUPERVISED_SELECTION "Build local-confirmation next/previous selection pilot" OFF )
+if ( EXPERIMENTAL_SUPERVISED_SELECTION AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
+  message ( FATAL_ERROR "Supervised selection requires EXPERIMENTAL_SUPERVISED_STANCE" )
+endif()
 option ( EXPERIMENTAL_STANCE_CONTROL_GATE "Build isolated finite stance-control test gate" OFF )
 if ( EXPERIMENTAL_STANCE_CONTROL_GATE AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Stance control gate requires EXPERIMENTAL_SUPERVISED_STANCE" )

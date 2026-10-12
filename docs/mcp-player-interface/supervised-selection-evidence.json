@@ -1,0 +1,238 @@
+{
+  "schema": "supervised-selection-evidence/1",
+  "date": "2026-10-12",
+  "base_commit": "b7399ba4adc322f4a45a72e09917db2397ee23c0",
+  "source_sha256": {
+    "src/Battlescape/BattlescapeState.cpp": "780612ab279b2135cb1a7ebdba43c348918264236ab737f434b6170422a1fc58",
+    "src/Battlescape/BattlescapeState.h": "2cdb8cb82040d56572c51f1b80ff2c2752998ef1db6a5395e08df42b7af4effe",
+    "src/Observer/StanceConfirmState.cpp": "f006a4a52f804ab47bf0953d97dee9de8ab8a65c7e73bc2128f2f9775b967895",
+    "src/Observer/StanceController.cpp": "d7d9858ec5458e8f35b5ca878e9a05315ee2437fd3d9457e12f22a54579cb24f",
+    "src/Observer/StanceController.h": "f6959960395d643f4c8f13a2ad016781677d0199885af1b073a21613a7285ab1",
+    "tests/stance-control/SelectionControlGate.cpp": "ef576f614e3b8ad3e88de3b02c0b325bdb4c5b5ac7ca552d73b22f8173ebbcb5",
+    "tests/stance-control/SelectionControlGate.h": "f868f5908fa59a7d93643f84d1bafa29885dd3896873cdcc39f179c458780174",
+    "tests/stance-control/StanceControlGate.cpp": "39668ff1ad4fb41c353bdf6344385b851bc0b7cd0776ac1ba7873e48b9af8f4f",
+    "tests/stance-control/StanceControlGate.h": "81b5ad21857b02f087be269ecbf3feb433e94a7d2f5e5dfc61ec26f604a4d7fb",
+    "tests/stance-control/make-selection-mutant.py": "d26c0b39ebbf6c958cccfbc29b997e93927828adf2e8a68cd5e0489a3f1007f0",
+    "tests/stance-control/run-selection-control.py": "32c1b6db38d1e25846bf1aa2e028430482db656927b27626ad06599979eb6ff9",
+    "tests/stance-control/test_selection_mutants.py": "299ed5bccf5be464c90dd5bc07f264ecb6f9232cb41bfa6b5bfde5fefe9004aa",
+    "tests/stance-control/test_selection_wrapper.py": "c3d8ee4330f9c896d22884719e64683a815fb4a026e093f36322336463cac9db",
+    "tools/mcp-observer/adapter.py": "58db67ad7ffe2cfe633eabf5be9d27e5408fe7f4d49d564d4707a6ef25963f51",
+    "tools/mcp-observer/launch_presentation.py": "8da0ce8971b96c8ce1caa5607203d832617fb7589c6615678073dd9da662e619",
+    "tools/mcp-observer/supervised_stance.py": "18b9b77daa4199c6166c4d9eabe2ab5971c2c437f124ea3e755f58f431217763",
+    "tools/mcp-observer/test_supervised_selection.py": "955045f464a5b01d9ba9625871f4175c3969ad7b292a2c9e88136f1bbd341bf8",
+    "tools/mcp-observer/test_supervised_stance.py": "da8961490e41c29972e820b7561b86b231394270bebf7cfb0746df758d54c576"
+  },
+  "gate_binary_sha256": "356e26c85ab372878e6697b18dde693b746a6cb6a3f85381c3e2132e8d04a842",
+  "default_off_binary_sha256": "531b1616373ac41bdc3486ee7bc30bd27c3e82e4899cb54bd6e63c83d1848bd2",
+  "normal_final_profiles": [
+    {
+      "game": "xcom1",
+      "gate": "selection",
+      "result": "pass",
+      "run_count": 1,
+      "aggregate": {
+        "schema": "selection-control-gate/1",
+        "master": "xcom1",
+        "parity_pairs": 10,
+        "adversarial_worlds": 19,
+        "three_eligible_actors": true,
+        "actual_panel_oracle": true,
+        "post_action_panels": 10,
+        "shared_stance_ledger": true,
+        "local_confirmation": true,
+        "timing_equal": false,
+        "full_fairness": false
+      }
+    },
+    {
+      "game": "xcom1",
+      "gate": "stance",
+      "result": "pass",
+      "run_count": 1,
+      "aggregate": {
+        "schema": "stance-control-gate/1",
+        "master": "xcom1",
+        "parity_pairs": 12,
+        "adversarial_worlds": 19,
+        "actual_panel_oracle": true,
+        "actual_reaction_queue": true,
+        "post_action_panels": 2,
+        "local_confirmation": true,
+        "timing_equal": false,
+        "full_fairness": false
+      }
+    },
+    {
+      "game": "xcom2",
+      "gate": "selection",
+      "result": "pass",
+      "run_count": 1,
+      "aggregate": {
+        "schema": "selection-control-gate/1",
+        "master": "xcom2",
+        "parity_pairs": 10,
+        "adversarial_worlds": 19,
+        "three_eligible_actors": true,
+        "actual_panel_oracle": true,
+        "post_action_panels": 10,
+        "shared_stance_ledger": true,
+        "local_confirmation": true,
+        "timing_equal": false,
+        "full_fairness": false
+      }
+    },
+    {
+      "game": "xcom2",
+      "gate": "stance",
+      "result": "pass",
+      "run_count": 1,
+      "aggregate": {
+        "schema": "stance-control-gate/1",
+        "master": "xcom2",
+        "parity_pairs": 12,
+        "adversarial_worlds": 19,
+        "actual_panel_oracle": true,
+        "actual_reaction_queue": true,
+        "post_action_panels": 2,
+        "local_confirmation": true,
+        "timing_equal": false,
+        "full_fairness": false
+      }
+    }
+  ],
+  "sensitivity_controls": [
+    {
+      "kind": "duplicate-next",
+      "changed_source": "src/Observer/StanceController.cpp",
+      "mutated_source_sha256": "b0ea502893e980edff5235274148573640eacc23a04eaa8aeb6e02a52ab357ab",
+      "mutated_object_sha256": "7731ae037570fc89531bb2ed3bc7292a4842d6835af79f9efe63f8d7bb0abb65",
+      "binary_sha256": "fd5dfd0203180c2bdeaa88ff12738546f3a1df4ccdfc5cb9a1b2be766f8d2239",
+      "unchanged_frozen_object_count": 324,
+      "runs": [
+        {
+          "game": "xcom1",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-402"
+        },
+        {
+          "game": "xcom2",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-402"
+        }
+      ]
+    },
+    {
+      "kind": "next-as-previous",
+      "changed_source": "src/Observer/StanceController.cpp",
+      "mutated_source_sha256": "4b56d468e022eab9b6c4135db92d9ef84aaec5875db9e55a408cdfb6ba241b0d",
+      "mutated_object_sha256": "c552dfebb287c330a932d2b68dccf7e57a42afa37ee2e2e34bc2e8719830a489",
+      "binary_sha256": "476d0c656df3a9fdbd8a9e42211bd186ada75f32bf13363e75e1513c28bd1d5f",
+      "unchanged_frozen_object_count": 324,
+      "runs": [
+        {
+          "game": "xcom1",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-713"
+        },
+        {
+          "game": "xcom2",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-713"
+        }
+      ]
+    },
+    {
+      "kind": "previous-as-next",
+      "changed_source": "src/Observer/StanceController.cpp",
+      "mutated_source_sha256": "1fcd8af6ea58a704847969b6f29ee115cfd7a30ce4aae64a72875e165b8f9930",
+      "mutated_object_sha256": "dc11e0d48fabe028bfbe4b9f62519e5b25e9c7b143cf1db852c807964979e814",
+      "binary_sha256": "49cca19caf30d0162d67fbe6277c1e8c23b175794c8d9f50408eacaddc84d9f3",
+      "unchanged_frozen_object_count": 324,
+      "runs": [
+        {
+          "game": "xcom1",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-713"
+        },
+        {
+          "game": "xcom2",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-713"
+        }
+      ]
+    },
+    {
+      "kind": "selection-charges-tu",
+      "changed_source": "src/Battlescape/BattlescapeState.cpp",
+      "mutated_source_sha256": "0717ebbc12023ed34686ea34317ea794da1459c8eeb487a1de2c9fb5f3ff2608",
+      "mutated_object_sha256": "feae00dccc852e44ba75e4c95a54496b6d1552a3050de918a484c2d8ac18f15a",
+      "binary_sha256": "e5bfd3035cdf742eabacdb2f14bbc8a45aa6f4b1c5f19b973c3cd5551af3a4cd",
+      "unchanged_frozen_object_count": 324,
+      "runs": [
+        {
+          "game": "xcom1",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-413"
+        },
+        {
+          "game": "xcom2",
+          "result": "intended_assertion_failure",
+          "attempts": 1,
+          "label": "SELECTION_CONTROL_GATE FAIL assertion-413"
+        }
+      ]
+    }
+  ],
+  "earlier_attempts": {
+    "initial_profiles": 4,
+    "initial_result": "watchdog_timeout",
+    "pointer_outside_game_observed": true,
+    "watchdog_cause_proven": false,
+    "unchanged_code_after_ordinary_pointer_placement": {
+      "profiles": 4,
+      "result": "pass"
+    },
+    "later_gate_only_change": "fixed assertion-line timeout diagnostics; no acceptance weakening"
+  },
+  "checks": {
+    "default_off_build": "pass",
+    "selection_production_build": "pass",
+    "selection_gate_build": "pass",
+    "cmake_requires_stance": "pass",
+    "default_off_selection_symbols_strings": "absent",
+    "python_observer": {
+      "discovered": 274,
+      "executed": 272,
+      "expected_skipped": 2,
+      "result": "pass"
+    },
+    "control_wrapper_mutation_setup": {
+      "executed": 20,
+      "result": "pass"
+    },
+    "native_regression_scripts": {
+      "observer": "pass",
+      "cursor-observer": "pass",
+      "paired-observer": "pass",
+      "diagnostic-isolation": "pass",
+      "mixed-audio-native": "pass"
+    }
+  },
+  "not_established": [
+    "full Stage 5 acceptance",
+    "timing equality",
+    "full gameplay/campaign coverage",
+    "new SDK-to-adapter-to-game selection demonstration",
+    "real model usage",
+    "token savings",
+    "physical user visibility"
+  ],
+  "publication_content": "source, documentation and sanitized aggregate metadata only"
+}

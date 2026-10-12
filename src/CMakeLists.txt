@@ -612,3 +612,11 @@ if ( EXPERIMENTAL_STANCE_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/stance-control/StanceControlGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised selection, 2026-10-12.
+if ( EXPERIMENTAL_SUPERVISED_SELECTION )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION )
+endif()
+if ( EXPERIMENTAL_SUPERVISED_SELECTION AND EXPERIMENTAL_STANCE_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/stance-control/SelectionControlGate.cpp )
+endif()

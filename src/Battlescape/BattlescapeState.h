@@ -62,6 +62,7 @@ private:
     BattleUnit *_stanceShownActor = 0;
     bool _stanceShownKneeled = false;
     bool stanceContext(Observer::StanceContext &context, bool covered) const;
+    bool selectionControlVisible() const;
 #endif
 	#ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 	Observer::HudFileObserver *_hudObserver;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection extension, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #include "StanceConfirmState.h"
 #include "StanceController.h"
 #include "../Engine/Action.h"
@@ -24,7 +24,12 @@ StanceConfirmState::StanceConfirmState(StanceController *controller) : _controll
     add(panel);
     frame->setThickness(3); frame->setHighContrast(true);
     text->setHighContrast(true); text->setWordWrap(true); text->setAlign(ALIGN_CENTER);
-    text->setText(std::string("SUPERVISED STANCE PILOT\nSet the soldier shown below to ") +
+    if (controller->selectionRequest())
+        text->setText(std::string("SUPERVISED SELECTION PILOT\nUse the normal ") +
+            (controller->nextSelection() ? "NEXT" : "PREVIOUS") +
+            " unit control? This may select another eligible unit, center the camera and cancel current actions."
+            "\nBelow: the current observed HUD. Confirm only if it matches your intent.");
+    else text->setText(std::string("SUPERVISED STANCE PILOT\nSet the soldier shown below to ") +
         (controller->desiredKneel() ? "KNEEL?\nNormal cost: 4 TU." : "STAND?\nNormal cost: 8 TU.") +
         " Reservations still apply. This can trigger reaction fire.\nBelow: the proposal's observed HUD. Confirm only if it matches your intent.");
     yes->setText("Confirm (Y)"); no->setText("Cancel (Esc)");

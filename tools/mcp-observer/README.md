@@ -15,6 +15,15 @@ The adapter installs no connector or network service. MCP callers cannot supply
 arbitrary filesystem paths, hidden-unit queries or a general input command.
 The historical tools below remain read-only and never authorize an action.
 
+
+The separate [next/previous selection extension](../../docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
+adds `request_selection` when `--supervised-selection` is also supplied. The
+game must separately be built with `EXPERIMENTAL_SUPERVISED_SELECTION=ON`; there
+is no feature negotiation or transparent fallback. It uses the same
+fresh panel capability and `read_stance_status` ledger, requires local
+confirmation, and dispatches the ordinary unit-cycling handlers. A dispatch
+receipt does not claim selection changed; inspect a fresh context afterward.
+
 ## Run and boundary
 
 Python 3.10+ on POSIX with `flock` and `O_NOFOLLOW`; the server itself uses only the

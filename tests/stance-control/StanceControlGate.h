@@ -14,6 +14,7 @@ bool acceptEvent(const SDL_Event &event);
 void afterEvents(Game *game);
 void beforeFrame(Game *game, State *top);
 void afterFrame(Game *game);
+void selectionClicked(BattlescapeState *state, bool next);
 void kneelClicked(BattlescapeState *state);
 int exitStatus();
 } }

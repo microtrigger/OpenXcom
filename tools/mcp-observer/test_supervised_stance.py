@@ -57,9 +57,10 @@ def call(server, name, args=None):
 
 class NativeFixture:
     """One deterministic responder; call records prove absence of automatic sends."""
-    def __init__(self, hello=None, response=None):
+    def __init__(self, hello=None, response=None, selection_enabled=False):
         parent, self.peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-        self.client = s.StanceClient(parent, timeout=0.3, startup_timeout=0.3)
+        self.client = s.StanceClient(parent, timeout=0.3, startup_timeout=0.3,
+                                     selection_enabled=selection_enabled)
         self.hello = dump({'schema': s.HELLO_SCHEMA, 'control_epoch': EPOCH}) if hello is None else hello
         self.response = response
         self.requests = []
@@ -77,7 +78,7 @@ class NativeFixture:
             self.counter += 1
             self.latest = context(raw[1:].decode(), f'{self.counter:032x}')
             return dump(self.latest)
-        if raw[:1] == b'D':
+        if raw[:1] in (b'D', b'N'):
             return dump(status(raw[65:97].decode(), self.status))
         if raw[:1] == b'S':
             return dump(status(raw[1:].decode(), self.status))

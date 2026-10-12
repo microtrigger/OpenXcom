@@ -2,7 +2,7 @@
 # New contribution maintained in this OpenXcom fork, 2026-10-10.
 # Supervised stance integration added 2026-10-11, GPL-3.0-or-later.
 # See repository LICENSE.txt and LICENSE-NOTICES.md.
-"""Launch one game with independent opt-in observation and supervised stance channels.
+"""Launch one game with independent opt-in observation and supervised control channels.
 Command arguments are trusted operator configuration, never MCP arguments.
 """
 import argparse
@@ -56,6 +56,8 @@ def run():
                         help='also enable the independent fixed-window mixed-audio channel')
     parser.add_argument('--supervised-stance', action='store_true',
                         help='enable the experimental local-UI-confirmed stance pilot')
+    parser.add_argument('--supervised-selection', action='store_true',
+                        help='also enable local-UI-confirmed next/previous eligible player unit selection; requires --supervised-stance')
     parser.add_argument('--audio-only', action='store_true',
                         help='enable mixed audio without a presentation channel')
     parser.add_argument('command', nargs=argparse.REMAINDER)
@@ -65,12 +67,14 @@ def run():
         command = command[1:]
     if not command:
         parser.error('an explicit game command is required after --')
+    if args.supervised_selection and not args.supervised_stance:
+        parser.error('--supervised-selection requires --supervised-stance')
     if args.audio_only and (args.presented_hud or args.supervised_stance):
         parser.error('--audio-only cannot be combined with visual channels')
     env = os.environ.copy()
     # Ambient descriptors and versions cannot silently enable another stream.
     for key in ('OPENXCOM_PRESENTATION_FD', 'OPENXCOM_PRESENTATION_VERSION',
-                'OPENXCOM_MIXED_AUDIO_FD', 'OPENXCOM_STANCE_FD'):
+                'OPENXCOM_MIXED_AUDIO_FD', 'OPENXCOM_STANCE_FD', 'OPENXCOM_SELECTION_ENABLED'):
         env.pop(key, None)
     with ExitStack() as cleanup:
         children = []
@@ -96,7 +100,9 @@ def run():
             cleanup.callback(parent.close); cleanup.callback(child.close)
             children.append(child)
             env['OPENXCOM_STANCE_FD'] = str(child.fileno())
-            stance = StanceClient(parent)
+            if args.supervised_selection:
+                env['OPENXCOM_SELECTION_ENABLED'] = '1'
+            stance = StanceClient(parent, selection_enabled=args.supervised_selection)
             cleanup.callback(stance.close)
         # Discard both diagnostics streams at the OS boundary, including startup,
         # logger fallback and shutdown. No pipe, decoding, reader or log buffer.

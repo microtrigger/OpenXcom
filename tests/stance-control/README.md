@@ -109,3 +109,64 @@ This gate establishes these bounded action and presentation properties only.
 `dispatched` is a receipt for a normal handler call, not visible success. There
 is no timing-equality, universal information-flow, or complete-fairness claim.
 No assets, executables, saves, raw states or captures belong in publication.
+
+## Native selection extension gate
+
+The selection gate is a separate finite mode, requiring both
+`EXPERIMENTAL_SUPERVISED_SELECTION=ON` and the existing stance/gate options. The
+wrapper sets `OPENXCOM_SELECTION_CONTROL_GATE=1` and
+`OPENXCOM_SELECTION_ENABLED=1`; it never enables the stance fixture at the same
+time. Both gates retain separate unchanged public result schemas. The original
+stance gate and its existing sensitivity controls must still pass independently.
+
+```sh
+python3 tests/stance-control/run-selection-control.py /absolute/openxcom /absolute/data xcom1
+python3 tests/stance-control/run-selection-control.py /absolute/openxcom /absolute/data xcom2
+python3 tests/stance-control/test_selection_wrapper.py
+python3 tests/stance-control/test_selection_mutants.py
+```
+
+Ten pairs reconstruct native battles containing three player soldiers and a
+hostile. The nominal cases have three simultaneously eligible players, so next
+and previous have independently different expected actors. The pairs cover
+both directions, wrap-around, do-not-reselect flags, out-of-play units, and a
+single remaining eligible actor's native no-op. Ordinary hotkeys and controlled
+N packets enter the exact same next/previous handlers. End-of-handler callbacks
+assert the actual handler direction and independently expected selected actor,
+not just that selection changed. TU and stance are checked independently for
+all three soldiers and the hostile. Full semantic saves, runtime state, queued
+actions, selected/current actor, camera, visible sets, and RNG are compared.
+Every pair also obtains a fresh O context after the dispatched receipt and
+compares its displayed panel against the natural ordinary post-action panel.
+
+N uses the existing bounded socket, observation capability, confirmation,
+status schema, and command ledger: exactly 99 bytes consisting of N, epoch32,
+capability32, command-ID32, n/p, and literal 0. The gate neither exposes unit IDs
+nor predicts a candidate through the protocol. Nineteen adversarial worlds
+exercise same-name/same-panel selection, manual stance, overlays, focus,
+load/state replacement, changed TU/reserve state, missing context, cancellation,
+changed confirmation context/actor, pre-presented and held approval input,
+post-dispatch observation failure, replay, and disconnect. Both N-first and
+D-first worlds check exact replay/status, conflicting payloads under the same
+ID, consumed-capability reuse, cross-action conflicting IDs, and cross-action
+capability reuse. The modes run separately to stay below the shared 64-entry
+ledger bound. Local fixture confirmations follow actual modal flips.
+
+Additional real-source sensitivity setup is available. Each requires a distinct
+disposable source copy and rebuilt binary; run both selection master wrappers
+against each binary and require runtime failure. Merely applying the mutation
+or a compilation/setup failure is not a detected runtime mutant.
+
+```sh
+python3 tests/stance-control/make-selection-mutant.py next-as-previous /absolute/copy1
+python3 tests/stance-control/make-selection-mutant.py previous-as-next /absolute/copy2
+python3 tests/stance-control/make-selection-mutant.py duplicate-next /absolute/copy3
+python3 tests/stance-control/make-selection-mutant.py selection-charges-tu /absolute/copy4
+```
+
+These faults alter actual native dispatch direction/count or charge TU in the
+ordinary selection handler. They do not change test assertions, fixtures,
+protocol output, or callbacks. Results are fixed aggregates and source hashes;
+private assets, source states, tokens, names, captures, and child logs are not
+emitted or retained by either wrapper. This is a bounded correctness and
+presentation gate, with no timing-equality or complete-fairness claim.

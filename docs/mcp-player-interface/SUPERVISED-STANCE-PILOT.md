@@ -3,7 +3,7 @@
 
 This optional practical-play/1 pilot stages a single **desired** kneel or stand
 request for local approval. It has no generic key, click, unit-ID, movement, attack
-or hidden-state query. `EXPERIMENTAL_SUPERVISED_STANCE` is OFF by default and
+or hidden-state query. A separately opted-in [selection extension](SUPERVISED-SELECTION-PILOT.md) shares this context and ledger; the stance-only launch remains unchanged. `EXPERIMENTAL_SUPERVISED_STANCE` is OFF by default and
 requires the existing cursor-presentation build option. Runtime use additionally
 requires the explicit `--supervised-stance` launcher option. The ordinary default
 build has no control activation or implementation.

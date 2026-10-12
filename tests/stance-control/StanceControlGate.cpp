@@ -4,6 +4,9 @@
 // display pixels, normal kneel entry and the actual reaction queue are tested.
 // Oracle values, resources and captures remain private in memory.
 #include "StanceControlGate.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+#include "SelectionControlGate.h"
+#endif
 #include "../../src/Battlescape/BattlescapeGame.h"
 #include "../../src/Battlescape/BattlescapeState.h"
 #include "../../src/Battlescape/BattleState.h"
@@ -326,6 +329,52 @@ bool ready()
         !state->getMap()->getProjectile() && state->getMap()->getCursorType() == CT_NORMAL &&
         !b->getUnitsFalling() && state->getBattleGame()->getCurrentAction()->type == BA_NONE;
 }
+// Watchdog diagnostics retain the fixed compile-time assertion-label contract.
+// They run only after expiry in this default-OFF fixture, never in production
+// observation/control paths, and do not emit values or relax readiness gates.
+void watchdogFailure()
+{
+    if (stage == WARM) {
+        require(moved);
+        require(inputs.empty());
+        require(owner->isState(state));
+        require((SDL_GetAppState() & SDL_APPACTIVE) != 0);
+        require((SDL_GetAppState() & SDL_APPINPUTFOCUS) != 0);
+        require((SDL_GetAppState() & SDL_APPMOUSEFOCUS) != 0);
+        SavedBattleGame *b = owner->getSavedGame()->getSavedBattle();
+        require(b->getSelectedUnit() == player);
+        require(b->getSide() == FACTION_PLAYER && !b->getDebugMode());
+        require(state->getBattleGame()->getPanicHandled());
+        require(!state->getBattleGame()->isBusy());
+        require(!state->getMap()->getProjectile());
+        require(state->getMap()->getCursorType() == CT_NORMAL);
+        require(!b->getUnitsFalling());
+        require(state->getBattleGame()->getCurrentAction()->type == BA_NONE);
+        require(frameCount >= 2);
+    }
+    require(stage != WARM);
+    require(stage != REQUEST_CONTEXT);
+    require(stage != WAIT_CONTEXT);
+    require(stage != PREPARE_COMMAND);
+    require(stage != WAIT_MUTATION);
+    require(stage != WAIT_PENDING);
+    require(stage != CONFIRM);
+    require(stage != WAIT_DISPATCH);
+    require(stage != CHECK_REPLAY);
+    require(stage != WAIT_REPLAY);
+    require(stage != WAIT_REJECTED);
+    require(stage != WAIT_CANCELLED);
+    require(stage != WAIT_MANUAL_PANEL);
+    require(stage != REQUEST_POST_CONTEXT);
+    require(stage != WAIT_POST_CONTEXT);
+    require(stage != WAIT_POST_OVERLAY);
+    require(stage != WAIT_FAILED_POST);
+    require(stage != WAIT_HELD_INPUT);
+    require(stage != WAIT_BLOCKED_INPUT);
+    require(stage != WAIT_BLOCKED_STATUS);
+    require(stage != FINISHED);
+    require(false);
+}
 void replacement(Game *game)
 {
     pendingSetup = true; game->setState(new State);
@@ -383,6 +432,9 @@ void actionOracle()
 
 void prepare()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::prepare(); return; }
+#endif
     const char *e = std::getenv("OPENXCOM_STANCE_CONTROL_GATE"); enabled = e && std::string(e) == "1";
     if (!enabled) return;
     require(Options::language == "en-US" && !Options::playIntro);
@@ -402,11 +454,17 @@ void prepare()
 }
 void silence()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::silence(); return; }
+#endif
     if (!enabled) return;
     Mix_HaltChannel(-1); Mix_HaltMusic(); Options::mute = true; quiet();
 }
 bool loaded(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { return SelectionControlGate::loaded(game); }
+#endif
     if (!enabled) return false;
     owner = game; quiet(); alternateSurfaceOracle();
     require(Options::language == "en-US" && !Options::playIntro);
@@ -419,6 +477,9 @@ bool loaded(Game *game)
 }
 void afterCleanup(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::afterCleanup(game); return; }
+#endif
     if (!running || !pendingSetup) return;
     pendingSetup = false; moved = captured = commandSent = samePanel = false; callbacks = frameCount = replayStep = modalFrames = 0;
     stage = WARM; inputs.clear(); worldStarted = Clock::now();
@@ -462,9 +523,12 @@ void afterCleanup(Game *game)
 }
 void beforeEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::beforeEvents(game); return; }
+#endif
     if (!running || pendingSetup) return;
-    require(Clock::now() - started < std::chrono::seconds(180) &&
-        Clock::now() - worldStarted < std::chrono::seconds(15));
+    if (Clock::now() - started >= std::chrono::seconds(180) ||
+        Clock::now() - worldStarted >= std::chrono::seconds(15)) watchdogFailure();
     quiet(); require(SDL_GetModState() == KMOD_NONE);
     if (!moved) { motion(); moved = true; return; }
     if (stage == PREPARE_COMMAND) {
@@ -543,6 +607,9 @@ void beforeEvents(Game *game)
 }
 bool acceptEvent(const SDL_Event &e)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { return SelectionControlGate::acceptEvent(e); }
+#endif
     if (!running) return true;
     if (e.type == SDL_QUIT) return true;
     if (e.type == SDL_ACTIVEEVENT && (inputs.empty() || inputs.front().type != SDL_ACTIVEEVENT)) return true;
@@ -564,6 +631,9 @@ bool acceptEvent(const SDL_Event &e)
 }
 void afterEvents(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::afterEvents(game); return; }
+#endif
     if (!running || pendingSetup || !inputs.empty()) return;
     if (stage == WAIT_MUTATION) {
         if (adversary() == SELECT_RACE) {
@@ -587,8 +657,11 @@ void afterEvents(Game *game)
         challenge = randomToken(); sendPacket("O" + challenge); stage = WAIT_FAILED_POST;
     }
 }
-void beforeFrame(Game *, State *)
+void beforeFrame(Game *game, State *top)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::beforeFrame(game,top); return; }
+#endif
     if (!running || pendingSetup) return;
     if (stage == WARM && moved && inputs.empty() && ready()) {
         ++frameCount;
@@ -609,6 +682,9 @@ void beforeFrame(Game *, State *)
 }
 void afterFrame(Game *game)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::afterFrame(game); return; }
+#endif
     if (!running || pendingSetup) return;
     if (!game->isState(state) && (stage == WAIT_PENDING || stage == CONFIRM || stage == WAIT_BLOCKED_INPUT)) ++modalFrames;
     if (stage == WAIT_CONTEXT && available()) { context(receive()); require(!available()); stage = PREPARE_COMMAND; }
@@ -627,11 +703,23 @@ void afterFrame(Game *game)
 }
 void kneelClicked(BattlescapeState *who)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { SelectionControlGate::kneelClicked(who); return; }
+#endif
     if (!running || pendingSetup || who != state) return;
     ++callbacks; require(callbacks == 1); actionOracle(); actual = snapshot(); captured = true;
 }
+void selectionClicked(BattlescapeState *who, bool next)
+{
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) SelectionControlGate::selectionClicked(who,next);
+#endif
+}
 int exitStatus()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (SelectionControlGate::active()) { return SelectionControlGate::exitStatus(); }
+#endif
     if (enabled && completed) {
         require(parityCount == PairCount && world == PairWorlds + AdversaryCount);
         std::cout << "STANCE_CONTROL_GATE PASS {\"schema\":\"stance-control-gate/1\",\"master\":\"" << master <<

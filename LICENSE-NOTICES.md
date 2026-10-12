@@ -1,6 +1,6 @@
 # License and redistribution notices
 
-## Dated fork modification notice: 2026-10-11
+## Dated fork modification notice: 2026-10-12
 
 New contributions maintained in this fork add optional, default-off read-only
 HUD, final-pixel cursor and fixed-window final-mix audio observers, a local
@@ -9,7 +9,8 @@ and native MCP audio content, a separately opted-in final-pixel displayed-HUD de
 observer-request functional-effects gates, a diagnostic-isolation boundary,
 controlled smoke-density and full right-edge smoke-clipping render-equivalence
 gates with isolated negative-test patches, a default-off locally confirmed
-stance-control pilot, and associated tests, build helpers,
+stance-control pilot, an independently opted-in locally confirmed next/previous
+unit-selection extension, and associated tests, build helpers,
 documentation and evidence metadata.
 Existing upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.

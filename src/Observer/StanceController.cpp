@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection extension, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #include "StanceController.h"
 #include "StanceConfirmState.h"
 #include "DiagnosticProfile.h"
@@ -47,9 +47,13 @@ bool StanceContext::operator==(const StanceContext &o) const
         morale == o.morale && stun == o.stun && reserved == o.reserved && name == o.name;
 }
 StanceController::StanceController(Game *game, const char *descriptor) : _game(game), _fd(-1),
-    _dialog(0), _frameDialog(0), _expectedPush(0), _expectedPop(0), _armed(false), _desired(false),
+    _dialog(0), _frameDialog(0), _expectedPush(0), _expectedPop(0), _action('s'), _selectionEnabled(false), _armed(false), _desired(false),
     _dialogPresented(false), _confirmEventAllowed(false), _yDown(false), _mouseDown(false), _mouseArmed(false), _contextTime(0)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    const char *selection = std::getenv("OPENXCOM_SELECTION_ENABLED");
+    _selectionEnabled = selection && std::string(selection) == "1";
+#endif
     std::memset(_palette, 0, sizeof(_palette));
 #ifndef MSG_NOSIGNAL
     (void)descriptor; return;
@@ -193,9 +197,12 @@ void StanceController::poll()
         invalidate(); _challenge = request.substr(1); return;
     }
     if (n == 33 && request[0] == 'S' && token(request.substr(1))) { replyStatus(request.substr(1)); return; }
-    if (n != 99 || request[0] != 'D' || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
-        !token(request.substr(65, 32)) || (request[97] != 'k' && request[97] != 's') ||
-        (request[98] != 'k' && request[98] != 's')) { unavailable(); close(); return; }
+    const bool stance = n == 99 && request[0] == 'D' &&
+        (request[97] == 'k' || request[97] == 's') && (request[98] == 'k' || request[98] == 's');
+    const bool selection = _selectionEnabled && n == 99 && request[0] == 'N' &&
+        (request[97] == 'n' || request[97] == 'p') && request[98] == '0';
+    if ((!stance && !selection) || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
+        !token(request.substr(65, 32))) { unavailable(); close(); return; }
     const std::string id = request.substr(65, 32);
     const auto prior = _commands.find(id);
     if (prior != _commands.end())
@@ -208,11 +215,13 @@ void StanceController::poll()
     if (_commands.size() >= 64) { unavailable(); close(); return; }
     _commands[id] = {request, "unavailable"};
     if (_dialog || !_challenge.empty() || _capability.empty() || request.substr(1, 32) != _epoch ||
-        request.substr(33, 32) != _capability || (request[97] == 'k') != _context.kneeled ||
-        request[97] == request[98] || !bindingCurrent()) { replyStatus(id); return; }
+        request.substr(33, 32) != _capability ||
+        (stance && ((request[97] == 'k') != _context.kneeled || request[97] == request[98])) ||
+        !bindingCurrent() || (selection && !_context.state->selectionControlVisible())) { replyStatus(id); return; }
     // Reserving this exact capability is already one-use. Local confirmation
     // cannot create a new capability, change the actor, or change the command.
     _capability.clear();
+    _action = selection ? request[97] : request[98];
     _desired = request[98] == 'k'; _pendingId = id;
     _dialogPresented = _confirmEventAllowed = _mouseArmed = false;
     _yDown = _yDown || SDL_GetKeyState(0)[SDLK_y] != 0;
@@ -295,13 +304,20 @@ void StanceController::confirm(StanceConfirmState *dialog, bool accept)
     // All validation, one-use consumption, receipt transition and normal handler
     // dispatch occur in this single main-thread event. There is no queued input.
     const bool valid = accept && _dialogPresented && _confirmEventAllowed && !id.empty() && bindingCurrent(true);
+    const bool selectionValid = valid && (!selectionRequest() ||
+        (_selectionEnabled && _context.state->selectionControlVisible()));
     _confirmEventAllowed = false;
     _expectedPop = dialog;
     _game->popState();
     _dialog = 0;
-    if (!valid || !bindingCurrent(false)) { invalidate(); return; }
+    if (!valid || !selectionValid || !bindingCurrent(false) ||
+        (selectionRequest() && !_context.state->selectionControlVisible())) { invalidate(); return; }
     _pendingId.clear(); _capability.clear();
     _commands[id].status = "dispatched";
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION
+    if (_action == 'n') { _context.state->btnNextSoldierClick(0); return; }
+    if (_action == 'p') { _context.state->btnPrevSoldierClick(0); return; }
+#endif
     _context.state->btnKneelClick(0);
     // Receipt says only that the normal UI handler ran. TU/reservation refusal
     // and reaction fire are learned through the next actual displayed image.

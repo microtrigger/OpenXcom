@@ -2,7 +2,7 @@
 # New contribution maintained in this OpenXcom fork, 2026-10-11.
 # Free software under GNU GPL version 3 or later; without warranty.
 # See repository LICENSE.txt and LICENSE-NOTICES.md.
-"""Experimental local-UI-confirmed stance requests; never an approval API.
+"""Experimental local-UI-confirmed stance/selection requests; never an approval API.
 
 Only ordinary presented panel pixels are observed. A dispatch receipt is not
 success. After each terminal command, a new context must be displayed before
@@ -34,6 +34,7 @@ WIDTH, HEIGHT = 320, 56
 RGB_BYTES = WIDTH * HEIGHT * 3
 TIMEOUT, STARTUP_TIMEOUT = 2.0, 31.0
 STANCES = {'kneel': 'k', 'stand': 's'}
+DIRECTIONS = {'next': 'n', 'previous': 'p'}
 STATUSES = ('pending_confirmation', 'dispatched', 'unavailable')
 FAILURES = (OSError, ValueError, UnicodeError, RecursionError, TypeError)
 
@@ -91,6 +92,13 @@ def validate_arguments(arguments):
         require(type(arguments[name]) is str and arguments[name] in STANCES)
 
 
+def validate_selection_arguments(arguments):
+    exact(arguments, 'capability control_epoch command_id direction')
+    for name in ('capability', 'control_epoch', 'command_id'):
+        token(arguments[name])
+    require(type(arguments['direction']) is str and arguments['direction'] in DIRECTIONS)
+
+
 def image_content(rgb):
     """Losslessly encode only the fixed displayed RGB panel, with no metadata."""
     require(type(rgb) is bytes and len(rgb) == RGB_BYTES)
@@ -113,9 +121,12 @@ class StanceClient:
     NEW -> READY -> PENDING -> NEED_CONTEXT -> READY. An immediate native
     rejection also needs a fresh context. Any failed observation or uncertain
     exchange enters CLOSED; only an explicit new launcher can create a client.
-    Duplicate explicit request calls query S, never replay D.
+    Stance and selection share one capability and command ledger. Duplicate
+    explicit request calls query S, never replay D or N.
     """
-    def __init__(self, channel, timeout=TIMEOUT, startup_timeout=STARTUP_TIMEOUT):
+    def __init__(self, channel, timeout=TIMEOUT, startup_timeout=STARTUP_TIMEOUT,
+                 selection_enabled=False):
+        require(type(selection_enabled) is bool)
         for value, maximum in ((timeout, TIMEOUT), (startup_timeout, STARTUP_TIMEOUT)):
             require(type(value) in (int, float) and math.isfinite(value) and 0 < value <= maximum)
         require(isinstance(channel, socket.socket) and channel.family == socket.AF_UNIX
@@ -124,6 +135,7 @@ class StanceClient:
         channel.setblocking(False)
         self.channel = channel
         self.timeout, self.startup_timeout = timeout, startup_timeout
+        self.selection_enabled = selection_enabled
         self.state = 'NEW'
         self.control_epoch = self.capability = self.active = None
         self.commands = {}
@@ -197,24 +209,35 @@ class StanceClient:
         arguments = dict(capability=capability, control_epoch=control_epoch,
                          command_id=command_id, observed=observed, desired=desired)
         validate_arguments(arguments)
+        return self._request('D', arguments, STANCES[observed] + STANCES[desired])
+
+    def request_selection(self, capability, control_epoch, command_id, direction):
+        require(self.selection_enabled)
+        arguments = dict(capability=capability, control_epoch=control_epoch,
+                         command_id=command_id, direction=direction)
+        validate_selection_arguments(arguments)
+        return self._request('N', arguments, DIRECTIONS[direction] + '0')
+
+    def _request(self, action, arguments, payload):
+        capability, control_epoch, command_id = (arguments[name] for name in
+                                                ('capability', 'control_epoch', 'command_id'))
         with self.exclusive():
             previous = self.commands.get(command_id)
             if previous is not None:
-                require(previous['arguments'] == arguments)
+                require(previous['action'] == action and previous['arguments'] == arguments)
                 return self._status(command_id)
             require(self.state == 'READY' and capability == self.capability
                     and control_epoch == self.control_epoch)
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
                 raise Unavailable('Unavailable')
-            request = ('D' + control_epoch + capability + command_id
-                       + STANCES[observed] + STANCES[desired]).encode('ascii')
+            request = (action + control_epoch + capability + command_id + payload).encode('ascii')
             require(len(request) == 99)
             # Consume before the send. No exception can make it eligible again.
             self.capability = None
             self.active = command_id
             self.state = 'PENDING'
-            self.commands[command_id] = {'arguments': arguments, 'status': None}
+            self.commands[command_id] = {'action': action, 'arguments': arguments, 'status': None}
             try:
                 obj = validate_status(self.exchange(request, 256), command_id)
                 require(obj['status'] != 'dispatched')

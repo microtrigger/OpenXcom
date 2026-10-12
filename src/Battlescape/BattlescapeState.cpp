@@ -1058,6 +1058,9 @@ void BattlescapeState::btnNextSoldierClick(Action *)
 		selectNextPlayerUnit(true, false);
 		_map->refreshSelectorPosition();
 	}
+#if defined(OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE) && defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION)
+    StanceControlGate::selectionClicked(this, true);
+#endif
 }
 
 /**
@@ -1084,6 +1087,9 @@ void BattlescapeState::btnPrevSoldierClick(Action *)
 		selectPreviousPlayerUnit(true);
 		_map->refreshSelectorPosition();
 	}
+#if defined(OPENXCOM_EXPERIMENTAL_STANCE_CONTROL_GATE) && defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_SELECTION)
+    StanceControlGate::selectionClicked(this, false);
+#endif
 }
 
 /**
@@ -2276,6 +2282,15 @@ bool BattlescapeState::getMouseOverIcons() const
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+// SPDX-License-Identifier: GPL-3.0-or-later; selection presentation guard, 2026-10-12.
+bool BattlescapeState::selectionControlVisible() const
+{
+    // Both ordinary cycling hotkeys belong to this displayed button. No target
+    // lookup or eligibility prediction is exposed by the control boundary.
+    return _btnNextSoldier->stanceContextVisible() && _btnNextSoldier->getX() >= 0 &&
+        _btnNextSoldier->getY() >= 144 && _btnNextSoldier->getX() + _btnNextSoldier->getWidth() <= 320 &&
+        _btnNextSoldier->getY() + _btnNextSoldier->getHeight() <= 200;
+}
 bool BattlescapeState::stanceContext(Observer::StanceContext &c, bool covered) const
 {
     if ((!covered && !_game->isState(const_cast<BattlescapeState *>(this))) ||

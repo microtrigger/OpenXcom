@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// New contribution, 2026-10-11. See LICENSE.txt and LICENSE-NOTICES.md.
+// New contribution, 2026-10-11; selection extension, 2026-10-12. See LICENSE.txt and LICENSE-NOTICES.md.
 #pragma once
 #include <SDL.h>
 #include <cstdint>
@@ -31,6 +31,8 @@ class StanceController {
     SDL_Color _palette[256];
     StanceConfirmState *_dialog, *_frameDialog;
     State *_expectedPush, *_expectedPop;
+    char _action; // k/s: desired stance, n/p: ordinary selection direction.
+    bool _selectionEnabled;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime;
     std::map<std::string, Command> _commands;
@@ -57,6 +59,8 @@ public:
     const std::vector<unsigned char> &indices() const { return _indices; }
     SDL_Color *palette() { return _palette; }
     bool desiredKneel() const { return _desired; }
+    bool selectionRequest() const { return _action == 'n' || _action == 'p'; }
+    bool nextSelection() const { return _action == 'n'; }
 private:
     StanceController(const StanceController &);
     StanceController &operator=(const StanceController &);

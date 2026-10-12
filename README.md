@@ -2,7 +2,15 @@
 
 ## Fair-Play MCP Interface Project
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; a separate default-off, locally confirmed kneel/stand pilot is now available under the practical-play/1 scope. Broader gameplay control remains unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand and next/previous unit-selection pilots are now available under the practical-play/1 scope. Movement, inventory, firing and end-turn control remain unimplemented.
+
+The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
+adds ordinary next/previous controls with the same fresh displayed-panel capability,
+local confirmation and shared one-use command ledger as stance. Its finite native
+UFO/TFTD gate checks ten manual/controlled pairs and nineteen adversarial worlds
+per game; existing stance checks also pass in both. See [verification and limits](docs/mcp-player-interface/SUPERVISED-SELECTION-EVIDENCE.md).
+It does not enumerate hidden units, replace normal gameplay validation or establish
+full fairness or token savings.
 
 **Current plan and actual progress:** see the [English status checklist](docs/mcp-player-interface/README.md#plan-versus-actual-progress) or [Russian working checklist](docs/mcp-player-interface/PLAN.ru.md#план-и-фактическое-выполнение). Selected request-bound pixel/HUD checks cover both games, including the [bounded natural-FOV/pause gate](docs/mcp-player-interface/NATURAL-FOV-GATE.md). The earlier [mixed-audio slice](docs/mcp-player-interface/MIXED-AUDIO-NATIVE.md) adds fixed 500 ms final SDL_mixer PCM for a qualified 22050 Hz signed-16-bit stereo software-mixed profile; 190 Python tests and a native real-SDL dummy-mixer oracle pass. Selected [UFO/TFTD menu checks](docs/mcp-player-interface/mixed-audio-game-evidence.json) also pass: eight fresh clips include exact silence at verified zero volume, and four post-exit requests fail closed. These checks do not establish full gameplay audio parity, physical audibility, continuous sound history or frame/HUD synchronization. The full fairness gate, audio parity, gameplay controller and actual end-to-end token comparison remain open.
 
