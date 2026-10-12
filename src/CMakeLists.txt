@@ -665,3 +665,12 @@ if ( EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/inventory-ground-control/InventoryGroundControlGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE )
 endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; supervised inventory click, 2026-10-12.
+if ( EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK )
+endif()
+if ( EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE )
+  target_sources ( openxcom PRIVATE ../tests/inventory-click-control/InventoryClickControlGate.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE )
+endif()

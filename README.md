@@ -2,7 +2,7 @@
 
 ## Fair-Play MCP Interface Project
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Individual item transfer, reload and prime operations remain manual; firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,
@@ -33,7 +33,7 @@ adds locally confirmed ordinary opening and a capless final inventory image. All
 14 native profiles pass in both games, including 12 opening pairs and 24 additional
 worlds; all 15 actual-source faults are detected in each. Real official-SDK →
 production-game opening/view/manual-close checks also pass in UFO and TFTD.
-Individual item transfer, reload and prime remain manual; closing and Ground require their separate opt-ins below. See [opening evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-OPEN-EVIDENCE.md).
+This opening slice does not manipulate items; closing, Ground and item clicks require their separate opt-ins below. See [opening evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-OPEN-EVIDENCE.md).
 
 The separately enabled [ordinary inventory CLOSE pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLOSE-PILOT.md)
 adds a fresh J image/capability and locally confirmed C proposal. Its inventory-owned
@@ -53,7 +53,16 @@ including 20 manual/G pairs each; actual SDK/production-game chains pass once
 per game. Source-fault evidence separates 50 initial runs from two targeted
 repeats and retains the surviving UI-generation guard. See
 [evidence, corrections and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-EVIDENCE.md).
-Individual item transfer, reloading and priming remain manual.
+Item clicks require the separate opt-in below; dedicated reload/prime proposals remain open.
+
+The [ordinary inventory left-click slice](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-PILOT.md)
+passes 108 native profiles and real SDK transfer/refusal paths in both games. It proposes one pointer click
+in the stock hands/ground regions, allowing the ordinary pickup/place/stack/reload
+or refusal path. Each click requires separate local confirmation and a fresh I;
+a two-click transfer is not atomic and cancellation preserves a held item.
+Source-fault results are 64 detections, four survivors and two inconclusive runs
+out of 70; [evidence and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-EVIDENCE.md)
+also preserve earlier failures and the qualified prior-control regressions.
 
 The [combined official-SDK → production-game smoke](docs/mcp-player-interface/COMBINED-SDK-LIVE-EVIDENCE.md)
 now verifies selection, turn, actual movement, inventory opening/view and manual

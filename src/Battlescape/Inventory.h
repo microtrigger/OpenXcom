@@ -19,6 +19,7 @@
  */
 #include "../Engine/InteractiveSurface.h"
 #include <map>
+#include <cstdint>
 #include <string>
 
 namespace OpenXcom
@@ -41,10 +42,19 @@ class Inventory : public InteractiveSurface
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     friend struct InventoryCloseGateAccess;
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
+    friend struct InventoryClickGateAccess;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_GROUND_CONTROL_GATE
     friend struct InventoryGroundGateAccess;
 #endif
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    friend class InventoryState;
+    std::uint64_t _heldSelectionRevision = 0;
+    bool inventoryClickPresentationAllowed() const;
+    int inventoryClickBannerY() const;
+#endif
 	Game *_game;
 	Surface *_grid, *_items, *_selection;
 	WarningMessage *_warning;

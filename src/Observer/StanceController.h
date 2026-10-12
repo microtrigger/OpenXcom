@@ -11,6 +11,9 @@
 #endif
 namespace OpenXcom {
 class Game; class SavedGame; class State; class BattlescapeState; class BattleUnit; class SavedBattleGame; class InventoryState;
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
+struct InventoryClickGateAccess;
+#endif
 namespace Observer {
 class StanceConfirmState;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
@@ -23,6 +26,10 @@ struct InventoryCloseContext {
     SavedBattleGame *save = 0;
     BattleUnit *actor = 0;
     std::uint64_t selectionRevision = 0, actorRevision = 0, uiRevision = 0;
+    #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    std::uint64_t heldRevision = 0;
+    int selectionX = 0, selectionY = 0;
+#endif
     bool operator==(const InventoryCloseContext &other) const;
 };
 #endif
@@ -49,6 +56,9 @@ struct TurnContext {
 };
 #endif
 class StanceController {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
+    friend struct ::OpenXcom::InventoryClickGateAccess;
+#endif
     struct Command { std::string request, status; };
     Game *_game;
     int _fd;
@@ -79,9 +89,12 @@ class StanceController {
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
     bool _inventoryGroundEnabled;
 #endif
-    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g: inventory open/close/Ground.
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    bool _inventoryClickEnabled;
+#endif
+    char _action; // k/s: stance, n/p: selection, r/l: map button, o/c/g/e: inventory open/close/Ground/left-click.
     bool _selectionEnabled, _turnEnabled, _mapLeftClickEnabled, _awaitingView, _waitingTurnFrame;
-    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K: close/Ground-only view.
+    char _contextKind; // O: HUD-bound D/N; V: view-bound R/L/B; I: capless pixels; J/K/H: close/Ground/click-only view.
     int _targetX, _targetY;
     bool _armed, _desired, _dialogPresented, _confirmEventAllowed, _yDown, _mouseDown, _mouseArmed;
     std::uint64_t _contextTime, _challengeTime, _challengeDeadline;
@@ -127,6 +140,7 @@ public:
     bool mapLeftClickRequest() const { return _action == 'l'; }
     bool inventoryOpenRequest() const { return _action == 'o'; }
     bool inventoryGroundRequest() const { return _action == 'g'; }
+    bool inventoryClickRequest() const { return _action == 'e'; }
     int targetX() const { return _targetX; }
     int targetY() const { return _targetY; }
 private:

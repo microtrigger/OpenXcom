@@ -94,7 +94,11 @@ bool TurnContext::operator==(const TurnContext &o) const
 bool InventoryCloseContext::operator==(const InventoryCloseContext &o) const
 {
     return state == o.state && parent == o.parent && savedGame == o.savedGame && save == o.save && actor == o.actor &&
-        selectionRevision == o.selectionRevision && actorRevision == o.actorRevision && uiRevision == o.uiRevision;
+        selectionRevision == o.selectionRevision && actorRevision == o.actorRevision && uiRevision == o.uiRevision
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+        && heldRevision == o.heldRevision && selectionX == o.selectionX && selectionY == o.selectionY
+#endif
+        ;
 }
 #endif
 StanceController::StanceController(Game *game, const char *descriptor) : _game(game), _fd(-1),
@@ -108,6 +112,9 @@ StanceController::StanceController(Game *game, const char *descriptor) : _game(g
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
     _inventoryGroundEnabled(false),
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    _inventoryClickEnabled(false),
 #endif
     _action('s'), _selectionEnabled(false), _turnEnabled(false), _mapLeftClickEnabled(false), _awaitingView(false), _waitingTurnFrame(false), _contextKind('O'), _targetX(0), _targetY(0), _armed(false), _desired(false),
     _dialogPresented(false), _confirmEventAllowed(false), _yDown(false), _mouseDown(false), _mouseArmed(false), _contextTime(0), _challengeTime(0), _challengeDeadline(0)
@@ -138,6 +145,10 @@ StanceController::StanceController(Game *game, const char *descriptor) : _game(g
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
     const char *inventoryGround = std::getenv("OPENXCOM_INVENTORY_GROUND_ENABLED");
     _inventoryGroundEnabled = _inventoryCloseEnabled && inventoryGround && std::string(inventoryGround) == "1";
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    const char *inventoryClick = std::getenv("OPENXCOM_INVENTORY_CLICK_ENABLED");
+    _inventoryClickEnabled = _inventoryCloseEnabled && inventoryClick && std::string(inventoryClick) == "1";
 #endif
     std::memset(_palette, 0, sizeof(_palette));
 #ifndef MSG_NOSIGNAL
@@ -203,7 +214,7 @@ void StanceController::invalidate(bool newEpoch, bool preserveMapWait, bool pres
 #endif
     if (newEpoch && (_contextKind == 'V'
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
-        || _contextKind == 'J' || _contextKind == 'K'
+        || _contextKind == 'J' || _contextKind == 'K' || _contextKind == 'H'
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
         || (_contextKind == 'I' && !preserveInventoryRead)
@@ -255,7 +266,27 @@ void StanceController::beforeEvent(const SDL_Event &event, State *top)
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
     InventoryState *inventory = dynamic_cast<InventoryState *>(top);
-    if (inventory) inventory->_inventoryCloseConsumeEvent = inventory->inventoryCloseOverlayActive();
+    // Latch ownership before presentation checks can invalidate and retire the
+    // overlay. The same event must never reach the underlying held item.
+    if (inventory)
+    {
+        const bool owned = inventory->inventoryCloseOverlayOwned();
+        inventory->_inventoryCloseConsumeEvent = owned;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+        if ((event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) &&
+            event.button.button >= 1 && event.button.button <= 8)
+        {
+            const std::uint8_t button = std::uint8_t(1u << (event.button.button - 1));
+            if (owned && _action == 'e' && event.type == SDL_MOUSEBUTTONDOWN)
+                inventory->_inventoryClickConsumedButtons |= button;
+            if (event.type == SDL_MOUSEBUTTONUP && (inventory->_inventoryClickConsumedButtons & button))
+            {
+                inventory->_inventoryCloseConsumeEvent = true;
+                inventory->_inventoryClickConsumedButtons &= ~button;
+            }
+        }
+#endif
+    }
 #endif
     if (_fd < 0) return;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
@@ -332,12 +363,16 @@ void StanceController::beforeEvent(const SDL_Event &event, State *top)
 bool StanceController::bindingCurrent(bool modal) const
 {
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
-    if (_contextKind == 'J' || _contextKind == 'K')
+    if (_contextKind == 'J' || _contextKind == 'K' || _contextKind == 'H')
     {
         if (!_inventoryCloseEnabled || !connected() || !diagnosticProfileQualified() || !focused() ||
             now() - _contextTime > 120000 || !_closeContext.state || !_game->isState(_closeContext.state) ||
             (modal && _closeInventory != _closeContext.state)) return false;
         InventoryCloseContext current;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+        if (_contextKind == 'H')
+            return _inventoryClickEnabled && _closeContext.state->inventoryClickContext(current, modal) && current == _closeContext;
+#endif
         if (!_closeContext.state->inventoryCloseContext(current, modal) || !(current == _closeContext)) return false;
         if (_contextKind == 'K')
         {
@@ -428,7 +463,7 @@ void StanceController::poll()
 #endif
     if ((_contextKind == 'V'
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
-        || _contextKind == 'J' || _contextKind == 'K'
+        || _contextKind == 'J' || _contextKind == 'K' || _contextKind == 'H'
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY
         || _contextKind == 'I'
@@ -483,7 +518,7 @@ void StanceController::poll()
     if (_inventoryEnabled && n == 33 && request[0] == 'I' && token(request.substr(1)))
     {
         // This observation never authorizes actions and cannot satisfy a map
-        // action's outstanding V. A lost B/G destination remains fail-closed.
+        // action's outstanding V. A lost B/G/E destination remains fail-closed.
         _capability.clear();
         if (!_challenge.empty() || _dialog || _awaitingView
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
@@ -501,6 +536,9 @@ void StanceController::poll()
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
     if (_inventoryCloseEnabled && n == 33 && (request[0] == 'J'
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+        || (_inventoryClickEnabled && request[0] == 'H')
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
         || (_inventoryGroundEnabled && request[0] == 'K')
 #endif
@@ -512,7 +550,12 @@ void StanceController::poll()
         _challengeTime = now(); _challengeDeadline = _challengeTime + 1500;
         InventoryState *state = dynamic_cast<InventoryState *>(_game->turnControlState());
         InventoryCloseContext context;
-        if (!state || !state->inventoryCloseContext(context)
+        if (!state ||
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+            (_contextKind == 'H' ? !state->inventoryClickContext(context) : !state->inventoryCloseContext(context))
+#else
+            !state->inventoryCloseContext(context)
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
             || (_contextKind == 'K' && !state->inventoryGroundControlVisible())
 #endif
@@ -547,10 +590,21 @@ void StanceController::poll()
 #else
         false;
 #endif
+    const bool inventoryClick =
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+        _inventoryClickEnabled && n == 103 && request[0] == 'E' &&
+        request.substr(97).find_first_not_of("0123456789") == std::string::npos;
+#else
+        false;
+#endif
     const bool mapClick = turn || leftClick;
-    const int x = mapClick ? std::atoi(request.substr(97, 3).c_str()) : 0;
-    const int y = mapClick ? std::atoi(request.substr(100, 3).c_str()) : 0;
-    if ((!stance && !selection && !mapClick && !inventoryOpen && !inventoryClose && !inventoryGround) || (mapClick && (x < 16 || x > 303 || y < 40 || y > 127)) || !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
+    const bool pointerClick = mapClick || inventoryClick;
+    const int x = pointerClick ? std::atoi(request.substr(97, 3).c_str()) : 0;
+    const int y = pointerClick ? std::atoi(request.substr(100, 3).c_str()) : 0;
+    if ((!stance && !selection && !mapClick && !inventoryOpen && !inventoryClose && !inventoryGround && !inventoryClick) || (mapClick && (x < 16 || x > 303 || y < 40 || y > 127)) ||
+        (inventoryClick && !((x >= 0 && x < 32 && y >= 63 && y < 111) ||
+            (x >= 128 && x < 160 && y >= 63 && y < 111) || (x >= 0 && x < 320 && y >= 152 && y < 200))) ||
+        !token(request.substr(1, 32)) || !token(request.substr(33, 32)) ||
         !token(request.substr(65, 32))) { unavailable(); close(); return; }
     const std::string id = request.substr(65, 32);
     const auto prior = _commands.find(id);
@@ -573,7 +627,7 @@ void StanceController::poll()
         _dialog || !_challenge.empty() || _capability.empty() || request.substr(1, 32) != _epoch ||
         request.substr(33, 32) != _capability ||
         !((_contextKind == 'O' && (stance || selection)) || (_contextKind == 'V' && (mapClick || inventoryOpen)) ||
-            (_contextKind == 'J' && inventoryClose) || (_contextKind == 'K' && inventoryGround)) ||
+            (_contextKind == 'J' && inventoryClose) || (_contextKind == 'K' && inventoryGround) || (_contextKind == 'H' && inventoryClick)) ||
         (stance && ((request[97] == 'k') != _context.kneeled || request[97] == request[98])) ||
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK
         (leftClick && !_context.state->mapLeftClickControlAllowed()) ||
@@ -585,7 +639,7 @@ void StanceController::poll()
     // Reserving this exact capability is already one-use. Local confirmation
     // cannot create a new capability, change the actor, or change the command.
     _capability.clear();
-    _action = inventoryGround ? 'g' : inventoryClose ? 'c' : inventoryOpen ? 'o' : leftClick ? 'l' : turn ? 'r' : selection ? request[97] : request[98];
+    _action = inventoryClick ? 'e' : inventoryGround ? 'g' : inventoryClose ? 'c' : inventoryOpen ? 'o' : leftClick ? 'l' : turn ? 'r' : selection ? request[97] : request[98];
     _targetX = x; _targetY = y;
     _desired = stance && request[98] == 'k'; _pendingId = id;
     _dialogPresented = _confirmEventAllowed = _mouseArmed = false;
@@ -593,7 +647,7 @@ void StanceController::poll()
     _mouseDown = _mouseDown || (SDL_GetMouseState(0, 0) & SDL_BUTTON_LMASK) != 0;
     _commands[id].status = "pending_confirmation";
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
-    if (inventoryClose || inventoryGround)
+    if (inventoryClose || inventoryGround || inventoryClick)
     {
         _closeInventory = _closeContext.state;
         if (!_closeInventory->showInventoryCloseOverlay(this)) invalidate();
@@ -618,7 +672,7 @@ void StanceController::beginFrame()
 }
 void StanceController::arm(BattlescapeState *state)
 {
-    if (_fd < 0 || _dialog || _contextKind == 'I' || _contextKind == 'J' || _contextKind == 'K' || !_game->isState(state)) return;
+    if (_fd < 0 || _dialog || _contextKind == 'I' || _contextKind == 'J' || _contextKind == 'K' || _contextKind == 'H' || !_game->isState(state)) return;
     _armed = state->stanceContext(_frameContext, false);
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     if (_contextKind == 'V')
@@ -642,10 +696,15 @@ void StanceController::armInventory(InventoryState *state)
     {
         if (_closeInventory == state && state->inventoryCloseOverlayActive())
         { _frameCloseInventory = state; return; }
-        if ((_contextKind == 'J' || _contextKind == 'K') && !_closeInventory && (!_challenge.empty() || !_capability.empty()) &&
+        if ((_contextKind == 'J' || _contextKind == 'K' || _contextKind == 'H') && !_closeInventory && (!_challenge.empty() || !_capability.empty()) &&
             (_challenge.empty() || state == _challengeState))
         {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+            _armed = _contextKind == 'H' ? _inventoryClickEnabled && state->inventoryClickContext(_frameCloseContext) :
+                state->inventoryCloseContext(_frameCloseContext);
+#else
             _armed = state->inventoryCloseContext(_frameCloseContext);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
             if (_contextKind == 'K') _armed = _armed && _inventoryGroundEnabled && state->inventoryGroundControlVisible();
 #endif
@@ -673,7 +732,7 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool prof
 #endif
     const bool closeView =
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLOSE
-        (_contextKind == 'J' || _contextKind == 'K') && !_dialog;
+        (_contextKind == 'J' || _contextKind == 'K' || _contextKind == 'H') && !_dialog;
 #else
         false;
 #endif
@@ -738,7 +797,11 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool prof
         InventoryCloseContext current;
         if (!_frameCloseInventory || !_game->isState(_frameCloseInventory) ||
             (!_challenge.empty() && _frameCloseInventory != _challengeState) ||
-            !_frameCloseInventory->inventoryCloseContext(current) || !(current == _frameCloseContext)
+            (
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+                _contextKind == 'H' ? !_inventoryClickEnabled || !_frameCloseInventory->inventoryClickContext(current) :
+#endif
+                !_frameCloseInventory->inventoryCloseContext(current)) || !(current == _frameCloseContext)
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
             || (_contextKind == 'K' && (!_inventoryGroundEnabled || !_frameCloseInventory->inventoryGroundControlVisible()))
 #endif
@@ -815,6 +878,9 @@ void StanceController::presented(SDL_Surface *surface, int bw, int bh, bool prof
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
         if (_contextKind == 'K') schema = "experimental-inventory-ground-context/1";
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+        if (_contextKind == 'H') schema = "experimental-inventory-click-context/1";
+#endif
         const std::string packet = "{\"schema\":\"" + schema + "\",\"challenge\":\"" + challenge +
             "\",\"control_epoch\":\"" + _epoch + "\",\"capability\":\"" + _capability +
             "\",\"semantics\":\"presented_after_request\",\"view\":{\"width\":320,\"height\":200,\"indices_hex\":\"" + indicesHex +
@@ -858,7 +924,7 @@ bool StanceController::closeParentCurrent() const
 void StanceController::beforeSaveChange()
 {
     invalidate(true);
-    // Never let a replacement save satisfy a pending B/G observation, even
+    // Never let a replacement save satisfy a pending B/G/E observation, even
     // when its allocator reuses an old state/save address. Keep the barrier.
     _inventoryDestination = _frameInventory = 0;
     _closeContext = InventoryCloseContext(); _frameCloseContext = InventoryCloseContext();
@@ -877,6 +943,16 @@ void StanceController::confirmInventoryClose(InventoryState *state, bool accept)
     if (!valid || !bindingCurrent(false)) { invalidate(); return; }
     _pendingId.clear(); _capability.clear();
     _commands[id].status = "dispatched";
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    if (_action == 'e')
+    {
+        // Install the exact surviving inventory's I obligation before ordinary
+        // code can pick up, place, stack, reload, warn, or make no change.
+        _awaitingInventoryView = true; _inventoryDestination = state;
+        state->inventoryControlClick(_targetX, _targetY);
+        return;
+    }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
     if (_action == 'g')
     {

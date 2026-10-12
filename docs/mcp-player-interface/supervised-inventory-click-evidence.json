@@ -1,0 +1,1493 @@
+{
+  "schema": "openxcom-supervised-inventory-click-evidence/1",
+  "status": "bounded_pilot_verified",
+  "base_commit": "e6350878fbc50b3a9e908f3044eafdc574989803",
+  "source_sha256": {
+    "CMakeLists.txt": "0c70d664a4ea5fc5b888bcdac39ea92e9c7a52879fceb4104f1ea97d76c48dad",
+    "src/CMakeLists.txt": "7b1b9e607074e5736ce55d2237568c75006ea37ddfb86055dd2c90dba59faa46",
+    "src/Battlescape/Inventory.cpp": "a72f90387d1c39883f568b1bdd53405eb5765cd7d93712f81269e3000ec3d162",
+    "src/Battlescape/Inventory.h": "02d435c7bdda7270f44d1bad89aee499f8364e45fe12f784bacfffd05d8cf9d7",
+    "src/Battlescape/InventoryState.cpp": "63c61c3cd44cca5930d7a17dca199b9375f15b9924c54c1632378e61435b57f8",
+    "src/Battlescape/InventoryState.h": "f11b743c4a5f66a06fc686cb990d8184fd6f9bf83db35a5922a61b8e09fc8c91",
+    "src/Battlescape/Map.h": "b1319c2ab6dcd70a1495ece33866642231cdac8a2858a80b4a5f1802495c55dc",
+    "src/Battlescape/WarningMessage.h": "1754444175e881ebbc18481f8cf5e01c6189ad2b202cdc1094383c21415b169b",
+    "src/Engine/Game.h": "a7462c14cb03a71893c40b8cfad1507dfee88dd2c3246dbd96a08d1dc58d9f0f",
+    "src/Observer/InventoryCloseOverlay.cpp": "aca448d4cb8cfd419a3a92d72a84ae8289e9a7f3f6bacc4f17af032e5a66136b",
+    "src/Observer/InventoryCloseOverlay.h": "ba574aa10a75edfb0e34c1bde5d2a0f820086efe8cea386a767f1da01a05cdd5",
+    "src/Observer/StanceController.cpp": "8e7b260a58f177200a0b8c800bb43550baeac91988222028ed108a9af5558d9c",
+    "src/Observer/StanceController.h": "7af54bf4d0c933db4e577f2cf1abc240627d1034734456a28c30adaf2b1a19b8",
+    "tests/stance-control/StanceControlGate.cpp": "2e2ed8a3886c3e4c5cf20affd3268eeeca7e9c539b6f3d3bfffdf0bff30b82d6"
+  },
+  "builds": {
+    "native": {
+      "sha256": "257a0dd2dad974b396f59987e5d507905d301d94b7b3d42bddd6d7e5e65ead9b",
+      "size": 7950920,
+      "build_exit": 0,
+      "click_strings": true,
+      "close_strings": true,
+      "ground_strings": true,
+      "gate_symbols": false
+    },
+    "close-only": {
+      "sha256": "05314e4dfa22d5ec9485e639e30be94e4f7631bafa28efaeca4df8d44f7659ce",
+      "size": 7942024,
+      "build_exit": 0,
+      "click_strings": false,
+      "close_strings": true,
+      "ground_strings": false,
+      "gate_symbols": false
+    },
+    "default": {
+      "sha256": "5f9dd82f5ff0af34146da6602f0ca27ff307dfa319209ccdda26b7a43c446056",
+      "size": 7810128,
+      "build_exit": 0,
+      "click_strings": false,
+      "close_strings": false,
+      "ground_strings": false,
+      "gate_symbols": false
+    },
+    "without-ground": {
+      "sha256": "ab8f72b48a510058fc882aa8bc603cd82db91663989a692ab32be49a03390edb",
+      "size": 7950832,
+      "build_exit": 0,
+      "click_strings": true,
+      "close_strings": true,
+      "ground_strings": false,
+      "gate_symbols": false
+    }
+  },
+  "python": {
+    "methods_each_mode": 505,
+    "passed_each_mode": 503,
+    "skipped_each_mode": 2,
+    "new_click_methods": 43,
+    "new_click_independent_rerun_each_mode": 43,
+    "normal_and_optimized": true,
+    "synthetic_sdk_scripts": 10,
+    "new_click_sdk_propagates_optimization": true,
+    "prior_sdk_subprocess_optimization_not_claimed": true,
+    "default_off_exact_prior_tool_combinations": 1024,
+    "source_faults_detected": 7,
+    "explicit_step_driver_methods_each_mode": 56
+  },
+  "sdk_runs": [
+    {
+      "game": "xcom1",
+      "attempt": 1,
+      "tool_calls": 25,
+      "stop_receipts": 1,
+      "local_confirmations_attested": 6,
+      "actor": "Martina Bauer",
+      "weapon": "Heavy Laser",
+      "occupied_left_hand": "Electro-Flare",
+      "TU_initial": 54,
+      "TU_final": 52,
+      "coordinates": [
+        [
+          16,
+          87
+        ],
+        [
+          96,
+          176
+        ],
+        [
+          96,
+          176
+        ],
+        [
+          144,
+          87
+        ]
+      ],
+      "SDK_PNGs": 13,
+      "physical_overlay_images": 4,
+      "physical_post_stop_images": 1,
+      "action_retries": 0,
+      "sequence": [
+        "V",
+        "B",
+        "S",
+        "I",
+        "H",
+        "E1",
+        "S",
+        "I",
+        "H",
+        "E2",
+        "S",
+        "I",
+        "H",
+        "E3",
+        "S",
+        "I",
+        "H",
+        "E4",
+        "S",
+        "I",
+        "I",
+        "J",
+        "C",
+        "S",
+        "V"
+      ],
+      "manual_cancel_between_last_two_I_attested": true,
+      "images": {
+        "0001-read_tactical_context.png": {
+          "sha256": "1fe7fdb31b6cb8b461ee023161117a5e15fc92ce2af04e1996033fcb50bda03e",
+          "bytes": 10366
+        },
+        "0004-read_inventory_view.png": {
+          "sha256": "f08f6551dd8bf670808e6f81f13cf3ac95d247af93681950a86d7a0561f068bf",
+          "bytes": 6625
+        },
+        "0005-read_inventory_click_context.png": {
+          "sha256": "f08f6551dd8bf670808e6f81f13cf3ac95d247af93681950a86d7a0561f068bf",
+          "bytes": 6625
+        },
+        "0006-E1-overlay-physical.png": {
+          "sha256": "bc3b7ee3a2eb3885d86aa192c7617dcfc70297cb3b5f98d90453ce532edeabeb",
+          "bytes": 55754
+        },
+        "0008-read_inventory_view.png": {
+          "sha256": "4212383733687e6a28b524544fbe4533140090c93b73882936840b1b070b0528",
+          "bytes": 6726
+        },
+        "0009-read_inventory_click_context.png": {
+          "sha256": "4212383733687e6a28b524544fbe4533140090c93b73882936840b1b070b0528",
+          "bytes": 6726
+        },
+        "0010-E2-overlay-physical.png": {
+          "sha256": "22b105bf56b9ff5be15cbb8c93a7dbedfed4b300df35b49dc150c785c351a762",
+          "bytes": 56298
+        },
+        "0012-read_inventory_view.png": {
+          "sha256": "51a5f0cbc82dd90f68c5edcdb58ccb9f98dba0a5c959dedf60eed9c62eecdeac",
+          "bytes": 6731
+        },
+        "0013-read_inventory_click_context.png": {
+          "sha256": "51a5f0cbc82dd90f68c5edcdb58ccb9f98dba0a5c959dedf60eed9c62eecdeac",
+          "bytes": 6731
+        },
+        "0014-E3-overlay-physical.png": {
+          "sha256": "fd15e312604372cda8bf59447f977f072c8dc2d5ef95128a0f17bf0ff05471e0",
+          "bytes": 56067
+        },
+        "0016-read_inventory_view.png": {
+          "sha256": "51a5f0cbc82dd90f68c5edcdb58ccb9f98dba0a5c959dedf60eed9c62eecdeac",
+          "bytes": 6731
+        },
+        "0017-read_inventory_click_context.png": {
+          "sha256": "51a5f0cbc82dd90f68c5edcdb58ccb9f98dba0a5c959dedf60eed9c62eecdeac",
+          "bytes": 6731
+        },
+        "0018-E4-overlay-physical.png": {
+          "sha256": "7252df09169570ec20a2706097f35ba263609f3baa4c6f30afca2f85056a374d",
+          "bytes": 56152
+        },
+        "0020-read_inventory_view.png": {
+          "sha256": "71e6453a39a5a610effdce7cf5b616f793c7311af931b11e56eb1d8a65164f61",
+          "bytes": 6619
+        },
+        "0021-read_inventory_view.png": {
+          "sha256": "0a31f435b113e5db44e837541c601b9e23ca493059f31e12d386aa1f7ff2df68",
+          "bytes": 6735
+        },
+        "0022-read_inventory_close_context.png": {
+          "sha256": "0a31f435b113e5db44e837541c601b9e23ca493059f31e12d386aa1f7ff2df68",
+          "bytes": 6735
+        },
+        "0025-read_tactical_context.png": {
+          "sha256": "e90026c0a04f16dbb5a75edca8bcfcd7ad5e6d4003e500260994c0f0481229ee",
+          "bytes": 9633
+        },
+        "post-stop-physical.png": {
+          "sha256": "3019b49b3f3fda1c67ba6c8886545e0e00409f45a2150e85e588ae26af6ce02c",
+          "bytes": 64278
+        }
+      }
+    },
+    {
+      "game": "xcom2",
+      "attempt": 1,
+      "tool_calls": 25,
+      "stop_receipts": 1,
+      "local_confirmations_attested": 6,
+      "actor": "Atte Aaltonen",
+      "weapon": "Disruptor Pulse Launcher",
+      "occupied_left_hand": "Chemical-Flare",
+      "TU_initial": 54,
+      "TU_final": 52,
+      "coordinates": [
+        [
+          16,
+          87
+        ],
+        [
+          208,
+          176
+        ],
+        [
+          208,
+          176
+        ],
+        [
+          144,
+          87
+        ]
+      ],
+      "SDK_PNGs": 13,
+      "physical_overlay_images": 4,
+      "physical_post_stop_images": 1,
+      "action_retries": 0,
+      "sequence": [
+        "V",
+        "B",
+        "S",
+        "I",
+        "H",
+        "E1",
+        "S",
+        "I",
+        "H",
+        "E2",
+        "S",
+        "I",
+        "H",
+        "E3",
+        "S",
+        "I",
+        "H",
+        "E4",
+        "S",
+        "I",
+        "I",
+        "J",
+        "C",
+        "S",
+        "V"
+      ],
+      "manual_cancel_between_last_two_I_attested": true,
+      "images": {
+        "0001-read_tactical_context.png": {
+          "sha256": "a6e84a2483a80a037346e3540b29fc5e2c68e46b2c454a65b3a045267e52db6d",
+          "bytes": 13184
+        },
+        "0004-read_inventory_view.png": {
+          "sha256": "9edef990013e2c8e3a889928c179bcd0f4cd5e9b343607394d855eae3214fc21",
+          "bytes": 8294
+        },
+        "0005-read_inventory_click_context.png": {
+          "sha256": "9edef990013e2c8e3a889928c179bcd0f4cd5e9b343607394d855eae3214fc21",
+          "bytes": 8294
+        },
+        "0006-E1-overlay-physical.png": {
+          "sha256": "610bc89eccd88665dcdda160c5c6a115ee7a3570570263a3eb720a0846a4fc7f",
+          "bytes": 62672
+        },
+        "0008-read_inventory_view.png": {
+          "sha256": "4deb4939efdf58825f336690c61603425fb96a23937d3d3d79a8681492cf3928",
+          "bytes": 8759
+        },
+        "0009-read_inventory_click_context.png": {
+          "sha256": "4deb4939efdf58825f336690c61603425fb96a23937d3d3d79a8681492cf3928",
+          "bytes": 8759
+        },
+        "0010-E2-overlay-physical.png": {
+          "sha256": "153f543a8970b789321e11f2a6f92292082b081ea76d8421d9d0699eca38ca4e",
+          "bytes": 66263
+        },
+        "0012-read_inventory_view.png": {
+          "sha256": "30d719e67a93dc91d5d7e01eaa8145ad42f90d7ae45f0dd7ac6aead8d4aaf86a",
+          "bytes": 8720
+        },
+        "0013-read_inventory_click_context.png": {
+          "sha256": "30d719e67a93dc91d5d7e01eaa8145ad42f90d7ae45f0dd7ac6aead8d4aaf86a",
+          "bytes": 8720
+        },
+        "0014-E3-overlay-physical.png": {
+          "sha256": "d638cffb9c7fcb8394b95238e659a5ca169289e0db4dd835fa84c4547a246b1a",
+          "bytes": 65512
+        },
+        "0016-read_inventory_view.png": {
+          "sha256": "30d719e67a93dc91d5d7e01eaa8145ad42f90d7ae45f0dd7ac6aead8d4aaf86a",
+          "bytes": 8720
+        },
+        "0017-read_inventory_click_context.png": {
+          "sha256": "30d719e67a93dc91d5d7e01eaa8145ad42f90d7ae45f0dd7ac6aead8d4aaf86a",
+          "bytes": 8720
+        },
+        "0018-E4-overlay-physical.png": {
+          "sha256": "ccc400c2942c653895e1e51935f1952cefd7c00036e8ab107ec0081ac0b3bed3",
+          "bytes": 65506
+        },
+        "0020-read_inventory_view.png": {
+          "sha256": "a11ac666f79288f4c06f1c4b62abe439fa9d0663a11dfed382613e6c9165ffae",
+          "bytes": 8668
+        },
+        "0021-read_inventory_view.png": {
+          "sha256": "f475de8397edaa184784461ac59b8e8bdafd87b405c59e67e80be0077e5beb5a",
+          "bytes": 8710
+        },
+        "0022-read_inventory_close_context.png": {
+          "sha256": "f475de8397edaa184784461ac59b8e8bdafd87b405c59e67e80be0077e5beb5a",
+          "bytes": 8710
+        },
+        "0025-read_tactical_context.png": {
+          "sha256": "58bc1ed0c91c631424ae184f0f84f7e6a461a98c4982b057524de1f1563703dc",
+          "bytes": 12772
+        },
+        "post-stop-physical.png": {
+          "sha256": "0af5495afc57f930b4159e3e4b0548ed291e3a7d3cefa577bef305e152c61962",
+          "bytes": 106554
+        }
+      }
+    }
+  ],
+  "native": {
+    "final_status": "passed_108_of_108",
+    "core_scope_per_game": {
+      "worlds": 96,
+      "fixture_types": 24,
+      "manual_E_pairs": 48,
+      "maximize_info_modes": 2,
+      "paired_whole_frame_phases": 8
+    },
+    "r1_focused": {
+      "attempted": 14,
+      "passed": 1,
+      "failed": 13,
+      "production_changed_after": false
+    },
+    "r2_focused": {
+      "attempted": 8,
+      "strict_passed": 6,
+      "domain_composition_oracle_failed": 1,
+      "native_pass_provenance_failed": 1,
+      "remaining_TFTD_profiles_not_run": 6,
+      "production_changed_after": false
+    },
+    "r3_targeted": {
+      "attempted": 7,
+      "passed": 7,
+      "frozen_inputs_unchanged": true
+    },
+    "full_r3": {
+      "xcom1": {
+        "profiles": 54,
+        "passed": 54,
+        "frozen_inputs_unchanged": true,
+        "PPM_hashes_independently_checked": 1104,
+        "whole_frame_phase_pairs_independently_equal": 384
+      },
+      "xcom2": {
+        "profiles": 54,
+        "passed": 54,
+        "frozen_inputs_unchanged": true,
+        "PPM_hashes_independently_checked": 1100,
+        "whole_frame_phase_pairs_independently_equal": 384
+      }
+    },
+    "simulation_RNG_only": true,
+    "libc_RNG_not_verified": true,
+    "gate_binary_sha256": "5d2a02febbd635ed45bc6eeebe5d77ee257943b27958245ae67a869be865b2ca",
+    "gate_source_sha256": "a21d73e0c6926aaa082431af679a3aab174ddd04a6c7e559aba466c10949d5b0",
+    "wrapper_sha256": "409a31f64c207eff6e9cf97c88ea4c07f1c500275b581468432044468a1a1f6f",
+    "transient_warning_exact_paired_phase_alignment_claimed": false
+  },
+  "sensitivity": {
+    "native_recipes": 35,
+    "planned_runs": 70,
+    "runtime": "complete",
+    "all_actual_binary_hashes_distinct_and_checked": true,
+    "rejected_initial_artifact_metadata_retained": true,
+    "runs": 70,
+    "outcomes": {
+      "detected": 64,
+      "inconclusive": 2,
+      "survived": 4
+    },
+    "all_frozen_inputs_unchanged": true,
+    "run_long_pins_independently_checked": 160,
+    "predeclared_mapping_sha256": "1eeacfa031229a426f5f03ca1413381a475040cee9cf76b8dc289f29e8b18d57",
+    "rows": [
+      {
+        "master": "xcom1",
+        "kind": "cancel-arrange",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "cancel-init",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "capless-I-authority",
+        "profile": "disabled",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-264",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "click-barrier-bypass",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-730",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "click-barrier-too-late",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-730",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "click-domain-bypass",
+        "profile": "domain",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "click-kind-confusion",
+        "profile": "cross-kind",
+        "retention_exit": 1,
+        "outcome": "inconclusive",
+        "retained_outcome": "inconclusive",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-745",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "click-runtime-bypass",
+        "profile": "disabled",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "close-prerequisite-bypass",
+        "profile": "close-disabled",
+        "retention_exit": 0,
+        "outcome": "survived",
+        "retained_outcome": "survived",
+        "label": null,
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "dismiss-clickthrough",
+        "profile": "input-right",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "duplicate-click",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-311",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "failed-I-barrier-bypass",
+        "profile": "failed-I",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "failed-send-barrier-bypass",
+        "profile": "actual-send-failure",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-581",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "held-item-refusal",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-265",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "id-conflict-bypass",
+        "profile": "ledger",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "initial-I-side-effect",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-304",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "invalid-child-clickthrough",
+        "profile": "overlay-child-changed",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "lost-barrier-bypass",
+        "profile": "reopen",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "missing-callback-tail",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-311",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "missing-click",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-311",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "missing-hover",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-734",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "missing-overlay-blit",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-381",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "opaque-pointer-center",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-756",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "paired-release-clickthrough",
+        "profile": "overlay-child-changed",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "right-click-dispatch",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-731",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "stale-actor",
+        "profile": "stale-actor",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "stale-held",
+        "profile": "stale-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "stale-reinit",
+        "profile": "stale-reinit",
+        "retention_exit": 0,
+        "outcome": "survived",
+        "retained_outcome": "survived",
+        "label": null,
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "unseen-overlay",
+        "profile": "unseen",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "warning-occlusion-bypass",
+        "profile": "warning",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "wire-H-pixel",
+        "profile": "ledger",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-258",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "wrong-banner-band",
+        "profile": "upper-band",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-746",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "wrong-confirm-hitbox",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-753",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "wrong-hover",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-734",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom1",
+        "kind": "wrong-pointer-marker",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "cancel-arrange",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "cancel-init",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "capless-I-authority",
+        "profile": "disabled",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-264",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "click-barrier-bypass",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-730",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "click-barrier-too-late",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-730",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "click-domain-bypass",
+        "profile": "domain",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "click-kind-confusion",
+        "profile": "cross-kind",
+        "retention_exit": 1,
+        "outcome": "inconclusive",
+        "retained_outcome": "inconclusive",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-745",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "click-runtime-bypass",
+        "profile": "disabled",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "close-prerequisite-bypass",
+        "profile": "close-disabled",
+        "retention_exit": 0,
+        "outcome": "survived",
+        "retained_outcome": "survived",
+        "label": null,
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "dismiss-clickthrough",
+        "profile": "input-right",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "duplicate-click",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-311",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "failed-I-barrier-bypass",
+        "profile": "failed-I",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "failed-send-barrier-bypass",
+        "profile": "actual-send-failure",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-581",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "held-item-refusal",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-265",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "id-conflict-bypass",
+        "profile": "ledger",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "initial-I-side-effect",
+        "profile": "cancel-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-304",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "invalid-child-clickthrough",
+        "profile": "overlay-child-changed",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "lost-barrier-bypass",
+        "profile": "reopen",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "missing-callback-tail",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-311",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "missing-click",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-311",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "missing-hover",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-734",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "missing-overlay-blit",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-381",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "opaque-pointer-center",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-756",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "paired-release-clickthrough",
+        "profile": "overlay-child-changed",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "right-click-dispatch",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-731",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "stale-actor",
+        "profile": "stale-actor",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "stale-held",
+        "profile": "stale-held",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "stale-reinit",
+        "profile": "stale-reinit",
+        "retention_exit": 0,
+        "outcome": "survived",
+        "retained_outcome": "survived",
+        "label": null,
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "unseen-overlay",
+        "profile": "unseen",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-536",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "warning-occlusion-bypass",
+        "profile": "warning",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-230",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "wire-H-pixel",
+        "profile": "ledger",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-258",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "wrong-banner-band",
+        "profile": "upper-band",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-746",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "wrong-confirm-hitbox",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-753",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "wrong-hover",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-734",
+        "frozen_inputs_unchanged": true
+      },
+      {
+        "master": "xcom2",
+        "kind": "wrong-pointer-marker",
+        "profile": "core",
+        "retention_exit": 0,
+        "outcome": "detected",
+        "retained_outcome": "detected",
+        "label": "INVENTORY_CLICK_CONTROL_GATE FAIL assertion-233",
+        "frozen_inputs_unchanged": true
+      }
+    ],
+    "post_runtime_endpoint_remapping": false,
+    "isolated_ui_revision_sensitivity": false
+  },
+  "limitations": [
+    "local consent and input chronology are operator attestations",
+    "native lifetime identity not independently proved by SDK images",
+    "I12/H13/I16/H17 identical pixels do not separately expose held state after E3; later images support combined interpretation",
+    "transient refusal warning not captured in live runs",
+    "live captures show lower band; alternate band is native-fixture coverage",
+    "physical post-stop image is not full process-lifecycle trace",
+    "no model/token benchmark or full-fairness result",
+    "Two redundant-guard fault recipes survive in both games; source explanations are not additional causal experiments",
+    "Two cross-kind runs fail undeclared overlay assertion745 rather than mapped233 and remain inconclusive"
+  ],
+  "python_source_sha256": {
+    "tools/mcp-observer/adapter.py": "6584f2c5875085790051e54cdd11a74e9f567b648a56f7e026c121c57d88bcf5",
+    "tools/mcp-observer/supervised_stance.py": "a2888fce8128668d2d44dfff18f1353fdb3d8b39dc8d82f9395f3919cf4f02f8",
+    "tools/mcp-observer/launch_presentation.py": "7078c694b22af5a26a9f116c128faa4568d0d8b18ceee9aab48fdbd6e7c750dd",
+    "tools/mcp-observer/test_supervised_inventory_click.py": "658a06ca1406cc81d81d4d69950466dc45777f4b2fa70c1a3e8a2173a9ea34a8",
+    "tools/mcp-observer/sdk_supervised_inventory_click_smoke.py": "27f040982b78b9961c878d9bc4bde55c104aa362e96c5f9c8d709a8480f7dcb8"
+  },
+  "prior_control_regressions": {
+    "status": "qualified_passes_all_seven_controls_in_both_games",
+    "compile_time_CLICK": true,
+    "runtime_CLICK_enabled_by_existing_wrappers": false,
+    "initial": {
+      "aggregates": 14,
+      "passed": 8,
+      "failed": 6,
+      "rows": [
+        {
+          "game": "xcom1",
+          "control": "selection",
+          "passed": true
+        },
+        {
+          "game": "xcom1",
+          "control": "stance",
+          "passed": true
+        },
+        {
+          "game": "xcom1",
+          "control": "turn",
+          "passed": false
+        },
+        {
+          "game": "xcom1",
+          "control": "map-left-click",
+          "passed": false
+        },
+        {
+          "game": "xcom1",
+          "control": "inventory-open",
+          "passed": false
+        },
+        {
+          "game": "xcom1",
+          "control": "inventory-close",
+          "passed": true
+        },
+        {
+          "game": "xcom1",
+          "control": "inventory-ground",
+          "passed": true
+        },
+        {
+          "game": "xcom2",
+          "control": "selection",
+          "passed": true
+        },
+        {
+          "game": "xcom2",
+          "control": "stance",
+          "passed": true
+        },
+        {
+          "game": "xcom2",
+          "control": "turn",
+          "passed": false
+        },
+        {
+          "game": "xcom2",
+          "control": "map-left-click",
+          "passed": false
+        },
+        {
+          "game": "xcom2",
+          "control": "inventory-open",
+          "passed": false
+        },
+        {
+          "game": "xcom2",
+          "control": "inventory-close",
+          "passed": true
+        },
+        {
+          "game": "xcom2",
+          "control": "inventory-ground",
+          "passed": true
+        }
+      ],
+      "failure_labels": {
+        "turn": "assertion-284",
+        "map-left-click": "assertion-317",
+        "inventory-open": "assertion-224"
+      }
+    },
+    "first_comparison": {
+      "cells": 12,
+      "passed": 0,
+      "failed": 12,
+      "rows": [
+        {
+          "master": "xcom1",
+          "gate": "turn",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom1",
+          "gate": "turn",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom1",
+          "gate": "map-left-click",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom1",
+          "gate": "map-left-click",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom1",
+          "gate": "inventory-open",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom1",
+          "gate": "inventory-open",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom2",
+          "gate": "turn",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom2",
+          "gate": "turn",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom2",
+          "gate": "map-left-click",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom2",
+          "gate": "map-left-click",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom2",
+          "gate": "inventory-open",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        },
+        {
+          "master": "xcom2",
+          "gate": "inventory-open",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 1,
+          "wrapper_passed": false,
+          "frozen_inputs_unchanged": true,
+          "exception_class": "RuntimeError"
+        }
+      ],
+      "all_frozen_inputs_unchanged": true
+    },
+    "pointer_condition_comparison": {
+      "cells": 12,
+      "passed": 12,
+      "failed": 0,
+      "rows": [
+        {
+          "master": "xcom1",
+          "gate": "turn",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom1",
+          "gate": "turn",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom1",
+          "gate": "map-left-click",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom1",
+          "gate": "map-left-click",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom1",
+          "gate": "inventory-open",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom1",
+          "gate": "inventory-open",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom2",
+          "gate": "turn",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom2",
+          "gate": "turn",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom2",
+          "gate": "map-left-click",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom2",
+          "gate": "map-left-click",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom2",
+          "gate": "inventory-open",
+          "comparison": "preceding",
+          "binary_sha256": "8f8d79b34fd65a2236d65a44e0b6cc280a9ac8cf6c6d14abbb4dc3946cebfdff",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        },
+        {
+          "master": "xcom2",
+          "gate": "inventory-open",
+          "comparison": "current",
+          "binary_sha256": "b20f2255b69881e84af4f6a9964961a004c1b0199aa7815ceb06582351885797",
+          "exit": 0,
+          "wrapper_passed": true,
+          "frozen_inputs_unchanged": true,
+          "exception_class": null
+        }
+      ],
+      "canonical_pointer": [
+        160,
+        50
+      ],
+      "before_after_checkpoints": 24,
+      "all_frozen_inputs_unchanged": true,
+      "final_pins_verified": 1252,
+      "source_oracle_timeout_changed": false,
+      "physical_pointer_operator_attested": true,
+      "continuous_SDL_input_focus_trace": false,
+      "exact_rejection_branch_proved": false,
+      "inter_run_checkpoints_and_pauses_added": true,
+      "strict_single_variable_causality_claimed": false,
+      "preceding_binary_complete_dependency_lineage": false
+    },
+    "original_failures_retained": true
+  }
+}

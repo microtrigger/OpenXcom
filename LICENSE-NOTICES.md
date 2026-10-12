@@ -12,7 +12,8 @@ gates with isolated negative-test patches, a default-off locally confirmed
 stance-control pilot, an independently opted-in locally confirmed next/previous
 unit-selection extension, opt-in ordinary map right-click and left-click pilots,
 supervised inventory-open/close and capless inventory-view slices, a separately
-opted-in ordinary inventory Ground rearrangement/page-cycle slice, and associated tests, build helpers,
+opted-in ordinary inventory Ground rearrangement/page-cycle slice, an ordinary
+inventory left-click slice, and associated tests, build helpers,
 documentation and evidence metadata.
 Existing upstream copyright, license and warranty notices are retained; new contribution
 notices do not replace upstream attribution.
@@ -27,7 +28,8 @@ or, at your option, any later version, without warranty:
   `tests/battle-observer/`, `tests/mixed-audio-native/` and
   `tests/diagnostic-isolation/`, `tests/stance-control/`, `tests/turn-control/`,
   `tests/map-left-click-control/`, `tests/inventory-open-control/`,
-  `tests/inventory-close-control/` and `tests/inventory-ground-control/`
+  `tests/inventory-close-control/`, `tests/inventory-ground-control/` and
+  `tests/inventory-click-control/`
 - `scripts/build-observer-prototype.sh` and `scripts/observer-build-provenance.py`
 - `tools/mcp-observer/` (source, tests, documentation and generated metadata)
 - `tools/benchmarks/` (original source, tests, protocol and templates)

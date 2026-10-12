@@ -159,3 +159,17 @@ Supported faults are `stale-selector`, `wrong-pixel`, `duplicate-click`,
 Retain only fixed aggregate verdicts and source fingerprints in public reports.
 Never publish resource files, executables, private saves, raw state, command
 identifiers/capabilities, response packets, child logs or captures.
+
+## Physical pointer precondition
+
+Keep the real pointer inside the map, away from the HUD and scroll edges, before
+launching this focused-display fixture (the recorded profile uses canonical
+320x200 point (160,50), scaled into its 640x400 window). Synthetic SDL motion
+events do not reposition the physical pointer queried by ordinary state
+restoration after a dialog. A different physical hover can therefore change
+observation readiness. Do not treat an unavailable response as a passing test.
+
+The later [CLICK regression evidence](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-EVIDENCE.md#prior-control-regressions)
+retains the original failures and separate old/current comparisons with this
+explicit pointer condition. Their extra inter-run checkpoints/pauses prevent a
+strict single-variable causal claim; source, oracle and timeout stayed unchanged.

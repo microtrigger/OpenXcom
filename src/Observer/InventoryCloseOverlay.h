@@ -4,16 +4,26 @@
 #include "../Engine/InteractiveSurface.h"
 namespace OpenXcom {
 class InventoryState; class Frame; class Text; class TextButton; class RuleInterface;
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
+struct InventoryClickGateAccess;
+#endif
 namespace Observer {
 class StanceController;
 // State-owned presentation only. No inventory or item manipulation lives here.
 class InventoryCloseOverlay : public InteractiveSurface {
+#ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLICK_CONTROL_GATE
+    friend struct ::OpenXcom::InventoryClickGateAccess;
+#endif
     InventoryState *_owner;
     StanceController *_controller;
     Frame *_frame;
     Text *_text;
     TextButton *_yes, *_no;
     int _pressedChoice;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    bool _clickMode;
+    Surface *_pointer;
+#endif
     int choice(Action *action) const;
 public:
     InventoryCloseOverlay(InventoryState *owner, RuleInterface *style);

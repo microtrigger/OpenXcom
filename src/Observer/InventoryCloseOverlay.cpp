@@ -3,6 +3,9 @@
 #include "InventoryCloseOverlay.h"
 #include "StanceController.h"
 #include "../Engine/Action.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+#include "../Battlescape/InventoryState.h"
+#endif
 #include "../Interface/Frame.h"
 #include "../Interface/Text.h"
 #include "../Interface/TextButton.h"
@@ -23,6 +26,9 @@ InventoryCloseOverlay::InventoryCloseOverlay(InventoryState *owner, RuleInterfac
     InteractiveSurface(320, 200), _owner(owner), _controller(0),
     _frame(new Frame(320, 32, 0, 104)), _text(new Text(236, 30, 4, 105)),
     _yes(new TextButton(76, 14, 242, 105)), _no(new TextButton(76, 14, 242, 121)), _pressedChoice(0)
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    , _clickMode(false), _pointer(new Surface(17, 17))
+#endif
 {
     if (style)
     {
@@ -42,6 +48,9 @@ InventoryCloseOverlay::InventoryCloseOverlay(InventoryState *owner, RuleInterfac
 InventoryCloseOverlay::~InventoryCloseOverlay()
 {
     delete _frame; delete _text; delete _yes; delete _no;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    delete _pointer;
+#endif
 }
 void InventoryCloseOverlay::initText(Font *big, Font *small, Language *language)
 {
@@ -52,15 +61,47 @@ void InventoryCloseOverlay::setPalette(SDL_Color *colors, int first, int count)
     InteractiveSurface::setPalette(colors, first, count);
     _frame->setPalette(colors, first, count); _text->setPalette(colors, first, count);
     _yes->setPalette(colors, first, count); _no->setPalette(colors, first, count);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    _pointer->setPalette(colors, first, count);
+#endif
 }
 void InventoryCloseOverlay::show(StanceController *controller)
 {
     _controller = controller; _pressedChoice = 0;
+    _text->setText(
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_GROUND
-    _text->setText(controller->inventoryGroundRequest() ?
+        controller->inventoryGroundRequest() ?
         "Ordinary inventory Ground.\nRearranges ground slots/stacks\nand cycles the ground page." :
-        "Ordinary inventory OK / close.\nNormal gravity, lighting and FOV.\nConfirm the soldier shown above.");
 #endif
+        "Ordinary inventory OK / close.\nNormal gravity, lighting and FOV.\nConfirm the soldier shown above.");
+    int bannerY = 104;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    _clickMode = controller->inventoryClickRequest();
+    if (_clickMode)
+    {
+        bannerY = _owner->inventoryClickBannerY();
+        _text->setText("LEFT pointer (" + std::to_string(controller->targetX()) + "," + std::to_string(controller->targetY()) +
+            "). May pick/place,\nreload or stack; normal TU.\nNo promised transfer. Confirm?");
+        // Marker is the requested pointer, never an inferred placement preview.
+        // Leave its center transparent and retain the ordinary live inventory.
+        _pointer->clear(); _pointer->setX(controller->targetX() - 8); _pointer->setY(controller->targetY() - 8);
+        const SDL_Color *palette = controller->palette();
+        int light = 1, dark = 1;
+        for (int i = 2; i < 256; ++i)
+        {
+            const int value = palette[i].r * 299 + palette[i].g * 587 + palette[i].b * 114;
+            if (value > palette[light].r * 299 + palette[light].g * 587 + palette[light].b * 114) light = i;
+            if (value < palette[dark].r * 299 + palette[dark].g * 587 + palette[dark].b * 114) dark = i;
+        }
+        for (int dy = -6; dy <= 6; ++dy) for (int dx = -6; dx <= 6; ++dx)
+        {
+            const int squared = dx * dx + dy * dy;
+            if (squared >= 25 && squared <= 36) _pointer->setPixel(dx + 8, dy + 8, squared <= 30 ? light : dark);
+        }
+    }
+#endif
+    _frame->setY(bannerY); _text->setY(bannerY + 1);
+    _yes->setY(bannerY + 1); _no->setY(bannerY + 17);
     const std::vector<unsigned char> &pixels = controller->indices();
     clear();
     if (pixels.size() != 320 * 200) { _controller = 0; return; }
@@ -71,18 +112,43 @@ void InventoryCloseOverlay::dismiss()
 {
     _controller = 0; _pressedChoice = 0; setVisible(false);
 }
-bool InventoryCloseOverlay::active() const { return _controller && turnContextVisible(); }
+bool InventoryCloseOverlay::active() const
+{
+    if (!_controller || !turnContextVisible()) return false;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    if (_clickMode)
+    {
+        const int y = _owner->inventoryClickBannerY();
+        const auto shownAt = [](const Surface *s, int x, int y, int w, int h) {
+            return s->turnContextVisible() && s->getX() == x && s->getY() == y && s->getWidth() == w && s->getHeight() == h;
+        };
+        return shownAt(this, 0, 0, 320, 200) && shownAt(_frame, 0, y, 320, 32) &&
+            shownAt(_text, 4, y + 1, 236, 30) && shownAt(_yes, 242, y + 1, 76, 14) &&
+            shownAt(_no, 242, y + 17, 76, 14) &&
+            shownAt(_pointer, _controller->targetX() - 8, _controller->targetY() - 8, 17, 17);
+    }
+#endif
+    return true;
+}
 void InventoryCloseOverlay::blit(Surface *surface)
 {
     if (!active()) return;
-    Surface::blit(surface); _frame->blit(surface); _text->blit(surface); _yes->blit(surface); _no->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    // State already drew the actual inventory, held sprite and animation.
+    // Only the two disjoint-band controls and transparent pointer are new.
+    if (_clickMode) _pointer->blit(surface);
+    else
+#endif
+        Surface::blit(surface);
+    _frame->blit(surface); _text->blit(surface); _yes->blit(surface); _no->blit(surface);
 }
 int InventoryCloseOverlay::choice(Action *action) const
 {
     const double x = action->getAbsoluteXMouse(), y = action->getAbsoluteYMouse();
-    if (x < 242 || x >= 318) return 0;
-    if (y >= 105 && y < 119) return 1;
-    if (y >= 121 && y < 135) return 2;
+    if (x >= _yes->getX() && x < _yes->getX() + _yes->getWidth() &&
+        y >= _yes->getY() && y < _yes->getY() + _yes->getHeight()) return 1;
+    if (x >= _no->getX() && x < _no->getX() + _no->getWidth() &&
+        y >= _no->getY() && y < _no->getY() + _no->getHeight()) return 2;
     return 0;
 }
 void InventoryCloseOverlay::handle(Action *action, State *)

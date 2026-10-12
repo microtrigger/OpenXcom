@@ -568,3 +568,21 @@ cover strict client/launcher/transport contracts. Synthetic SDK fixtures do not
 establish actual game behavior. Separate [production-game/native evidence](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-EVIDENCE.md)
 records the bounded checks, original failures, source-fault limits and operator
 attestations; no model-token result is claimed.
+
+## Experimental ordinary inventory left click
+
+Bounded native and actual SDK/game paths pass in both games; see the
+[evidence and limits](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-EVIDENCE.md). `--supervised-inventory-click` requires `--supervised-inventory-close`
+and its existing prerequisite flags, independently of Ground. The launcher
+scrubs inherited activation and sets literal `OPENXCOM_INVENTORY_CLICK_ENABLED=1`.
+Both new tools are absent when CLICK is disabled.
+
+`read_inventory_click_context({})` returns H-bound canonical pixels, capability
+and epoch. `request_inventory_click(capability, control_epoch, command_id, x, y)`
+accepts strict integer canonical pointer coordinates only in supported stock
+hands/ground regions. It may pick up, place, stack, reload, warn or do nothing
+through the ordinary UI. Every click requires separate local in-game consent
+and then a fresh capless `read_inventory_view({})`. Cancelling/expiring a proposal
+does not cancel an already held item. CLOSE/Ground still refuse while one is held.
+No item lists, slot IDs, hidden eligibility or predicted success are returned.
+See the [complete bounded contract](../../docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-PILOT.md).

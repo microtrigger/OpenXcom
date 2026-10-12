@@ -37,6 +37,10 @@ private:
 	Timer *_timer;
 	Uint8 _color, _fade;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK
+    // Presentation-only refusal; no warning text, reason or timer inspection.
+    bool inventoryClickOccluding() const { return _visible && !_hidden; }
+#endif
 	/// Creates a new warning message with the specified size and position.
 	WarningMessage(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the warning message.
