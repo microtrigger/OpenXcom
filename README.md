@@ -2,6 +2,17 @@
 
 ## Fair-Play MCP Interface Project
 
+The [bounded inventory reload cycle](docs/mcp-player-interface/INVENTORY-RELOAD-SDK-EVIDENCE.md)
+now completes through the existing CLICK/Unload controls in stock UFO and TFTD:
+32 official-SDK calls and 16 images per game, with separate local confirmation,
+one declined reload, successful ordinary reload and an already-loaded refusal.
+Visible TU progressions are 68 → 60 → 45 and 49 → 41 → 26. The production build
+is reused unchanged; this adds no command or hidden item/eligibility API.
+Independent review checks the receipts and images; local consent and post-EOF
+responsiveness remain operator-attested. Earlier native fault limits are unchanged.
+This establishes a bounded practical inventory baseline, with priming, full
+controller/fairness acceptance and model/token measurement still open.
+
 The default-off [ordinary inventory Unload pilot](docs/mcp-player-interface/SUPERVISED-INVENTORY-UNLOAD-PILOT.md)
 adds a separately confirmed normal Unload button press and mandatory fresh inventory
 view. Corrected focused/full checks pass 28/28 and 124/124 across UFO/TFTD;
@@ -23,7 +34,7 @@ prevents a lost confirmation-button release from swallowing a later ordinary
 manual click. The old behavior is reproduced and the fix passes in UFO/TFTD;
 all 54 prior CLICK profiles also pass in each game.
 
-This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; separately enabled bounded inventory RIGHT-click and ordinary Unload-button pilots are also available. Dedicated reload/prime proposals remain open; firing and end-turn control remain unimplemented.
+This fork is planning a resource-efficient interface for joint human–assistant play that preserves fog of war and normal game rules. Start with the **[English work plan](docs/mcp-player-interface/README.md)**; the **[Russian working version](docs/mcp-player-interface/PLAN.ru.md)** is maintained separately. Default-off HUD, final-pixel cursor and fixed-window mixed-audio prototypes are implemented with a local read-only stdio MCP adapter. Optional request-bound pixels, displayed HUD and 500 ms post-admission application audio are available within their documented limits; separate default-off, locally confirmed kneel/stand, next/previous unit-selection and ordinary map right/left-click pilots are now available under the practical-play/1 scope. Left-click movement and inventory opening/read-only viewing/ordinary closing/Ground-button rearrangement are bounded pilots. Bounded hand/ground item clicks are available with separate confirmation; separately enabled bounded inventory RIGHT-click and ordinary Unload-button pilots are also available. The existing CLICK/Unload path now has bounded live reload evidence; priming, firing and end-turn control remain unimplemented.
 
 The [supervised unit-selection extension](docs/mcp-player-interface/SUPERVISED-SELECTION-PILOT.md)
 adds ordinary next/previous controls with the same fresh displayed-panel capability,
@@ -74,7 +85,7 @@ including 20 manual/G pairs each; actual SDK/production-game chains pass once
 per game. Source-fault evidence separates 50 initial runs from two targeted
 repeats and retains the surviving UI-generation guard. See
 [evidence, corrections and limits](docs/mcp-player-interface/SUPERVISED-INVENTORY-GROUND-EVIDENCE.md).
-Item clicks require the separate opt-in below; dedicated reload/prime proposals remain open.
+Item clicks require the separate opt-in below. The later [reload cycle](docs/mcp-player-interface/INVENTORY-RELOAD-SDK-EVIDENCE.md) uses that existing CLICK/Unload path; priming remains open.
 
 The [ordinary inventory left-click slice](docs/mcp-player-interface/SUPERVISED-INVENTORY-CLICK-PILOT.md)
 passes 108 native profiles and real SDK transfer/refusal paths in both games. It proposes one pointer click

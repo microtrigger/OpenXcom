@@ -1,0 +1,1233 @@
+{
+  "schema": "openxcom-inventory-reload-practical-evidence/1",
+  "scope": "Finite official-SDK to production-game reload cycle through existing ordinary CLICK and Unload pilots",
+  "published_implementation_commit": "d5f2c106ce71baa71d579f04065157dbae04bfe7",
+  "new_native_capability": false,
+  "new_native_build": false,
+  "native_regressions_rerun_for_this_slice": false,
+  "model_or_token_benchmark": false,
+  "production": {
+    "binary_sha256": "1b4cdab2247d229e3251aaccebfa46a48740952c6eec09372e57c21138176779",
+    "provenance_sha256": "b684150f7e304e31998db4d8ef210dd1f5953cf806ff0a55c8c34679d62854c7",
+    "launcher_sha256": "97aee12b231233bcdfc802e07f3091036457226ef966b6669dcc5c222af7def1",
+    "original_source_files_compared": 1402,
+    "existing_document_only_differences": 5,
+    "additional_published_evidence_documents": 2,
+    "original_build_attribution_retained": true
+  },
+  "preparation": {
+    "driver_sha256": "7d2f583c6d8051b7f07ac37697ede8c6202409ee269afc0185151d36a7ebae8c",
+    "tests_sha256": "6c0d0b856bbb30755654818913e836a2dcdae5f7f556a730644d445f55de8646",
+    "transport_sha256": "db23ac33ab9061c6ea0b2e31cfbf7075e4eaf207f470946104488b452822a4d6",
+    "transport_identical_to_completed_unload": true,
+    "pure_normal_count": 83,
+    "pure_optimized_count": 83,
+    "pure_results": "PASS",
+    "helper_pure_tests_each_normal_and_optimized": 126,
+    "pre_runtime_contract": {
+      "sha256": "da74be0deb0668bbddb6e0658694a8f64e2db9fbe50ad17cd37abf9da53bc46f",
+      "bytes": 6720
+    },
+    "pre_runtime_release_review": {
+      "sha256": "eb7a40d997916ba9c3bf06fb5d34a5329f5fa33130c1a647dce4cbed2e4e7749",
+      "bytes": 13679
+    },
+    "initial_preparation_parent_directory_failure_retained": true,
+    "initial_failure_was_native_or_sdk_execution": false
+  },
+  "input_integrity": {
+    "selected_input_files_per_game": 1424,
+    "original_source_entries_including_root": 1540,
+    "finalization_only_additions_separate": true,
+    "continuous_immutability_claimed": false,
+    "full_runtime_dependency_closure_claimed": false,
+    "checkpoint_is_not_native_success": true,
+    "seal_is_integrity_only": true
+  },
+  "games": [
+    {
+      "game": "UFO",
+      "live_attempts": 1,
+      "visible_subject": {
+        "soldier": "Joakim Claussen",
+        "weapon": "Auto-Cannon",
+        "detached_clip": "AC-AP Ammo",
+        "spare_clip": "AC-HE Ammo",
+        "loaded_rounds": 14,
+        "initial_TU": 68,
+        "post_unload_TU": 60,
+        "post_reload_and_refusal_TU": 45
+      },
+      "protocol": {
+        "completed_tool_calls": 32,
+        "maximum_tool_calls": 32,
+        "sequence": 33,
+        "phase": "complete",
+        "actions_attempted": [
+          "B",
+          "E1",
+          "F1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "E6"
+        ],
+        "actions_dispatched": [
+          "B",
+          "E1",
+          "F1",
+          "E2",
+          "E4",
+          "E5",
+          "E6"
+        ],
+        "actions_with_unavailable_receipt": [
+          "E3"
+        ],
+        "required_next_observations": [],
+        "termination_signal_sent": false,
+        "native_handler_success_verified": false,
+        "independent_event_trace_recorded": false
+      },
+      "driver_exit": 0,
+      "driver_stdout_bytes": 61,
+      "driver_stderr_bytes": 0,
+      "receipts": [
+        {
+          "sequence": 1,
+          "tool": "read_tactical_context",
+          "status": null,
+          "receipt": {
+            "sha256": "64d61e549adf885000c3deb80e4defd8c68f7e6a013d7786882a991a3e14f54b",
+            "bytes": 2209
+          }
+        },
+        {
+          "sequence": 2,
+          "tool": "request_open_inventory",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "0b37b3023103b3e7bba32f512b3bc77fe18ebfdc4453e1ddc720749b3cd0eb8c",
+            "bytes": 2172
+          }
+        },
+        {
+          "sequence": 3,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "b710dcad579834f96b5b265f51b9e082f33e61ae83c2df181119e1d17e4c5df5",
+            "bytes": 2122
+          }
+        },
+        {
+          "sequence": 4,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "6979185b09306fd78a20a8d2ba40a0284107ecfb6dcbfc2ca1bc28ae16b8436a",
+            "bytes": 2207
+          }
+        },
+        {
+          "sequence": 5,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "e4fb7810314144d2c3f2df2767436dab5f8c5c3593d19d50bf770a23ab549ea9",
+            "bytes": 2234
+          }
+        },
+        {
+          "sequence": 6,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "874204ed5e05f31b603d55e9be25e68bfa42e5cf98d71cd71fd45bca723c382c",
+            "bytes": 2217
+          }
+        },
+        {
+          "sequence": 7,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "667319a7ececc3dc4f1b03f23246697478d56741b849136c0ea76f784b80ca85",
+            "bytes": 2134
+          }
+        },
+        {
+          "sequence": 8,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "7cb8fb6bd933809c86cd17042586b684f31babc6889ab0c1387c6637604dd56b",
+            "bytes": 2218
+          }
+        },
+        {
+          "sequence": 9,
+          "tool": "read_inventory_unload_context",
+          "status": null,
+          "receipt": {
+            "sha256": "2e9bb4cf62329fc0465f9597dfec4d6f60eb3792d0e8986ef3f92cef40a21674",
+            "bytes": 2249
+          }
+        },
+        {
+          "sequence": 10,
+          "tool": "request_inventory_unload",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "1be52e1ec8195f888757da42fa4ebe7b6fce44009da84ff967271d9199a12e69",
+            "bytes": 2199
+          }
+        },
+        {
+          "sequence": 11,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "209967e046edef5a7693e1679e9ed58c3f106a2cf94b4996431e47c5077a19ba",
+            "bytes": 2149
+          }
+        },
+        {
+          "sequence": 12,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "7b79d826acf5ff308aadd2299d7f403c732f8fa2b7444360221655c918c01596",
+            "bytes": 2232
+          }
+        },
+        {
+          "sequence": 13,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "313bf00407e1bb6728c64a7de1599bf7ffce40bb9c37f9fb2bb6945c5a198922",
+            "bytes": 2259
+          }
+        },
+        {
+          "sequence": 14,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "61d46b6681c466947a18761cb21b7ddcd1b6315e8745a76b7848fafb43340a4f",
+            "bytes": 2243
+          }
+        },
+        {
+          "sequence": 15,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "174395b4186b5043362c6851ffcb97638d6ba8cc72c2cccdb3ff7cf651a1b74b",
+            "bytes": 2159
+          }
+        },
+        {
+          "sequence": 16,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "2602c1064c2f26291559963d9fe244fc8599e7dff1c4c2d209407121c2863534",
+            "bytes": 2243
+          }
+        },
+        {
+          "sequence": 17,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "a3e1dc917d7e363edb31471a28ec6ca0a3a4d6ec4da044c62f0a384c90a797e4",
+            "bytes": 2270
+          }
+        },
+        {
+          "sequence": 18,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "ab413fad120fafe98fe3207d7fe2b733098cc63fc61967f88aa59425b293fc25",
+            "bytes": 2253
+          }
+        },
+        {
+          "sequence": 19,
+          "tool": "read_stance_status",
+          "status": "unavailable",
+          "receipt": {
+            "sha256": "b56ca763e0f3c63999c841614192e02e347c1e8606209bae9635af5c1f7e1601",
+            "bytes": 2169
+          }
+        },
+        {
+          "sequence": 20,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "22e68811f13dc363998c80bfce6818d31204cf499fbe9c4dea47ac5dc7c134b5",
+            "bytes": 2252
+          }
+        },
+        {
+          "sequence": 21,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "25d0bb7af4299d0165bb79be5770e53b4d8ecf60c0a1813b5cefb565c93f837f",
+            "bytes": 2279
+          }
+        },
+        {
+          "sequence": 22,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "3d63b9208cc3b70f6bef3a9ed5b68f23db13a1c4ede1983f6d11ec6659574e4c",
+            "bytes": 2262
+          }
+        },
+        {
+          "sequence": 23,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "dfcf12693787290d7df20be0c9c26221f44acbd6aad37e734b64ad477ce097e5",
+            "bytes": 2179
+          }
+        },
+        {
+          "sequence": 24,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "45164e9ba23f8ceef48090d13564ac07ceb5452ccd2f7bf7149e7ee908cef71a",
+            "bytes": 2263
+          }
+        },
+        {
+          "sequence": 25,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "b0d7606c3619c5f1ff8109f3bfc3887d52df7ba7e47d2c7ec72f5611b8c93ce4",
+            "bytes": 2290
+          }
+        },
+        {
+          "sequence": 26,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "ea1d3a344fba35d145a5c49b036aecd8792ed4c7f7cc290b155c5fa7fe3af157",
+            "bytes": 2274
+          }
+        },
+        {
+          "sequence": 27,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "bd1e051e1eec952b779018347f64163f0a9261497cb8c245f975427df023aedf",
+            "bytes": 2190
+          }
+        },
+        {
+          "sequence": 28,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "785dda07e1da72da91c3f0be5d7673b63cfd8f64763fc091b434daf5bb65eab0",
+            "bytes": 2274
+          }
+        },
+        {
+          "sequence": 29,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "810e4407a675645d2eb00a94529f817a6331ad1fc54207279903c2d6ebde75ab",
+            "bytes": 2301
+          }
+        },
+        {
+          "sequence": 30,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "fa963e1b005967fe718ecdab5db430594b85ebf32f127191947e6e2a7c6606fd",
+            "bytes": 2284
+          }
+        },
+        {
+          "sequence": 31,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "da4e86a5eb197a72c0a7d7eb257253261f63d350f58888990a9496b4904993da",
+            "bytes": 2201
+          }
+        },
+        {
+          "sequence": 32,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "43a0408a0ada01be4f399764b73441a848f16f66fd9b279b8d290c9379244430",
+            "bytes": 2270
+          }
+        }
+      ],
+      "images": [
+        {
+          "sequence": 1,
+          "width": 320,
+          "height": 200,
+          "sha256": "232133efa1c73d3c90f1a1b1483e244b68e279f8f73d69bb5a979188fd2ae476",
+          "bytes": 12196
+        },
+        {
+          "sequence": 4,
+          "width": 320,
+          "height": 200,
+          "sha256": "ea3940776428e48868e22740deac06616ab4b1ccb30a965de6757bfe6e3fdcbd",
+          "bytes": 6944
+        },
+        {
+          "sequence": 5,
+          "width": 320,
+          "height": 200,
+          "sha256": "ea3940776428e48868e22740deac06616ab4b1ccb30a965de6757bfe6e3fdcbd",
+          "bytes": 6944
+        },
+        {
+          "sequence": 8,
+          "width": 320,
+          "height": 200,
+          "sha256": "a368d9241079523b5976c58898ca6a0612b8b8b535bebbc16208475998f520aa",
+          "bytes": 7364
+        },
+        {
+          "sequence": 9,
+          "width": 320,
+          "height": 200,
+          "sha256": "a368d9241079523b5976c58898ca6a0612b8b8b535bebbc16208475998f520aa",
+          "bytes": 7364
+        },
+        {
+          "sequence": 12,
+          "width": 320,
+          "height": 200,
+          "sha256": "c384a7751b366f81f2ebb12dc50c2bc0a15345b5e08a7ee7440c5308a97a263d",
+          "bytes": 7010
+        },
+        {
+          "sequence": 13,
+          "width": 320,
+          "height": 200,
+          "sha256": "c384a7751b366f81f2ebb12dc50c2bc0a15345b5e08a7ee7440c5308a97a263d",
+          "bytes": 7010
+        },
+        {
+          "sequence": 16,
+          "width": 320,
+          "height": 200,
+          "sha256": "c9127b99f475e3f4ff9bc800bf4c98fcc8b530be8d0adf78b0bf33bb0414c5bf",
+          "bytes": 7428
+        },
+        {
+          "sequence": 17,
+          "width": 320,
+          "height": 200,
+          "sha256": "c9127b99f475e3f4ff9bc800bf4c98fcc8b530be8d0adf78b0bf33bb0414c5bf",
+          "bytes": 7428
+        },
+        {
+          "sequence": 20,
+          "width": 320,
+          "height": 200,
+          "sha256": "c9127b99f475e3f4ff9bc800bf4c98fcc8b530be8d0adf78b0bf33bb0414c5bf",
+          "bytes": 7428
+        },
+        {
+          "sequence": 21,
+          "width": 320,
+          "height": 200,
+          "sha256": "c9127b99f475e3f4ff9bc800bf4c98fcc8b530be8d0adf78b0bf33bb0414c5bf",
+          "bytes": 7428
+        },
+        {
+          "sequence": 24,
+          "width": 320,
+          "height": 200,
+          "sha256": "23bd4e22ca63446ded948f7db9f1ec5390344b8d7b6e8cdd04749b24cd1e8305",
+          "bytes": 7329
+        },
+        {
+          "sequence": 25,
+          "width": 320,
+          "height": 200,
+          "sha256": "23bd4e22ca63446ded948f7db9f1ec5390344b8d7b6e8cdd04749b24cd1e8305",
+          "bytes": 7329
+        },
+        {
+          "sequence": 28,
+          "width": 320,
+          "height": 200,
+          "sha256": "cf90331534689142514f7d417fc17ccc327453c2550b53ef36a714b83771b5d1",
+          "bytes": 7348
+        },
+        {
+          "sequence": 29,
+          "width": 320,
+          "height": 200,
+          "sha256": "cf90331534689142514f7d417fc17ccc327453c2550b53ef36a714b83771b5d1",
+          "bytes": 7348
+        },
+        {
+          "sequence": 32,
+          "width": 320,
+          "height": 200,
+          "sha256": "2dd2db5f2b3267442b638ac98b0c656bc4380b60446472a33bd9fd212359395d",
+          "bytes": 7369
+        }
+      ],
+      "manual_visible_outcomes": {
+        "accepted_unload": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "weapon_visibly_in_right_hand": true,
+          "detached_clip_visibly_in_left_hand": true,
+          "held_selection_visibly_cleared": true,
+          "spare_visibly_remains_on_Ground": true,
+          "displayed_TU_before": 68,
+          "displayed_TU_after": 60,
+          "displayed_TU_decreased_by_exactly_8": true
+        },
+        "pickup_detached_clip": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "detached_clip_visibly_held": true,
+          "weapon_visibly_remains_in_right_hand": true,
+          "displayed_TU_before": 60,
+          "displayed_TU_after": 60
+        },
+        "declined_reload": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_declined": true,
+          "held_clip_visibly_preserved": true,
+          "unloaded_weapon_visibly_preserved": true,
+          "displayed_TU_before": 60,
+          "displayed_TU_after": 60,
+          "TU_visibly_unchanged": true,
+          "checkpoint_kind": "planned_visibility_after_decline_not_native_dispatch_barrier"
+        },
+        "accepted_reload": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "detached_clip_no_longer_separately_visible": true,
+          "held_selection_visibly_cleared": true,
+          "weapon_visibly_remains_in_right_hand": true,
+          "displayed_TU_before": 60,
+          "displayed_TU_after": 45,
+          "displayed_TU_decreased_by_exactly_15": true,
+          "reload_supported_by_later_already_loaded_warning": true
+        },
+        "pickup_spare_clip": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "spare_clip_visibly_held": true,
+          "loaded_weapon_visibly_remains_in_right_hand": true,
+          "displayed_TU_before": 45,
+          "displayed_TU_after": 45
+        },
+        "accepted_already_loaded_refusal": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "held_spare_clip_visibly_preserved": true,
+          "loaded_weapon_visibly_preserved": true,
+          "displayed_TU_before": 45,
+          "displayed_TU_after": 45,
+          "TU_visibly_unchanged": true,
+          "ordinary_already_loaded_warning_seen_live_immediately_after_E6_confirmation": true,
+          "live_warning_observed_at_utc": "2026-10-12T23:43:58.809Z",
+          "ordinary_already_loaded_warning_visible_in_returned_I": false
+        },
+        "orderly_EOF_after_satisfied_I": {
+          "game_responsive_observed": true,
+          "held_spare_preserved": true,
+          "ordinary_cleanup_completed": true,
+          "independent_event_trace": false
+        }
+      },
+      "independent_review": {
+        "decision": "accepted",
+        "record": {
+          "sha256": "421257b30f7e05f36c993b457e4f59cdc920c0c90e26298de54c42cb47a8921a",
+          "bytes": 12519
+        },
+        "local_consent_independently_observed": false,
+        "native_liveness_independently_observed": false
+      },
+      "records": {
+        "final_manifest": {
+          "sha256": "f4a6fb861c117c8d6b92a212cc97d9ff61b71d889882be3b110946c498481d93",
+          "bytes": 2044
+        },
+        "operator_attestation": {
+          "sha256": "8f6cb17ac70d2765f0f5f2403b633e640f088f9373594b3b2afc486296c01f1a",
+          "bytes": 9117
+        },
+        "before_checkpoint": {
+          "sha256": "17859052eb7de13870fb0d2227735621c5aee1667db9993575572b97a906bf9f",
+          "bytes": 868029
+        },
+        "after_checkpoint": {
+          "sha256": "f8a5f4df6fb3316147a6c492378ff16d82f77091ac660db84c65477b8ea6ccad",
+          "bytes": 868663
+        },
+        "declared_driver_process": {
+          "sha256": "d1b463e3b71b0b7606a9c57344b01d556ed2bbe8a3295e9961bc2e896f928c2f",
+          "bytes": 1867
+        },
+        "terminal_seal": {
+          "sha256": "fa4fa4158ab0e2769c2470461270168fa3f7a1657d2e8ea2a52c3d92fff761ab",
+          "bytes": 3762222
+        },
+        "terminal_integrity_review": {
+          "sha256": "5b4af028854628205a10ad1d3ab936cc14d752c6c14f559be7fc1f5dd172a816",
+          "bytes": 1203
+        }
+      },
+      "seal": {
+        "run_entry_count": 91,
+        "run_entries_sha256": "139c2a52f25f59da31d5a9de633d62432790275767834f71100ab5b2add23342",
+        "native_outcomes_verified_by_sealer": false,
+        "process_exit_independently_observed_by_sealer": false
+      },
+      "extra_image_hashes": [
+        {
+          "sha256": "0b7d04e52f7418ab13d72ed9fd6b14dc82d23e591368d3ca9954fedb013b12d3",
+          "bytes": 49426
+        },
+        {
+          "sha256": "76a8c110d42f82a38e9ac3acfecc33a41d832ae9bf41820c77ee67ff7f7740bf",
+          "bytes": 51913
+        },
+        {
+          "sha256": "9a1f701f70b3d165495275f9f40ab712804793cfeef3d2c27bea6fa5802c2565",
+          "bytes": 52484
+        }
+      ]
+    },
+    {
+      "game": "TFTD",
+      "live_attempts": 1,
+      "visible_subject": {
+        "soldier": "Andrei Tanase",
+        "weapon": "Gas Cannon",
+        "detached_clip": "GC-AP Bolts",
+        "spare_clip": "GC-Phosphorous Bolts",
+        "loaded_rounds": 8,
+        "initial_TU": 49,
+        "post_unload_TU": 41,
+        "post_reload_and_refusal_TU": 26
+      },
+      "protocol": {
+        "completed_tool_calls": 32,
+        "maximum_tool_calls": 32,
+        "sequence": 33,
+        "phase": "complete",
+        "actions_attempted": [
+          "B",
+          "E1",
+          "F1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "E6"
+        ],
+        "actions_dispatched": [
+          "B",
+          "E1",
+          "F1",
+          "E2",
+          "E4",
+          "E5",
+          "E6"
+        ],
+        "actions_with_unavailable_receipt": [
+          "E3"
+        ],
+        "required_next_observations": [],
+        "termination_signal_sent": false,
+        "native_handler_success_verified": false,
+        "independent_event_trace_recorded": false
+      },
+      "driver_exit": 0,
+      "driver_stdout_bytes": 61,
+      "driver_stderr_bytes": 0,
+      "receipts": [
+        {
+          "sequence": 1,
+          "tool": "read_tactical_context",
+          "status": null,
+          "receipt": {
+            "sha256": "adb9332794c850808d488826cce183691a0b7598e9bebe4d95cc8be4c91162e2",
+            "bytes": 2209
+          }
+        },
+        {
+          "sequence": 2,
+          "tool": "request_open_inventory",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "6286648ba443819feb42183407263f71212f12828b9e14a5cbc9f266769d4dc2",
+            "bytes": 2172
+          }
+        },
+        {
+          "sequence": 3,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "bf5acf9437f5cf52236fccbb6e45dbf078f0b560c3ce1580465b83f99361e091",
+            "bytes": 2122
+          }
+        },
+        {
+          "sequence": 4,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "279e39aefd546d8b6c2d75766ee22f3838d333792e816ae3e204db6cd519172a",
+            "bytes": 2207
+          }
+        },
+        {
+          "sequence": 5,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "fcfdaf0e2cdcc2440e5da4c310cc20b3b587c5e5d0cf18ada55a9e34981c65ac",
+            "bytes": 2234
+          }
+        },
+        {
+          "sequence": 6,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "d4261356c82641acaae2c0badf4c0a9a84c12c840364ffa9e29ad4e5f654963f",
+            "bytes": 2217
+          }
+        },
+        {
+          "sequence": 7,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "4d8bce1b57626fc87b41b58ce24ba85217423df1e572f89ec5c78334270e515f",
+            "bytes": 2134
+          }
+        },
+        {
+          "sequence": 8,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "53a912766b7b4774fefa4b19d026f2fd33877381346eb42459fa6680e6bf37f6",
+            "bytes": 2218
+          }
+        },
+        {
+          "sequence": 9,
+          "tool": "read_inventory_unload_context",
+          "status": null,
+          "receipt": {
+            "sha256": "ccf6640ac10137396dfe1a0fc577aea5410925b98b4f6bde66d636b5525c7a03",
+            "bytes": 2249
+          }
+        },
+        {
+          "sequence": 10,
+          "tool": "request_inventory_unload",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "052fe590016c0ebde600b90a82f5c20cb2688b11127e4abe5717780c3a23e062",
+            "bytes": 2199
+          }
+        },
+        {
+          "sequence": 11,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "cacb3476f1e007e4ce7723e239a4e7b9b57c245b240f17e3e0fe4adfda582ce8",
+            "bytes": 2149
+          }
+        },
+        {
+          "sequence": 12,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "05a66dce3c0396129e685dc6a55d5b9a713d0a8dc4d7cbf4019a9793b5c8fe06",
+            "bytes": 2232
+          }
+        },
+        {
+          "sequence": 13,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "c3a554c565855ab29db86c31861d313bdcfddf292a5a827a7476072b6f1fd859",
+            "bytes": 2259
+          }
+        },
+        {
+          "sequence": 14,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "6e25cd3eae5016859b437f4477807202b56d4e0544dc45ac42cd7905673347ac",
+            "bytes": 2243
+          }
+        },
+        {
+          "sequence": 15,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "3fe8fac117776ecfda217ca2f6583c00081888fad980f71f98dda0e03df84f54",
+            "bytes": 2159
+          }
+        },
+        {
+          "sequence": 16,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "608052e3975968d773cf520bf91505234dbec547e8590b636a6aacf5ea5da2ba",
+            "bytes": 2243
+          }
+        },
+        {
+          "sequence": 17,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "5991a3cebb7a8abe7e73d4b1c58eaa083d2149849747c56625750773fdf23647",
+            "bytes": 2270
+          }
+        },
+        {
+          "sequence": 18,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "916dba5567e55f550ef2fafe9f921a11e30d951277447ce77a0c78d26b13c6c6",
+            "bytes": 2253
+          }
+        },
+        {
+          "sequence": 19,
+          "tool": "read_stance_status",
+          "status": "unavailable",
+          "receipt": {
+            "sha256": "59f7410677bf9dab3cab0bc1a4c03f91b99b49b2a823d13122688af4f0be75d3",
+            "bytes": 2169
+          }
+        },
+        {
+          "sequence": 20,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "33836a054bf57429d247fcc42e72e35ba88da1a08a9e17db2074df37f5192b51",
+            "bytes": 2252
+          }
+        },
+        {
+          "sequence": 21,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "5aa70ff144d8c9b316346e9dcf87df0ff4075b9e0a2e3d61c8e46863b22fae2f",
+            "bytes": 2279
+          }
+        },
+        {
+          "sequence": 22,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "9dae021844418f957f43a4953cdf32112be0e3eca8cb5668cebc426733c4a5b7",
+            "bytes": 2262
+          }
+        },
+        {
+          "sequence": 23,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "0bcddcc2990847b1d233956f59e3d6259993783f4d8ff0dcf45939ce1a869f83",
+            "bytes": 2179
+          }
+        },
+        {
+          "sequence": 24,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "06f5d0af93f542806097ae9456ff8e8acaf52e91e548423a83739e971df11a19",
+            "bytes": 2263
+          }
+        },
+        {
+          "sequence": 25,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "402d7dbd56d8fbb3219c77810a627d260af666685d8e60fbccd0ff9949cf82ed",
+            "bytes": 2290
+          }
+        },
+        {
+          "sequence": 26,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "ed411d3f7535a4dffb0ba1252c25b4f128f29faf32c5460b0c46c1044b91c72b",
+            "bytes": 2274
+          }
+        },
+        {
+          "sequence": 27,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "ab74540e39c2c90d55513331367d1f0e7eee0e60f26ac546cdaf8820e5df8bc9",
+            "bytes": 2190
+          }
+        },
+        {
+          "sequence": 28,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "895b56ff59fb81bc56945a1f19ca086afad36ca8db8827896bce99b05d08b522",
+            "bytes": 2274
+          }
+        },
+        {
+          "sequence": 29,
+          "tool": "read_inventory_click_context",
+          "status": null,
+          "receipt": {
+            "sha256": "35883872cea690fcc283619238f0396567aa3fd3b93db54c7ba0f2a28227bd33",
+            "bytes": 2301
+          }
+        },
+        {
+          "sequence": 30,
+          "tool": "request_inventory_click",
+          "status": "pending_confirmation",
+          "receipt": {
+            "sha256": "1c3a1757beb2341b384364dc9acb3d836d908a0772f22d7fd1e1a35a5f6a19f1",
+            "bytes": 2284
+          }
+        },
+        {
+          "sequence": 31,
+          "tool": "read_stance_status",
+          "status": "dispatched",
+          "receipt": {
+            "sha256": "01a9dfeb032bee8dc626ce38814469fe91d83e673a584961ae4062d08ab5e384",
+            "bytes": 2201
+          }
+        },
+        {
+          "sequence": 32,
+          "tool": "read_inventory_view",
+          "status": null,
+          "receipt": {
+            "sha256": "7137c7c90c0b3396baa8d3c0a60b6d0ea1663afcfa23160a8b57403955390919",
+            "bytes": 2270
+          }
+        }
+      ],
+      "images": [
+        {
+          "sequence": 1,
+          "width": 320,
+          "height": 200,
+          "sha256": "2376fcbaf2a99839b71b91da75f9ebe2b9fe64b094c6d3e28e1a42cc18ad2991",
+          "bytes": 12351
+        },
+        {
+          "sequence": 4,
+          "width": 320,
+          "height": 200,
+          "sha256": "d28af971ece01765bf637f67f9e0307bcdaad3e2a69678f2466d974893f1aef3",
+          "bytes": 6918
+        },
+        {
+          "sequence": 5,
+          "width": 320,
+          "height": 200,
+          "sha256": "d28af971ece01765bf637f67f9e0307bcdaad3e2a69678f2466d974893f1aef3",
+          "bytes": 6918
+        },
+        {
+          "sequence": 8,
+          "width": 320,
+          "height": 200,
+          "sha256": "29052506a1bd53dbd9c5b51ae91d095b64233bd6e443bf6ccabd191f8a5e9d43",
+          "bytes": 7325
+        },
+        {
+          "sequence": 9,
+          "width": 320,
+          "height": 200,
+          "sha256": "29052506a1bd53dbd9c5b51ae91d095b64233bd6e443bf6ccabd191f8a5e9d43",
+          "bytes": 7325
+        },
+        {
+          "sequence": 12,
+          "width": 320,
+          "height": 200,
+          "sha256": "e8151bc8535ef13811c254ce66f9bf507a7181a8bf307c048974206d5b2c1fbb",
+          "bytes": 7025
+        },
+        {
+          "sequence": 13,
+          "width": 320,
+          "height": 200,
+          "sha256": "e8151bc8535ef13811c254ce66f9bf507a7181a8bf307c048974206d5b2c1fbb",
+          "bytes": 7025
+        },
+        {
+          "sequence": 16,
+          "width": 320,
+          "height": 200,
+          "sha256": "83546362f5d83fbb1431c5b52aed3ded2857fa463d590d09ca2f97564a7cc76c",
+          "bytes": 7388
+        },
+        {
+          "sequence": 17,
+          "width": 320,
+          "height": 200,
+          "sha256": "83546362f5d83fbb1431c5b52aed3ded2857fa463d590d09ca2f97564a7cc76c",
+          "bytes": 7388
+        },
+        {
+          "sequence": 20,
+          "width": 320,
+          "height": 200,
+          "sha256": "83546362f5d83fbb1431c5b52aed3ded2857fa463d590d09ca2f97564a7cc76c",
+          "bytes": 7388
+        },
+        {
+          "sequence": 21,
+          "width": 320,
+          "height": 200,
+          "sha256": "83546362f5d83fbb1431c5b52aed3ded2857fa463d590d09ca2f97564a7cc76c",
+          "bytes": 7388
+        },
+        {
+          "sequence": 24,
+          "width": 320,
+          "height": 200,
+          "sha256": "0fd45717488e71c0294b76e3ca7326ed394d1990d19e2a4197b1b164940645a1",
+          "bytes": 7242
+        },
+        {
+          "sequence": 25,
+          "width": 320,
+          "height": 200,
+          "sha256": "0fd45717488e71c0294b76e3ca7326ed394d1990d19e2a4197b1b164940645a1",
+          "bytes": 7242
+        },
+        {
+          "sequence": 28,
+          "width": 320,
+          "height": 200,
+          "sha256": "2c5c6425d5399dc3577cc62cf954cc87c459db8f69727fc6ee39e7dcc190dc6a",
+          "bytes": 7295
+        },
+        {
+          "sequence": 29,
+          "width": 320,
+          "height": 200,
+          "sha256": "2c5c6425d5399dc3577cc62cf954cc87c459db8f69727fc6ee39e7dcc190dc6a",
+          "bytes": 7295
+        },
+        {
+          "sequence": 32,
+          "width": 320,
+          "height": 200,
+          "sha256": "1631e99635592e319a30bccd200c0c168a2474a73bf6c0e199d0e30ce7aa6f11",
+          "bytes": 7321
+        }
+      ],
+      "manual_visible_outcomes": {
+        "accepted_unload": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "weapon_visibly_in_right_hand": true,
+          "detached_clip_visibly_in_left_hand": true,
+          "held_selection_visibly_cleared": true,
+          "spare_visibly_remains_on_Ground": true,
+          "displayed_TU_before": 49,
+          "displayed_TU_after": 41,
+          "displayed_TU_decreased_by_exactly_8": true
+        },
+        "pickup_detached_clip": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "detached_clip_visibly_held": true,
+          "weapon_visibly_remains_in_right_hand": true,
+          "displayed_TU_before": 41,
+          "displayed_TU_after": 41
+        },
+        "declined_reload": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_declined": true,
+          "held_clip_visibly_preserved": true,
+          "unloaded_weapon_visibly_preserved": true,
+          "displayed_TU_before": 41,
+          "displayed_TU_after": 41,
+          "TU_visibly_unchanged": true,
+          "checkpoint_kind": "planned_visibility_after_decline_not_native_dispatch_barrier"
+        },
+        "accepted_reload": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "detached_clip_no_longer_separately_visible": true,
+          "held_selection_visibly_cleared": true,
+          "weapon_visibly_remains_in_right_hand": true,
+          "displayed_TU_before": 41,
+          "displayed_TU_after": 26,
+          "displayed_TU_decreased_by_exactly_15": true,
+          "reload_supported_by_later_already_loaded_warning": true
+        },
+        "pickup_spare_clip": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "spare_clip_visibly_held": true,
+          "loaded_weapon_visibly_remains_in_right_hand": true,
+          "displayed_TU_before": 26,
+          "displayed_TU_after": 26
+        },
+        "accepted_already_loaded_refusal": {
+          "before_inspected": true,
+          "after_inspected": true,
+          "local_confirmation_seen_and_accepted": true,
+          "held_spare_clip_visibly_preserved": true,
+          "loaded_weapon_visibly_preserved": true,
+          "displayed_TU_before": 26,
+          "displayed_TU_after": 26,
+          "TU_visibly_unchanged": true,
+          "ordinary_already_loaded_warning_seen_live_immediately_after_E6_confirmation": true,
+          "live_warning_observed_at_utc": "2026-10-12T23:59:23.794Z",
+          "ordinary_already_loaded_warning_visible_in_returned_I": false
+        },
+        "orderly_EOF_after_satisfied_I": {
+          "game_responsive_observed": true,
+          "held_spare_preserved": true,
+          "ordinary_cleanup_completed": true,
+          "independent_event_trace": false
+        }
+      },
+      "independent_review": {
+        "decision": "accepted",
+        "record": {
+          "sha256": "7ebf340e7321a038634bc327a1a239511fe76005df680cc9004e72e083a71a65",
+          "bytes": 12819
+        },
+        "local_consent_independently_observed": false,
+        "native_liveness_independently_observed": false
+      },
+      "records": {
+        "final_manifest": {
+          "sha256": "d3654b8c8d01c53f0ef780e910aa0d68607a07185898c41a5f7b5b6fe296cfa2",
+          "bytes": 2044
+        },
+        "operator_attestation": {
+          "sha256": "155567574bffefd9d59e4bf964576dc16174047570dff2e1124496cf9205c5c3",
+          "bytes": 9652
+        },
+        "before_checkpoint": {
+          "sha256": "9ffb45d90986b72b9bf5639a4b4202222c2bbceb614c8cba6e8b3de8767babf5",
+          "bytes": 868029
+        },
+        "after_checkpoint": {
+          "sha256": "fcea3a11e20122edb51278d47f7f043195b1dfbba0972617d247d551fafa08af",
+          "bytes": 868663
+        },
+        "declared_driver_process": {
+          "sha256": "1a69df6c0adce89a311ba5cb4bea7df73a869dfd278d64ba207190856d9279ca",
+          "bytes": 1868
+        },
+        "terminal_seal": {
+          "sha256": "27471010d5f469743f0919df2f9416d387f2d6f7c225cf6d2c743846a72cc8fa",
+          "bytes": 3763036
+        },
+        "terminal_integrity_review": {
+          "sha256": "935904e607aa6e7387edb37ee8d1d706d3c03227822fee15316b709e5d3f64cb",
+          "bytes": 1204
+        }
+      },
+      "seal": {
+        "run_entry_count": 91,
+        "run_entries_sha256": "a7ba11c7b199287153a528eb6d6b4a74a0231bb7c68729d41f72b049003938c0",
+        "native_outcomes_verified_by_sealer": false,
+        "process_exit_independently_observed_by_sealer": false
+      },
+      "extra_image_hashes": [
+        {
+          "sha256": "7a93e0990de50395bf6cf3b0a9245b369c897d154dc1eb48bd29502330ab6ea0",
+          "bytes": 58485
+        },
+        {
+          "sha256": "9e7a9b661a1095cbdd41a8a0d39b108aa560e6c5957682fcf4dc93e7751706f7",
+          "bytes": 54649
+        },
+        {
+          "sha256": "e32d3d2edaea4d3817f5d0b642629e80cd5d52e2deac19002a0ecdff3a4aa824",
+          "bytes": 57398
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Finite stock UFO/TFTD examples; not full inventory, controller, fairness or campaign acceptance.",
+    "Each click requires separate local consent and exact post-action inventory observation; transfers are not atomic.",
+    "Declined E3 followed by I is a planned visibility checkpoint, not proof of a dispatched-action barrier.",
+    "Driver receipts do not establish eligibility, native success, TU cost, local input or liveness.",
+    "Manual local consent and responsiveness remain operator attestations, independently checked against retained images where possible.",
+    "Transient already-loaded warning captured live; absent in both returned final I images. No replay or timer change.",
+    "Combined held clearing, separate clip disappearance, TU minus15 and subsequent warning support reload; stale tooltip or unchanged weapon sprite alone does not.",
+    "Orderly EOF occurred after satisfied final I, not during pending consent or unsatisfied observation.",
+    "Existing native fault survivors and inconclusive cases remain as previously reported; no sensitivity rerun or promotion here.",
+    "Inventory priming, firing, end turn, broader TU/mod coverage, geoscape and model/token evaluation remain outside this slice."
+  ]
+}

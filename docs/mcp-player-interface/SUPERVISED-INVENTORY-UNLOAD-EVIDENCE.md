@@ -198,3 +198,9 @@ remain false: they are not an automated publication decision or overall green ga
 No prebattle/non-TU inventory, arbitrary mod, full-fairness, sanitizer, model/token
 benchmark or complete campaign result is claimed. Reload and priming remain separate
 unfinished inventory slices.
+
+**Subsequent milestone (2026-10-13):** the later
+[bounded reload SDK cycle](INVENTORY-RELOAD-SDK-EVIDENCE.md) adds actual two-game
+integration evidence through existing CLICK/Unload. It does not change this
+Unload report’s original test scope, failures or fault-sensitivity limits.
+Priming remains open.
