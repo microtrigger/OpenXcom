@@ -101,7 +101,7 @@ private:
 	size_t _scroll, _visibleRows, _selRow;
 	Uint8 _color, _color2;
 	std::map<int, TextHAlign> _align;
-	bool _dot, _selectable, _condensed, _contrast, _wrap, _flooding;
+	bool _dot, _selectable, _condensed, _contrast, _wrap, _flooding, _fullRowsOnly;
 	Surface *_bg, *_selector;
 	ArrowButton *_up, *_down;
 	ScrollBar *_scrollbar;
@@ -127,6 +127,7 @@ private:
 	bool _agentOutfittingEquipment = false, _agentOutfittingCrew = false;
 	std::vector<AgentOutfittingRow> _agentDrawOutfittingRows, _agentPaintOutfittingRows;
 	SDL_Rect _agentOutfittingClip = {};
+	SDL_Rect _agentListClip = {};
 	SDL_Rect _agentArrivalClip = {};
 	SDL_Rect _agentPurchaseClip = {};
 	bool _agentCoverageHealthy = false;
@@ -205,6 +206,8 @@ public:
 	void initText(Font *big, Font *small, Language *lang);
 	/// Sets the height of the surface.
 	void setHeight(int height);
+	/// Count only fully fitting font rows when calculating the scroll boundary.
+	void setFullRowsOnly(bool fullRowsOnly);
 	/// Sets the text color of the text list.
 	void setColor(Uint8 color);
 	/// Gets the text color of the text list.

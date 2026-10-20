@@ -43,7 +43,7 @@ namespace OpenXcom
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-TextList::TextList(int width, int height, int x, int y) : InteractiveSurface(width, height, x, y), _big(0), _small(0), _font(0), _scroll(0), _visibleRows(0), _selRow(0), _color(0), _dot(false), _selectable(false), _condensed(false), _contrast(false), _wrap(false), _flooding(false),
+TextList::TextList(int width, int height, int x, int y) : InteractiveSurface(width, height, x, y), _big(0), _small(0), _font(0), _scroll(0), _visibleRows(0), _selRow(0), _color(0), _dot(false), _selectable(false), _condensed(false), _contrast(false), _wrap(false), _flooding(false), _fullRowsOnly(false),
 																								   _bg(0), _selector(0), _margin(0), _scrolling(true), _arrowPos(-1), _scrollPos(4), _arrowType(ARROW_VERTICAL),
 																								   _leftClick(0), _leftPress(0), _leftRelease(0), _rightClick(0), _rightPress(0), _rightRelease(0), _arrowsLeftEdge(0), _arrowsRightEdge(0), _comboBox(0)
 {
@@ -547,6 +547,26 @@ void TextList::setHeight(int height)
 }
 
 /**
+ * Opt-in ordinary layout policy for lists whose last glyph row must be
+ * scrollable fully into view. Other lists retain the historical policy.
+ */
+void TextList::setFullRowsOnly(bool fullRowsOnly)
+{
+	if (_fullRowsOnly == fullRowsOnly) return;
+	_fullRowsOnly = fullRowsOnly;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentListRevision;
+#endif
+	if (_font)
+	{
+		updateVisible();
+		_scroll = _visibleRows && _rows.size() > _visibleRows ? std::min(_scroll, _rows.size() - _visibleRows) : 0;
+		updateArrows();
+	}
+	_redraw = true;
+}
+
+/**
  * Changes the color of the text in the list. This doesn't change
  * the color of existing text, just the color of text added from then on.
  * @param color Color value.
@@ -949,9 +969,10 @@ void TextList::scrollDown(bool toMax, bool scrollByWheel)
  */
 void TextList::updateArrows()
 {
-	_up->setVisible(_rows.size() > _visibleRows /*&& _scroll > 0*/);
-	_down->setVisible(_rows.size() > _visibleRows /*&& _scroll < _rows.size() - _visibleRows*/);
-	_scrollbar->setVisible(_rows.size() > _visibleRows);
+	const bool show = (!_fullRowsOnly || _visibleRows != 0) && _rows.size() > _visibleRows;
+	_up->setVisible(show);
+	_down->setVisible(show);
+	_scrollbar->setVisible(show);
 	_scrollbar->invalidate();
 	_scrollbar->blit(this);
 }
@@ -963,9 +984,20 @@ void TextList::updateArrows()
 void TextList::updateVisible()
 {
 	_visibleRows = 0;
-	for (int y = 0; y < getHeight(); y += _font->getHeight() + _font->getSpacing())
+	if (_fullRowsOnly)
 	{
-		_visibleRows++;
+		const int step = _font->getHeight() + _font->getSpacing();
+		const int lastTop = getHeight() - _font->getHeight();
+		if (step > 0 && lastTop >= 0)
+			_visibleRows = static_cast<size_t>(lastTop / step) + 1;
+		_scroll = _visibleRows && _rows.size() > _visibleRows ? std::min(_scroll, _rows.size() - _visibleRows) : 0;
+	}
+	else
+	{
+		for (int y = 0; y < getHeight(); y += _font->getHeight() + _font->getSpacing())
+		{
+			_visibleRows++;
+		}
 	}
 	updateArrows();
 }
@@ -1056,6 +1088,7 @@ void TextList::blit(Surface *surface)
 	_agentPaintControls.clear();
 	_agentPaintPurchaseRows.clear();
 	_agentPaintArrivalRows.clear(); _agentPaintOutfittingRows.clear();
+	_agentListClip = surface->getSurface()->clip_rect;
 	_agentPurchaseClip = surface->getSurface()->clip_rect;
 	_agentArrivalClip = surface->getSurface()->clip_rect;
 	_agentOutfittingClip = surface->getSurface()->clip_rect;
@@ -1504,6 +1537,7 @@ size_t TextList::getScroll()
  */
 void TextList::scrollTo(size_t scroll)
 {
+	if (_fullRowsOnly && _visibleRows == 0) return;
 	if (!_scrolling)
 		return;
 	if (_rows.size() <= _visibleRows)
@@ -1953,6 +1987,14 @@ bool TextList::agentRows(std::vector<AgentListRow> &rows) const
 		!_agentCoverageHealthy || !Observer::agentPaintHealthy()) return false;
 	for (const AgentListRow &row : _agentPaintRows)
 	{
+		// Only ink actually admitted by the last destination blit is public.
+		// Restoring the current clip without repainting cannot revive a row.
+		bool clipped = false;
+		for (const SDL_Rect &region : row.regions)
+			if (region.x < _agentListClip.x || region.y < _agentListClip.y ||
+				region.x + region.w > _agentListClip.x + _agentListClip.w ||
+				region.y + region.h > _agentListClip.y + _agentListClip.h) clipped = true;
+		if (clipped) continue;
 		bool covered = false, later = false;
 		for (const Surface *part : _agentPaintOrder)
 		{

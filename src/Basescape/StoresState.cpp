@@ -47,7 +47,7 @@ StoresState::StoresState(Base *base) : _base(base)
 	_txtItem = new Text(142, 9, 10, 32);
 	_txtQuantity = new Text(88, 9, 152, 32);
 	_txtSpaceUsed = new Text(74, 9, 240, 32);
-	_lstStores = new TextList(288, 128, 8, 40);
+	_lstStores = new TextList(288, 129, 8, 40);
 
 	// Set palette
 	setInterface("storesInfo");
@@ -80,6 +80,8 @@ StoresState::StoresState(Base *base) : _base(base)
 
 	_txtSpaceUsed->setText(tr("STR_SPACE_USED_UC"));
 
+	// The small font can extend one pixel below its eight-pixel row advance.
+	_lstStores->setFullRowsOnly(true);
 	_lstStores->setColumns(3, 162, 92, 32);
 	_lstStores->setSelectable(true);
 	_lstStores->setBackground(_window);
