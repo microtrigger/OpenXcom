@@ -273,11 +273,15 @@ void validateList(const AgentUiState &ui, const std::string &screen, unsigned co
         auto row = v["rows"][i];
         check(row.size() == 3 && row["handle"].as<std::string>() == "r" + std::to_string(i), "compact public row handles");
         check(row["cells"].size() == columns, "exact painted research column count");
-        for (const auto &cell : row["cells"]) check(cell.IsScalar() && cell.as<std::string>().size() <= 1024, "bounded complete research cell");
+        for (const auto &cell : row["cells"])
+            check((screen == "new_research" && cell.IsNull()) || (cell.IsScalar() && cell.as<std::string>().size() <= 1024),
+                "research cell is complete bounded text or explicitly unknown new-research label");
     }
     if (const auto *a = action(ui, "select_research_project"))
-        check(!v["title"].IsNull() && v["rows"].size() && a->label == v["rows"][0]["cells"][0].as<std::string>() &&
-            a->labelSource == "visible_text" && a->argumentKind == "project_row", "row action exact first admitted text and title");
+        check(!v["title"].IsNull() && v["rows"].size() && a->argumentKind == "project_row" &&
+            (screen == "new_research" ? (a->label == "Select research project" && a->labelSource == "visible_control_semantics") :
+                (a->label == v["rows"][0]["cells"][0].as<std::string>() && a->labelSource == "visible_text")),
+            "row action uses audited control semantics only for new-research and exact first text elsewhere");
     check(agentRegionsDisjoint(ui), "all research regions disjoint");
 }
 void validateInfo(const AgentUiState &ui)
@@ -309,6 +313,268 @@ std::string perform(TableChannel &channel, ResearchHarness::Game &game, Surface 
     check(channel.receive() == receipt && channel.state.calls == before + 1, "duplicate command exact cached receipt and no second mutation");
     channel.events(); return receipt;
 }
+
+void recordCase(TableChannel &channel, const std::string &name)
+{
+    check(!channel.schedule.empty() && YAML::Load(channel.last)["type"].as<std::string>() == "state",
+        "named case references an actual controller state packet");
+    const std::string file = channel.prefix + "-wire-" + std::to_string(channel.schedule.size() - 1) + ".json";
+    channel.save(channel.prefix + "-case-" + name + ".json",
+        "{\"case\":" + agentJsonString(name) + ",\"state_file\":" + agentJsonString(file) + "}");
+}
+
+void stockNewResearchOrder(const std::string &source, const std::string &master,
+    Font &big, Font &small, Language &language, SDL_Color *palette)
+{
+    const unsigned startChecks = checks;
+    // Keep the existing repeated-pistol lifecycle cases below. These are the
+    // actual stock new-game choices, whose adjacent coarse ink boxes overlap.
+    // TFTD's real research key is STR_GAUSS_TECH, not STR_GAUSS_TECHNOLOGY.
+    const std::vector<std::string> keys = master == "xcom1" ?
+        std::vector<std::string>{"STR_LASER_WEAPONS", "STR_MOTION_SCANNER", "STR_MEDI_KIT"} :
+        std::vector<std::string>{"STR_GAUSS_TECH", "STR_PARTICLE_DISTURBANCE_SENSOR", "STR_MEDI_KIT"};
+    const std::vector<std::string> labels = master == "xcom1" ?
+        std::vector<std::string>{"Laser Weapons", "Motion Scanner", "Medi-Kit"} :
+        std::vector<std::string>{"Gauss Technology", "Particle Disturbance Sensor", "Medi-Kit"};
+    std::vector<std::unique_ptr<RuleResearch>> rules;
+    for (const auto &node : YAML::LoadFile(source + "/bin/standard/" + master + "/research.rul")["research"]) {
+        const auto name = node["name"].as<std::string>();
+        if (std::find(keys.begin(), keys.end(), name) == keys.end()) continue;
+        rules.emplace_back(new RuleResearch(name));
+        rules.back()->load(node, rules.size());
+        check(!node["dependencies"] && !rules.back()->needItem() && rules.back()->getRequirements().empty(),
+            "stock initial choices need no prerequisite, item or indirect unlock");
+    }
+    check(rules.size() == keys.size(), "all three exact stock research definitions exist");
+    ResearchHarness::Base base;
+    ResearchHarness::Game game; game.big = &big; game.small = &small; game.language = &language; game.palette = palette;
+    ResearchHarness::State::_game = &game;
+    for (std::size_t i = 0; i < rules.size(); ++i) {
+        check(rules[i]->getName() == keys[i] && std::string(language.getString(keys[i])) == labels[i],
+            "actual stock rule file and English translations retain initial choice order");
+        game.rules.push_back(rules[i].get());
+    }
+    Surface canvas(320, 200); canvas.setPalette(palette); game.background.setPalette(palette); game.background.clear(40);
+    auto *choices = new ResearchHarness::NewResearchListState(&base); game.pushState(choices);
+    choices->init(); game.pendingInit = false;
+    AgentUiState ui;
+    check(!choices->agentUiState(ui), "unpainted actual stock choices withheld");
+    game.draw(canvas);
+    if (master == "xcom2") {
+        // The full stock TFTD pair is genuinely overpainted, unlike UFO.
+        // Its surviving control is selectable, but the first label stays null.
+        check(choices->agentUiState(ui), "full stock TFTD provider remains available");
+        validateList(ui, "new_research", 1, 0);
+        check(ui.rows == std::vector<std::size_t>({0, 1, 2}) && ui.visible.find(labels[0]) == std::string::npos,
+            "full stock TFTD retains first row-control without revealing its overwritten label");
+        const auto full = YAML::Load(ui.visible);
+        check(full["rows"].size() == 3 && full["rows"][0]["cells"][0].IsNull() &&
+            full["rows"][1]["cells"][0].as<std::string>() == labels[1] && full["rows"][2]["cells"][0].as<std::string>() == labels[2],
+            "full stock TFTD exposes null, PDS and Medi-Kit in ordinary control order");
+        std::vector<AgentListRow> completeRows, controlRows;
+        check(choices->_lstResearch->agentRows(completeRows) && completeRows.size() == 2 &&
+            completeRows[0].logicalIndex == 1 && completeRows[1].logicalIndex == 2,
+            "raw complete-label path still rejects genuinely overwritten Gauss text");
+        check(choices->_lstResearch->agentControlRows(controlRows) && controlRows.size() == 3 &&
+            controlRows[0].logicalIndex == 0 && !controlRows[0].completeText && controlRows[0].cells[0].empty() &&
+            controlRows[1].logicalIndex == 1 && controlRows[2].logicalIndex == 2,
+            "typed control witness retains first row with explicitly absent internal text");
+        TextList firstOnly(198, 88, 53, 54), secondOnly(198, 88, 53, 54);
+        for (TextList *list : {&firstOnly, &secondOnly}) {
+            list->setPalette(palette); list->initText(&big, &small, &language); list->setColor(80);
+            list->setColumns(1, 190); list->setSelectable(true); list->setBackground(choices->_window);
+            list->setMargin(8); list->setAlign(ALIGN_CENTER);
+        }
+        firstOnly.addRow(1, labels[0].c_str());
+        secondOnly.addRow(1, ""); secondOnly.addRow(1, labels[1].c_str());
+        Surface separateCanvas(320, 200); separateCanvas.setPalette(palette);
+        firstOnly.blit(&separateCanvas); secondOnly.blit(&separateCanvas);
+        std::vector<AgentListRow> firstNative, secondNative;
+        check(firstOnly.agentRows(firstNative) && firstNative.size() == 1 && firstNative[0].cells[0] == labels[0],
+            "isolated actual Gauss text has complete stock glyphs and fits the ordinary cell");
+        check(secondOnly.agentRows(secondNative) && secondNative.size() == 2 && secondNative[1].cells[0] == labels[1],
+            "isolated actual Particle Disturbance Sensor text is complete and fits the ordinary cell");
+        const unsigned firstIndices[] = {84, 84, 85, 84, 84, 84};
+        const unsigned secondIndices[] = {85, 84, 84, 84, 84, 85};
+        unsigned collisions = 0, changed = 0;
+        for (int y = 0; y < firstOnly.getHeight(); ++y) for (int x = 0; x < firstOnly.getWidth(); ++x) {
+            const auto a = firstOnly.getPixel(x, y), b = secondOnly.getPixel(x, y);
+            if (a && b) {
+                check(collisions < 6 && x + firstOnly.getX() == 187 + int(collisions) && y + firstOnly.getY() == 62 &&
+                    a == firstIndices[collisions] && b == secondIndices[collisions],
+                    "full TFTD true-overlap pixels retain exact coordinates and before/after indices");
+                std::cout << "TFTD true ink overlap (" << x + firstOnly.getX() << ',' << y + firstOnly.getY()
+                    << ") indices " << unsigned(a) << " -> " << unsigned(b) << '\n';
+                ++collisions; if (a != b) ++changed;
+            }
+        }
+        check(collisions == 6 && changed == 3, "stock TFTD has six real opaque collisions including three changed colors");
+        {
+            TableChannel fullChannel(master + "-stock-full-overlap");
+            fullChannel.state.project = [&](AgentUiState &out) { return game.top && game.top->agentUiState(out); };
+            fullChannel.state.handler = [&](const AgentRequest &request) {
+                check(game.top && game.top->agentDispatch(request), "actual full-stock TFTD native dispatcher");
+            };
+            fullChannel.read(); recordCase(fullChannel, "tftd_full_unknown_first_control");
+            perform(fullChannel, game, canvas, "select_research_project", "r0");
+            auto *info = dynamic_cast<ResearchHarness::ResearchInfoState *>(game.top);
+            check(info && info->_rule == rules[0].get() && base.getResearch().size() == 1,
+                "full stock TFTD r0 activates the genuine first control through the ordinary Gauss handler");
+            check(info->agentUiState(ui) && YAML::Load(ui.visible)["title"].as<std::string>() == labels[0],
+                "Gauss name becomes visible only after the actual detail dialog paints its full title");
+            fullChannel.read(); recordCase(fullChannel, "tftd_full_unknown_first_opens_gauss");
+            info->btnCancelClick(nullptr); game.draw(canvas);
+            check(game.top == choices && base.getResearch().empty(), "full TFTD negative-route cleanup is ordinary cancel");
+        }
+        // This is explicitly isolated availability, never claimed as the full
+        // TFTD stock chooser. It tests Gauss's genuine positive native route.
+        game.rules.resize(1); choices->fillProjectList();
+        choices->_lstResearch->mouseOut(nullptr, nullptr); game.draw(canvas);
+    }
+    const std::vector<std::size_t> expectedRows = master == "xcom1" ? std::vector<std::size_t>{0, 1, 2} : std::vector<std::size_t>{0};
+    const auto allExpected = [&]() {
+        check(choices->agentUiState(ui), "painted actual stock new-research provider available");
+        validateList(ui, "new_research", 1, 0);
+        const auto visible = YAML::Load(ui.visible);
+        check(ui.rows == expectedRows && visible["rows"].size() == expectedRows.size(),
+            "complete UFO stock list or explicitly isolated Gauss admits every genuinely uncovered row");
+        for (std::size_t i = 0; i < expectedRows.size(); ++i)
+            check(visible["rows"][i]["handle"].as<std::string>() == "r" + std::to_string(i) &&
+                visible["rows"][i]["cells"][0].as<std::string>() == labels[i],
+                "actual stock rows have exact visible labels and compact handles in order");
+        check(action(ui, "select_research_project") && action(ui, "select_research_project")->label == "Select research project" &&
+            action(ui, "select_research_project")->labelSource == "visible_control_semantics",
+            "new-research selection uses the fixed visible-control semantic descriptor");
+    };
+    allExpected();
+    const auto initialUi = ui;
+    std::vector<AgentListRow> paintedRows;
+    check(choices->_lstResearch->agentRows(paintedRows) && paintedRows.size() == expectedRows.size(),
+        "stock rows originate in actual TextList paint witnesses");
+    const auto extent = [](const AgentListRow &row) {
+        SDL_Rect result = row.regions.front();
+        for (const auto &part : row.regions) {
+            const int right = std::max(result.x + result.w, part.x + part.w);
+            const int bottom = std::max(result.y + result.h, part.y + part.h);
+            result.x = std::min(result.x, part.x); result.y = std::min(result.y, part.y);
+            result.w = right - result.x; result.h = bottom - result.y;
+        }
+        return result;
+    };
+    for (const auto &row : paintedRows) check(!row.regions.empty(), "every stock row has actual painted ink");
+    const auto firstExtent = extent(paintedRows[0]);
+    if (master == "xcom1") {
+        const auto secondExtent = extent(paintedRows[1]);
+        check(firstExtent.x < secondExtent.x + secondExtent.w && firstExtent.x + firstExtent.w > secondExtent.x &&
+            firstExtent.y < secondExtent.y + secondExtent.h && firstExtent.y + firstExtent.h > secondExtent.y,
+            "UFO stock regression genuinely has overlapping adjacent coarse glyph extents");
+    }
+    check(agentRegionsDisjoint(ui), "admitted stock rows retain disjoint actual ink");
+    TableChannel channel(master + "-stock-new-research");
+    channel.state.project = [&](AgentUiState &out) { return game.top && game.top->agentUiState(out); };
+    channel.state.handler = [&](const AgentRequest &request) { check(game.top && game.top->agentDispatch(request), "actual stock native dispatcher"); };
+    channel.read(); recordCase(channel, master == "xcom1" ? "ufo_stock_all_three" : "tftd_gauss_isolated");
+    const auto ink = paintedRows[0].regions.front();
+    check(choices->_lstResearch->getPixel(ink.x - choices->_lstResearch->getX(), ink.y - choices->_lstResearch->getY()) != 0,
+        "overlay target is a real nontransparent first-row pixel");
+    Surface inkCover(1, 1, ink.x, ink.y); inkCover.setPalette(palette); inkCover.clear(90);
+    for (unsigned layer = 0; layer < 3; ++layer) {
+        if (layer == 0) game._cursor = &inkCover;
+        if (layer == 1) game._fpsCounter = &inkCover;
+        if (layer == 2) choices->_surfaces.push_back(&inkCover);
+        game.draw(canvas);
+        const std::vector<std::size_t> uncovered(expectedRows.begin() + 1, expectedRows.end());
+        check(choices->agentUiState(ui) && ui.rows == uncovered,
+            "one actual-ink pixel covered by cursor, FPS or later sibling omits exactly that stock row");
+        if (!uncovered.empty())
+            check(YAML::Load(ui.visible)["rows"][0]["cells"][0].as<std::string>() == labels[1] &&
+                action(ui, "select_research_project")->label == "Select research project",
+                "true overlap compacts handles without inventing a label-based control description");
+        else check(!ui.offers("select_research_project"), "covered isolated Gauss has no row authority");
+        channel.read(); recordCase(channel, master + std::string(layer == 0 ? "_cursor_ink_overlay" :
+            layer == 1 ? "_fps_ink_overlay" : "_sibling_ink_overlay"));
+        game._cursor = nullptr; game._fpsCounter = nullptr;
+        if (layer == 2) choices->_surfaces.pop_back();
+    }
+    int gapX = -1, gapY = -1;
+    for (int y = firstExtent.y; y < firstExtent.y + firstExtent.h && gapX < 0; ++y)
+        for (int x = firstExtent.x; x < firstExtent.x + firstExtent.w; ++x) {
+            bool occupied = false;
+            for (const auto &row : paintedRows) for (const auto &part : row.regions)
+                occupied |= x >= part.x && x < part.x + part.w && y >= part.y && y < part.y + part.h;
+            if (!occupied) { gapX = x; gapY = y; break; }
+        }
+    check(gapX >= 0 && choices->_lstResearch->getPixel(gapX - choices->_lstResearch->getX(), gapY - choices->_lstResearch->getY()) == 0,
+        "stock coarse extent contains a truly transparent pixel between glyph strokes");
+    Surface gapCover(1, 1, gapX, gapY); gapCover.setPalette(palette); gapCover.clear(90);
+    game._cursor = &gapCover; game.draw(canvas);
+    check(choices->_lstResearch->agentRows(paintedRows) && paintedRows.size() == expectedRows.size(),
+        "transparent glyph gap preserves raw complete text evidence");
+    check(choices->agentUiState(ui) && ui.rows == std::vector<std::size_t>(expectedRows.begin() + 1, expectedRows.end()),
+        "overlay in a glyph gap still suppresses the obstructed complete click-band control");
+    channel.read(); recordCase(channel, master + "_click_band_gap_overlay");
+    game._cursor = nullptr; game.draw(canvas); allExpected();
+    check(ui.sameBinding(initialUi), "unchanged actual stock paint has stable private binding");
+
+    choices->_lstResearch->setCellText(0, 0, std::string(1025, 'X')); game.draw(canvas);
+    check(choices->_lstResearch->agentRows(paintedRows) &&
+        (paintedRows.empty() || paintedRows.front().logicalIndex != 0), "clipped stock text has no complete-label witness");
+    check(choices->agentUiState(ui) && ui.rows == expectedRows && YAML::Load(ui.visible)["rows"][0]["cells"][0].IsNull(),
+        "clipped first stock label remains unknown while its unobstructed typed row control survives");
+    channel.read(); recordCase(channel, master + "_clipped_first_label_unknown");
+    choices->_lstResearch->setCellText(0, 0, labels[0]); game.draw(canvas); allExpected();
+    channel.read();
+    const auto seedBeforeRejection = RNG::getSeed();
+    channel.queue("select_research_project", "r0"); choices->fillProjectList(); game.draw(canvas); channel.frame();
+    auto rejected = channel.receive();
+    check(!rejected.empty() && YAML::Load(rejected)["status"].as<std::string>() == "unavailable" &&
+        channel.state.calls == 0 && base.getResearch().empty() && RNG::getSeed() == seedBeforeRejection,
+        "stale stock mapping refill rejects r0 before native project creation or RNG");
+    channel.read(); channel.queue("select_research_project", "r0");
+    choices->_lstResearch->setCellText(0, 0, labels[2]); game.draw(canvas);
+    choices->_lstResearch->setCellText(0, 0, labels[0]); game.draw(canvas); channel.frame();
+    rejected = channel.receive();
+    check(!rejected.empty() && YAML::Load(rejected)["status"].as<std::string>() == "unavailable" &&
+        channel.state.calls == 0 && base.getResearch().empty() && RNG::getSeed() == seedBeforeRejection,
+        "stock row text away/back rejects the stale capability despite identical restored pixels");
+    allExpected();
+    Surface fullCover(320, 200); fullCover.setPalette(palette); fullCover.clear(90);
+    game._cursor = &fullCover; game.draw(canvas);
+    const auto covered = YAML::Load(channel.read()); recordCase(channel, master + "_full_overlay");
+    check(covered["state"].as<std::string>() == "unsupported" && covered["capability"].IsNull(),
+        "fully covered stock chooser still exports unsupported and no capability");
+    game._cursor = nullptr; game.draw(canvas); allExpected();
+
+    const auto beforeSelectionSeed = RNG::getSeed(); const auto beforePushes = game.pushes;
+    perform(channel, game, canvas, "select_research_project", "r0");
+    auto *info = dynamic_cast<ResearchHarness::ResearchInfoState *>(game.top);
+    check(info && info->_rule == rules[0].get() && base.getResearch().size() == 1 &&
+        info->_project == base.getResearch().front() && game.pushes == beforePushes + 1 && RNG::getSeed() != beforeSelectionSeed,
+        "fresh stock r0 invokes ordinary first-rule creation exactly once");
+    const auto afterSelectionSeed = RNG::getSeed();
+    channel.send(channel.request); channel.controller->poll();
+    const auto duplicate = channel.receive();
+    check(!duplicate.empty() && YAML::Load(duplicate)["status"].as<std::string>() == "dispatched" &&
+        game.top == info && base.getResearch().size() == 1 && game.pushes == beforePushes + 1 && RNG::getSeed() == afterSelectionSeed,
+        "duplicate stock r0 does not create another project, push another state or consume RNG");
+    info->btnCancelClick(nullptr); game.draw(canvas);
+    check(game.top == choices && base.getResearch().empty(), "ordinary stock cancel cleans up the created project");
+    choices->_lstResearch->mouseOut(nullptr, nullptr); game.draw(canvas); allExpected();
+    SDL_Event hoverEvent = {}; hoverEvent.type = SDL_MOUSEMOTION;
+    Action hoverAction(&hoverEvent, 1, 1, 0, 0);
+    hoverAction.setMouseAction(choices->_lstResearch->getX() + 3, choices->_lstResearch->getY() + 1,
+        choices->_lstResearch->getX(), choices->_lstResearch->getY());
+    choices->_lstResearch->mouseOver(&hoverAction, nullptr);
+    check(choices->_lstResearch->getSelectedRow() == 0, "ordinary stock hover selects the first physical row");
+    choices->onSelectProject(nullptr);
+    info = dynamic_cast<ResearchHarness::ResearchInfoState *>(game.top);
+    check(info && info->_rule == rules[0].get() && base.getResearch().size() == 1,
+        "ordinary mouse callback and semantic r0 choose the identical first stock rule");
+    info->btnCancelClick(nullptr); game.draw(canvas);
+    check(SDL_GetVideoSurface() == nullptr && !(SDL_WasInit(SDL_INIT_VIDEO)), "stock-order regression uses no GUI or real Game");
+    std::cout << master << (master == "xcom1" ? " full stock new-research order PASS " :
+        " full stock unknown-label control plus isolated Gauss positive PASS ") << checks - startChecks << " checks\n";
+}
 }
 int main(int argc, char **argv)
 {
@@ -321,6 +587,7 @@ int main(int argc, char **argv)
     SDL_Color palette[256]; for (int i = 0; i < 256; ++i) palette[i] = {Uint8(i), Uint8(i), Uint8(i), 0};
     for (const std::string master : {"xcom1", "xcom2"}) {
         Language language; language.loadFile(std::string(argv[1]) + "/bin/standard/" + master + "/Language/en-US.yml");
+        stockNewResearchOrder(argv[1], master, big, small, language, palette);
         std::vector<std::unique_ptr<RuleResearch>> rules;
         const std::string ruleName = master == "xcom1" ? "STR_LASER_PISTOL" : "STR_GAUSS_PISTOL";
         for (unsigned i = 0; i < 40; ++i) {

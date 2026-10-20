@@ -15,7 +15,7 @@ from test_agent_inventory_control import InventoryFixture, inventory
 
 class InventoryCapacityValidationTests(unittest.TestCase):
     def test_exact_identity_capacity_and_unchanged_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/18')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/19')
         self.assertEqual(a.INVENTORY_TARGET_HANDLES, tuple(f'v{i}' for i in range(96)))
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (82, 36, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
@@ -23,7 +23,7 @@ class InventoryCapacityValidationTests(unittest.TestCase):
         self.assertEqual(a.ERROR_SCHEMA, 'openxcom-mcp-agent-control-error/1')
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.18.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.19.0')
 
     def test_full_stock_85_and_capacity_96_accepted_in_state_result_and_event(self):
         for count in (85, 96):

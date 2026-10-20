@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "AgentUi.h"
+#include <algorithm>
 #include "../Engine/Surface.h"
 #include "../Engine/Options.h"
 #include "../Interface/Text.h"
@@ -42,11 +43,12 @@ bool AgentUiState::offers(const std::string &id) const
 }
 bool agentProjectList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection,
-    const std::function<bool(const AgentUiState &)> &regionAllowed, bool allowMultiColumnSelection)
+    const std::function<bool(const AgentUiState &)> &regionAllowed, bool allowMultiColumnSelection, bool allowUnknownTextControls)
 {
     projection = AgentListProjection();
     std::vector<AgentListRow> rows;
-    if (!list || !owner || !agentWidgetVisible(list) || !list->agentRows(rows)) return false;
+    if (!list || !owner || !agentWidgetVisible(list) ||
+        !(allowUnknownTextControls ? (selectable && columns == 1 && list->agentControlRows(rows)) : list->agentRows(rows))) return false;
     ui.widgets.push_back(std::make_pair(list, list->agentListRevision()));
     projection.rows = "[";
     unsigned count = 0;
@@ -54,9 +56,10 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
     {
         if (count == 32) break;
         if (row.cells.size() != columns || (selectable &&
-            ((columns != 1 && (!allowMultiColumnSelection || (columns != 2 && columns != 3 && columns != 5))) || row.cells[0].empty()))) continue;
+            ((columns != 1 && (!allowMultiColumnSelection || (columns != 2 && columns != 3 && columns != 5))) || ((!allowUnknownTextControls || row.completeText) && row.cells[0].empty())))) continue;
         std::vector<AgentUiRect> regions;
-        for (const SDL_Rect &r : row.regions) regions.push_back({r.x, r.y, r.w, r.h});
+        if (allowUnknownTextControls) regions.push_back({row.bounds.x, row.bounds.y, row.bounds.w, row.bounds.h});
+        else for (const SDL_Rect &r : row.regions) regions.push_back({r.x, r.y, r.w, r.h});
         if (!agentRegionsUncovered(regions, owner, paintOrder)) continue;
         AgentUiState candidate;
         candidate.regions = regions;
@@ -64,13 +67,21 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
         const std::size_t oldSize = ui.regions.size();
         ui.regions.insert(ui.regions.end(), regions.begin(), regions.end());
         if (!agentRegionsDisjoint(ui)) { ui.regions.resize(oldSize); continue; }
-        if (!count && selectable) projection.firstLabel = row.cells[0];
+        bool completeText = row.completeText;
+        if (allowUnknownTextControls && completeText)
+        {
+            AgentUiState label;
+            for (const SDL_Rect &r : row.labelRegions) label.regions.push_back({r.x, r.y, r.w, r.h});
+            completeText = agentRegionsUncovered(label.regions, owner, paintOrder) &&
+                (!regionAllowed || regionAllowed(label));
+        }
+        if (!count && selectable && completeText) projection.firstLabel = row.cells[0];
         if (count) projection.rows += ",";
         projection.rows += "{\"handle\":\"r" + std::to_string(count++) + "\",\"cells\":[";
         for (unsigned i = 0; i < columns; ++i)
         {
             if (i) projection.rows += ",";
-            projection.rows += agentJsonString(row.cells[i]);
+            projection.rows += allowUnknownTextControls && !completeText ? "null" : agentJsonString(row.cells[i]);
         }
         projection.rows += std::string("],\"selected\":") + (selectable && row.selected ? "true" : "false") + "}";
         ui.rows.push_back(row.logicalIndex);
@@ -190,15 +201,30 @@ bool agentRegionsUncovered(const std::vector<AgentUiRect> &regions, const Surfac
 }
 bool agentRegionsDisjoint(const AgentUiState &ui)
 {
-    for (std::size_t i = 0; i < ui.regions.size(); ++i)
-        for (std::size_t j = i + 1; j < ui.regions.size(); ++j)
+    // Same strict rectangle predicate, y-swept to keep opaque ink runs bounded.
+    // These are private presentation regions, never public pixel data.
+    if (ui.regions.size() > 16384) return false;
+    std::vector<AgentUiRect> sorted = ui.regions, active;
+    std::sort(sorted.begin(), sorted.end(), [](const AgentUiRect &a, const AgentUiRect &b) {
+        return a.y != b.y ? a.y < b.y : a.x < b.x;
+    });
+    size_t work = 0;
+    for (const AgentUiRect &a : sorted)
+    {
+        active.erase(std::remove_if(active.begin(), active.end(), [&](const AgentUiRect &b) {
+            return b.y + b.height <= a.y;
+        }), active.end());
+        for (const AgentUiRect &b : active)
         {
-            const AgentUiRect &a = ui.regions[i], &b = ui.regions[j];
+            if (++work > 2 * 1024 * 1024) return false;
             if (a.x < b.x + b.width && a.x + a.width > b.x &&
                 a.y < b.y + b.height && a.y + a.height > b.y) return false;
         }
+        active.push_back(a);
+    }
     return true;
 }
+
 std::string agentButtonLabel(const TextButton *widget)
 {
     return agentWidgetVisible(widget) ? widget->agentLabel() : std::string();

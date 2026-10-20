@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/18"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/19"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/18\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/19\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {

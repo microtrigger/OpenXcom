@@ -179,14 +179,14 @@ bool NewResearchListState::agentUiState(Observer::AgentUiState &out) const
     };
     const std::string title = text(_txtTitle);
     Observer::AgentListProjection list;
-    if (!Observer::agentProjectList(_lstResearch, _lstResearch, painted, 1, true, out, list, regionAllowed, true)) return false;
+    if (!Observer::agentProjectList(_lstResearch, _lstResearch, painted, 1, true, out, list, regionAllowed, true, true)) return false;
     for (const std::size_t row : out.rows)
     {
         if (row >= _projects.size()) return false;
         out.widgets.push_back(std::make_pair(_projects[row], 0));
     }
-    if (title != "null" && !out.rows.empty() && !list.firstLabel.empty())
-        out.actions.push_back(Observer::AgentUiAction("select_research_project", list.firstLabel, "visible_text", "project_row"));
+    if (title != "null" && !out.rows.empty())
+        out.actions.push_back(Observer::AgentUiAction("select_research_project", "Select research project", "visible_control_semantics", "project_row"));
     out.context.push_back(list.up ? 1 : 0);
     out.context.push_back(list.down ? 1 : 0);
     if (list.up || list.down)
@@ -219,7 +219,7 @@ bool NewResearchListState::agentDispatch(const Observer::AgentRequest &request)
             if (request.choice == "r" + std::to_string(slot))
             {
                 const std::size_t row = current.rows[slot];
-                if (row >= _projects.size() || !_lstResearch->agentSelectProjectRow(row)) return false;
+                if (row >= _projects.size() || !_lstResearch->agentSelectProjectRow(row, true)) return false;
                 selectProject(row);
                 return true;
             }

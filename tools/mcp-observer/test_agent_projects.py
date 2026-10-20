@@ -24,6 +24,7 @@ def descriptors(obj, ids):
     visible=obj['visible'];buttons={x['id']:x['label'] for x in visible['buttons']}
     mapping=a.PROJECT_BUTTON_ACTIONS.get(obj['state'],a.BASE_BUTTON_ACTIONS.get(obj['state'],{}))
     def label(action):
+        if obj['state']=='new_research' and action=='select_research_project':return 'Select research project'
         if action==a.PROJECT_SELECTION_ACTIONS.get(obj['state']):return visible['rows'][0]['cells'][0]
         if action==a.PROJECT_STAFF_ACTIONS.get(obj['state']):return next(buttons[x] for x in a.STAFF_DIRECTIONS if x in buttons)
         return buttons[mapping[action]] if action in mapping else 'Scroll list'
@@ -48,7 +49,7 @@ def sized_project(size):
 
 class ProjectsContractTests(unittest.TestCase):
     def test_wire_catalog_limits_and_exact_new_kinds(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/18')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/19')
         self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(82,36,4))
         self.assertEqual(len(NEW_STATES),7);self.assertEqual(len(NEW_ACTIONS),16)
         typed={'select_research_project':'project_row','select_production_project':'project_row',
@@ -57,7 +58,7 @@ class ProjectsContractTests(unittest.TestCase):
         self.assertEqual((a.MAX_COMMANDS,a.EVENT_CAPACITY,a.MAX_TEXT_PACKET,a.MAX_PACKET),(256,256,32768,49152))
 
     def test_every_prior_wire_rejected(self):
-        for version in range(1,18):
+        for version in range(1,19):
             obj=state(screen='research');obj['schema']=f'openxcom-agent-control/{version}'
             with self.subTest(version=version),self.assertRaises(Unavailable):checked(obj)
             with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
@@ -100,7 +101,7 @@ class ProjectsContractTests(unittest.TestCase):
                     if bad['visible'][key]==obj['visible'][key]:continue
                     if summary==0 and key=='summary' and change==-1:continue
                     with self.subTest(screen=screen,key=key,change=change),self.assertRaises(Unavailable):checked(bad)
-            for cells in ([],['x']*(columns+1),[None]*columns):
+            for cells in ([],['x']*(columns+1))+(() if screen=='new_research' else ([None]*columns,)):
                 bad=copy.deepcopy(obj);bad['visible']['rows'][0]['cells']=cells
                 with self.assertRaises(Unavailable):checked(bad)
 
@@ -177,7 +178,7 @@ class ProjectsContractTests(unittest.TestCase):
         for screen in ('basescape',)+NEW_STATES:
             for descriptor in state(screen=screen)['actions']:
                 if descriptor['id'] not in NEW_ACTIONS:continue
-                for key,value in [('label','Unshown interpretation'),('label_source','visible_control_semantics'),('argument_kind','none' if descriptor['argument_kind']!='none' else 'project_row')]:
+                for key,value in [('label','Unshown interpretation'),('label_source','visible_text' if descriptor['label_source']=='visible_control_semantics' else 'visible_control_semantics'),('argument_kind','none' if descriptor['argument_kind']!='none' else 'project_row')]:
                     obj=state(screen=screen);next(x for x in obj['actions'] if x['id']==descriptor['id'])[key]=value
                     with self.subTest(screen=screen,action=descriptor['id'],key=key),self.assertRaises(Unavailable):checked(obj)
 

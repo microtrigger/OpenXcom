@@ -20,10 +20,11 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/18", "viewport schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/18\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/19", "viewport schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/19\",\"mode\":\"agent-control\"",
         "viewport envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/18", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/19", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/18", r), "prior complete-label-only schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/17", r), "prior geoscape schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/16", r), "previous viewport schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/15", r), "prior inventory schema rejected");
@@ -42,7 +43,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/18\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/19\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";

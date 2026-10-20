@@ -29,13 +29,16 @@ namespace OpenXcom
 {
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-// A complete painted row. logicalIndex and geometry are private grant bindings,
+// A painted row. logicalIndex and geometry are private grant bindings,
 // never protocol fields; the owning state allocates its own grant-local rN slots.
 struct AgentListRow
 {
 	size_t logicalIndex;
 	std::vector<std::string> cells;
 	bool selected;
+	bool completeText = true;
+	std::vector<SDL_Rect> labelRegions;
+	// Private opaque ink runs; dotted-content bounds remain conservative.
 	std::vector<SDL_Rect> regions;
 	SDL_Rect bounds;
 };
@@ -80,8 +83,10 @@ private:
 	void activateRow(Action *action, State *state, Uint8 button);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	std::uint64_t _agentListRevision = 0, _agentPaintRevision = UINT64_MAX;
-	std::vector<AgentListRow> _agentDrawRows, _agentPaintRows;
+	std::vector<AgentListRow> _agentDrawRows, _agentPaintRows, _agentDrawControls, _agentPaintControls;
 	std::vector<Surface *> _agentPaintOrder;
+	bool _agentCoverageHealthy = false;
+	size_t _agentCoverageWork = 0, _agentCoverageRuns = 0;
 	void agentCaptureRow(size_t logicalIndex, int y);
 #endif
 
@@ -92,11 +97,13 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
+	// Explicit opt-in for new-research controls; text proof remains separate.
+	bool agentControlRows(std::vector<AgentListRow> &rows) const;
 	std::uint64_t agentListRevision() const { return _agentListRevision; }
 	void agentScrollControls(const Surface *&up, const Surface *&down) const;
 	bool agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state);
 	// Selection only for explicitly audited project lists; never fires callbacks.
-	bool agentSelectProjectRow(size_t logicalIndex);
+	bool agentSelectProjectRow(size_t logicalIndex, bool allowUnknownText = false);
 	void agentPaintOrder(std::vector<Surface *> &out) const;
 #endif
 	/// Creates a text list with the specified size and position.
