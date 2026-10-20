@@ -219,6 +219,13 @@ void Map::draw()
 	// we use colour 15 because that actually corresponds to the colour we DO want in all variations of the xcom and tftd palettes.
 	_redraw = false;
 	clear(Palette::blockOffset(0)+15);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentAttachProjectileRaster(&_agentProjectileRaster);
+    SDL_Surface *agentPixels = getSurface();
+    if (agentPixels->format->BitsPerPixel == 8)
+        _agentProjectileRaster.begin(_agentProjectileWitness, agentPixels->pixels, getWidth(), getHeight(), agentPixels->pitch);
+    else _agentProjectileWitness.invalidate();
+#endif
 
 	Tile *t;
 
@@ -258,6 +265,7 @@ void Map::draw()
 #endif
 	}
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentProjectileWitness.seal(Observer::agentPaintHealthy() && !hiddenMovement);
     AgentCameraRect messageRegion;
     _agentDrawSnapshot = _camera->agentViewportSnapshot(getX(), getY(), hiddenMovement,
         hiddenMovement ? _message->agentPaintedLabel(getWidth(), _visibleMapHeight, messageRegion) : std::string());
@@ -901,7 +909,13 @@ void Map::drawTerrain(Surface *surface)
 											_camera->convertVoxelToScreen(voxelPos, &bulletPositionScreen);
 											bulletPositionScreen.x -= tmpSurface->getWidth() / 2;
 											bulletPositionScreen.y -= tmpSurface->getHeight() / 2;
-											tmpSurface->blitNShade(surface, bulletPositionScreen.x, bulletPositionScreen.y, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                                        _agentProjectileRaster.body(true);
+#endif
+                                        tmpSurface->blitNShade(surface, bulletPositionScreen.x, bulletPositionScreen.y, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                                        _agentProjectileRaster.body(false);
+#endif
 										}
 									}
 								}
@@ -1854,3 +1868,15 @@ void Map::disableObstacles(void)
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+Observer::AgentProjectileFact Map::agentProjectileFact(const Screen *screen,
+    const std::function<bool(int, int)> &pixelAdmitted) const
+{
+    AgentMapSnapshot view;
+    if (!screen || !agentMapSnapshot(view) || view.hiddenMovement) return Observer::AgentProjectileFact::Unknown;
+    return screen->agentProjectileFact(_agentProjectileWitness, this, view.height, pixelAdmitted);
+}
+}
+#endif

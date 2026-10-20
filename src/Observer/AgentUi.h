@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "AgentProtocol.h"
+#include "AgentProjectileWitness.h"
 #include <vector>
 #include <utility>
 namespace OpenXcom {
@@ -25,6 +26,8 @@ struct AgentUiState {
     // Empty means unknown/not a report, never proof that an old report ended.
     std::string displayedMessage;
     bool displayedMessageAbsent = false;
+    // Transient final-frame evidence; excluded from payload and action binding.
+    AgentProjectileFact projectileFact = AgentProjectileFact::Unknown;
     std::vector<AgentUiAction> actions;
     // Visible projection regions: private geometry binding and overlay checks.
     std::vector<AgentUiRect> regions;

@@ -2,6 +2,7 @@
 #pragma once
 #include "AgentProtocol.h"
 #include "AgentDisplayedMessages.h"
+#include "AgentProjectileWitness.h"
 #include <algorithm>
 #include <cstdint>
 #include <deque>
@@ -23,6 +24,7 @@ public:
 private:
     std::string _epoch, _lastPresentation;
     AgentDisplayedMessages _messages;
+    AgentProjectileEpisodes _projectiles;
     std::uint64_t _newest = 0;
     std::deque<Record> _records;
     // Conservative canonical-ASCII upper bound without interpreting strings.
@@ -61,6 +63,11 @@ public:
     {
         const std::string body = _messages.observe(text, knownAbsent);
         return body.empty() || append(body);
+    }
+    bool projectile(AgentProjectileFact fact)
+    {
+        return !_projectiles.observe(fact) || append("\"kind\":\"projectile_presented\",\"semantics\":\"ordinary_renderer_visible_contribution\","
+            "\"source\":null,\"actor\":null,\"faction\":null,\"world_position\":null,\"hit\":null,\"damage\":null");
     }
     bool read(const std::string &epoch, std::uint64_t after, unsigned limit, Page &page) const
     {

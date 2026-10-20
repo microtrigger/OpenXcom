@@ -16,7 +16,7 @@ class DebriefArchitecture(unittest.TestCase):
  def test_table_limit(self): self.assertIn('table_status',PROVIDER);self.assertIn('unavailable',PROVIDER)
  def test_normal_handler(self): self.assertIn('btnOkClick(nullptr);',PROVIDER);self.assertNotIn('setState(',PROVIDER)
  def test_skirmish_main_menu(self): self.assertIn('getMonthsPassed() == -1',CPP);self.assertIn('_game->setState(new MainMenuState);',CPP)
- def test_schema(self): self.assertIn('openxcom-agent-control/8',PROTO);self.assertNotIn('openxcom-agent-control/7',PROTO)
+ def test_schema(self): self.assertIn('openxcom-agent-control/9',PROTO);self.assertNotIn('openxcom-agent-control/7',PROTO)
  def test_no_unwitnessed_state(self): self.assertIn("return !out.regions.empty()",PROVIDER)
  def test_no_stats_action(self): self.assertNotIn('AgentUiAction("show',PROVIDER)
 if __name__=='__main__':unittest.main()

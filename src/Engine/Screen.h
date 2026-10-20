@@ -1,6 +1,9 @@
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 	#pragma once
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentProjectileWitness.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include <cstdint>
 #endif
 /*
@@ -106,6 +109,8 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentPresentationReady() const;
+    Observer::AgentProjectileFact agentProjectileFact(const Observer::AgentProjectileWitness &witness,
+        const Surface *map, int visibleHeight, const std::function<bool(int, int)> &pixelAdmitted) const;
     std::uint64_t agentDisplayRevision() const { return _agentDisplayRevision; }
 #endif
 #ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS

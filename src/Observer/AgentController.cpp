@@ -344,6 +344,7 @@ void AgentController::presented()
     // Only the explicitly admitted map provider proves report absence.
     // Unsupported, covered, incomplete and other state types remain unknown.
     if (!_publicEvents.displayedMessage(ui.displayedMessage, ui.displayedMessageAbsent)) { close(); return; }
+    if (!_publicEvents.projectile(ui.projectileFact)) { close(); return; }
     if (_queued.active())
     {
         dispatchQueued(ui);

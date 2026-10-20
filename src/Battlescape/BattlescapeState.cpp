@@ -2737,6 +2737,9 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
     // A private draw branch cannot survive complete public occlusion. A
     // missing/clipped/covered message must not disclose Hidden Movement.
     if (!agentMapModeAdmitted(view, label != "null", count)) return unavailable;
+    if (!view.hiddenMovement)
+        ui.projectileFact = map->agentProjectileFact(game->getScreen(),
+            [&](int x, int y) { return clear(x, y, 1, 1); });
     return std::string("{\"mode\":\"") + (view.hiddenMovement ? "hidden_movement" : "map") +
         "\",\"viewport\":{\"x\":" + std::to_string(view.x) + ",\"y\":" + std::to_string(view.y) +
         ",\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +

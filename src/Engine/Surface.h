@@ -22,6 +22,9 @@
 #include <string>
 #include <vector>
 #include "GraphSubset.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentProjectileWitness.h"
+#endif
 
 namespace OpenXcom
 {
@@ -45,6 +48,9 @@ protected:
 	bool _visible, _hidden, _redraw, _tftdMode;
 	void *_alignedBuffer;
 	std::string _tooltip;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentProjectileRaster *_agentProjectileRaster = nullptr;
+#endif
 
 	/// Copies raw pixels.
 	template <typename T>
@@ -137,6 +143,7 @@ public:
 	/// Gets the surface's visibility.
     bool getVisible() const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void agentAttachProjectileRaster(Observer::AgentProjectileRaster *raster) { _agentProjectileRaster = raster; }
     virtual bool agentContextVisible() const { return _visible && !_hidden && !_redraw && !_crop.w && !_crop.h; }
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
@@ -163,6 +170,9 @@ public:
 		{
 			return;
 		}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (_agentProjectileRaster) _agentProjectileRaster->wrote(getRaw(x, y), *getRaw(x, y), pixel);
+#endif
 		*getRaw(x, y) = pixel;
 	}
 	/**

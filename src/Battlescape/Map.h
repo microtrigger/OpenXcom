@@ -23,6 +23,7 @@
 #include <vector>
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "CameraProjection.h"
+#include "../Observer/AgentProjectileWitness.h"
 #endif
 
 namespace OpenXcom
@@ -36,6 +37,7 @@ class Projectile;
 class Explosion;
 class BattlescapeMessage;
 class Camera;
+class Screen;
 class Timer;
 class Text;
 class Tile;
@@ -64,6 +66,8 @@ class Map : public InteractiveSurface
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     AgentMapSnapshot _agentDrawSnapshot;
+    Observer::AgentProjectileWitness _agentProjectileWitness;
+    Observer::AgentProjectileRaster _agentProjectileRaster;
     bool _agentDrawSnapshotReady = false;
     std::uint64_t _agentDrawViewRevision = 0;
     int _agentDrawSurfaceHeight = 0;
@@ -104,6 +108,8 @@ public:
     // Draw provenance only. The owning state must additionally qualify final
     // presentation and later overlays before exporting this viewport.
     bool agentMapSnapshot(AgentMapSnapshot &out) const;
+    Observer::AgentProjectileFact agentProjectileFact(const Screen *screen,
+        const std::function<bool(int, int)> &pixelAdmitted) const;
 #endif
 	/// Creates a new map at the specified position and size.
 	Map(Game* game, int width, int height, int x, int y, int visibleMapHeight);
