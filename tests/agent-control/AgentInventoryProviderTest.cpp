@@ -63,6 +63,7 @@ int main(int argc,char**argv){
  InventoryHarness::Inventory inv;inv.warning.initText(&big,&small,&language);inv.warning.setColor(16);inv.warning.setTextColor(40);
  SDL_Color colors[256];for(int i=0;i<256;++i)colors[i]={Uint8(i),Uint8(i),Uint8(i),0};
  for(Surface*s:{&canvas,&background,&ok,&unload,&page,static_cast<Surface*>(&inv),&inv.grid,&inv.items,&inv.selection,static_cast<Surface*>(&inv.warning),static_cast<Surface*>(&name),static_cast<Surface*>(&tus),static_cast<Surface*>(&weight),static_cast<Surface*>(&item),static_cast<Surface*>(&ammo)})s->setPalette(colors);
+ check(SDL_SetColorKey(canvas.getSurface(),0,0)==0,"actual Screen logical destination has no color key");
  background.clear(1);ok.clear(30);unload.clear(30);page.clear(30);for(int y=0;y<15;++y)page.setPixel(31,y,0);
  inv.agentCaptureTarget(0,63,32,48,"hand");inv.agentCaptureTarget(128,63,32,48,"hand");inv.agentCaptureTarget(0,152,16,16,"ground");
  auto grids=[&](){inv.grid.clear();for(const auto&t:inv._agentTargets){auto&r=t.rect;SDL_Rect q={Sint16(r.x),Sint16(r.y),Uint16(r.width+(t.area=="ground")),Uint16(r.height+(t.area=="ground"))};inv.grid.drawRect(&q,20);++q.x;++q.y;q.w-=2;q.h-=2;inv.grid.drawRect(&q,0);}inv._agentGridReady=true;};grids();inv.items.setPixel(10,75,30);
@@ -75,6 +76,13 @@ int main(int argc,char**argv){
  check(ui.visible.find("\"item_name\":\"Rifle\"")!=std::string::npos&&ui.visible.find("\"ammo\":\"Rounds> 20\"")!=std::string::npos,"actual displayed hover strings only");
  check(ui.points.size()==3&&ui.visible.find("\"item\":\"presented\"")!=std::string::npos,"painted local controls and item-layer contribution");
  check(ui.offers("close_inventory")&&ui.offers("unload_inventory")&&ui.offers("next_inventory_ground_page")&&ui.offers("inventory_hover")&&ui.offers("inventory_activate")&&!ui.offers("cancel_inventory_hold"),"only observed prerequisites, unload ordinary eligibility not predicted");
+ // Same normal formatted widget, with fully drawn ink, loses only renderer tokens.
+ tus.setText(std::string("TU>")+char(1)+"50");draw();check(state.agentUiState(ui)&&ui.visible.find("\"time_units\":\"TU>50\"")!=std::string::npos,"painted color token normalized to public text");
+ Text multiline(80,40,0,0);multiline.initText(&big,&small,&language);multiline.setPalette(colors);multiline.setColor(40);multiline.setBig();multiline.setText(std::string("A")+char(2)+"B");multiline.draw();
+ check(agentInventoryTextJson(&multiline)=="\"A\\u000aB\"","drawn small-font newline becomes visible linebreak");
+ multiline.setText(std::string(100,'W')+char(1)+"50");multiline.draw();check(agentInventoryTextJson(&multiline)=="null","normalization cannot rescue genuinely clipped ink");
+ std::string shown;for(const std::string raw:{std::string("A")+char(3)+"B",std::string("A\tB"),std::string("A")+char(127)+"B",std::string("A\302\205B")})check(!agentInventoryRenderedText(raw,shown),"unknown non-rendered control refused");
+ tus.setText("TUs> 60");draw();check(state.agentUiState(ui),"ordinary unformatted text retained");
  const auto original=ui;draw();check(state.agentUiState(ui)&&original.sameBinding(ui),"idle paint retains action binding");
  inv._agentInventoryRevision+=2;draw();check(state.agentUiState(ui)&&!original.sameBinding(ui)&&original.payload()==ui.payload(),"held/page ABA private generation cannot restore grant or leak to payload");
  saved.selected=&other;check(!state.agentBindingCurrent(ui),"selected actor replacement invalidates");saved.selected=&unit;check(state.agentBindingCurrent(ui),"matching private actor binding current");

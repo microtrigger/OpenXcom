@@ -32,6 +32,7 @@ int main(){
  Inventory inv;Surface background(320,200),outside(640,400);
  SDL_Color colors[256];for(int i=0;i<256;++i)colors[i]={Uint8(i),Uint8(i),Uint8(i),0};
  for(Surface*s:{static_cast<Surface*>(&inv),&inv.grid,&inv.items,&inv.selection,&inv.warning,&background,&outside})s->setPalette(colors);
+ check(SDL_SetColorKey(background.getSurface(),0,0)==0 && agentInventoryDestination(&background) && !agentInventoryLayer(&background),"Screen-shaped opaque destination is distinct from keyed source");
  background.clear(1);inv.agentCaptureTarget(0,63,32,48,"hand");inv.agentCaptureTarget(128,63,32,48,"hand");inv.agentCaptureTarget(0,152,16,16,"ground");
  check(inv._agentTargets.size()==3,"bounded stock controls");
  inv.agentCaptureTarget(1,63,32,48,"hand");inv.agentCaptureTarget(0,151,16,16,"ground");inv.agentCaptureTarget(400,152,16,16,"ground");
@@ -44,6 +45,22 @@ int main(){
  check(inv.agentProjectionReady(),"actual full-layer composition ready");
  for(const auto&t:inv._agentTargets)check(inv.agentGridVisible(t),"actual contrasting four grid edges");
  check(!inv.agentItemsVisible(inv._agentTargets[0].rect),"blank item layer has no presented contribution");
+ // Reproduce /11's live failure and verify malformed destinations stay closed.
+ auto absent=[&](){for(const auto&t:inv._agentTargets)check(!inv.agentGridVisible(t),"unproved destination withholds every grid target");};
+ SDL_SetColorKey(background.getSurface(),SDL_SRCCOLORKEY,0);paint();absent();
+ check(!agentInventoryDestination(&background)&&agentInventoryLayer(&background),"keyed destination no longer masquerades as Screen output");
+ SDL_SetColorKey(background.getSurface(),0,0);background.invalidate();paint();absent();background.invalidate(false);
+ background.getCrop()->w=1;paint();absent();background.resetCrop();
+ auto destinationClip=background.getSurface()->clip_rect;--background.getSurface()->clip_rect.w;paint();absent();background.getSurface()->clip_rect=destinationClip;
+ SDL_SetAlpha(background.getSurface(),SDL_SRCALPHA,128);paint();absent();SDL_SetAlpha(background.getSurface(),0,255);
+ background.setX(1);paint();absent();background.setX(0);
+ background.setHidden(true);paint();absent();background.setHidden(false);
+ check(SDL_LockSurface(background.getSurface())==0,"destination lock test setup");inv.agentCaptureItems(&background);absent();SDL_UnlockSurface(background.getSurface());
+ Surface truecolor(320,200,0,0,32);SDL_SetColorKey(truecolor.getSurface(),0,0);inv.agentCaptureItems(&truecolor);absent();
+ SDL_SetColorKey(inv.items.getSurface(),0,0);paint();absent();SDL_SetColorKey(inv.items.getSurface(),SDL_SRCCOLORKEY,0);
+ SDL_SetColorKey(inv.items.getSurface(),SDL_SRCCOLORKEY,7);paint();absent();SDL_SetColorKey(inv.items.getSurface(),SDL_SRCCOLORKEY,0);
+ background.clear(1);paint();for(const auto&t:inv._agentTargets)check(inv.agentGridVisible(t),"same opaque Screen-shaped destination restored after negative cases");
+
  inv.items.setPixel(10,75,30);background.clear(1);paint();
  check(inv.agentItemsVisible(inv._agentTargets[0].rect),"actual item-layer contribution admitted");
  check(!inv.agentItemsVisible(inv._agentTargets[1].rect),"other hand never inferred from inventory model");

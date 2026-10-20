@@ -795,7 +795,7 @@ bool InventoryState::agentUiState(Observer::AgentUiState &out) const
         return true;
     };
     const auto text = [&](const Text *widget) -> std::string {
-        const std::string value = agentTextJson(widget);
+        const std::string value = agentInventoryTextJson(widget);
         if (value == "null" || !agentWidgetUncovered(widget, preceding)) return "null";
         SDL_Rect ink;
         if (!widget->agentPaintedBounds(ink)) return value == "\"\"" ? value : "null";
@@ -817,8 +817,9 @@ bool InventoryState::agentUiState(Observer::AgentUiState &out) const
     {
         name = text(_txtName); tus = text(_txtTus); weight = text(_txtWeight);
         item = text(_txtItem); ammo = text(_txtAmmo);
-        const std::string message = _inv->_warning->agentMessage();
-        if (!message.empty())
+        const std::string rawMessage = _inv->_warning->agentMessage();
+        std::string message;
+        if (!rawMessage.empty() && agentInventoryRenderedText(rawMessage, message) && !message.empty())
         {
             const AgentUiRect r = {_inv->_warning->getX(),_inv->_warning->getY(),_inv->_warning->getWidth(),_inv->_warning->getHeight()};
             if (include(r)) { warning = agentJsonString(message); out.displayedMessage = message; }

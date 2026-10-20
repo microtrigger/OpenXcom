@@ -264,7 +264,7 @@ void Inventory::drawGrid()
 		text.setText(_game->getLanguage()->getString(i->second->getId()));
 		text.blit(_grid);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-        const std::string label = Observer::agentTextJson(&text);
+        const std::string label = Observer::agentInventoryTextJson(&text);
         SDL_Rect ink;
         if (label != "null" && text.agentPaintedBounds(ink))
             for (AgentTarget &target : _agentTargets)
@@ -1318,7 +1318,7 @@ void Inventory::agentCaptureItems(const Surface *destination)
     _agentShownGridInk.assign(320 * 200, 0);
     if (!Observer::agentInventoryLayer(this) || !Observer::agentInventoryLayer(_grid) ||
         !Observer::agentInventoryLayer(_items) || !Observer::agentInventoryLayer(_selection) ||
-        !Observer::agentInventoryLayer(destination) || getX() || getY() || getWidth() != 320 || getHeight() != 200 ||
+        !Observer::agentInventoryDestination(destination) || getX() || getY() || getWidth() != 320 || getHeight() != 200 ||
         destination->getWidth() < 320 || destination->getHeight() < 200) return;
     const auto color = [](const Surface *surface, unsigned index) -> unsigned {
         const SDL_Color &c = surface->getSurface()->format->palette->colors[index];
