@@ -59,7 +59,7 @@ class StrategyFixture(NativeFixture):
 
 class GeoscapeContractTests(unittest.TestCase):
     def test_exact_wire_catalog_and_argument_domains(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/22')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/23')
         self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(96,41,4))
         self.assertEqual(a.GEOSCAPE_SPEED_HANDLES,tuple(f's{i}' for i in range(6)))
         self.assertEqual(a.BASE_TARGET_HANDLES,tuple(f'b{i}' for i in range(8)))

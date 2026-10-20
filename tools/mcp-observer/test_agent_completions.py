@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-19.
-"""Wire22 completion DTO contracts; socket fixtures are synthetic, not native/live proof."""
+"""Retained completion DTO contracts on wire23; socket fixtures are synthetic, not native/live proof."""
 import copy
 import itertools
 import json
@@ -60,14 +60,14 @@ def canonical_size(obj):
 def sized_arrival(size, event=False):
     """Build an exact ASCII envelope without exceeding any individual cell limit."""
     obj = presentation('items_arriving') if event else state(screen='items_arriving')
-    obj['visible']['rows'] = [dict(handle=f'r{i}', cells=['', '', ''], selected=False) for i in range(32)]
+    obj['visible']['rows'] = [dict(handle=f'r{i}', cells=['x', '', ''], selected=False) for i in range(32)]
     left = size - canonical_size(obj)
     if left < 0:
         raise ValueError('Envelope is already larger than requested size')
     for row in obj['visible']['rows']:
         for index in range(3):
-            count = min(left, 1024)
-            row['cells'][index] = 'x' * count
+            count = min(left, 1024 - len(row['cells'][index]))
+            row['cells'][index] += 'x' * count
             left -= count
     if left:
         raise ValueError('Requested size exceeds cell capacity')
@@ -76,7 +76,7 @@ def sized_arrival(size, event=False):
 
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/22')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/23')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (96, 41, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
@@ -85,7 +85,7 @@ class CompletionContractTests(unittest.TestCase):
         for screen, actions in ACTION_BUTTONS.items():
             expected = set(actions) | ({'scroll_visible_list'} if screen == 'items_arriving' else set())
             self.assertEqual(a.STATE_ACTIONS[screen], expected)
-        for version in range(1, 22):
+        for version in range(1, 23):
             obj = state(screen='production_complete'); obj['schema'] = f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable):
                 checked(obj)
@@ -118,7 +118,7 @@ class CompletionContractTests(unittest.TestCase):
                 with self.subTest(screen=screen, extra=key), self.assertRaises(Unavailable):
                     checked(bad)
 
-    def test_arrival_headings_nullable_but_three_cells_are_nonnull_strings(self):
+    def test_arrival_headings_nullable_and_three_cells_keep_known_text(self):
         obj = state(screen='items_arriving')
         obj['visible'].update(title=None, headings=[None, '', 'Quantity'])
         obj['visible']['rows'][0]['cells'] = ['', '\x01not a number', '∞']

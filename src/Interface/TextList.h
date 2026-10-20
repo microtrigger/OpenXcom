@@ -49,6 +49,13 @@ struct AgentPurchaseRow
 	bool selected = false;
 	const Surface *increase = nullptr, *decrease = nullptr;
 };
+// Explicit arrivals-only readout; no row activation or hidden identity export.
+struct AgentArrivalRow
+{
+	size_t logicalIndex;
+	AgentPurchaseCell cells[3];
+	SDL_Rect bounds;
+};
 struct AgentListRow
 {
 	size_t logicalIndex;
@@ -104,6 +111,9 @@ private:
 	std::vector<AgentListRow> _agentDrawRows, _agentPaintRows, _agentDrawControls, _agentPaintControls;
 	std::vector<Surface *> _agentPaintOrder;
 	std::vector<AgentPurchaseRow> _agentDrawPurchaseRows, _agentPaintPurchaseRows;
+	std::vector<AgentArrivalRow> _agentDrawArrivalRows, _agentPaintArrivalRows;
+	bool _agentArrivalCells = false;
+	SDL_Rect _agentArrivalClip = {};
 	SDL_Rect _agentPurchaseClip = {};
 	bool _agentCoverageHealthy = false;
 	size_t _agentCoverageWork = 0, _agentCoverageRuns = 0;
@@ -117,6 +127,9 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
+	// Explicitly enabled only by ItemsArrivingState before ordinary painting.
+	void agentEnableArrivalCells();
+	bool agentArrivalRows(std::vector<AgentArrivalRow> &rows) const;
 	// Purchase-only, independent text witnesses and exact painted row arrows.
 	bool agentPurchaseRows(std::vector<AgentPurchaseRow> &rows) const;
 	ScrollBar *agentPurchaseScrollbar() const;

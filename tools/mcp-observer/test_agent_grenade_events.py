@@ -34,7 +34,7 @@ def grenade_event(kind=KINDS[0], seq=1):
 
 class GrenadeEventValidationTests(unittest.TestCase):
     def test_wire15_limits_catalog_and_exact_ten_kind_union(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/22')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/23')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (96, 41, 4))
         self.assertEqual(a.INVENTORY_TARGET_HANDLES, tuple(f'v{i}' for i in range(96)))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))

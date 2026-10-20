@@ -47,6 +47,11 @@ TextList::TextList(int width, int height, int x, int y) : InteractiveSurface(wid
 																								   _bg(0), _selector(0), _margin(0), _scrolling(true), _arrowPos(-1), _scrollPos(4), _arrowType(ARROW_VERTICAL),
 																								   _leftClick(0), _leftPress(0), _leftRelease(0), _rightClick(0), _rightPress(0), _rightRelease(0), _arrowsLeftEdge(0), _arrowsRightEdge(0), _comboBox(0)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	// Even a never-populated list needs its ordinary first draw before its
+	// empty presentation can be certified. Coverage itself stays untrusted.
+	_redraw = true;
+#endif
 	_up = new ArrowButton(ARROW_BIG_UP, 13, 14, getX() + getWidth() + _scrollPos, getY());
 	_up->setVisible(false);
 	_up->setTextList(this);
@@ -994,6 +999,7 @@ void TextList::draw()
 	_agentDrawRows.clear();
 	_agentDrawControls.clear();
 	_agentDrawPurchaseRows.clear();
+	_agentDrawArrivalRows.clear();
 	_agentCoverageHealthy = true;
 	_agentCoverageWork = _agentCoverageRuns = 0;
 #endif
@@ -1031,6 +1037,8 @@ void TextList::draw()
 	// Expected masks are needed only until the last ordinary row write.
 	for (AgentPurchaseRow &row : _agentDrawPurchaseRows)
 		for (AgentPurchaseCell &cell : row.cells) cell.ink.clear();
+	for (AgentArrivalRow &row : _agentDrawArrivalRows)
+		for (AgentPurchaseCell &cell : row.cells) cell.ink.clear();
 #endif
 }
 
@@ -1045,7 +1053,9 @@ void TextList::blit(Surface *surface)
 	_agentPaintRows.clear();
 	_agentPaintControls.clear();
 	_agentPaintPurchaseRows.clear();
+	_agentPaintArrivalRows.clear();
 	_agentPurchaseClip = surface->getSurface()->clip_rect;
+	_agentArrivalClip = surface->getSurface()->clip_rect;
 	_agentPaintRevision = UINT64_MAX;
 	std::vector<std::pair<int, int> > agentSelectorChanged;
 #endif
@@ -1144,6 +1154,7 @@ void TextList::blit(Surface *surface)
 		_agentPaintRows = _agentDrawRows;
 		_agentPaintControls = _agentDrawControls;
 		_agentPaintPurchaseRows = _agentDrawPurchaseRows;
+		_agentPaintArrivalRows = _agentDrawArrivalRows;
 		const bool selectorVisible = _selector && _selector->agentContextVisible();
 		for (std::vector<AgentListRow> *group : {&_agentPaintRows, &_agentPaintControls})
 		for (AgentListRow &row : *group)
@@ -1520,7 +1531,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 	// renderer. No screen/RGB recognition or model data participates. Limits
 	// are per draw; exhaustion invalidates all row evidence for that draw.
 	const size_t maxWork = 2 * 1024 * 1024, maxRuns = 8192;
-	const auto fail = [&]() { _agentCoverageHealthy = false; _agentDrawRows.clear(); _agentDrawControls.clear(); _agentDrawPurchaseRows.clear(); };
+	const auto fail = [&]() { _agentCoverageHealthy = false; _agentDrawRows.clear(); _agentDrawControls.clear(); _agentDrawPurchaseRows.clear(); _agentDrawArrivalRows.clear(); };
 	if (!_agentCoverageHealthy) return;
 	const SDL_Surface *destination = getSurface();
 	if (getWidth() <= 0 || getHeight() <= 0 || getWidth() > 640 || getHeight() > 400 ||
@@ -1552,13 +1563,16 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 	std::vector<SDL_Rect> allInk;
 	const bool purchaseCells = !_comboBox && _selectable && _bg && _selector && !_dot &&
 		_columns.size() == 4 && _texts[logicalIndex].size() == 4 && _arrowPos != -1 && _arrowType == ARROW_VERTICAL;
+	const bool arrivalCells = _agentArrivalCells && !_comboBox && _selectable && _bg && _selector && !_dot &&
+		_columns.size() == 3 && _texts[logicalIndex].size() == 3 && _arrowPos == -1;
+	const bool independentCells = purchaseCells || arrivalCells;
 	for (const Text *cell : _texts[logicalIndex])
 	{
-		// An explicitly hidden Purchase cell paints no pixels. Its own text
+		// An explicitly hidden opted-in cell paints no pixels. Its own text
 		// stays unknown, while independent sibling cells/arrows retain proof.
-		if (purchaseCells && (!cell->getVisible() || cell->_hidden)) { cells.emplace_back(); purchaseInk.emplace_back(); continue; }
+		if (independentCells && (!cell->getVisible() || cell->_hidden)) { cells.emplace_back(); purchaseInk.emplace_back(); continue; }
 		SDL_Surface *pixels = cell->getSurface();
-		if ((!cell->agentContextVisible() && !(purchaseCells && !cell->_redraw)) || !pixels || !pixels->format ||
+		if ((!cell->agentContextVisible() && !(independentCells && !cell->_redraw)) || !pixels || !pixels->format ||
 			pixels->format->BytesPerPixel != 1 || !(pixels->flags & SDL_SRCCOLORKEY) ||
 			pixels->format->colorkey != 0 || (pixels->flags & SDL_SRCALPHA) ||
 			cell->getWidth() <= 0 || cell->getHeight() <= 0 || cell->getWidth() > 640 || cell->getHeight() > 400)
@@ -1568,12 +1582,12 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		_agentCoverageWork += work;
 		std::vector<SDL_Rect> runs;
 		std::vector<AgentPurchaseCell::Pixel> expected;
-		if (purchaseCells && (!pixels->format->palette || !pixels->format->palette->colors ||
+		if (independentCells && (!pixels->format->palette || !pixels->format->palette->colors ||
 			pixels->format->palette->ncolors != 256)) { fail(); return; }
 		const int locked = Observer::agentObservePaint(SDL_LockSurface(pixels));
 		if (locked < 0) { fail(); return; }
 		const SDL_Rect crop = cell->_crop;
-		const bool cropped = purchaseCells && (crop.w || crop.h);
+		const bool cropped = independentCells && (crop.w || crop.h);
 		for (int sy = 0; sy < cell->getHeight(); ++sy)
 		{
 			if (cropped && (sy < crop.y || sy >= crop.y + crop.h)) continue;
@@ -1585,7 +1599,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			{
 				const int dx = cell->getX() + sx - (cropped ? crop.x : 0);
 				const bool opaque = sx < cell->getWidth() && (!cropped || (sx >= crop.x && sx < crop.x + crop.w)) && dx >= 0 && dx < getWidth() && line[sx] != 0;
-				if (purchaseCells && opaque)
+				if (independentCells && opaque)
 				{
 					const SDL_Color color = pixels->format->palette->colors[line[sx]];
 					expected.push_back({static_cast<Sint16>(dx), static_cast<Sint16>(dy), color.r, color.g, color.b});
@@ -1640,6 +1654,17 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			if (!_agentCoverageHealthy) return;
 			if (!preserved) { cell.known = false; cell.regions.clear(); cell.ink.clear(); }
 		}
+	for (AgentArrivalRow &prior : _agentDrawArrivalRows)
+		for (AgentPurchaseCell &cell : prior.cells)
+		{
+			if (!cell.known) continue;
+			const bool overlap = overlaps(cell.regions, allInk);
+			if (!_agentCoverageHealthy) return;
+			if (!overlap) continue;
+			const bool preserved = unchanged(cell.ink);
+			if (!_agentCoverageHealthy) return;
+			if (!preserved) { cell.known = false; cell.regions.clear(); cell.ink.clear(); }
+		}
 	if (!_agentCoverageHealthy) return;
 	const int purchaseHeight = _font->getHeight() + _font->getSpacing();
 	if (!_comboBox && _selectable && _bg && _selector && !_dot && _columns.size() == 4 &&
@@ -1673,6 +1698,38 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			row.cells[column].ink = std::move(purchaseInk[column]);
 		}
 		_agentDrawPurchaseRows.push_back(row);
+	}
+
+	// Arrivals opt in explicitly. A complete cell remains independent of an
+	// adjacent clipped label; no substring or hidden destination is recovered.
+	if (arrivalCells && purchaseHeight > 0 && y >= 0 && y + purchaseHeight <= getHeight() &&
+		std::count(_rows.begin(), _rows.end(), logicalIndex) == 1)
+	{
+		AgentArrivalRow row;
+		row.logicalIndex = logicalIndex;
+		row.bounds = {static_cast<Sint16>(getX()), static_cast<Sint16>(getY() + y),
+			static_cast<Uint16>(getWidth()), static_cast<Uint16>(purchaseHeight)};
+		for (size_t column = 0; column < 3; ++column)
+		{
+			const Text *cell = _texts[logicalIndex][column];
+			SDL_Rect rect = {};
+			if (!cell->agentContextVisible() || !cell->getFont() || cell->getNumLines() != 1 ||
+				!cell->agentTextComplete() || cell->getTextWidth() > cell->getWidth() ||
+				cell->getTextHeight() > cell->getHeight() || cell->getText().size() > 1024) continue;
+			const bool ink = cell->agentPaintedBounds(rect);
+			if (ink && (rect.x < 0 || rect.y < 0 || rect.x + rect.w > getWidth() ||
+				rect.y + rect.h > getHeight() || cells[column].empty())) continue;
+			const bool preserved = unchanged(purchaseInk[column]);
+			if (!_agentCoverageHealthy) return;
+			if (!preserved) continue;
+			UString shown = Unicode::convUtf8ToUtf32(cell->getText());
+			shown.erase(std::remove(shown.begin(), shown.end(), Unicode::TOK_COLOR_FLIP), shown.end());
+			row.cells[column].known = true;
+			row.cells[column].text = Unicode::convUtf32ToUtf8(shown);
+			row.cells[column].regions = cells[column];
+			row.cells[column].ink = std::move(purchaseInk[column]);
+		}
+		_agentDrawArrivalRows.push_back(row);
 	}
 
 	// A control needs surviving typed ink, not a complete string. Retire every
@@ -1800,6 +1857,36 @@ bool TextList::agentRows(std::vector<AgentListRow> &rows) const
 				if (agentListOverlap(region, cover)) covered = true;
 		}
 		if (!covered) rows.push_back(row);
+	}
+	return true;
+}
+
+void TextList::agentEnableArrivalCells()
+{
+	if (!_agentArrivalCells) { _agentArrivalCells = true; ++_agentListRevision; _redraw = true; }
+}
+
+bool TextList::agentArrivalRows(std::vector<AgentArrivalRow> &rows) const
+{
+	rows.clear();
+	if (!_agentArrivalCells || !Observer::agentWidgetVisible(this) || _agentPaintRevision != _agentListRevision ||
+		!_agentCoverageHealthy || !Observer::agentPaintHealthy() || _comboBox || _columns.size() != 3 || _arrowPos != -1) return false;
+	for (AgentArrivalRow row : _agentPaintArrivalRows)
+	{
+		for (AgentPurchaseCell &cell : row.cells)
+		{
+			std::vector<Observer::AgentUiRect> regions;
+			for (const SDL_Rect &r : cell.regions)
+			{
+				if (r.x < _agentArrivalClip.x || r.y < _agentArrivalClip.y ||
+					r.x + r.w > _agentArrivalClip.x + _agentArrivalClip.w ||
+					r.y + r.h > _agentArrivalClip.y + _agentArrivalClip.h) cell.known = false;
+				regions.push_back({r.x, r.y, r.w, r.h});
+			}
+			if (!Observer::agentRegionsUncovered(regions, this, _agentPaintOrder)) cell.known = false;
+			if (!cell.known) cell.regions.clear();
+		}
+		rows.push_back(row);
 	}
 	return true;
 }

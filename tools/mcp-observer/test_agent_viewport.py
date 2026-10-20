@@ -46,7 +46,7 @@ def validate_state(obj):
 
 class ViewportValidationTests(unittest.TestCase):
     def test_exact_current_version_counts_kinds_and_tool_catalog(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/22')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/23')
         self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())), (96,41,4))
         self.assertEqual(a.MINIMAP_TARGET_HANDLES, tuple(f'm{i}' for i in range(160)))
         self.assertEqual(a.CAMERA_DIRECTIONS, ('left','right','up','down'))
@@ -59,7 +59,7 @@ class ViewportValidationTests(unittest.TestCase):
             self.assertFalse(a.STATE_ACTIONS[screen].intersection(NEW_ACTIONS))
         server = adapter.Server(agent_control=object())
         reply = server.handle(dict(jsonrpc='2.0', id=1, method='initialize', params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test',version='1'))))
-        self.assertEqual(reply['result']['serverInfo']['version'],'0.22.0')
+        self.assertEqual(reply['result']['serverInfo']['version'],'0.23.0')
         self.assertEqual((a.MAX_COMMANDS,a.EVENT_CAPACITY,a.MAX_REQUEST,a.MAX_TEXT_PACKET,a.MAX_PACKET),
                          (256,256,512,32768,49152))
 

@@ -103,6 +103,9 @@ ItemsArrivingState::ItemsArrivingState(GeoscapeState *state) : _state(state), _b
 	_lstTransfers->setSelectable(true);
 	_lstTransfers->setBackground(_window);
 	_lstTransfers->setMargin(2);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_lstTransfers->agentEnableArrivalCells();
+#endif
 
 	for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
 	{
@@ -239,7 +242,7 @@ bool ItemsArrivingState::agentUiState(Observer::AgentUiState &out) const
     AgentListProjection list;
     // Only already painted UI rows are read. Arrivals were applied by the
     // ordinary constructor; projection never traverses or replays transfers.
-    if (!agentProjectList(_lstTransfers, _lstTransfers, painted, 3, false, out, list, allowed)) return false;
+    if (!agentProjectArrivalList(_lstTransfers, _lstTransfers, painted, out, list, allowed)) return false;
     out.context = {list.up ? 1u : 0u, list.down ? 1u : 0u};
     if (list.up || list.down)
         out.actions.emplace_back("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction");
