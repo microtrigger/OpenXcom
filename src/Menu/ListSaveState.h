@@ -38,6 +38,10 @@ private:
 	std::string _selected;
 	int _previousSelectedRow, _selectedRow;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 	/// Creates the Save Game state.
 	ListSaveState(OptionsOrigin origin);
 	/// Cleans up the Save Game state.

@@ -133,6 +133,44 @@ PauseState::~PauseState()
 
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool PauseState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal) return false;
+	out = Observer::AgentUiState();
+	out.screen = "pause_menu";
+	const std::string title = Observer::agentWidgetVisible(_txtTitle) &&
+		Observer::agentWidgetUncovered(_txtTitle, _surfaces) ? Observer::agentTextJson(_txtTitle) : "null";
+	out.visible = "{\"title\":" + title + "}";
+	if (title != "null") Observer::agentIncludeWidget(out, _txtTitle);
+	const auto addAction = [&](const char *id, const TextButton *button)
+	{
+		if (!Observer::agentWidgetVisible(button) || !Observer::agentWidgetUncovered(button, _surfaces)) return;
+		const std::string label = Observer::agentButtonLabel(button);
+		if (label.empty()) return;
+		out.actions.push_back(Observer::AgentUiAction(id, label, "visible_text"));
+		Observer::agentIncludeWidget(out, button);
+	};
+	addAction("open_load_game", _btnLoad);
+	addAction("open_save_game", _btnSave);
+	addAction("open_options", _btnOptions);
+	addAction("resume_game", _btnCancel);
+	return true;
+}
+
+bool PauseState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(action)) return false;
+	if (action == "open_load_game") btnLoadClick(nullptr);
+	else if (action == "open_save_game") btnSaveClick(nullptr);
+	else if (action == "open_options") btnOptionsClick(nullptr);
+	else if (action == "resume_game") btnCancelClick(nullptr);
+	else return false;
+	return true;
+}
+#endif
+
 /**
  * Opens the Load Game screen.
  * @param action Pointer to an action.

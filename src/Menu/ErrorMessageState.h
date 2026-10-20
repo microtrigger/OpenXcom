@@ -43,6 +43,12 @@ public:
 	ErrorMessageState(const std::string &msg, SDL_Color *palette, Uint8 color, const std::string &bg, int bgColor);
 	/// Cleans up the Error state.
 	~ErrorMessageState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Describes the rendered error message and visible dismiss control.
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	/// Invokes the ordinary handler only for a currently offered action.
+	bool agentDispatch(const std::string &action) override;
+#endif
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
 };

@@ -49,6 +49,9 @@ protected:
 	unsigned int _firstValidRow;
 	bool _autoquick, _sortable;
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentListUiState(Observer::AgentUiState &out, const char *screen) const;
+#endif
 	void updateArrows();
 public:
 	/// Creates the Saved Game state.

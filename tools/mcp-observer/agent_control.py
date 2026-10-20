@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/1'
+SCHEMA = 'openxcom-agent-control/2'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 32768
@@ -30,28 +30,41 @@ MAX_COUNTER = 2**53 - 1
 TIMEOUT, ACTION_TIMEOUT, STARTUP_TIMEOUT = 2.0, 31.0, 31.0
 CAPABILITY_TTL = 120.0
 ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_turn',
-           'new_battle', 'start_battle', 'continue_briefing', 'close_inventory')
+           'new_battle', 'start_battle', 'continue_briefing', 'close_inventory',
+           'open_new_game', 'open_options', 'open_load_game', 'open_pause_menu',
+           'open_save_game', 'resume_game', 'cancel_menu', 'dismiss_error')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
     'new_battle': ('mission', 'craft', 'terrain', 'difficulty', 'alien_race'),
     'briefing': ('title', 'target', 'craft', 'briefing'),
     'inventory': ('close_label',),
+    'new_game': ('title', 'ironman_note'),
+    'options_shell': ('category', 'tooltip'),
+    'pause_menu': ('title',),
+    'load_list': ('title', 'name_heading', 'date_heading', 'details'),
+    'save_list': ('title', 'name_heading', 'date_heading', 'details'),
+    'error_message': ('message',),
 }
 STATE_ACTIONS = {
-    'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand')),
+    'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'open_pause_menu')),
     'next_turn': frozenset(('continue_next_turn',)),
-    'main_menu': frozenset(('new_battle',)),
-    'new_battle': frozenset(('start_battle',)),
+    'main_menu': frozenset(('new_battle', 'open_new_game', 'open_options', 'open_load_game')),
+    'new_battle': frozenset(('start_battle', 'cancel_menu')),
     'briefing': frozenset(('continue_briefing',)),
     'inventory': frozenset(('close_inventory',)),
+    'new_game': frozenset(('cancel_menu',)),
+    'options_shell': frozenset(('cancel_menu',)),
+    'pause_menu': frozenset(('open_load_game', 'open_save_game', 'open_options', 'resume_game')),
+    'load_list': frozenset(('cancel_menu',)),
+    'save_list': frozenset(('cancel_menu',)),
+    'error_message': frozenset(('dismiss_error',)),
     'unsupported': frozenset(),
 }
 STATUSES = ('pending', 'dispatched', 'unavailable', 'unknown_after_dispatch', 'unknown')
 TERMINAL_STATUSES = ('dispatched', 'unavailable', 'unknown_after_dispatch')
 TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result')
 FAILURES = (OSError, ValueError, UnicodeError, RecursionError, TypeError)
-
 
 
 class ActionOutcomeUnknown(Unavailable):
@@ -189,11 +202,11 @@ def definitions():
     opaque = {'type': 'string', 'pattern': '^[0-9a-f]{32}$'}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control mode: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Unsupported screens have an empty catalog. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /2: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Unsupported screens have an empty catalog. Menu shells expose bounded rendered labels and navigation controls; they do not enumerate save files or offer campaign save/load/overwrite, campaign start, or settings edits. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': {'type': 'object', 'properties': {
              'command_id': dict(opaque), 'epoch': dict(opaque), 'capability': dict(opaque),
              'revision': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},

@@ -3,10 +3,10 @@
 #include <sstream>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/1"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/2"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/1\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/2\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -28,7 +28,10 @@ bool agentActionId(const std::string &value)
 {
     return value == "next_soldier" || value == "previous_soldier" || value == "kneel" ||
         value == "stand" || value == "continue_next_turn" || value == "new_battle" ||
-        value == "start_battle" || value == "continue_briefing" || value == "close_inventory";
+        value == "start_battle" || value == "continue_briefing" || value == "close_inventory" ||
+        value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
+        value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||
+        value == "cancel_menu" || value == "dismiss_error";
 }
 bool parseAgentRequest(const std::string &packet, AgentRequest &request)
 {

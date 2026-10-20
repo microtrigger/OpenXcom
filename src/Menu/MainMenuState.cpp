@@ -113,23 +113,36 @@ MainMenuState::~MainMenuState()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 bool MainMenuState::agentUiState(Observer::AgentUiState &out) const
 {
-	if (_modal || !Observer::agentWidgetVisible(_btnNewBattle)) return false;
-	const std::string label = Observer::agentButtonLabel(_btnNewBattle);
-	if (label.empty()) return false;
-	out = Observer::AgentUiState();
-	out.screen = "main_menu";
-	out.visible = "{\"new_battle_label\":" + Observer::agentJsonString(label) + "}";
-	out.actions.push_back(Observer::AgentUiAction("new_battle", label, "visible_text"));
-	Observer::agentIncludeWidget(out, _btnNewBattle);
+    if (_modal) return false;
+    out = Observer::AgentUiState(); out.screen = "main_menu";
+    const std::string battleLabel = Observer::agentWidgetUncovered(_btnNewBattle, _surfaces) ?
+        Observer::agentButtonLabel(_btnNewBattle) : std::string();
+    out.visible = "{\"new_battle_label\":" + (battleLabel.empty() ? "null" : Observer::agentJsonString(battleLabel)) + "}";
+    const struct { const TextButton *button; const char *id; } entries[] = {
+        {_btnNewBattle, "new_battle"}, {_btnNewGame, "open_new_game"},
+        {_btnLoad, "open_load_game"}, {_btnOptions, "open_options"}
+    };
+    for (const auto &entry : entries)
+    {
+        if (!Observer::agentWidgetUncovered(entry.button, _surfaces)) continue;
+        const std::string label = Observer::agentButtonLabel(entry.button);
+        if (label.empty()) continue;
+        out.actions.push_back(Observer::AgentUiAction(entry.id, label, "visible_text"));
+        Observer::agentIncludeWidget(out, entry.button);
+    }
     return true;
 }
 
 bool MainMenuState::agentDispatch(const std::string &action)
 {
-	Observer::AgentUiState current;
-	if (action != "new_battle" || !agentUiState(current)) return false;
-	btnNewBattleClick(nullptr);
-	return true;
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(action)) return false;
+    if (action == "new_battle") btnNewBattleClick(nullptr);
+    else if (action == "open_new_game") btnNewGameClick(nullptr);
+    else if (action == "open_load_game") btnLoadClick(nullptr);
+    else if (action == "open_options") btnOptionsClick(nullptr);
+    else return false;
+    return true;
 }
 #endif
 

@@ -2706,6 +2706,11 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     if (stance)
         out.actions.push_back(Observer::AgentUiAction(_agentShownKneeled ? "stand" : "kneel",
             _agentShownKneeled ? "Stand" : "Kneel", "visible_control_semantics"));
+    if (Observer::agentWidgetUncovered(_btnHelp, _surfaces))
+    {
+        out.actions.push_back(Observer::AgentUiAction("open_pause_menu", "Options", "visible_control_semantics"));
+        Observer::agentIncludeWidget(out, _btnHelp);
+    }
     // Capture private freshness generations at observation time. Normal init
     // may reapply reserve settings after it last painted the HUD; those writes
     // must not make every future fresh observation permanently stale.
@@ -2733,6 +2738,7 @@ bool BattlescapeState::agentDispatch(const std::string &action)
     if (action == "next_soldier") btnNextSoldierClick(0);
     else if (action == "previous_soldier") btnPrevSoldierClick(0);
     else if ((action == "kneel" && !_agentShownKneeled) || (action == "stand" && _agentShownKneeled)) btnKneelClick(0);
+    else if (action == "open_pause_menu") btnHelpClick(0);
     else return false;
     return true;
 }

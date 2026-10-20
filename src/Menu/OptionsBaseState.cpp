@@ -131,6 +131,40 @@ OptionsBaseState::OptionsBaseState(OptionsOrigin origin) : _origin(origin), _gro
 	_txtTooltip->setWordWrap(true);
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool OptionsBaseState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal) return false;
+    out = Observer::AgentUiState(); out.screen = "options_shell";
+    const std::string category = Observer::agentWidgetUncovered(_group, _surfaces) ?
+        Observer::agentButtonLabel(_group) : std::string();
+    const bool tooltipVisible = Observer::agentWidgetUncovered(_txtTooltip, _surfaces);
+    out.visible = "{\"category\":" + (category.empty() ? "null" : Observer::agentJsonString(category)) +
+        ",\"tooltip\":" + (tooltipVisible ? Observer::agentTextJson(_txtTooltip) : "null") + "}";
+    if (!category.empty()) Observer::agentIncludeWidget(out, _group);
+    if (tooltipVisible) Observer::agentIncludeWidget(out, _txtTooltip);
+    if (Observer::agentWidgetUncovered(_btnCancel, _surfaces))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnCancel);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("cancel_menu", label, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnCancel);
+        }
+    }
+    return true;
+}
+
+bool OptionsBaseState::agentDispatch(const std::string &action)
+{
+    Observer::AgentUiState current;
+    if (action != "cancel_menu" || !agentUiState(current) || !current.offers(action)) return false;
+    // Normal Cancel restores the disposable profile's existing options.
+    btnCancelClick(nullptr);
+    return true;
+}
+#endif
+
 /**
  *
  */

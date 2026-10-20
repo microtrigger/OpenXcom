@@ -20,19 +20,22 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(parseAgentRequest("H openxcom-agent-control/1", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/2", r) && r.kind == 'H', "exact handshake");
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/2", r), "version mismatch rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/1\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/2\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string prefix = "E " + token(3) + " " + token(4) + " " + token(5) + " ";
     const char *actions[] = {"next_soldier", "previous_soldier", "kneel", "stand", "continue_next_turn",
-        "new_battle", "start_battle", "continue_briefing", "close_inventory"};
+        "new_battle", "start_battle", "continue_briefing", "close_inventory",
+        "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",
+        "resume_game", "cancel_menu", "dismiss_error"};
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
-    const char *bad[] = {"toggle_kneel", "end_turn", "get_unit", "click", "approve", "inventory_item"};
+    const char *bad[] = {"toggle_kneel", "end_turn", "get_unit", "click", "approve", "inventory_item",
+        "start_campaign", "load_game", "save_game", "overwrite_save", "delete_save", "abandon_game", "apply_options"};
     for (const char *action : bad) check(!parseAgentRequest(prefix + "12 " + action, r), "unsupported action");
     check(!parseAgentRequest(prefix + "012 kneel", r), "noncanonical revision");
     check(!parseAgentRequest(prefix + "-1 kneel", r), "negative revision");

@@ -27,7 +27,7 @@ def dump(obj):
 
 def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence=1, screen='battlescape'):
     visible = dict(selected_name='Jane', time_units=58, energy=62, health=33, morale=100, kneel_indicator='standing')
-    ids = ['next_soldier', 'previous_soldier', 'kneel']
+    ids = ['next_soldier', 'previous_soldier', 'kneel', 'open_pause_menu']
     if screen in a.STATE_FIELDS:
         visible = {key: key.title() for key in a.STATE_FIELDS[screen]}; ids = sorted(a.STATE_ACTIONS[screen])
     elif screen == 'unsupported':
@@ -55,12 +55,13 @@ def call(server, name, args=None):
 
 
 class NativeFixture:
-    def __init__(self, *, hello=None, transform=None, timeout=0.15, screen='battlescape'):
+    def __init__(self, *, hello=None, transform=None, timeout=0.15, screen='battlescape', transitions=None):
         parent, self.peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         self.client = a.AgentControlClient(parent, timeout=timeout, action_timeout=timeout, startup_timeout=timeout)
         self.peer.settimeout(1)
         self.requests, self.results, self.errors = [], {}, []
         self.transform, self.screen = transform, screen
+        self.transitions = transitions or {}
         self.revision, self.sequence, self.counter = 1, 0, 10
         self.latest = None
         self.hello = hello or dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
@@ -85,6 +86,7 @@ class NativeFixture:
                     assert int(revision) == self.revision and action in [i['id'] for i in self.latest['actions']]
                     assert ident not in self.results, 'Native action unexpectedly replayed'
                     self.revision += 1; self.sequence += 1
+                    self.screen = self.transitions.get((self.screen, action), self.screen)
                     obj = result(ident, event_sequence=self.sequence,
                                  observation=state(None, None, self.revision, self.sequence, self.screen))
                     self.results[ident] = copy.deepcopy(obj)
@@ -169,6 +171,59 @@ class ValidationTests(unittest.TestCase):
         for name in obj['visible']: obj['visible'][name] = '\U0001f600' * 1000
         with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
 
+    def test_protocol_v1_hello_ready_state_and_result_are_rejected(self):
+        hello = dict(schema='openxcom-agent-control/1', mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
+        with self.assertRaises(Unavailable): a.validate_hello(dump(hello))
+        with self.assertRaises(Unavailable):
+            a.validate_ready(dump(dict(schema='openxcom-agent-control/1', mode=a.MODE, status='ready')))
+        obj = state(); obj['schema'] = 'openxcom-agent-control/1'
+        with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+        obj = result(); obj['schema'] = 'openxcom-agent-control/1'
+        with self.assertRaises(Unavailable): a.validate_result(dump(obj), COMMAND, EPOCH)
+
+    def test_exact_menu_state_action_matrix(self):
+        expected = {
+            'main_menu': {'new_battle', 'open_new_game', 'open_options', 'open_load_game'},
+            'new_battle': {'start_battle', 'cancel_menu'},
+            'new_game': {'cancel_menu'}, 'options_shell': {'cancel_menu'},
+            'pause_menu': {'open_load_game', 'open_save_game', 'open_options', 'resume_game'},
+            'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
+            'error_message': {'dismiss_error'},
+        }
+        self.assertEqual(len(a.ACTIONS), 17); self.assertEqual(len(a.STATE_ACTIONS), 13)
+        for screen, actions in expected.items():
+            self.assertEqual(a.STATE_ACTIONS[screen], actions)
+            obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
+            for bad in set(a.ACTIONS) - actions:
+                candidate = copy.deepcopy(obj)
+                candidate['actions'] = [dict(id=bad, label='Visible', label_source='visible_text')]
+                with self.subTest(screen=screen, bad=bad), self.assertRaises(Unavailable):
+                    a.validate_state(candidate, CHALLENGE, EPOCH)
+
+    def test_menu_shell_has_no_save_file_or_campaign_mutation_api(self):
+        for action in ('save_game', 'load_game', 'start_campaign', 'abandon_game', 'delete_save',
+                       'confirm_load', 'overwrite_save', 'apply_options', 'select_save_row'):
+            with self.subTest(action=action), self.assertRaises(Unavailable):
+                a.validate_action_arguments(arguments(action=action))
+        for field in ('filename', 'path', 'rows', 'save_id', 'selected_campaign', 'hidden_options'):
+            obj = state(screen='load_list'); obj['visible'][field] = 'PRIVATE'
+            with self.subTest(field=field), self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_menu_fields_are_exact_nullable_rendered_strings(self):
+        fields = {
+            'new_game': ('title', 'ironman_note'), 'options_shell': ('category', 'tooltip'),
+            'pause_menu': ('title',), 'load_list': ('title', 'name_heading', 'date_heading', 'details'),
+            'save_list': ('title', 'name_heading', 'date_heading', 'details'), 'error_message': ('message',),
+        }
+        for screen, names in fields.items():
+            self.assertEqual(a.STATE_FIELDS[screen], names)
+            obj = state(screen=screen); obj['visible'] = dict.fromkeys(names)
+            a.validate_state(obj, CHALLENGE, EPOCH)
+            for value in (123, True, [], {}):
+                candidate = copy.deepcopy(obj); candidate['visible'][names[0]] = value
+                with self.subTest(screen=screen, value=value), self.assertRaises(Unavailable):
+                    a.validate_state(candidate, CHALLENGE, EPOCH)
+
     def test_result_separates_dispatch_from_observation(self):
         for status in a.STATUSES: a.validate_result(dump(result(status=status)), COMMAND, EPOCH)
         observation = state(None, None, revision=2, event_sequence=2)
@@ -202,7 +257,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/1')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/2')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -216,7 +271,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/1']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/2']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -318,6 +373,68 @@ class ClientTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(Unavailable): native.client.observe()
             self.assertEqual(native.client.state, 'CLOSED')
 
+    def test_v1_peer_fails_before_handshake_or_action_send(self):
+        native = self.fixture(hello=dict(schema='openxcom-agent-control/1', mode=a.MODE,
+                                         epoch=EPOCH, ledger_capacity=64))
+        with self.assertRaises(Unavailable): native.client.observe()
+        self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
+
+    def test_main_menu_shell_round_trips_need_fresh_context(self):
+        pairs = [('open_new_game', 'new_game'), ('open_options', 'options_shell'),
+                 ('open_load_game', 'load_list'), ('new_battle', 'new_battle')]
+        for opener, screen in pairs:
+            with self.subTest(screen=screen):
+                native = self.fixture(screen='main_menu', transitions={
+                    ('main_menu', opener): screen, (screen, 'cancel_menu'): 'main_menu'})
+                initial = native.client.observe()
+                opened = native.client.execute(**arguments(initial, action=opener))
+                self.assertEqual(opened['observation']['state'], screen)
+                self.assertIsNone(opened['observation']['capability'])
+                fresh = native.client.observe()
+                closed = native.client.execute(**arguments(fresh, command_id='a' * 32, action='cancel_menu'))
+                self.assertEqual(closed['observation']['state'], 'main_menu')
+                self.assertEqual(native.client.state, 'NEED_CONTEXT')
+
+    def test_pause_save_load_options_shell_round_trips(self):
+        transitions = {('battlescape', 'open_pause_menu'): 'pause_menu', ('pause_menu', 'resume_game'): 'battlescape'}
+        for action, screen in (('open_load_game', 'load_list'), ('open_save_game', 'save_list'), ('open_options', 'options_shell')):
+            transitions[('pause_menu', action)] = screen; transitions[(screen, 'cancel_menu')] = 'pause_menu'
+        native = self.fixture(transitions=transitions)
+        sequence = [('open_pause_menu', 'pause_menu'), ('open_load_game', 'load_list'), ('cancel_menu', 'pause_menu'),
+                    ('open_save_game', 'save_list'), ('cancel_menu', 'pause_menu'), ('open_options', 'options_shell'),
+                    ('cancel_menu', 'pause_menu'), ('resume_game', 'battlescape')]
+        for index, (action, destination) in enumerate(sequence):
+            receipt = native.client.execute(**arguments(native.client.observe(), command_id=f'{index:032x}', action=action))
+            self.assertEqual(receipt['observation']['state'], destination)
+        self.assertEqual(len([r for r in native.requests if r.startswith(b'E ')]), len(sequence))
+
+    def test_duplicate_cancel_is_receipt_only_and_cannot_pop_parent(self):
+        native = self.fixture(screen='load_list', transitions={('load_list', 'cancel_menu'): 'pause_menu'})
+        args = arguments(native.client.observe(), action='cancel_menu')
+        first = native.client.execute(**args)
+        parent = native.client.observe()
+        self.assertEqual(native.client.execute(**args), first)
+        self.assertEqual(native.screen, 'pause_menu'); self.assertEqual(native.client.capability, parent['capability'])
+        self.assertEqual(len([r for r in native.requests if r.startswith(b'E ')]), 1)
+        self.assertEqual(native.requests[-1], ('S ' + COMMAND).encode())
+
+    def test_error_modal_has_own_grant_and_no_parent_actions(self):
+        native = self.fixture(screen='pause_menu', transitions={('error_message', 'dismiss_error'): 'pause_menu'})
+        parent = native.client.observe(); native.screen = 'error_message'; modal = native.client.observe()
+        count = len(native.requests)
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(parent, action='resume_game'))
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(modal, action='cancel_menu'))
+        self.assertEqual(len(native.requests), count)
+        receipt = native.client.execute(**arguments(modal, action='dismiss_error'))
+        self.assertEqual(receipt['observation']['state'], 'pause_menu')
+
+    def test_hidden_cancel_leaves_no_capability_and_no_synthetic_back(self):
+        native = self.fixture(screen='save_list', transform=lambda op, obj: dict(obj, actions=[], capability=None) if op == 'R' else obj)
+        observed = native.client.observe(); self.assertEqual(observed['actions'], []); self.assertIsNone(observed['capability'])
+        count = len(native.requests)
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(action='cancel_menu'))
+        self.assertEqual(len(native.requests), count)
+
     def test_generic_error_closes_without_hidden_details(self):
         native = self.fixture(transform=lambda op, obj: dict(schema=a.SCHEMA, mode=a.MODE, type='error', status='unavailable') if op == 'R' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
@@ -361,6 +478,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.2.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -441,9 +559,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/1', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/2', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=64))
-assert channel.recv(256) == b'H openxcom-agent-control/1'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/2'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

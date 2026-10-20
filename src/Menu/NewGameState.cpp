@@ -114,6 +114,41 @@ NewGameState::~NewGameState()
 
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool NewGameState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal) return false;
+	out = Observer::AgentUiState();
+	out.screen = "new_game";
+	const std::string title = Observer::agentWidgetVisible(_txtTitle) &&
+		Observer::agentWidgetUncovered(_txtTitle, _surfaces) ? Observer::agentTextJson(_txtTitle) : "null";
+	const std::string ironmanNote = Observer::agentWidgetVisible(_txtIronman) &&
+		Observer::agentWidgetUncovered(_txtIronman, _surfaces) ? Observer::agentTextJson(_txtIronman) : "null";
+	out.visible = "{\"title\":" + title + ",\"ironman_note\":" + ironmanNote + "}";
+	if (title != "null") Observer::agentIncludeWidget(out, _txtTitle);
+	if (ironmanNote != "null") Observer::agentIncludeWidget(out, _txtIronman);
+	if (Observer::agentWidgetVisible(_btnCancel) && Observer::agentWidgetUncovered(_btnCancel, _surfaces))
+	{
+		const std::string label = Observer::agentButtonLabel(_btnCancel);
+		if (!label.empty())
+		{
+			out.actions.push_back(Observer::AgentUiAction("cancel_menu", label, "visible_text"));
+			Observer::agentIncludeWidget(out, _btnCancel);
+		}
+	}
+	return true;
+}
+
+bool NewGameState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(action)) return false;
+	if (action != "cancel_menu") return false;
+	btnCancelClick(nullptr);
+	return true;
+}
+#endif
+
 /**
  * Returns to the previous screen.
  * @param action Pointer to an action.

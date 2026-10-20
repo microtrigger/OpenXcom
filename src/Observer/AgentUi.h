@@ -28,6 +28,9 @@ struct AgentUiState {
     bool offers(const std::string &id) const;
 };
 bool agentWidgetVisible(const Surface *widget);
+// Conservative check against later-painted surfaces in this explicit state.
+// The paint order/geometry is used only for visibility, never serialized.
+bool agentWidgetUncovered(const Surface *widget, const std::vector<Surface *> &paintOrder);
 void agentIncludeWidget(AgentUiState &ui, const Surface *widget);
 bool agentRegionsDisjoint(const AgentUiState &ui);
 int agentObservePaint(int result);

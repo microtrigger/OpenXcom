@@ -44,6 +44,12 @@ public:
 	PauseState(OptionsOrigin origin);
 	/// Cleans up the Pause state.
 	~PauseState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Describes rendered text and visible navigation controls.
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	/// Invokes the ordinary handler only for a currently offered action.
+	bool agentDispatch(const std::string &action) override;
+#endif
 	/// Handler for clicking the Load Game button.
 	void btnLoadClick(Action *action);
 	/// Handler for clicking the Save Game button.

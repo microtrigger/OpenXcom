@@ -31,6 +31,10 @@ class ListLoadState : public ListGamesState
 private:
 	TextButton *_btnOld;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 	/// Creates the Load Game state.
 	ListLoadState(OptionsOrigin origin);
 	/// Cleans up the Load Game state.

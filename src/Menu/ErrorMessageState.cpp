@@ -51,6 +51,38 @@ ErrorMessageState::~ErrorMessageState()
 
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ErrorMessageState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal) return false;
+	out = Observer::AgentUiState();
+	out.screen = "error_message";
+	const std::string message = Observer::agentWidgetVisible(_txtMessage) &&
+		Observer::agentWidgetUncovered(_txtMessage, _surfaces) ? Observer::agentTextJson(_txtMessage) : "null";
+	out.visible = "{\"message\":" + message + "}";
+	if (message != "null") Observer::agentIncludeWidget(out, _txtMessage);
+	if (Observer::agentWidgetVisible(_btnOk) && Observer::agentWidgetUncovered(_btnOk, _surfaces))
+	{
+		const std::string label = Observer::agentButtonLabel(_btnOk);
+		if (!label.empty())
+		{
+			out.actions.push_back(Observer::AgentUiAction("dismiss_error", label, "visible_text"));
+			Observer::agentIncludeWidget(out, _btnOk);
+		}
+	}
+	return true;
+}
+
+bool ErrorMessageState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(action)) return false;
+	if (action != "dismiss_error") return false;
+	btnOkClick(nullptr);
+	return true;
+}
+#endif
+
 /**
  * Creates the elements in an error window.
  * @param str Text string for the message to display.

@@ -262,6 +262,15 @@ bool NewBattleState::agentUiState(Observer::AgentUiState &out) const
 		",\"difficulty\":" + agentComboLabelJson(_cbxDifficulty) +
 		",\"alien_race\":" + agentComboLabelJson(_cbxAlienRace) + "}";
 	out.actions.push_back(Observer::AgentUiAction("start_battle", label, "visible_text"));
+    if (Observer::agentWidgetUncovered(_btnCancel, _surfaces))
+    {
+        const std::string cancelLabel = Observer::agentButtonLabel(_btnCancel);
+        if (!cancelLabel.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("cancel_menu", cancelLabel, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnCancel);
+        }
+    }
 	out.save = _game->getSavedGame();
 	Observer::agentIncludeWidget(out, _btnOk);
     Observer::agentIncludeWidget(out, _cbxMission);
@@ -275,8 +284,11 @@ bool NewBattleState::agentUiState(Observer::AgentUiState &out) const
 bool NewBattleState::agentDispatch(const std::string &action)
 {
 	Observer::AgentUiState current;
-	if (action != "start_battle" || !agentUiState(current)) return false;
-	btnOkClick(nullptr);
+    if (!agentUiState(current) || !current.offers(action)) return false;
+    if (action == "start_battle") btnOkClick(nullptr);
+    // Preserve ordinary preset persistence and temporary-save cleanup.
+    else if (action == "cancel_menu") btnCancelClick(nullptr);
+    else return false;
 	return true;
 }
 #endif

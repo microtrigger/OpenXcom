@@ -57,6 +57,35 @@ void agentIncludeWidget(AgentUiState &ui, const Surface *widget)
         ui.regions.push_back(rect);
     }
 }
+bool agentWidgetUncovered(const Surface *widget, const std::vector<Surface *> &paintOrder)
+{
+    if (!agentWidgetVisible(widget)) return false;
+    AgentUiState footprint;
+    agentIncludeWidget(footprint, widget);
+    bool found = false;
+    for (const Surface *later : paintOrder)
+    {
+        if (later == widget) { found = true; continue; }
+        if (!found || !later || !later->getVisible()) continue;
+        AgentUiRect cover = {later->getX(), later->getY(), later->getWidth(), later->getHeight()};
+        // Complete, already drawn text can use its actual glyph bounds rather
+        // than its allocation rectangle. Unknown/dirty surfaces retain the
+        // conservative allocation bounds; never inspect their contents.
+        if (const Text *text = dynamic_cast<const Text *>(later))
+        {
+            if (text->agentContextVisible())
+            {
+                SDL_Rect ink;
+                if (!text->agentPaintedBounds(ink)) continue;
+                cover = {ink.x, ink.y, ink.w, ink.h};
+            }
+        }
+        for (const AgentUiRect &part : footprint.regions)
+            if (part.x < cover.x + cover.width && part.x + part.width > cover.x &&
+                part.y < cover.y + cover.height && part.y + part.height > cover.y) return false;
+    }
+    return found;
+}
 bool agentRegionsDisjoint(const AgentUiState &ui)
 {
     for (std::size_t i = 0; i < ui.regions.size(); ++i)

@@ -150,6 +150,38 @@ ListGamesState::ListGamesState(OptionsOrigin origin, int firstValidRow, bool aut
 	updateArrows();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ListGamesState::agentListUiState(Observer::AgentUiState &out, const char *screen) const
+{
+    if (_modal) return false;
+    out = Observer::AgentUiState(); out.screen = screen;
+    const struct { const Text *widget; const char *key; } texts[] = {
+        {_txtTitle, "title"}, {_txtName, "name_heading"}, {_txtDate, "date_heading"}, {_txtDetails, "details"}
+    };
+    out.visible = "{";
+    for (unsigned i = 0; i < sizeof(texts) / sizeof(texts[0]); ++i)
+    {
+        if (i) out.visible += ",";
+        const bool visible = Observer::agentWidgetUncovered(texts[i].widget, _surfaces);
+        out.visible += Observer::agentJsonString(texts[i].key) + ":" +
+            (visible ? Observer::agentTextJson(texts[i].widget) : "null");
+        if (visible) Observer::agentIncludeWidget(out, texts[i].widget);
+    }
+    out.visible += "}";
+    // No _saves enumeration, row data, filename or editable value projection.
+    if (Observer::agentWidgetUncovered(_btnCancel, _surfaces))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnCancel);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("cancel_menu", label, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnCancel);
+        }
+    }
+    return true;
+}
+#endif
+
 /**
  *
  */

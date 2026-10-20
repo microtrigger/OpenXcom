@@ -49,6 +49,10 @@ protected:
 	std::string _currentTooltip;
 	TextButton *_group;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 	/// Creates the Options state.
 	OptionsBaseState(OptionsOrigin origin);
 	/// Cleans up the Options state.

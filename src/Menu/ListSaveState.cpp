@@ -67,6 +67,21 @@ ListSaveState::ListSaveState(OptionsOrigin origin) : ListGamesState(origin, 1, f
 	centerAllSurfaces();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ListSaveState::agentUiState(Observer::AgentUiState &out) const
+{
+    return agentListUiState(out, "save_list");
+}
+
+bool ListSaveState::agentDispatch(const std::string &action)
+{
+    Observer::AgentUiState current;
+    if (action != "cancel_menu" || !agentUiState(current) || !current.offers(action)) return false;
+    btnCancelClick(nullptr);
+    return true;
+}
+#endif
+
 /**
  *
  */

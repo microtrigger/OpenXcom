@@ -53,6 +53,21 @@ ListLoadState::ListLoadState(OptionsOrigin origin) : ListGamesState(origin, 0, t
 	centerAllSurfaces();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ListLoadState::agentUiState(Observer::AgentUiState &out) const
+{
+    return agentListUiState(out, "load_list");
+}
+
+bool ListLoadState::agentDispatch(const std::string &action)
+{
+    Observer::AgentUiState current;
+    if (action != "cancel_menu" || !agentUiState(current) || !current.offers(action)) return false;
+    btnCancelClick(nullptr);
+    return true;
+}
+#endif
+
 /**
  *
  */
