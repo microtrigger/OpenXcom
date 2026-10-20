@@ -249,7 +249,7 @@ void Inventory::drawGrid()
 				for (int y = i->second->getY(); y <= 200; y += RuleInventory::SLOT_H)
 				{
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-                    if (i->first == "STR_GROUND" && x + RuleInventory::SLOT_W < getWidth() && y + RuleInventory::SLOT_H < getHeight())
+                    if (i->first == "STR_GROUND" && x < getWidth() && y < getHeight())
                         agentCaptureTarget(x, y, RuleInventory::SLOT_W, RuleInventory::SLOT_H, "ground");
 #endif
 					SDL_Rect r;
@@ -1298,7 +1298,7 @@ void Inventory::agentCaptureTarget(int x, int y, int width, int height, const st
 {
     // Compiled ordinary stock hand, body-cell and current-ground geometry.
     // Names select compiled supported controls here, never enter a DTO.
-    if (_agentTargets.size() >= 64 || x < 0 || y < 0 || width <= 0 || height <= 0 ||
+    if (_agentTargets.size() >= 96 || x < 0 || y < 0 || width <= 0 || height <= 0 ||
         x + width > getWidth() || y + height > getHeight()) return;
     if (area == "hand" && !((x == 0 || x == 128) && y == 63 && width == 32 && height == 48)) return;
     if (area == "ground" && (y < 152 || (y - 152) % 16 || x % 16 || width != 16 || height != 16)) return;
@@ -1370,14 +1370,29 @@ bool Inventory::agentGridVisible(const AgentTarget &target) const
 {
     if (_agentShownGridInk.size() != 320 * 200) return false;
     const Observer::AgentUiRect &r = target.rect;
+    // The clickable cell interior and its center must be inside the admitted
+    // logical inventory viewport. Only the ordinary one-pixel outer grid border
+    // may lie exactly at x=320/y=200, where SDL clips it during normal painting.
+    if (r.x < 0 || r.y < 0 || r.width <= 0 || r.height <= 0 ||
+        r.x > 320 - r.width || r.y > 200 - r.height) return false;
     const int right = r.x + r.width - (target.area == "hand" ? 1 : 0);
     const int bottom = r.y + r.height - (target.area == "hand" ? 1 : 0);
-    if (right >= 320 || bottom >= 200) return false;
-    bool top = false, down = false, left = false, edge = false;
-    for (int x = r.x; x <= right; ++x)
-    { top |= _agentShownGridInk[r.y * 320 + x] != 0; down |= _agentShownGridInk[bottom * 320 + x] != 0; }
-    for (int y = r.y; y <= bottom; ++y)
-    { left |= _agentShownGridInk[y * 320 + r.x] != 0; edge |= _agentShownGridInk[y * 320 + right] != 0; }
+    if (target.area != "ground" && (right >= 320 || bottom >= 200)) return false;
+    const int lastX = std::min(right, 319), lastY = std::min(bottom, 199);
+    // Every original edge segment that survives viewport clipping still needs
+    // actual contrasting, unoccluded grid ink. Do not invent an edge on the
+    // final content pixel when the real border is outside the viewport.
+    bool top = false, left = false, down = bottom == 200, edge = right == 320;
+    for (int x = r.x; x <= lastX; ++x)
+    {
+        top |= _agentShownGridInk[r.y * 320 + x] != 0;
+        if (bottom < 200) down |= _agentShownGridInk[bottom * 320 + x] != 0;
+    }
+    for (int y = r.y; y <= lastY; ++y)
+    {
+        left |= _agentShownGridInk[y * 320 + r.x] != 0;
+        if (right < 320) edge |= _agentShownGridInk[y * 320 + right] != 0;
+    }
     return top && down && left && edge;
 }
 }

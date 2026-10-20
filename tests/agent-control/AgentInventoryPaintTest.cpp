@@ -88,11 +88,33 @@ int main(){
  check(!agentInventoryInside({-1,0,1,1})&&!agentInventoryInside({319,199,2,2})&&agentInventoryInside({319,199,1,1}),"actual viewport boundaries");
  // Full body/ground candidate domain uses the same ordinary paint witnesses.
  inv._agentTargets.clear();inv.agentCaptureTarget(0,63,32,48,"hand");inv.agentCaptureTarget(128,63,32,48,"hand");
- for(int y=152;y+16<200;y+=16)for(int x=0;x+16<320;x+=16)inv.agentCaptureTarget(x,y,16,16,"ground");
+ for(int y=152;y<200;y+=16)for(int x=0;x<320;x+=16)inv.agentCaptureTarget(x,y,16,16,"ground");
  unsigned bodyCount=0;for(int y=0;y<200;++y)for(int x=0;x<320;++x)if(agentInventoryBodyRect(x,y,16,16)){++bodyCount;inv.agentCaptureTarget(x,y,16,16,"body");}
- check(bodyCount==23&&inv._agentTargets.size()==63,"complete stock body + hands + admitted ground bound is 63");
+ check(bodyCount==23&&inv._agentTargets.size()==85,"complete stock body + hands + admitted ground bound is 85");
  inv.items.clear();inv.selection.clear();inv.grid.clear();for(const auto&t:inv._agentTargets)border(t);background.clear(1);paint();
- for(const auto&t:inv._agentTargets)check(inv.agentGridVisible(t),"all stock shared-edge cells retain contrasting four-edge witness");
+ for(const auto&t:inv._agentTargets)check(inv.agentGridVisible(t),"all stock shared-edge cells retain contrasting viewport-clipped edge witness");
+ // Edge controls retain full clickable interiors; only the 17th border pixel
+ // may be clipped by the actual 320x200 SDL viewport.
+ for(const std::pair<int,int>& pos: {std::make_pair(0,184),std::make_pair(304,152),std::make_pair(304,184)}) {
+  auto found=std::find_if(inv._agentTargets.begin(),inv._agentTargets.end(),[&](const Inventory::AgentTarget&t){return t.area=="ground"&&t.rect.x==pos.first&&t.rect.y==pos.second;});
+  check(found!=inv._agentTargets.end(),"bottom/right/corner cells captured from ordinary grid");
+  check(inv.agentGridVisible(*found),"clipped offscreen border does not discard fully visible cell");
+  for(int x=found->rect.x;x<std::min(found->rect.x+17,320);++x)inv.items.setPixel(x,found->rect.y,30);
+  background.clear(1);paint();check(!inv.agentGridVisible(*found),"later ink covering surviving top edge rejects edge cell");inv.items.clear();
+  for(int y=found->rect.y;y<std::min(found->rect.y+17,200);++y)inv.items.setPixel(found->rect.x,y,30);
+  background.clear(1);paint();check(!inv.agentGridVisible(*found),"later ink covering surviving left edge rejects edge cell");inv.items.clear();
+  inv.selection.setPixel(0,0,40);inv.selection.setX(found->rect.x+8);inv.selection.setY(found->rect.y+8);background.clear(1);paint();
+  check(!inv.agentOverlayClear(found->rect),"held center ink occludes edge target");inv.selection.clear();background.clear(1);paint();
+ }
+ // A corner needs genuine top/left segments, never a fabricated border at319/199.
+ Inventory::AgentTarget corner;corner.rect={304,184,16,16};corner.area="ground";
+ inv.grid.clear();for(int x=304;x<320;++x)inv.grid.setPixel(x,184,20);for(int y=184;y<200;++y)inv.grid.setPixel(304,y,20);
+ background.clear(1);paint();check(inv.agentGridVisible(corner),"only surviving ordinary corner border is sufficient");
+ inv.grid.clear();for(int x=305;x<319;++x)inv.grid.setPixel(x,199,20);for(int y=185;y<199;++y)inv.grid.setPixel(319,y,20);
+ background.clear(1);paint();check(!inv.agentGridVisible(corner),"invented clipped edges cannot replace genuine top-left border");
+ for(const auto&r:std::vector<AgentUiRect>{{320,184,16,16},{304,200,16,16},{-1,184,16,16},{305,184,16,16},{304,185,16,16},{304,184,0,16}}){auto malformed=corner;malformed.rect=r;check(!inv.agentGridVisible(malformed),"outside or partial clickable interior rejected before raster access");}
+ const auto edgeFresh=inv._agentInventoryRevision;inv._agentInventoryRevision+=2;check(!inv.agentProjectionReady(),"edge page/held ABA invalidates prior presentation");check(inv._agentInventoryRevision!=edgeFresh,"generation advances privately");
+ inv.grid.clear();for(const auto&t:inv._agentTargets)border(t);background.clear(1);paint();
  const auto body=inv._agentTargets.back();
  inv.items.setPixel(body.rect.x+4,body.rect.y+4,30);background.clear(1);paint();check(inv.agentItemsVisible(body.rect)&&inv.agentGridVisible(body),"body item ink does not hide intact grid authority");
  for(int x=body.rect.x;x<=body.rect.x+16;++x){inv.items.setPixel(x,body.rect.y,30);}
@@ -103,6 +125,7 @@ int main(){
  check(agentInventoryBodyLayout("STR_BELT",192,104,belt),"stock sparse belt shape admitted");std::reverse(belt.begin(),belt.end());check(agentInventoryBodyLayout("STR_BELT",192,104,belt),"normal draw-order variation does not change cell identity");
  check(!agentInventoryBodyLayout("STR_BELT",191,104,belt)&&!agentInventoryBodyLayout("CUSTOM",192,104,belt),"shifted or unknown body layout refused");belt[0]=belt[1];check(!agentInventoryBodyLayout("STR_BELT",192,104,belt),"duplicate slot cannot replace a missing cell");belt.pop_back();check(!agentInventoryBodyLayout("STR_BELT",192,104,belt),"partial stock shape is unsupported");
  check(agentInventoryBodyIntersects(200,40,1,1)&&!agentInventoryBodyIntersects(240,37,1,1),"unknown interior overlap rejected while adjacent exterior is clear");
+ inv._agentTargets.clear();for(int n=0;n<120;++n)inv.agentCaptureTarget(304,184,16,16,"ground");check(inv._agentTargets.size()==96,"compiled candidate maximum is96 without out-of-bounds capture");
  check(agentPaintHealthy()&&!SDL_GetVideoSurface()&&!SDL_WasInit(SDL_INIT_VIDEO),"no GUI or failed paint in offscreen fixture");
  std::cout<<"AgentInventoryPaintTest PASS "<<checks<<" checks\n";
 }

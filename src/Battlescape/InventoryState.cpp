@@ -836,7 +836,7 @@ bool InventoryState::agentUiState(Observer::AgentUiState &out) const
         targets = "[";
         for (const Inventory::AgentTarget &target : _inv->_agentTargets)
         {
-            if (out.points.size() == 64) break;
+            if (out.points.size() == 96) break;
             const AgentUiRect &r = target.rect;
             if (!_inv->agentGridVisible(target) || !_inv->agentOverlayClear(r) || !include(r)) continue;
             std::string label = target.label;

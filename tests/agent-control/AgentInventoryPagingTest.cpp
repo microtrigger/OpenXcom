@@ -306,6 +306,9 @@ static void paging(const std::string &name) {
     // Current-page coordinates are translated through real movePointer/primary.
     f.primary(8,160);check(f.inv._selItem==small[0],"same screen cell on page two selects physical x=20");
     check(f.inv.returnHeldItem(),"held return restores page-two item");
+    check(small[2]->y==2,"ordinary page cycling preserves bottom row; it cannot repair an omitted row");
+    f.primary(8,192);check(f.inv._selItem==small[2],"ordinary bottom visible center selects third page-two item");
+    check(f.inv.returnHeldItem(),"ordinary bottom-edge held return succeeds");
     f.inv.arrangeGround();f.primary(8,160);check(f.inv._selItem==guns[0],"same screen cell after wrap selects physical x=0");
     check(f.inv.returnHeldItem(),"held return after page wrap succeeds");
     // Preserve the actual legacy >= behavior at exact page capacity, rather

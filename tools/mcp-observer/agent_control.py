@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/13'
+SCHEMA = 'openxcom-agent-control/14'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -57,7 +57,7 @@ ENEMY_BUTTON_HANDLES = tuple(f'e{index}' for index in range(10))
 WEAPON_ACTION_HANDLES = tuple(f'a{index}' for index in range(6))
 GRENADE_TIMER_HANDLES = tuple(f't{index}' for index in range(24))
 HANDS = ('left', 'right')
-INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(64))
+INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
 ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',

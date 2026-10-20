@@ -24,7 +24,7 @@ class BodyValidationTests(unittest.TestCase):
         return a.validate_state(inventory(visible), CHALLENGE, EPOCH)
 
     def test_version_and_unchanged_authority_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/13')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/14')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (47, 24, 4))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertEqual(a.MAX_PACKET, 49152)
@@ -39,9 +39,9 @@ class BodyValidationTests(unittest.TestCase):
         a.validate_result(dump(result(observation=observation)), COMMAND, EPOCH)
         validate(page([dict(seq=1, kind='presentation', state='inventory', visible=visible)]))
 
-    def test_stock_63_and_abi_64_are_valid_65_rejected(self):
-        for count in (0, 1, 63, 64): self.valid(body_projection(count))
-        with self.assertRaises(Unavailable): self.valid(body_projection(65))
+    def test_stock_85_and_abi_96_are_valid_97_rejected(self):
+        for count in (0, 1, 63, 64, 85, 96): self.valid(body_projection(count))
+        with self.assertRaises(Unavailable): self.valid(body_projection(97))
 
     def test_area_is_closed_no_slot_or_item_model_export(self):
         for value in ('belt', 'backpack', 'BODY', 'body ', '', None, 0, False):
@@ -68,7 +68,7 @@ class BodyValidationTests(unittest.TestCase):
             with self.subTest(key=key),self.assertRaises(Unavailable):self.valid(visible)
 
     def test_handles_sequential_local_and_extra_descriptor_rejected(self):
-        for handle in ('v0','v03','v64','g2','body0'):
+        for handle in ('v0','v03','v96','g2','body0'):
             visible=body_projection();visible['targets'][2]['handle']=handle
             with self.subTest(handle=handle),self.assertRaises(Unavailable):self.valid(visible)
         obj=inventory(body_projection());obj['actions'][0]['preconditions']={'slot_empty':True}
@@ -78,7 +78,7 @@ class BodyValidationTests(unittest.TestCase):
         native=InventoryFixture(transform=lambda operation,value: dict(value,schema='openxcom-agent-control/11') if operation=='H' else value)
         self.addCleanup(native.close)
         with self.assertRaises(Unavailable):native.client.observe()
-        self.assertEqual(native.requests,[b'H openxcom-agent-control/13'])
+        self.assertEqual(native.requests,[b'H openxcom-agent-control/14'])
         self.assertEqual(native.client.state,'CLOSED')
 
 
@@ -96,7 +96,7 @@ class BodyClientTests(unittest.TestCase):
     def test_forged_body_target_and_json_mutation_cannot_add_authority(self):
         native=self.fixture();obj=native.client.observe();count=len(native.requests)
         obj['visible']['targets'].append(dict(obj['visible']['targets'][2],handle='v3'))
-        for target in ('v3','v63'):
+        for target in ('v3','v95'):
             with self.assertRaises(Unavailable):native.client.execute(**arguments(obj,action='inventory_activate',args={'target':target}))
         self.assertEqual(len(native.requests),count);self.assertEqual(native.client.commands,{})
         self.assertEqual(native.client.capability,obj['capability'])

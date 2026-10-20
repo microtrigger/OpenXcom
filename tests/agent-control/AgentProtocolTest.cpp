@@ -20,10 +20,12 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/13", "inventory schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/13\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/14", "inventory schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/14\",\"mode\":\"agent-control\"",
         "inventory envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/13", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/14", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/13", r), "prior64-target schema rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/12", r), "prior body schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/10", r), "v10 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/6", r), "v6 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/11", r), "prior hand/ground-only schema rejected");
@@ -36,7 +38,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/13\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/14\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -104,7 +106,7 @@ int main()
     {
         check(agentActionId(action) && std::string(agentArgumentKind(action)) == "inventory_target",
             "inventory target argument kind");
-        for (unsigned i = 0; i < 64; ++i)
+        for (unsigned i = 0; i < 96; ++i)
         {
             const std::string target = "v" + std::to_string(i);
             check(parseAgentRequest(prefix+"9007199254740991 "+action+" "+target,r) && r.kind == 'E' &&
@@ -113,7 +115,7 @@ int main()
                 "all bounded local inventory targets preserve request identity");
         }
         check(!parseAgentRequest(prefix+"0 "+action,r), "inventory target argument required");
-        for (const char *target : {"v64", "v127", "v18446744073709551616", "v00", "v01", "v063",
+        for (const char *target : {"v96", "v127", "v18446744073709551616", "v00", "v01", "v063",
             "v-1", "v+1", "v1.0", "v1e0", "v0x1", "v", "V0", "0", "g0", "e0", "a0", "r0",
             "weapon42", "STR_RIFLE", "v0 v1", "v0 extra", " v0", "v0 ", "v0\t", "v0\n", "v0\r"})
             check(!parseAgentRequest(prefix+"0 "+action+" "+target,r),

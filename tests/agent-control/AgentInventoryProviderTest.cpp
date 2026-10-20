@@ -149,10 +149,18 @@ int main(int argc,char**argv){
   for(const auto&n:YAML::LoadFile(std::string(argv[2])+"/bin/standard/"+master+"/inventories.rul")["invs"]){
    rules.emplace_back(new RuleInventory(n["id"].as<std::string>()));rules.back()->load(n,0);mod.invs[rules.back()->getId()]=rules.back().get();}
   inv.drawGrid();draw();
-  check(inv._agentTargets.size()==63,"real stock draw captures exactly 63 bounded candidates");
+  check(inv._agentTargets.size()==85,"real stock draw captures exactly 85 bounded candidates");
   unsigned body=0;for(const auto&t:inv._agentTargets)if(t.area=="body")++body;
   check(body==23&&inv._agentGridReady,"both games have 23 supported body cells and unambiguous grid");
-  check(state.agentUiState(ui)&&ui.visible.find("\"area\":\"body\"")!=std::string::npos&&ui.points.size()<=63,"actual body grid publishes admitted local geometry");
+  check(state.agentUiState(ui)&&ui.visible.find("\"area\":\"body\"")!=std::string::npos&&ui.points.size()==85,"actual body grid publishes admitted local geometry");
+  unsigned ground=0;for(const auto&t:inv._agentTargets)if(t.area=="ground")++ground;check(ground==60,"both stock layouts capture all60 ground cells without candidate truncation");
+  for(const auto point:{std::make_pair(8,192),std::make_pair(312,160),std::make_pair(312,192)}) {
+   auto it=std::find(ui.points.begin(),ui.points.end(),point);check(it!=ui.points.end(),"actual bottom/right/corner grid center offered");
+   AgentRequest edge;edge.action="inventory_activate";edge.choice="v"+std::to_string(it-ui.points.begin());inv.calls.clear();
+   check(state.agentDispatch(edge)&&inv.calls==std::vector<std::string>({"hover","hover-callback","primary","click-callback"}),"listed edge target preserves ordinary hover then primary callback order");draw();check(state.agentUiState(ui),"edge dispatch gets fresh public projection");
+  }
+  const auto edgeFresh=ui;inv._agentInventoryRevision+=2;draw();check(state.agentUiState(ui)&&!edgeFresh.sameBinding(ui)&&edgeFresh.payload()==ui.payload(),"edge page ABA changes private authority without hidden public field");
+  inv.selection.setPixel(0,0,60);inv.selection.setX(312);inv.selection.setY(192);draw();check(state.agentUiState(ui)&&std::find(ui.points.begin(),ui.points.end(),std::make_pair(312,192))==ui.points.end(),"held sprite occludes corner target while others remain available");inv.selection.clear();draw();check(state.agentUiState(ui),"removing actual held overlay restores freshly painted targets");
   check(agentRegionsDisjoint(ui),"adjacent shared borders do not produce overlapping target interiors");
   check(ui.visible.find("\"label\":\"BACK PACK\"")!=std::string::npos,"group label is the actual rendered stock translation");
   const auto bodyFresh=ui;draw();check(state.agentUiState(ui)&&bodyFresh.sameBinding(ui),"body idle paint keeps grant binding");
@@ -169,6 +177,14 @@ int main(int argc,char**argv){
   check(std::find(ui.points.begin(),ui.points.end(),std::make_pair(200,45))!=ui.points.end(),"actual occupied magazine body target remains inspectable and activatable");
   inv.selection.setPixel(0,0,60);inv.selection.setX(192);inv.selection.setY(37);draw();check(state.agentUiState(ui)&&ui.offers("cancel_inventory_hold"),"held sprite over body offers ordinary return");
   bool covered=false;for(const auto&p:ui.points)if(p.first==200&&p.second==45)covered=true;check(!covered,"held ink blocks covered body target");
+  inv.selection.clear();inv.items.clear();YAML::Node grenade;
+  for(const auto&n:YAML::LoadFile(std::string(argv[2])+"/bin/standard/"+master+"/items.rul")["items"])if(n["type"].as<std::string>()==(tftd?"STR_MAGNA_BLAST_GRENADE":"STR_GRENADE"))grenade=YAML::Clone(n);
+  Surface*grenadeIcon=sprites.getFrame(grenade["bigSprite"].as<int>());check(grenadeIcon,"stock grenade sprite exists");
+  for(const auto pos:{std::make_pair(0,184),std::make_pair(304,152),std::make_pair(304,184)}) {
+   inv.items.clear();grenadeIcon->setX(pos.first);grenadeIcon->setY(pos.second);grenadeIcon->blit(&inv.items);draw();
+   check(state.agentUiState(ui)&&std::find(ui.points.begin(),ui.points.end(),std::make_pair(pos.first+8,pos.second+8))!=ui.points.end(),"actual grenade art at bottom/right/corner leaves normal target available");
+   check(inv.agentItemsVisible({pos.first,pos.second,16,16}),"stock edge grenade has surviving item-layer contribution");
+  }
   inv.selection.clear();inv.items.clear();mod.invs.clear();
  }
  check(agentPaintHealthy()&&!SDL_GetVideoSurface()&&!SDL_WasInit(SDL_INIT_VIDEO),"offscreen rendering healthy without game/window");std::cout<<"AgentInventoryProviderTest PASS "<<checks<<" checks\n";

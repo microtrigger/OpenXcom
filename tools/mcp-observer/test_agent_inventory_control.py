@@ -45,7 +45,7 @@ class InventoryValidationTests(unittest.TestCase):
         with self.assertRaises(Unavailable):self.valid(obj)
 
     def test_closed_counts_state_action_matrix_and_prebattle_close_only(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/13')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/14')
         self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(47,24,4))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW},NEW)
         self.assertIn('open_inventory',a.STATE_ACTIONS['battlescape'])
@@ -79,12 +79,12 @@ class InventoryValidationTests(unittest.TestCase):
             width=1,height=1,point=dict(x=639,y=399),item='unknown')];self.valid(obj)
 
     def test_target_sequence_bound_and_closed_enums(self):
-        for key,value in [('handle','v1'),('handle','v00'),('handle','v64'),('area','belt'),
+        for key,value in [('handle','v1'),('handle','v00'),('handle','v96'),('area','belt'),
                           ('item','empty'),('item','weapon'),('item',False)]:
             obj=inventory();obj['visible']['targets'][0][key]=value;self.invalid(obj)
         obj=inventory();row=obj['visible']['targets'][0]
-        obj['visible']['targets']=[dict(copy.deepcopy(row),handle=f'v{i}') for i in range(64)];self.valid(obj)
-        obj['visible']['targets'].append(dict(row,handle='v64'));self.invalid(obj)
+        obj['visible']['targets']=[dict(copy.deepcopy(row),handle=f'v{i}') for i in range(96)];self.valid(obj)
+        obj['visible']['targets'].append(dict(row,handle='v96'));self.invalid(obj)
         obj=inventory();obj['visible']['targets']=tuple(obj['visible']['targets']);self.invalid(obj)
 
     def test_held_cancel_needs_presented_positive_rectangle(self):
@@ -111,16 +111,16 @@ class InventoryValidationTests(unittest.TestCase):
 
     def test_closed_canonical_args_no_coordinates_or_internal_metadata(self):
         for action,kind in NEW.items():
-            args={'target':'v63'} if kind=='inventory_target' else {};obj=arguments(action=action,args=args)
-            self.assertTrue(a.canonical_action_request(obj).endswith((action+(' v63' if args else '')).encode()))
+            args={'target':'v95'} if kind=='inventory_target' else {};obj=arguments(action=action,args=args)
+            self.assertTrue(a.canonical_action_request(obj).endswith((action+(' v95' if args else '')).encode()))
             for key in ('x','y','item_id','slot','ammo','cost','eligible'):
                 with self.assertRaises(Unavailable):a.validate_action_arguments(dict(obj,args=dict(args,**{key:0})))
-        for bad in ('v64','v00','v-1','r0','g0','V0','v0 ','v0\n',0,False,None):
+        for bad in ('v96','v00','v-1','r0','g0','V0','v0 ','v0\n',0,False,None):
             for action in ('inventory_hover','inventory_activate'):
                 with self.assertRaises(Unavailable):a.validate_action_arguments(arguments(action=action,args={'target':bad}))
 
     def test_all_earlier_wire_versions_rejected(self):
-        for version in range(1,12):
+        for version in range(1,14):
             schema=f'openxcom-agent-control/{version}'
             with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=schema,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
             obj=inventory();obj['schema']=schema;self.invalid(obj)
@@ -143,7 +143,7 @@ class InventoryClientTests(unittest.TestCase):
     def test_unseen_forged_target_preserves_grant_and_ledger(self):
         native=self.fixture();obj=native.client.observe();count=len(native.requests)
         for action in ('inventory_hover','inventory_activate'):
-            with self.assertRaises(Unavailable):native.client.execute(**arguments(obj,action=action,args={'target':'v63'}))
+            with self.assertRaises(Unavailable):native.client.execute(**arguments(obj,action=action,args={'target':'v95'}))
         self.assertEqual(len(native.requests),count);self.assertEqual(native.client.commands,{})
         self.assertEqual(native.client.capability,obj['capability'])
 

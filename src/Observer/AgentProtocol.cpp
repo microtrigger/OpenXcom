@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/13"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/14"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/13\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/14\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -161,7 +161,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     {
         std::uint64_t target;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'v' ||
-            !decimal(parts[6].substr(1), 63, target)) return false;
+            !decimal(parts[6].substr(1), 95, target)) return false;
         request.choice = parts[6];
     }
     else if (kind == "visible_row")
