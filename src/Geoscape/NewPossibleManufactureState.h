@@ -36,6 +36,13 @@ class RuleManufacture;
  */
 class NewPossibleManufactureState : public State
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
+
 private:
 	Window *_window;
 	Text *_txtTitle;
@@ -43,6 +50,11 @@ private:
 	TextButton *_btnManufacture, *_btnOk;
 	Base * _base;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the NewPossibleManufacture state.
 	NewPossibleManufactureState(Base * base, const std::vector<RuleManufacture *> & possibilities);
 	/// Handler for clicking the OK button.

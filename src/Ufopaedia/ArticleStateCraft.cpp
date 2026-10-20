@@ -84,6 +84,10 @@ namespace OpenXcom
 		_txtStats->setText(ss.str());
 
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateCraft::~ArticleStateCraft()

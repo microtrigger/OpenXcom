@@ -1,6 +1,6 @@
 # Experimental semantic MCP control
 
-**v21b** — Experimental implementation; partial coverage, not a complete interface.
+**v22-wip** — WIP research completion and article UI. Focused checks passed, but premerge adapter replay is incomplete; article text/scroll remain partial. No final native build or live acceptance. This branch starts from v21b and does not yet contain v21d or v21e.
 
 ## Build and use
 

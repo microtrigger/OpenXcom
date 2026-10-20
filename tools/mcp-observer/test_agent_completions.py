@@ -76,8 +76,8 @@ def sized_arrival(size, event=False):
 
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/24')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (119, 49, 4))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/25')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (131, 55, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
         self.assertEqual(a.COMPLETION_BUTTONS, BUTTONS)
@@ -85,11 +85,11 @@ class CompletionContractTests(unittest.TestCase):
         for screen, actions in ACTION_BUTTONS.items():
             expected = set(actions) | ({'scroll_visible_list'} if screen == 'items_arriving' else set())
             self.assertEqual(a.STATE_ACTIONS[screen], expected)
-        for version in range(1, 24):
+        for version in range(1, 25):
             obj = state(screen='production_complete'); obj['schema'] = f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable):
                 checked(obj)
-        for screen in ('research_complete', 'research_report', 'new_possible', 'ufo_intercept', 'items_arrived'):
+        for screen in ('research_complete_unknown', 'research_report', 'new_possible', 'ufo_intercept', 'items_arrived'):
             self.assertNotIn(screen, a.STATE_ACTIONS)
             obj = state(screen='unsupported'); obj['state'] = screen
             with self.subTest(screen=screen), self.assertRaises(Unavailable):

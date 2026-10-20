@@ -27,6 +27,8 @@
 #include "../Engine/Action.h"
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "../Observer/AgentUi.h"
+#include <cstring>
+#include <limits>
 #endif
 
 namespace OpenXcom
@@ -56,6 +58,9 @@ Text::~Text()
  */
 void Text::setBig()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_font = _big;
 	_fontOrig = _big;
 	processText();
@@ -66,6 +71,9 @@ void Text::setBig()
  */
 void Text::setSmall()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_font = _small;
 	_fontOrig = _small;
 	processText();
@@ -91,6 +99,9 @@ Font *Text::getFont() const
  */
 void Text::initText(Font *big, Font *small, Language *lang)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_big = big;
 	_small = small;
 	_lang = lang;
@@ -103,6 +114,9 @@ void Text::initText(Font *big, Font *small, Language *lang)
  */
 void Text::setText(const std::string &text)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     if (_text != text) ++_agentTextRevision;
     _agentHeadingComplete = false;
@@ -142,6 +156,9 @@ std::string Text::getText() const
  */
 void Text::setWordWrap(bool wrap, bool indent)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	if (wrap != _wrap || indent != _indent)
 	{
 		_wrap = wrap;
@@ -157,6 +174,9 @@ void Text::setWordWrap(bool wrap, bool indent)
  */
 void Text::setInvert(bool invert)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_invert = invert;
 	_redraw = true;
 }
@@ -168,6 +188,9 @@ void Text::setInvert(bool invert)
  */
 void Text::setHighContrast(bool contrast)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_contrast = contrast;
 	_redraw = true;
 }
@@ -179,6 +202,9 @@ void Text::setHighContrast(bool contrast)
  */
 void Text::setAlign(TextHAlign align)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_align = align;
 	_redraw = true;
 }
@@ -200,6 +226,9 @@ TextHAlign Text::getAlign() const
  */
 void Text::setVerticalAlign(TextVAlign valign)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_valign = valign;
 	_redraw = true;
 }
@@ -222,6 +251,9 @@ TextVAlign Text::getVerticalAlign() const
  */
 void Text::setColor(Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_color = color;
 	_color2 = color;
 	_redraw = true;
@@ -244,6 +276,9 @@ Uint8 Text::getColor() const
  */
 void Text::setSecondaryColor(Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_color2 = color;
 	_redraw = true;
 }
@@ -316,6 +351,9 @@ int Text::getTextWidth(int line) const
  */
 void Text::processText()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	if (_font == 0 || _lang == 0)
 	{
 		return;
@@ -494,6 +532,7 @@ struct PaletteShift
 void Text::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentBeginVisibleLines();
     _agentHasGlyph = _agentTextClipped = false;
     _agentHeadingComplete = _agentHeadingHasGlyph = false;
     _agentHeadingPixels.clear(); _agentHeadingText.clear(); _agentHeadingInk = SDL_Rect();
@@ -512,6 +551,9 @@ void Text::draw()
 	Surface::draw();
 	if (_text.empty() || _font == 0)
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (_agentVisibleLinesEnabled) agentFinishVisibleLines();
+#endif
 		return;
 	}
 
@@ -577,6 +619,13 @@ void Text::draw()
 	// Invert text by inverting the font palette on index 3 (font palettes use indices 1-5)
 	int mid = _invert ? 3 : 0;
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_agentVisibleLinesEnabled)
+    {
+        if (dir != 1 || Options::debugUi) _agentLinesHealthy = false;
+        agentStartVisibleLine(y, font->getHeight() + font->getSpacing());
+    }
+#endif
 	// Draw each letter one by one
 	for (UString::const_iterator c = s.begin(); c != s.end(); ++c)
 	{
@@ -591,10 +640,18 @@ void Text::draw()
 			x += dir * font->getCharSize(*c).w;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
             if (listContent && (x < 0 || x > getWidth())) _agentListComplete = false;
+            if (_agentVisibleLinesEnabled && _agentLineCandidate)
+            {
+                _agentLinePendingSpace = true;
+                if (x < 0 || x > getWidth()) _agentCurrentLine.complete = false;
+            }
 #endif
 		}
 		else if (Unicode::isLinebreak(*c))
 		{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (_agentVisibleLinesEnabled) agentFinishVisibleLine();
+#endif
 			line++;
 			y += font->getCharSize(*c).h;
 			x = getLineX(line);
@@ -606,6 +663,9 @@ void Text::draw()
 #endif
 				font = _small;
 			}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (_agentVisibleLinesEnabled) agentStartVisibleLine(y, font->getHeight() + font->getSpacing());
+#endif
 		}
 		else if (*c == Unicode::TOK_COLOR_FLIP)
 		{
@@ -690,11 +750,17 @@ void Text::draw()
                 }
             }
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (_agentVisibleLinesEnabled) agentCaptureVisibleGlyph(*c, font, chr, x, y, color, mul, mid);
+#endif
 			ShaderDraw<PaletteShift>(ShaderSurface(this, 0, 0), ShaderCrop(chr), ShaderScalar(color), ShaderScalar(mul), ShaderScalar(mid));
 			if (dir > 0)
 				x += dir * font->getCharSize(*c).w;
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_agentVisibleLinesEnabled) { agentFinishVisibleLine(); agentFinishVisibleLines(); }
+#endif
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -772,6 +838,9 @@ bool Text::agentPaintedBounds(SDL_Rect &rect) const
  */
 void Text::setScrollable(bool scroll)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_scroll = scroll;
 }
 
@@ -787,17 +856,240 @@ void Text::mousePress(Action* action, State* state)
 		(action->getDetails()->button.button == SDL_BUTTON_WHEELUP ||
 		action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN))
 	{
-		int scrollArea = getHeight() - getTextHeight();
-		if (scrollArea < 0)
-		{
-			int scrollAmount = _font->getHeight() + _font->getSpacing();
-			if (action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN)
-				scrollAmount = -scrollAmount;
-
-			_scrollY = Clamp(_scrollY + scrollAmount, scrollArea, 0);
-			_redraw = true;
-		}
+        scrollLine(action->getDetails()->button.button == SDL_BUTTON_WHEELDOWN);
 	}
 }
+
+void Text::scrollLine(bool down)
+{
+    if (!_scroll) return;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
+    int scrollArea = getHeight() - getTextHeight();
+    if (scrollArea < 0)
+    {
+        int scrollAmount = _font->getHeight() + _font->getSpacing();
+        if (down) scrollAmount = -scrollAmount;
+        _scrollY = Clamp(_scrollY + scrollAmount, scrollArea, 0);
+        _redraw = true;
+    }
+}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace {
+bool agentArticlePixels(const SDL_Surface *p)
+{
+    return p && p->format && p->w > 0 && p->h > 0 && p->w <= 640 && p->h <= 400 &&
+        p->format->BytesPerPixel == 1 && p->format->palette && p->format->palette->colors &&
+        p->format->palette->ncolors == 256 && (p->flags & SDL_SRCCOLORKEY) &&
+        p->format->colorkey == 0 && !(p->flags & SDL_SRCALPHA) &&
+        p->clip_rect.x == 0 && p->clip_rect.y == 0 && p->clip_rect.w == p->w && p->clip_rect.h == p->h;
+}
+bool agentArticleColors(const SDL_Color *a, const SDL_Color *b)
+{
+    for (unsigned i=0; i<256; ++i)
+        if (a[i].r != b[i].r || a[i].g != b[i].g || a[i].b != b[i].b) return false;
+    return true;
+}
+}
+void Text::agentEnableVisibleLines()
+{
+    if (_agentVisibleLinesEnabled) return;
+    agentTrackPresentation();
+    _agentVisibleLinesEnabled = true;
+    agentPresentationMutation();
+    _redraw = true;
+}
+void Text::agentBeginVisibleLines()
+{
+    if (!_agentVisibleLinesEnabled) return;
+    _agentLineBlitValid = false; _agentLineDestination = nullptr;
+    _agentVisibleLines.clear(); _agentCurrentLine = AgentVisibleLine();
+    _agentLineWork = _agentLinePixelCount = 0;
+    _agentLineCandidate = _agentLinePendingSpace = false;
+    _agentLinesDrawing = true;
+    _agentLineDrawRevision = agentPresentationRevision();
+    _agentLinesHealthy = _agentLineDrawRevision && _font && _lang &&
+        agentArticlePixels(_surface) && !_crop.w && !_crop.h && Observer::agentPaintHealthy();
+    _agentLineOwners.clear();
+    if (!_agentLinesHealthy) return;
+    _agentLineOwners.assign(getWidth()*getHeight(), -1);
+    std::copy(_surface->format->palette->colors, _surface->format->palette->colors+256, _agentLinePalette);
+}
+void Text::agentStartVisibleLine(int y, int height)
+{
+    _agentCurrentLine = AgentVisibleLine(); _agentLinePendingSpace = false;
+    _agentLineCandidate = _agentLinesHealthy && height > 0 && y < getHeight() && y+height > 0;
+    if (_agentLineCandidate && (y < 0 || y+height > getHeight())) _agentCurrentLine.complete = false;
+}
+void Text::agentCaptureVisibleGlyph(UCode code, Font *font, Surface *glyph, int x, int y, int color, int mul, int mid)
+{
+    if (!_agentLinesHealthy || !_agentLineCandidate) return;
+    AgentVisibleLine &line = _agentCurrentLine;
+    if (code < 32 || code == 127 || !font->agentHasGlyph(code)) line.complete = false;
+    if (_agentLinePendingSpace && !line.text.empty() && line.text.size() <= 1024) line.text += ' ';
+    _agentLinePendingSpace = false;
+    if (line.text.size() <= 1024 && code >= 32 && code != 127)
+        line.text += Unicode::convUtf32ToUtf8(UString(1, code));
+    if (line.text.size() > 1024) line.complete = false;
+    const unsigned glyphId = line.glyphs++;
+    const SDL_Rect crop = *glyph->getCrop();
+    SDL_Surface *source = glyph->getSurface();
+    if (!source || !source->format || source->format->BytesPerPixel != 1 || !crop.w || !crop.h ||
+        crop.x < 0 || crop.y < 0 || crop.x+crop.w > source->w || crop.y+crop.h > source->h ||
+        size_t(crop.w)*crop.h > 2097152-std::min(size_t(2097152),_agentLineWork))
+    { _agentLinesHealthy = false; return; }
+    _agentLineWork += size_t(crop.w)*crop.h;
+    if (Observer::agentObservePaint(SDL_LockSurface(source)) < 0) { _agentLinesHealthy=false; return; }
+    bool any = false;
+    for (int sy=0; sy<crop.h; ++sy)
+    for (int sx=0; sx<crop.w; ++sx)
+    {
+        const Uint8 value = *(static_cast<const Uint8 *>(source->pixels)+(crop.y+sy)*source->pitch+crop.x+sx);
+        if (!value) continue;
+        any = true;
+        const int dx=x+sx, dy=y+sy;
+        const Uint8 output = color + value*mul + (mid ? 2*(mid-value) : 0);
+        if (dx<0 || dy<0 || dx>=getWidth() || dy>=getHeight() || !output)
+        { line.complete=false; continue; }
+        if (++_agentLinePixelCount > 65536) { _agentLinesHealthy=false; break; }
+        const size_t index=dy*getWidth()+dx;
+        const int prior=_agentLineOwners[index];
+        if (prior>=0 && size_t(prior)!=_agentVisibleLines.size())
+        {
+            line.complete=false;
+            if (size_t(prior)<_agentVisibleLines.size()) _agentVisibleLines[prior].complete=false;
+        }
+        _agentLineOwners[index]=int(_agentVisibleLines.size());
+        line.pixels.push_back({Sint16(dx),Sint16(dy),output,glyphId,false});
+    }
+    SDL_UnlockSurface(source);
+    if (!any) line.complete=false;
+}
+void Text::agentFinishVisibleLine()
+{
+    if (!_agentLinesHealthy || !_agentLineCandidate) return;
+    if (!_agentCurrentLine.pixels.empty())
+    {
+        if (_agentVisibleLines.size() >= 32) { _agentLinesHealthy=false; return; }
+        // Ordinary kerning/shadows compose inside one typed visual line.
+        // Retain the final owner at each pixel, never a guessed glyph. Every
+        // nonempty glyph must retain a contribution after this composition.
+        const size_t area=size_t(getWidth())*getHeight();
+        if (area>2097152-std::min(size_t(2097152),_agentLineWork))
+        { _agentLinesHealthy=false;return; }
+        _agentLineWork+=area;
+        std::vector<AgentVisiblePixel> composed;
+        std::vector<unsigned char> seen(area,0);
+        std::vector<bool> glyphs(_agentCurrentLine.glyphs,false);
+        for (auto it=_agentCurrentLine.pixels.rbegin();it!=_agentCurrentLine.pixels.rend();++it)
+        {
+            const size_t index=it->y*getWidth()+it->x;
+            if (seen[index]) continue;
+            seen[index]=1;glyphs[it->glyph]=true;composed.push_back(*it);
+        }
+        for (bool glyph:glyphs) if (!glyph) _agentCurrentLine.complete=false;
+        std::reverse(composed.begin(),composed.end());
+        _agentCurrentLine.pixels.swap(composed);
+        _agentVisibleLines.push_back(std::move(_agentCurrentLine));
+    }
+    _agentLineCandidate=false;
+}
+void Text::agentFinishVisibleLines()
+{
+    _agentLinesDrawing=false;
+    _agentLineOwners.clear();
+    if (!_agentLinesHealthy || _agentLineDrawRevision!=agentPresentationRevision() ||
+        !agentArticlePixels(_surface) || _crop.w || _crop.h ||
+        !agentArticleColors(_agentLinePalette,_surface->format->palette->colors) || !Observer::agentPaintHealthy())
+    { _agentLinesHealthy=false;_agentVisibleLines.clear();return; }
+    if (Observer::agentObservePaint(SDL_LockSurface(_surface))<0)
+    { _agentLinesHealthy=false;_agentVisibleLines.clear();return; }
+    for (AgentVisibleLine &line:_agentVisibleLines)
+        for (const AgentVisiblePixel &pixel:line.pixels)
+            if (*(static_cast<const Uint8 *>(_surface->pixels)+pixel.y*_surface->pitch+pixel.x)!=pixel.value)
+                line.complete=false;
+    SDL_UnlockSurface(_surface);
+}
+bool Text::agentVisibleLineSource() const
+{
+    return _agentVisibleLinesEnabled && _agentLinesHealthy && !_agentLinesDrawing &&
+        agentPresentationRevision() && _agentLineDrawRevision==agentPresentationRevision() &&
+        agentContextVisible() && agentArticlePixels(_surface) &&
+        agentArticleColors(_agentLinePalette,_surface->format->palette->colors) && Observer::agentPaintHealthy();
+}
+void Text::blit(Surface *surface)
+{
+    if (!_agentVisibleLinesEnabled) { Surface::blit(surface); return; }
+    _agentLineBlitValid=false;_agentLineDestination=nullptr;
+    if (_visible && !_hidden && _redraw) draw();
+    // Placement/visibility/crop changes do not redraw the ordinary bitmap.
+    // A fresh actual blit may reuse that same completed typed raster; pending
+    // Text redraws and unsupported raster/palette changes may not be rebound.
+    if (_visible && !_hidden && !_redraw && _agentLinesHealthy && !_agentLinesDrawing &&
+        _agentLineDrawRevision && agentPresentationRevision() && agentArticlePixels(_surface) &&
+        !_crop.w && !_crop.h && agentArticleColors(_agentLinePalette,_surface->format->palette->colors))
+        _agentLineDrawRevision=agentPresentationRevision();
+    SDL_Surface *target=surface?surface->getSurface():nullptr;
+    const bool qualified=surface && agentVisibleLineSource() && agentArticlePixels(target) &&
+        getX()>=0 && getY()>=0 && getX()+getWidth()<=target->w && getY()+getHeight()<=target->h &&
+        agentArticleColors(_agentLinePalette,target->format->palette->colors);
+    if (qualified)
+    {
+        if (Observer::agentObservePaint(SDL_LockSurface(target))>=0)
+        {
+            for (AgentVisibleLine &line:_agentVisibleLines)
+                for (AgentVisiblePixel &pixel:line.pixels)
+                {
+                    const Uint8 before=*(static_cast<const Uint8 *>(target->pixels)+(getY()+pixel.y)*target->pitch+getX()+pixel.x);
+                    const SDL_Color &a=_agentLinePalette[before], &b=_agentLinePalette[pixel.value];
+                    pixel.contributed=a.r!=b.r || a.g!=b.g || a.b!=b.b;
+                }
+            SDL_UnlockSurface(target);
+        }
+    }
+    Surface::blit(surface); // unchanged ordinary renderer; proof never repairs its input
+    if (!qualified || !agentVisibleLineSource() || !agentArticlePixels(target) ||
+        !agentArticleColors(_agentLinePalette,target->format->palette->colors)) return;
+    _agentLineDestination=surface;_agentLineBlitRevision=agentPresentationRevision();_agentLineBlitValid=true;
+}
+bool Text::agentVisibleLines(const Surface *destination,std::vector<AgentVisibleLine> &lines) const
+{
+    lines.clear();
+    if (!_agentLineBlitValid || destination!=_agentLineDestination ||
+        _agentLineBlitRevision!=agentPresentationRevision() || !agentVisibleLineSource()) return false;
+    SDL_Surface *target=destination?destination->getSurface():nullptr;
+    if (!agentArticlePixels(target) || getX()<0 || getY()<0 || getX()+getWidth()>target->w || getY()+getHeight()>target->h ||
+        !agentArticleColors(_agentLinePalette,target->format->palette->colors)) return false;
+    const int a=Observer::agentObservePaint(SDL_LockSurface(_surface));
+    const int b=Observer::agentObservePaint(SDL_LockSurface(target));
+    if (a<0 || b<0) { if(b>=0)SDL_UnlockSurface(target);if(a>=0)SDL_UnlockSurface(_surface);return false; }
+    for (AgentVisibleLine line:_agentVisibleLines)
+    {
+        std::vector<bool> contributed(line.glyphs,false);
+        std::vector<AgentVisiblePixel> surviving;
+        for (const AgentVisiblePixel &pixel:line.pixels)
+        {
+            const Uint8 source=*(static_cast<const Uint8 *>(_surface->pixels)+pixel.y*_surface->pitch+pixel.x);
+            const Uint8 final=*(static_cast<const Uint8 *>(target->pixels)+(getY()+pixel.y)*target->pitch+getX()+pixel.x);
+            if (source!=pixel.value || final!=pixel.value) { line.complete=false;continue; }
+            if (pixel.contributed) contributed[pixel.glyph]=true;
+            surviving.push_back(pixel);
+        }
+        line.pixels.swap(surviving);
+        bool visible=false;
+        for (bool glyph:contributed) { if (!glyph) line.complete=false; else visible=true; }
+        if (visible) lines.push_back(std::move(line));
+    }
+    SDL_UnlockSurface(target);SDL_UnlockSurface(_surface);
+    return Observer::agentPaintHealthy();
+}
+bool Text::agentVisibleLineControl(const Surface *destination) const
+{
+    if (!_scroll) return false;
+    std::vector<AgentVisibleLine> lines;
+    return agentVisibleLines(destination,lines) && !lines.empty();
+}
+#endif
 
 }

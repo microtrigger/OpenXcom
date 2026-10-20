@@ -51,6 +51,13 @@ protected:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     Observer::AgentProjectileRaster *_agentProjectileRaster = nullptr;
     bool _agentCollapsePaint = false;
+    // Explicitly opted-in article presentation mutation identity. No public DTO.
+    bool _agentPresentationTracked = false;
+    std::uint64_t _agentPresentationGeneration = 1;
+    const Surface *_agentPresentationDestination = nullptr;
+    std::uint64_t _agentPresentationPaintRevision = 0;
+    bool _agentPresentationPainted = false;
+
 #endif
 
 	/// Copies raw pixels.
@@ -144,6 +151,15 @@ public:
 	/// Gets the surface's visibility.
     bool getVisible() const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentPresentationPaintedTo(const Surface *destination) const;
+    void agentForgetPresentationPaint() { _agentPresentationPainted = false; }
+    void agentTrackPresentation() { _agentPresentationTracked = true; }
+    void agentPresentationMutation()
+    {
+        if (_agentPresentationTracked && _agentPresentationGeneration)
+            ++_agentPresentationGeneration; // zero after overflow stays fail-closed
+    }
+    std::uint64_t agentPresentationRevision() const { return _agentPresentationGeneration; }
     void agentAttachProjectileRaster(Observer::AgentProjectileRaster *raster) { _agentProjectileRaster = raster; }
     // Private render provenance, never serialized or inferred from live status.
     bool agentCollapsePaint() const { return _agentCollapsePaint && agentContextVisible(); }

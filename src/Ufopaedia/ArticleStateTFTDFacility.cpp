@@ -75,6 +75,10 @@ namespace OpenXcom
 		_lstInfo->setCellColor(row++, 1, Palette::blockOffset(15)+4);
 
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterTransparentLayer(_lstInfo);
+#endif
 	}
 
 	ArticleStateTFTDFacility::~ArticleStateTFTDFacility()

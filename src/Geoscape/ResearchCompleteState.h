@@ -35,11 +35,23 @@ class RuleResearch;
  */
 class ResearchCompleteState : public State
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
+
 	Window *_window;
 	Text *_txtTitle, *_txtResearch;
 	TextButton *_btnReport, *_btnOk;
 	const RuleResearch * _research, * _bonus;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the EndResearch state.
 	ResearchCompleteState(const RuleResearch *newResearch, const RuleResearch *bonus, const RuleResearch *research);
 	/// Handler for clicking the OK button.

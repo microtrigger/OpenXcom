@@ -27,6 +27,7 @@ namespace OpenXcom
 	class Action;
 	class Surface;
 	class TextButton;
+	class Text;
 
 	/**
 	 * UfopaediaArticle is the base class for all articles of various types.
@@ -37,12 +38,27 @@ namespace OpenXcom
 	class ArticleState : public State
 	{
 	protected:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        Text *_agentTitle = nullptr, *_agentBody = nullptr;
+        std::vector<Surface *> _agentTransparentLayers;
+        bool _agentArticlePaintFull = false;
+        std::vector<std::uint64_t> _agentStoredPaintRevisions;
+        bool agentDestinationFull() const;
+        std::vector<std::uint64_t> agentPaintRevisions() const;
+        void agentRegisterText(Text *title, Text *body);
+        void agentRegisterTransparentLayer(Surface *surface);
+#endif
 		/// constructor (protected, so it can only be instantiated by derived classes)
 		ArticleState(const std::string &article_id);
 		/// destructor
 		virtual ~ArticleState();
 
 	public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        void blit() override;
+        bool agentUiState(Observer::AgentUiState &out) const override;
+        bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 		/// return the article id
 		std::string getId() const { return _id; }
 

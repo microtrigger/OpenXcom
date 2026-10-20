@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Real stock glyph raster/blit proof, with inherited explicit owning state seams.
+#define main retainedOutfittingFixtureMain
+#include "AgentOutfittingProviderTestV21.cpp"
+#undef main
+#include "OldTextScroll.generated.inc"
+namespace {
+void repaint(Text &text,Surface &canvas) {canvas.clear(40);text.blit(&canvas);}
+std::vector<Text::AgentVisibleLine> shown(Text &text,Surface &canvas)
+{std::vector<Text::AgentVisibleLine> v;check(text.agentVisibleLines(&canvas,v),"qualified actual line paint");return v;}
+void lineTests(Font&big,Font&small,Language&lang,const std::string&source,const std::string&game)
+{
+ Paint p(big,small,lang,source,game,"storesInfo");
+ Text text(200,80,10,30);text.initText(&big,&small,&lang);text.setPalette(p.palette);text.setColor(2);text.setWordWrap(true);text.setScrollable(true);text.agentEnableVisibleLines();
+ text.setText("Visible line\nSecond line");repaint(text,p.canvas);auto lines=shown(text,p.canvas);
+
+ check(lines.size()==2&&lines[0].complete&&lines[0].text=="Visible line"&&lines[1].text=="Second line","two actual glyph lines complete");
+ check(text.agentVisibleLineControl(&p.canvas),"separate shown scroll control");const auto initial=text.agentPresentationRevision();repaint(text,p.canvas);check(text.agentPresentationRevision()==initial,"unchanged repaint preserves mutation binding");
+ text.setText(text.getText());check(text.agentPresentationRevision()!=initial,"same text setter invalidates binding");std::vector<Text::AgentVisibleLine> none;check(!text.agentVisibleLines(&p.canvas,none),"same text requires fresh paint");repaint(text,p.canvas);
+ const auto before=text.agentPresentationRevision();text.setColor(3);text.setColor(2);check(text.agentPresentationRevision()!=before&&!text.agentVisibleLines(&p.canvas,none),"color ABA invalidates");repaint(text,p.canvas);
+ const auto moved=text.agentPresentationRevision();text.setX(11);text.setX(10);check(text.agentPresentationRevision()!=moved&&!text.agentVisibleLines(&p.canvas,none),"position ABA invalidates");repaint(text,p.canvas);
+ Surface *base=&text;const auto hidden=text.agentPresentationRevision();base->setHidden(true);base->setHidden(false);check(text.agentPresentationRevision()!=hidden&&!text.agentVisibleLines(&p.canvas,none),"base-pointer hidden ABA invalidates");repaint(text,p.canvas);
+ const auto visibility=text.agentPresentationRevision();base->setVisible(false);base->setVisible(true);check(text.agentPresentationRevision()!=visibility&&!text.agentVisibleLines(&p.canvas,none),"base-pointer visible ABA invalidates");repaint(text,p.canvas);
+ const auto resized=text.agentPresentationRevision();base->setWidth(201);base->setWidth(200);base->setHeight(81);base->setHeight(80);check(text.agentPresentationRevision()!=resized&&!text.agentVisibleLines(&p.canvas,none),"base-pointer resize ABA needs repaint");repaint(text,p.canvas);
+ SDL_Color alternate[256];std::copy(p.palette,p.palette+256,alternate);alternate[2].r^=1;const auto recolored=text.agentPresentationRevision();base->setPalette(alternate);base->setPalette(p.palette);check(text.agentPresentationRevision()!=recolored&&!text.agentVisibleLines(&p.canvas,none),"base-pointer palette ABA needs repaint");repaint(text,p.canvas);
+ SDL_Rect clip={0,0,200,35};SDL_SetClipRect(p.canvas.getSurface(),&clip);text.blit(&p.canvas);SDL_SetClipRect(p.canvas.getSurface(),nullptr);check(!text.agentVisibleLines(&p.canvas,none),"destination clip paint restore cannot revive");repaint(text,p.canvas);check(text.agentVisibleLines(&p.canvas,none),"full repaint restores");
+ *text.getCrop()={0,0,50,50};text.blit(&p.canvas);text.resetCrop();check(!text.agentVisibleLines(&p.canvas,none),"source crop paint restore cannot revive");repaint(text,p.canvas);
+ auto v=shown(text,p.canvas);check(!v.empty()&&!v[0].pixels.empty(),"known glyph pixel exists");auto pixel=v[0].pixels[0];p.canvas.setPixel(text.getX()+pixel.x,text.getY()+pixel.y,40);v=shown(text,p.canvas);check(!v.empty()&&!v[0].complete,"one overwritten required glyph pixel withholds complete line");
+ text.setText("Alpha  \t Beta\nGamma");repaint(text,p.canvas);v=shown(text,p.canvas);check(v.size()==2&&v[0].complete&&v[0].text=="Alpha Beta","witnessed internal whitespace normalized");
+ text.setText(std::string("Alpha")+char(1)+" Beta");repaint(text,p.canvas);v=shown(text,p.canvas);check(v.size()==1&&v[0].complete&&v[0].text=="Alpha Beta","renderer color marker omitted");
+ text.setText(std::string("Alpha ")+"\xf4\x8f\xbf\xbf");repaint(text,p.canvas);v=shown(text,p.canvas);check(v.size()==1&&!v[0].complete,"fallback glyph never reconstructs missing original");
+ text.setHeight(7);text.setText("Partial line");repaint(text,p.canvas);v=shown(text,p.canvas);check(v.size()==1&&!v[0].complete,"partial bottom advance band yields unknown line");
+ text.setHeight(80);text.setWidth(20);text.setWordWrap(false);text.setText("long_word_outside_width");repaint(text,p.canvas);v=shown(text,p.canvas);check(v.size()==1&&!v[0].complete,"horizontal clipping withholds full line");
+ text.setWidth(200);text.setHeight(400);text.setY(0);std::string many;for(int i=0;i<40;++i)many+="Line\n";text.setText(many);repaint(text,p.canvas);check(!text.agentVisibleLines(&p.canvas,none),"more than32 viewport candidates fails closed");
+ text.setHeight(80);text.setY(30);text.setText("Visible line");repaint(text,p.canvas);auto palette=p.palette;SDL_Color changed[256];std::copy(palette,palette+256,changed);changed[2].r^=1;p.canvas.setPalette(changed);check(!text.agentVisibleLines(&p.canvas,none),"palette mismatch invalidates");p.canvas.setPalette(p.palette);repaint(text,p.canvas);
+ // A glyph wholly lost after compositing cannot be inferred from its neighbors.
+ text.setText("Visible line");repaint(text,p.canvas);v=shown(text,p.canvas);check(v.size()==1&&v[0].complete,"composed stock kerning keeps ordinary line");
+ const auto firstGlyph=v[0].pixels.front().glyph;for(const auto &px:v[0].pixels)if(px.glyph==firstGlyph)p.canvas.setPixel(text.getX()+px.x,text.getY()+px.y,40);v=shown(text,p.canvas);check(v.size()==1&&!v[0].complete,"fully destroyed glyph withholds whole line");
+ text.setText("Before");repaint(text,p.canvas);text.setText("Different");text.setText("Before");check(!text.agentVisibleLines(&p.canvas,none),"content ABA cannot revive without paint");repaint(text,p.canvas);check(text.agentVisibleLines(&p.canvas,none),"content ABA fresh paint recovers new authority");
+ SDL_Rect sourceClip={0,0,10,5};SDL_SetClipRect(text.getSurface(),&sourceClip);text.blit(&p.canvas);SDL_SetClipRect(text.getSurface(),nullptr);check(!text.agentVisibleLines(&p.canvas,none),"source clip paint restore needs new blit");repaint(text,p.canvas);check(text.agentVisibleLines(&p.canvas,none),"full source blit recovers");
+ bool crossLine=false;for(char first:std::string("gjpqy"))for(char second:std::string("AMW")){text.setText(std::string(6,first)+"\n"+std::string(6,second));repaint(text,p.canvas);v=shown(text,p.canvas);if(v.size()==2&&!v[0].complete&&!v[1].complete)crossLine=true;}check(crossLine,"later actual line overlapping prior descenders invalidates both");
+ text.setText("A");repaint(text,p.canvas);text.agentBeginVisibleLines();text.agentStartVisibleLine(0,9);text._agentLinePixelCount=65536;text.agentCaptureVisibleGlyph('A',&small,small.getChar('A'),0,0,2,1,0);text.agentFinishVisibleLine();text.agentFinishVisibleLines();check(!text.agentVisibleLineSource(),"explicit captured-pixel work cap fails closed");text.invalidate();repaint(text,p.canvas);
+ text.agentBeginVisibleLines();text.agentStartVisibleLine(0,9);text._agentLineWork=2097152;text.agentCaptureVisibleGlyph('A',&small,small.getChar('A'),0,0,2,1,0);text.agentFinishVisibleLine();text.agentFinishVisibleLines();check(!text.agentVisibleLineSource(),"explicit operation work cap fails closed");text.invalidate();repaint(text,p.canvas);
+ const pid_t child=fork();check(child>=0,"paint failure child");if(!child){agentObservePaint(-1);if(text.agentVisibleLines(&p.canvas,none))_exit(2);repaint(text,p.canvas);if(text.agentVisibleLines(&p.canvas,none))_exit(3);_exit(0);}int status=0;check(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0,"failed paint never recovers by ordinary repaint");
+ // The independent old ordinary function was extracted from frozen /21.
+ for(const std::string content:{std::string(),std::string("Short"),many})for(bool scroll:{false,true})
+ {
+  Text helper(200,30),wheel(200,30);for(auto*t:{&helper,&wheel}){t->initText(&big,&small,&lang);t->setPalette(p.palette);t->setScrollable(scroll);t->setText(content);}
+  int expected=0;for(int step=0;step<100;++step){const bool down=step<50;expected=oldTextScroll(scroll,helper.getHeight(),helper.getTextHeight(),small.getHeight()+small.getSpacing(),expected,down);helper.scrollLine(down);SDL_Event e={};e.type=SDL_MOUSEBUTTONDOWN;e.button.button=down?SDL_BUTTON_WHEELDOWN:SDL_BUTTON_WHEELUP;Action a(&e,1,1,0,0);wheel.mousePress(&a,nullptr);helper.draw();wheel.draw();
+   check(helper.getSurface()->pitch==wheel.getSurface()->pitch&&std::memcmp(helper.getSurface()->pixels,wheel.getSurface()->pixels,helper.getSurface()->pitch*helper.getHeight())==0,"shared helper and ordinary wheel pixel parity");
+   check(agentTextOffset(helper)==expected&&agentTextOffset(wheel)==expected,"shared helper and GUI match independently extracted frozen clamp");
+  }
+ }
+}
+}
+int main(int argc,char**argv)
+{
+ check(argc==2,"source root");check(!SDL_Init(0)&&!SDL_GetVideoSurface(),"offscreen only");Options::baseXResolution=320;Options::baseYResolution=400;
+ Font big,small;for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
+ for(const std::string game:{"xcom1","xcom2"}){Language lang;lang.loadFile(std::string(argv[1])+"/bin/standard/"+game+"/Language/en-US.yml");lineTests(big,small,lang,argv[1],game);}
+ check(agentPaintHealthy()&&!SDL_GetVideoSurface(),"no paint failure or GUI");std::cout<<"PASS "<<checks<<" checks\n";
+}

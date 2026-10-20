@@ -147,6 +147,10 @@ namespace OpenXcom
 			_lstInfo->setCellColor(4, 1, Palette::blockOffset(13)+0);
 		}
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateBaseFacility::~ArticleStateBaseFacility()

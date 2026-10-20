@@ -57,6 +57,10 @@ namespace OpenXcom
 		}
 
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterTransparentLayer(_lstInfo);
+#endif
 	}
 
 	ArticleStateTFTDUso::~ArticleStateTFTDUso()

@@ -131,6 +131,14 @@ namespace OpenXcom
 		addStat("STR_PSIONIC_SKILL", armor->getStats()->psiSkill, true);
 
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterTransparentLayer(_image);
+#endif
 	}
 
 	ArticleStateArmor::~ArticleStateArmor()
