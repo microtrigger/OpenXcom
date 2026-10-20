@@ -55,6 +55,8 @@
 #include "../Observer/AgentUi.h"
 #include "../Observer/AgentProjectileOutput.h"
 #include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
 #endif
 
 namespace OpenXcom
@@ -158,6 +160,13 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 	_btnGeoscape->setText(tr("STR_GEOSCAPE_UC"));
 	_btnGeoscape->onMouseClick((ActionHandler)&BasescapeState::btnGeoscapeClick);
 	_btnGeoscape->onKeyboardPress((ActionHandler)&BasescapeState::btnGeoscapeClick, Options::keyCancel);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for(Surface *surface:_surfaces) surface->agentTrackPresentation();
+    for(TextButton *button:{_btnBaseInfo,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnGeoscape})
+        button->agentEnableNamedControl();
+    if(_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if(_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -525,6 +534,10 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
     if (_modal || !_game->isState(const_cast<BasescapeState *>(this)) || !agentPaintHealthy()) return false;
     out=AgentUiState(); out.screen="basescape"; out.actor=_base;
     const auto painted=agentFlattenPaintOrder(_surfaces);
+    const Surface *logical=_game->getScreen()->getSurface();
+    for(const Surface *surface:painted) if(surface) out.widgets.emplace_back(surface,surface->agentPresentationRevision());
+    if(_game->getCursor()) out.widgets.emplace_back(_game->getCursor(),_game->getCursor()->agentPresentationRevision());
+    if(_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(),_game->getFpsCounter()->agentPresentationRevision());
     const auto include=[&](const Surface *widget)->bool
     {
         if (!agentWidgetUncovered(widget,painted)) return false;
@@ -574,8 +587,9 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
     std::string buttons="[";
     const auto button=[&](TextButton *widget,const char *id,const char *action)
     {
-        const auto label=agentButtonLabel(widget);
-        if (label.empty() || label.size()>1024 || !include(widget)) return;
+        const auto label=agentProjectNamedButton(widget,logical,painted,out,
+            [&](const AgentUiState &part){return _game->agentOverlayClear(part);});
+        if (label.empty() || label.size()>1024) return;
         if (buttons.size()>1) buttons+=",";
         buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
         out.actions.emplace_back(action,label,"visible_text");

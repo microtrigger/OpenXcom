@@ -76,6 +76,9 @@ bool TextButton::isButtonHandled(Uint8 button)
  */
 void TextButton::setColor(Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_color = color;
 	_text->setColor(color);
 	_redraw = true;
@@ -96,6 +99,9 @@ Uint8 TextButton::getColor() const
  */
 void TextButton::setTextColor(Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_text->setColor(color);
 	_redraw = true;
 }
@@ -105,6 +111,9 @@ void TextButton::setTextColor(Uint8 color)
  */
 void TextButton::setBig()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_text->setBig();
 	_redraw = true;
 }
@@ -114,6 +123,9 @@ void TextButton::setBig()
  */
 void TextButton::setSmall()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_text->setSmall();
 	_redraw = true;
 }
@@ -138,6 +150,9 @@ Font *TextButton::getFont() const
  */
 void TextButton::initText(Font *big, Font *small, Language *lang)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_text->initText(big, small, lang);
 	_redraw = true;
 }
@@ -149,6 +164,9 @@ void TextButton::initText(Font *big, Font *small, Language *lang)
  */
 void TextButton::setHighContrast(bool contrast)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_contrast = contrast;
 	_text->setHighContrast(contrast);
 	_redraw = true;
@@ -160,6 +178,9 @@ void TextButton::setHighContrast(bool contrast)
  */
 void TextButton::setText(const std::string &text)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_text->setText(text);
 	_redraw = true;
 }
@@ -207,6 +228,9 @@ bool TextButton::agentPressed(bool &pressed) const
  */
 void TextButton::setGroup(TextButton **group)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_group = group;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	++_agentSelectionRevision;
@@ -232,6 +256,9 @@ void TextButton::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
  */
 void TextButton::draw()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentNamedPaint=false;
+#endif
 	Surface::draw();
 	SDL_Rect square;
 
@@ -309,6 +336,9 @@ void TextButton::draw()
 	_text->setInvert(press);
 
 	_text->blit(this);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_agentNamedControl) agentCaptureNamedControl();
+#endif
 }
 
 /**
@@ -381,6 +411,9 @@ void TextButton::mouseRelease(Action *action, State *state)
  */
 void TextButton::setComboBox(ComboBox *comboBox)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_comboBox = comboBox;
 	if (_comboBox)
 	{
@@ -406,7 +439,60 @@ void TextButton::setHeight(int height)
 
 void TextButton::setGeoscapeButton(bool geo)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_geoscapeButton = geo;
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace {
+bool namedPixels(const SDL_Surface *p)
+{
+    return p && p->w>0 && p->h>0 && p->w<=640 && p->h<=400 && p->format &&
+        p->format->BytesPerPixel==1 && p->format->palette && p->format->palette->colors && p->format->palette->ncolors==256 &&
+        (p->flags&SDL_SRCCOLORKEY) && p->format->colorkey==0 && !(p->flags&SDL_SRCALPHA) &&
+        p->clip_rect.x==0 && p->clip_rect.y==0 && p->clip_rect.w==p->w && p->clip_rect.h==p->h;
+}
+}
+void TextButton::blit(Surface *surface)
+{
+    if(!_agentNamedControl){Surface::blit(surface);return;}
+    _agentNamedBlitValid=false;
+    const bool before=namedPixels(_surface)&&surface&&namedPixels(surface->getSurface());
+    Surface::blit(surface);
+    _agentNamedBlitValid=before&&namedPixels(_surface)&&surface&&namedPixels(surface->getSurface())&&agentPresentationPaintedTo(surface);
+}
+void TextButton::agentCaptureNamedControl()
+{
+    _agentNamedPaint=false;_agentNamedPixels.clear();_agentNamedLabel.clear();
+    const auto label=agentLabel();SDL_Rect ink;
+    if (label.empty() || getWidth()<7 || getHeight()<7 || !namedPixels(_surface) ||
+        !namedPixels(_text->getSurface()) || !_text->agentPaintedBounds(ink) || !ink.w || !ink.h || size_t(ink.w)*ink.h>8192 ||
+        ink.x<0 || ink.y<0 || ink.x+ink.w>getWidth() || ink.y+ink.h>getHeight() || !Observer::agentPaintHealthy()) return;
+    if (Observer::agentObservePaint(SDL_LockSurface(_surface))<0) return;
+    for(int y=ink.y;y<ink.y+ink.h;++y) for(int x=ink.x;x<ink.x+ink.w;++x)
+        _agentNamedPixels.push_back(*(static_cast<const Uint8*>(_surface->pixels)+y*_surface->pitch+x));
+    SDL_UnlockSurface(_surface);
+    for(int i=0;i<256;++i)_agentNamedPalette[i]=_surface->format->palette->colors[i];
+    _agentNamedInk=ink;_agentNamedLabel=label;_agentNamedLabelRevision=agentLabelRevision();_agentNamedPaint=true;
+}
+bool TextButton::agentNamedControl(const Surface *destination,std::string &label,SDL_Rect &ink,SDL_Rect &point) const
+{
+    label.clear();
+    if (!_agentNamedControl || !_agentNamedPaint || !_agentNamedBlitValid || !agentPresentationPaintedTo(destination) ||
+        _agentNamedLabelRevision!=agentLabelRevision() || agentLabel()!=_agentNamedLabel ||
+        !namedPixels(_surface) || !destination || !namedPixels(destination->getSurface()) ||
+        getX()<0 || getY()<0 || getX()+getWidth()>destination->getWidth() || getY()+getHeight()>destination->getHeight()) return false;
+    SDL_Surface *target=destination->getSurface();
+    for(int i=0;i<256;++i){const auto&a=_agentNamedPalette[i];const auto&b=_surface->format->palette->colors[i];const auto&c=target->format->palette->colors[i];if(a.r!=b.r||a.g!=b.g||a.b!=b.b||a.r!=c.r||a.g!=c.g||a.b!=c.b)return false;}
+    const int a=Observer::agentObservePaint(SDL_LockSurface(_surface));const int b=Observer::agentObservePaint(SDL_LockSurface(target));
+    if(a<0||b<0){if(a>=0)SDL_UnlockSurface(_surface);if(b>=0)SDL_UnlockSurface(target);return false;}
+    bool same=true;size_t n=0;
+    for(int y=_agentNamedInk.y;y<_agentNamedInk.y+_agentNamedInk.h;++y)for(int x=_agentNamedInk.x;x<_agentNamedInk.x+_agentNamedInk.w;++x){const auto pixel=_agentNamedPixels[n++];if(*(static_cast<const Uint8*>(_surface->pixels)+y*_surface->pitch+x)!=pixel||*(static_cast<const Uint8*>(target->pixels)+(getY()+y)*target->pitch+getX()+x)!=pixel)same=false;}
+    SDL_UnlockSurface(target);SDL_UnlockSurface(_surface);if(!same||!Observer::agentPaintHealthy())return false;
+    label=_agentNamedLabel;ink=_agentNamedInk;ink.x+=getX();ink.y+=getY();point={Sint16(getX()+3),Sint16(getY()+3),1,1};return true;
+}
+#endif
 
 }

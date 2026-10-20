@@ -5,9 +5,13 @@ interface to the game's **displayed UI**, rather than unrestricted memory access
 or a stream of mouse coordinates. It supports UFO Defense and Terror from the
 Deep with separately supplied original game data.
 
-**Status: experimental v21d.** TFTD Stores return route passed the latest live
+**Status: experimental v21d plus named-button admission guards.** TFTD Stores return route passed the latest live
 check. UFO Stores quantity was verified, but its full return route is partial:
-return-to-Geoscape was not offered. Full interface coverage is unfinished.
+return-to-Geoscape was not offered. The guarded Basescape button update now tolerates
+cursor overlap with decorative corners while still requiring the full label and
+activation point to be clear. Full native build, offscreen UFO/TFTD regression,
+ASan/UBSan and agent-OFF/ON raster parity pass; the original live route still
+needs rechecking. Full interface coverage is unfinished.
 `wip/named-button-v21e` and `wip/research-v22` preserve unfinished work; they are not
 releases. Build the native game and use the Python adapter from the **same branch**.
 
@@ -190,6 +194,8 @@ sh tests/agent-control/run-portable-smoke.sh
 ```
 
 Adapter and asset-free smoke tests do not replace full native/live-game acceptance.
+See [native button regression commands](../../tests/agent-control/README.md) for
+asset-dependent visibility, stale-action and raster-parity checks.
 Historical fixtures may need matching protocol versions or generated includes;
 a portable run-all native suite is unfinished. The MCP-versus-screen/input
 benchmark has not run. This series reconstructs saved development snapshots;

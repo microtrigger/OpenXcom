@@ -48,6 +48,13 @@ private:
 	ComboBox *_comboBox;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool _agentDrawnPressed = false;
+    bool _agentNamedControl = false, _agentNamedPaint = false, _agentNamedBlitValid = false;
+    SDL_Rect _agentNamedInk = {};
+    std::string _agentNamedLabel;
+    std::vector<Uint8> _agentNamedPixels;
+    SDL_Color _agentNamedPalette[256] = {};
+    std::uint64_t _agentNamedLabelRevision = 0;
+    void agentCaptureNamedControl();
 	std::uint64_t _agentSelectionRevision = 0;
 #endif
 	// for use by RuleInterface
@@ -83,6 +90,11 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Gets only a fully rendered label, excluding an optional covered right edge.
 	std::string agentLabel(int rightInset = 0) const;
+    // Opt-in named control only. A complete drawn label and one fixed ordinary
+    // interior point are qualified separately from the decorative outer border.
+    void blit(Surface *surface) override;
+    void agentEnableNamedControl() { _agentNamedControl=true; agentTrackPresentation(); }
+    bool agentNamedControl(const Surface *destination, std::string &label, SDL_Rect &ink, SDL_Rect &point) const;
 	/// Reads the pressed appearance captured by the completed ordinary draw.
 	bool agentPressed(bool &pressed) const;
 	std::uint64_t agentLabelRevision() const;

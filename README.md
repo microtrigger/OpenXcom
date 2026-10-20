@@ -7,6 +7,6 @@ See [capabilities, build and agent connection guide](docs/mcp-player-interface/R
 including a Codex stdio configuration, safe action loop and known limits.
 The experimental control profile currently requires a POSIX/Linux environment;
 it is not a native Windows MCP service.
-`mcp-player-interface` contains the v21d snapshot; `wip/named-button-v21e` and `wip/research-v22` retain unfinished work.
+`mcp-player-interface` contains v21d plus validated named-button admission guards; `wip/named-button-v21e` and `wip/research-v22` retain unfinished work.
 
 License: [GPL](LICENSE.txt), with [component notices](LICENSE-NOTICES.md).
