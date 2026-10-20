@@ -376,7 +376,7 @@ class Server:
                       'serverInfo': {'name': ('openxcom-semantic-agent-control' if self.agent_control is not None else
                                               'openxcom-supervised-stance-pilot' if self.supervised_stance is not None
                                               else 'openxcom-readonly-scaffold'),
-                                     'version': '0.14.0' if self.agent_control is not None else '0.1.0'}}
+                                     'version': '0.15.0' if self.agent_control is not None else '0.1.0'}}
         elif self.state != 'ready':
             return error(ident, -32000, 'Not initialized')
         elif method == 'tools/list':

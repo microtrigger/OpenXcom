@@ -94,9 +94,9 @@ AgentProjectileFact AgentProjectileWitness::evaluate(bool admitted,
 }
 bool AgentProjectileRaster::begin(AgentProjectileWitness &witness, void *bytes, int width, int height, int pitch)
 {
-    return begin({{&witness, nullptr, nullptr}}, bytes, width, height, pitch);
+    return begin({{&witness, nullptr, nullptr, nullptr, nullptr}}, bytes, width, height, pitch);
 }
-bool AgentProjectileRaster::begin(const std::array<AgentProjectileWitness *, 3> &witnesses,
+bool AgentProjectileRaster::begin(const std::array<AgentProjectileWitness *, 5> &witnesses,
     void *bytes, int width, int height, int pitch)
 {
     _witnesses = witnesses; _role = AgentRendererRole::Ordinary; _begin = 0; _span = 0;

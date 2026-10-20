@@ -66,7 +66,8 @@ class Map : public InteractiveSurface
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     AgentMapSnapshot _agentDrawSnapshot;
-    Observer::AgentProjectileWitness _agentProjectileWitness, _agentImpactWitness, _agentCollapseWitness;
+    Observer::AgentProjectileWitness _agentProjectileWitness, _agentImpactWitness, _agentCollapseWitness,
+        _agentThrownItemWitness, _agentLargeExplosionWitness;
     Observer::AgentProjectileRaster _agentProjectileRaster;
     bool _agentDrawSnapshotReady = false;
     std::uint64_t _agentDrawViewRevision = 0;

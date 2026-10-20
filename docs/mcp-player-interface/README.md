@@ -1,6 +1,6 @@
 # Experimental semantic MCP control
 
-**v13e** — Experimental implementation; partial coverage, not a complete interface.
+**v14** — Experimental implementation; partial coverage, not a complete interface.
 
 ## Build and use
 

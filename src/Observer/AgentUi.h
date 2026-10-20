@@ -30,6 +30,8 @@ struct AgentUiState {
     AgentProjectileFact projectileFact = AgentProjectileFact::Unknown;
     AgentProjectileFact impactFact = AgentProjectileFact::Unknown;
     AgentProjectileFact collapseFact = AgentProjectileFact::Unknown;
+    AgentProjectileFact thrownItemFact = AgentProjectileFact::Unknown;
+    AgentProjectileFact largeExplosionFact = AgentProjectileFact::Unknown;
     std::vector<AgentUiAction> actions;
     // Visible projection regions: private geometry binding and overlay checks.
     std::vector<AgentUiRect> regions;

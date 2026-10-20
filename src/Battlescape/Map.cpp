@@ -223,8 +223,8 @@ void Map::draw()
     agentAttachProjectileRaster(&_agentProjectileRaster);
     SDL_Surface *agentPixels = getSurface();
     if (agentPixels->format->BitsPerPixel == 8)
-        _agentProjectileRaster.begin({{&_agentProjectileWitness, &_agentImpactWitness, &_agentCollapseWitness}}, agentPixels->pixels, getWidth(), getHeight(), agentPixels->pitch);
-    else { _agentProjectileWitness.invalidate(); _agentImpactWitness.invalidate(); _agentCollapseWitness.invalidate(); }
+        _agentProjectileRaster.begin({{&_agentProjectileWitness, &_agentImpactWitness, &_agentCollapseWitness, &_agentThrownItemWitness, &_agentLargeExplosionWitness}}, agentPixels->pixels, getWidth(), getHeight(), agentPixels->pitch);
+    else { _agentProjectileWitness.invalidate(); _agentImpactWitness.invalidate(); _agentCollapseWitness.invalidate(); _agentThrownItemWitness.invalidate(); _agentLargeExplosionWitness.invalidate(); }
 #endif
 
 	Tile *t;
@@ -268,6 +268,8 @@ void Map::draw()
     _agentProjectileWitness.seal(Observer::agentPaintHealthy() && !hiddenMovement);
     _agentImpactWitness.seal(Observer::agentPaintHealthy() && !hiddenMovement);
     _agentCollapseWitness.seal(Observer::agentPaintHealthy() && !hiddenMovement);
+    _agentThrownItemWitness.seal(Observer::agentPaintHealthy() && !hiddenMovement);
+    _agentLargeExplosionWitness.seal(Observer::agentPaintHealthy() && !hiddenMovement);
     AgentCameraRect messageRegion;
     _agentDrawSnapshot = _camera->agentViewportSnapshot(getX(), getY(), hiddenMovement,
         hiddenMovement ? _message->agentPaintedLabel(getWidth(), _visibleMapHeight, messageRegion) : std::string());
@@ -869,7 +871,13 @@ void Map::drawTerrain(Surface *surface)
 								_save->getTileEngine()->isVoxelVisible(voxelPos))
 							{
 								_camera->convertVoxelToScreen(voxelPos, &bulletPositionScreen);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    _agentProjectileRaster.role(Observer::AgentRendererRole::ThrownItem);
+#endif
 								tmpSurface->blitNShade(surface, bulletPositionScreen.x - 16, bulletPositionScreen.y - 26, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    _agentProjectileRaster.role(Observer::AgentRendererRole::Ordinary);
+#endif
 							}
 
 						}
@@ -1302,7 +1310,13 @@ void Map::drawTerrain(Surface *surface)
 					if ((*i)->getCurrentFrame() >= 0)
 					{
 						tmpSurface = _game->getMod()->getSurfaceSet("X1.PCK")->getFrame((*i)->getCurrentFrame());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    _agentProjectileRaster.role(Observer::AgentRendererRole::LargeExplosion);
+#endif
 						tmpSurface->blitNShade(surface, bulletPositionScreen.x - (tmpSurface->getWidth() / 2), bulletPositionScreen.y - (tmpSurface->getHeight() / 2), 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    _agentProjectileRaster.role(Observer::AgentRendererRole::Ordinary);
+#endif
 					}
 				}
 				else if ((*i)->isHit())
@@ -1899,6 +1913,10 @@ Observer::AgentProjectileFact Map::agentProjectileFact(const Screen *screen,
         return screen->agentProjectileFact(_agentImpactWitness, this, view.height, pixelAdmitted);
     if (role == Observer::AgentRendererRole::Collapse)
         return screen->agentProjectileFact(_agentCollapseWitness, this, view.height, pixelAdmitted);
+    if (role == Observer::AgentRendererRole::ThrownItem)
+        return screen->agentProjectileFact(_agentThrownItemWitness, this, view.height, pixelAdmitted);
+    if (role == Observer::AgentRendererRole::LargeExplosion)
+        return screen->agentProjectileFact(_agentLargeExplosionWitness, this, view.height, pixelAdmitted);
     return Observer::AgentProjectileFact::Unknown;
 }
 }

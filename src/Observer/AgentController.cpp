@@ -352,7 +352,8 @@ void AgentController::presented()
     // Unsupported, covered, incomplete and other state types remain unknown.
     if (!_publicEvents.displayedMessage(ui.displayedMessage, ui.displayedMessageAbsent)) { close(); return; }
     if (!_publicEvents.projectile(ui.projectileFact) || !_publicEvents.impact(ui.impactFact) ||
-        !_publicEvents.collapse(ui.collapseFact)) { close(); return; }
+        !_publicEvents.collapse(ui.collapseFact) || !_publicEvents.thrownItem(ui.thrownItemFact) ||
+        !_publicEvents.largeExplosion(ui.largeExplosionFact)) { close(); return; }
     if (_queued.active())
     {
         dispatchQueued(ui);

@@ -11,7 +11,7 @@ from test_agent_control import NativeFixture, arguments, call, dump, result, sta
 from test_agent_events import page, validate
 
 
-SCHEMA = 'openxcom-agent-control/14'
+SCHEMA = 'openxcom-agent-control/15'
 
 
 def descriptor(action, label):

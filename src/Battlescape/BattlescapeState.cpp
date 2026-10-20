@@ -2743,6 +2743,8 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
         ui.projectileFact = map->agentProjectileFact(game->getScreen(), admitted);
         ui.impactFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::Impact);
         ui.collapseFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::Collapse);
+        ui.thrownItemFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::ThrownItem);
+        ui.largeExplosionFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::LargeExplosion);
     }
     return std::string("{\"mode\":\"") + (view.hiddenMovement ? "hidden_movement" : "map") +
         "\",\"viewport\":{\"x\":" + std::to_string(view.x) + ",\"y\":" + std::to_string(view.y) +
