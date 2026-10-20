@@ -20,14 +20,15 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(parseAgentRequest("H openxcom-agent-control/7", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/8", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/7", r), "v7 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/5", r), "v5 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/4", r), "v4 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/2", r), "v2 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/3", r), "v3 mismatch rejected");
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/7\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/8\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -41,7 +42,7 @@ int main()
         "new_battle", "start_battle", "continue_briefing", "close_inventory",
         "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",
         "resume_game", "cancel_menu", "dismiss_error", "start_new_game", "confirm_base_name",
-        "close_dropdown", "open_funding", "close_funding", "end_turn", "acknowledge_message"};
+        "close_dropdown", "open_funding", "close_funding", "end_turn", "acknowledge_message", "close_debriefing"};
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
@@ -83,6 +84,8 @@ int main()
     for (const char *hand : {"left", "right"}) check(parseAgentRequest(prefix+"0 open_hand_action_menu "+hand,r), "hand syntax");
     check(!parseAgentRequest(prefix+"0 open_hand_action_menu weapon42",r), "no item identity");
     check(!parseAgentRequest("H openxcom-agent-control/6",r), "old6 rejected");
+    check(!parseAgentRequest(prefix+"0 close_debriefing yes",r), "debrief action has no argument");
+    check(!parseAgentRequest(prefix+"0 show_debrief_stats",r), "stats control unsupported");
     AgentLedger typed;
     const std::string first=prefix+"0 replace_base_name 41";
     check(typed.begin(token(3),first)==AgentLedger::Fresh, "typed identity fresh");

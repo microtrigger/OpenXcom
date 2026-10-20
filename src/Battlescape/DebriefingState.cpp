@@ -676,6 +676,58 @@ void DebriefingState::btnStatsClick(Action *)
 	applyVisibility();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal || !_game->isState(const_cast<DebriefingState *>(this)) ||
+        !Observer::agentWidgetVisible(_window)) return false;
+    out = Observer::AgentUiState();
+    out.screen = "debriefing";
+    // Lists participate only as occluders. Their dotted cells are deliberately
+    // not projected: this provider does not claim score/recovery/stat coverage.
+    const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
+    const auto text = [&](const Text *widget) -> std::string
+    {
+        if (!Observer::agentWidgetUncovered(widget, painted)) return "null";
+        const std::string value = Observer::agentTextJson(widget);
+        if (value != "null") Observer::agentIncludeWidget(out, widget);
+        return value;
+    };
+    const std::string title = text(_txtTitle), rating = text(_txtRating);
+    std::string stats = "null";
+    if (Observer::agentWidgetUncovered(_btnStats, painted))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnStats);
+        if (!label.empty())
+        {
+            stats = Observer::agentJsonString(label);
+            Observer::agentIncludeWidget(out, _btnStats);
+        }
+    }
+    out.visible = "{\"title\":" + title + ",\"rating\":" + rating +
+        ",\"stats_label\":" + stats + ",\"table_status\":\"unavailable\"}";
+    if (Observer::agentWidgetUncovered(_btnOk, painted))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnOk);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("close_debriefing", label, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnOk);
+        }
+    }
+    // No state-kind claim if every supported public witness is covered/unknown.
+    return !out.regions.empty();
+}
+
+bool DebriefingState::agentDispatch(const std::string &action)
+{
+    Observer::AgentUiState current;
+    if (action != "close_debriefing" || !agentUiState(current) || !current.offers(action)) return false;
+    btnOkClick(nullptr);
+    return true;
+}
+#endif
+
 /**
  * Returns to the previous screen.
  * @param action Pointer to an action.

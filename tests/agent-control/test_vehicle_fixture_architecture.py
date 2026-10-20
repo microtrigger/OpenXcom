@@ -26,5 +26,5 @@ class VehicleFixtureArchitecture(unittest.TestCase):
   g=(ROOT/'src/Battlescape/BattlescapeGenerator.cpp').read_text()
   for text in ['getCompatibleAmmo()->front()', 'unit->setTurretType(v->getRules()->getTurretType())', 'item->setSlot(!rightWeapon ? rightHand : leftHand)']:
    self.assertIn(text,g)
-  p=(ROOT/'src/Observer/AgentProtocol.cpp').read_text();self.assertIn('openxcom-agent-control/7',p)
+  p=(ROOT/'src/Observer/AgentProtocol.cpp').read_text();self.assertIn('openxcom-agent-control/8',p)
 if __name__=='__main__':unittest.main(verbosity=2)

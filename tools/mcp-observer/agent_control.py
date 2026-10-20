@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/7'
+SCHEMA = 'openxcom-agent-control/8'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -44,7 +44,8 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'choose_visible_row', 'scroll_visible_list', 'close_dropdown',
            'open_funding', 'close_funding', 'end_turn', 'acknowledge_message',
            'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy',
-           'open_hand_action_menu', 'choose_fire_mode', 'cancel_weapon_action')
+           'open_hand_action_menu', 'choose_fire_mode', 'cancel_weapon_action',
+           'close_debriefing')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -99,6 +100,7 @@ STATE_ACTIONS = {
     'infobox_ok': frozenset(('acknowledge_message',)),
     'battlescape_warning': frozenset(),
     'weapon_action_menu': frozenset(('choose_fire_mode', 'cancel_weapon_action')),
+    'debriefing': frozenset(('close_debriefing',)),
     'unsupported': frozenset(),
 }
 GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year', 'funds', 'speed')
@@ -362,6 +364,12 @@ def validate_visible(screen, visible, seen):
         validate_battlescape_controls(visible, seen)
     elif screen == 'weapon_action_menu':
         validate_weapon_action_menu(visible, seen)
+    elif screen == 'debriefing':
+        exact(visible, 'title rating stats_label table_status')
+        for key in ('title', 'rating', 'stats_label'):
+            visible_text(visible[key], nullable=True)
+            require(visible[key] is None or len(visible[key].encode('utf-8')) <= 1024)
+        require(visible['table_status'] == 'unavailable')
     elif screen == 'new_game':
         validate_new_game(visible, seen)
     elif screen == 'geoscape':

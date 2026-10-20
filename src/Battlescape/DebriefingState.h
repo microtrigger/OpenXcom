@@ -98,6 +98,10 @@ private:
 	/// Creates a string for the soldier stats table from a stat difference value
 	std::string makeSoldierString(int stat);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 	/// Creates the Debriefing state.
 	DebriefingState();
 	/// Cleans up the Debriefing state.

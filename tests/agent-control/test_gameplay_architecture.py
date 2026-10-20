@@ -59,7 +59,7 @@ class Gameplay(unittest.TestCase):
   self.assertNotIn('SDL_SetModState',s)
  def test_armored_fixture_is_explicit_stock_equipment_only(self):
   s=read('tests/agent-report-fixture/AgentReportFixture.cpp')
-  self.assertIn('armored=std::string(argv[i+1])=="gameplay-armored-v1"',s)
+  self.assertIn('armored=equippedVehicle || std::string(argv[i+1])=="gameplay-armored-v1"',s)
   self.assertIn('gameplay=armored || std::string(argv[i+1])=="gameplay-v1"',s)
   self.assertIn('armored?(underwater?"STR_MAGNETIC_ION_ARMOR_UC":"STR_POWER_SUIT_UC"):rules->getArmor()',s)
   self.assertIn('person["armor"]=soldierArmor',s)
@@ -73,5 +73,5 @@ class Gameplay(unittest.TestCase):
   self.assertLess(draw.index('_txtTU->blit(this);'),draw.index('_redraw = false;'))
   self.assertNotIn('Surface::draw();',draw)
  def test_version_capacity(self):
-  self.assertIn('openxcom-agent-control/7',read('src/Observer/AgentProtocol.cpp'));self.assertIn('_entries.size() >= 256',read('src/Observer/AgentProtocol.cpp'))
+  self.assertIn('openxcom-agent-control/8',read('src/Observer/AgentProtocol.cpp'));self.assertIn('_entries.size() >= 256',read('src/Observer/AgentProtocol.cpp'))
 if __name__=='__main__':unittest.main()
