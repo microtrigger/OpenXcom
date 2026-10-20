@@ -408,6 +408,73 @@ GeoscapeState::~GeoscapeState()
 	}
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal) return false;
+	// Dogfight windows are painted after this state's ordinary surface list.
+	// Their independent projection is outside this read-only HUD slice.
+	if (!_dogfights.empty()) return false;
+	out = Observer::AgentUiState();
+	out.screen = "geoscape";
+	const auto includeDisjoint = [&out](const Surface *widget) -> bool
+	{
+		const size_t before = out.regions.size();
+		Observer::agentIncludeWidget(out, widget);
+		if (Observer::agentRegionsDisjoint(out)) return true;
+		out.regions.resize(before);
+		return false;
+	};
+	const Text *fields[] = {_txtHour, _txtMin, _txtSec, _txtWeekday, _txtDay, _txtMonth, _txtYear, _txtFunds};
+	const char *keys[] = {"hour", "minute", "second", "weekday", "day", "month", "year", "funds"};
+	out.visible = "{";
+	for (unsigned i = 0; i < 8; ++i)
+	{
+		std::string value = "null";
+		if (Observer::agentWidgetUncovered(fields[i], _surfaces))
+		{
+			const std::string rendered = Observer::agentTextJson(fields[i]);
+			if (rendered != "null" && includeDisjoint(fields[i])) value = rendered;
+		}
+		if (i) out.visible += ",";
+		out.visible += Observer::agentJsonString(keys[i]) + ":" + value;
+	}
+
+	const TextButton *speeds[] = {_btn5Secs, _btn1Min, _btn5Mins, _btn30Mins, _btn1Hour, _btn1Day};
+	const TextButton *selectedSpeed = nullptr;
+	unsigned selectedCount = 0;
+	for (const TextButton *button : speeds)
+	{
+		bool selected = false;
+		if (Observer::agentWidgetUncovered(button, _surfaces) && button->agentPressed(selected) && selected)
+		{
+			selectedSpeed = button;
+			++selectedCount;
+		}
+	}
+	std::string speed = "null";
+	if (selectedCount == 1 && includeDisjoint(selectedSpeed))
+		speed = Observer::agentJsonString(Observer::agentButtonLabel(selectedSpeed));
+	out.visible += ",\"speed\":" + speed + ",\"buttons\":[";
+
+	const TextButton *buttons[] = {_btnIntercept, _btnBases, _btnGraphs, _btnUfopaedia, _btnOptions, _btnFunding};
+	const char *ids[] = {"intercept", "bases", "graphs", "ufopaedia", "options", "funding"};
+	unsigned count = 0;
+	for (unsigned i = 0; i < 6; ++i)
+	{
+		if (!Observer::agentWidgetUncovered(buttons[i], _surfaces)) continue;
+		const std::string label = Observer::agentButtonLabel(buttons[i]);
+		if (label.empty() || !includeDisjoint(buttons[i])) continue;
+		if (count++) out.visible += ",";
+		out.visible += "{\"id\":" + Observer::agentJsonString(ids[i]) +
+			",\"label\":" + Observer::agentJsonString(label) + "}";
+	}
+	out.visible += "]}";
+	// Deliberately no actions: this HUD never grants a command capability.
+	return true;
+}
+#endif
+
 /**
  * Handle blitting of Geoscape and Dogfights.
  */
@@ -418,6 +485,9 @@ void GeoscapeState::blit()
 	{
 		(*it)->blit();
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_globe->agentRecordOccluders(_surfaces, _dogfights.empty());
+#endif
 }
 
 /**

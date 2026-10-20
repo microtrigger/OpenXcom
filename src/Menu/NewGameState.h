@@ -47,10 +47,11 @@ public:
 	/// Cleans up the New Game state.
 	~NewGameState();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	/// Describes rendered text and the visible cancel control.
+	/// Describes rendered difficulty, Ironman and ordinary dialog controls.
 	bool agentUiState(Observer::AgentUiState &out) const override;
 	/// Invokes the ordinary handler only for a currently offered action.
 	bool agentDispatch(const std::string &action) override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
 #endif
 	/// Handler for clicking the Ok button.
 	void btnOkClick(Action *action);

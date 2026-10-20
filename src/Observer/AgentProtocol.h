@@ -11,10 +11,15 @@ std::string agentEnvelope();
 std::string agentJsonString(const std::string &value);
 bool agentToken(const std::string &value);
 bool agentActionId(const std::string &value);
+const char *agentArgumentKind(const std::string &action);
+bool agentInputText(const std::string &value);
 struct AgentRequest {
     char kind = 0;
     std::string id, epoch, capability, action, challenge;
     std::uint64_t revision = 0;
+    std::string choice, text;
+    bool desired = false;
+    int x = 0, y = 0;
 };
 bool parseAgentRequest(const std::string &packet, AgentRequest &request);
 

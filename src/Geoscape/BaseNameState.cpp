@@ -96,20 +96,71 @@ BaseNameState::~BaseNameState()
  */
 void BaseNameState::edtNameChange(Action *action)
 {
+	applyNameChange(action->getDetails()->key.keysym.sym == SDLK_RETURN ||
+		action->getDetails()->key.keysym.sym == SDLK_KP_ENTER);
+}
+
+void BaseNameState::applyNameChange(bool commit)
+{
 	_base->setName(_edtName->getText());
-	if (action->getDetails()->key.keysym.sym == SDLK_RETURN ||
-		action->getDetails()->key.keysym.sym == SDLK_KP_ENTER)
+	if (commit)
 	{
-		if (!_edtName->getText().empty())
-		{
-			btnOkClick(action);
-		}
+		if (!_edtName->getText().empty()) btnOkClick(nullptr);
 	}
 	else
 	{
 		_btnOk->setVisible(!_edtName->getText().empty());
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BaseNameState::agentUiState(Observer::AgentUiState &out) const
+{
+	// The owned editor is the only modal exception. No unrelated modal can
+	// be bypassed, and a modal editor never grants direct button dispatch.
+	if (_modal && (_modal != _edtName || !_edtName->isFocused())) return false;
+	out = Observer::AgentUiState();
+	out.screen = "base_name";
+	out.uiRevision = _edtName->agentInputRevision();
+	const std::string title = Observer::agentWidgetUncovered(_txtTitle, _surfaces) ?
+		Observer::agentTextJson(_txtTitle) : "null";
+	if (title != "null") Observer::agentIncludeWidget(out, _txtTitle);
+	std::string name, nameJson = "null";
+	if (Observer::agentWidgetUncovered(_edtName, _surfaces) && _edtName->agentRenderedText(name))
+	{
+		nameJson = Observer::agentJsonString(name);
+		Observer::agentIncludeWidget(out, _edtName);
+		if (_edtName->agentEditable())
+			out.actions.push_back(Observer::AgentUiAction("replace_base_name", "Edit base name", "visible_control_semantics", "text"));
+	}
+	out.visible = "{\"title\":" + title + ",\"name\":" + nameJson + "}";
+	if (!_modal && nameJson != "null" && Observer::agentWidgetUncovered(_btnOk, _surfaces))
+	{
+		const std::string label = Observer::agentButtonLabel(_btnOk);
+		if (!label.empty())
+		{
+			out.actions.push_back(Observer::AgentUiAction("confirm_base_name", label, "visible_text"));
+			Observer::agentIncludeWidget(out, _btnOk);
+		}
+	}
+	return true;
+}
+
+bool BaseNameState::agentDispatch(const Observer::AgentRequest &request)
+{
+	const std::string &action = request.action;
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(action)) return false;
+	if (action == "replace_base_name")
+	{
+		if (!_edtName->agentReplaceText(request.text)) return false;
+		applyNameChange(false);
+		return true;
+	}
+	if (action == "confirm_base_name") { btnOkClick(nullptr); return true; }
+	return false;
+}
+#endif
 
 /**
  * Returns to the previous screen

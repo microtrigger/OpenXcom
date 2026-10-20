@@ -48,12 +48,17 @@ class Font
 private:
 	std::vector<FontImage> _images;
 	std::map< UCode, std::pair<size_t, SDL_Rect> > _chars;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::map<UCode, SDL_Rect> _agentGlyphInk;
+#endif
 	bool _monospace;
 	/// Determines the size and position of each character in the font.
 	void init(size_t index, const UString &str);
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentHasGlyph(UCode codepoint) const { return _chars.find(codepoint) != _chars.end(); }
+    // Nontransparent atlas bounds relative to the ordinary glyph crop.
+    bool agentGlyphInk(UCode codepoint, SDL_Rect &ink) const;
 #endif
 
 	/// Creates a blank font.

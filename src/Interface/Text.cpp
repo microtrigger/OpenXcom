@@ -588,20 +588,25 @@ void Text::draw()
 			chr->setX(x);
 			chr->setY(y);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-            // Record the existing glyph destination geometry, without reading
-            // pixels or resolving any underlying game object/string.
-            const SDL_Rect *crop = chr->getCrop();
-            const int width = crop->w ? crop->w : chr->getWidth();
-            const int height = crop->h ? crop->h : chr->getHeight();
-            if (x < 0 || y < 0 || x + width > getWidth() || y + height > getHeight()) _agentTextClipped = true;
-            const int left = std::max(0, x), top = std::max(0, y);
-            const int right = std::min(getWidth(), x + width), bottom = std::min(getHeight(), y + height);
-            if (left < right && top < bottom)
+            // Bounds come from this actual font's nontransparent glyph ink,
+            // not its padded atlas cell. Keep fallback ink for occlusion while
+            // the original missing codepoint remains incomplete/unavailable.
+            SDL_Rect ink;
+            const UCode painted = font->agentHasGlyph(*c) ? *c : '?';
+            if (!font->agentGlyphInk(painted, ink)) _agentTextClipped = true;
+            else
             {
-                if (!_agentHasGlyph) { _agentInkX1 = left; _agentInkY1 = top; _agentInkX2 = right; _agentInkY2 = bottom; }
-                else { _agentInkX1 = std::min(_agentInkX1, left); _agentInkY1 = std::min(_agentInkY1, top);
-                    _agentInkX2 = std::max(_agentInkX2, right); _agentInkY2 = std::max(_agentInkY2, bottom); }
-                _agentHasGlyph = true;
+                const int inkX=x+ink.x, inkY=y+ink.y;
+                if (inkX < 0 || inkY < 0 || inkX+ink.w > getWidth() || inkY+ink.h > getHeight()) _agentTextClipped=true;
+                const int left=std::max(0,inkX), top=std::max(0,inkY);
+                const int right=std::min(getWidth(),inkX+ink.w), bottom=std::min(getHeight(),inkY+ink.h);
+                if (left < right && top < bottom)
+                {
+                    if (!_agentHasGlyph) { _agentInkX1=left; _agentInkY1=top; _agentInkX2=right; _agentInkY2=bottom; }
+                    else { _agentInkX1=std::min(_agentInkX1,left); _agentInkY1=std::min(_agentInkY1,top);
+                        _agentInkX2=std::max(_agentInkX2,right); _agentInkY2=std::max(_agentInkY2,bottom); }
+                    _agentHasGlyph=true;
+                }
             }
 #endif
 			ShaderDraw<PaletteShift>(ShaderSurface(this, 0, 0), ShaderCrop(chr), ShaderScalar(color), ShaderScalar(mul), ShaderScalar(mid));

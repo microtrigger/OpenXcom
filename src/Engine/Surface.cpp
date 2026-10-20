@@ -759,7 +759,7 @@ void Surface::drawLine(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 color)
  */
 void Surface::drawCircle(Sint16 x, Sint16 y, Sint16 r, Uint8 color)
 {
-	filledCircleColor(_surface, x, y, r, Palette::getRGBA(getPalette(), color));
+	OPENXCOM_AGENT_PAINT(filledCircleColor(_surface, x, y, r, Palette::getRGBA(getPalette(), color)));
 }
 
 /**
@@ -785,7 +785,7 @@ void Surface::drawPolygon(Sint16 *x, Sint16 *y, int n, Uint8 color)
  */
 void Surface::drawTexturedPolygon(Sint16 *x, Sint16 *y, int n, Surface *texture, int dx, int dy)
 {
-	texturedPolygon(_surface, x, y, n, texture->getSurface(), dx, dy);
+	OPENXCOM_AGENT_PAINT(texturedPolygon(_surface, x, y, n, texture->getSurface(), dx, dy));
 }
 
 /**
@@ -890,7 +890,7 @@ void Surface::setHidden(bool hidden)
  */
 void Surface::lock()
 {
-	SDL_LockSurface(_surface);
+	OPENXCOM_AGENT_PAINT(SDL_LockSurface(_surface));
 }
 
 /**

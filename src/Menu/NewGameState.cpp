@@ -124,10 +124,58 @@ bool NewGameState::agentUiState(Observer::AgentUiState &out) const
 		Observer::agentWidgetUncovered(_txtTitle, _surfaces) ? Observer::agentTextJson(_txtTitle) : "null";
 	const std::string ironmanNote = Observer::agentWidgetVisible(_txtIronman) &&
 		Observer::agentWidgetUncovered(_txtIronman, _surfaces) ? Observer::agentTextJson(_txtIronman) : "null";
-	out.visible = "{\"title\":" + title + ",\"ironman_note\":" + ironmanNote + "}";
 	if (title != "null") Observer::agentIncludeWidget(out, _txtTitle);
 	if (ironmanNote != "null") Observer::agentIncludeWidget(out, _txtIronman);
-	if (Observer::agentWidgetVisible(_btnCancel) && Observer::agentWidgetUncovered(_btnCancel, _surfaces))
+
+	TextButton *buttons[] = {_btnBeginner, _btnExperienced, _btnVeteran, _btnGenius, _btnSuperhuman};
+	const char *values[] = {"beginner", "experienced", "veteran", "genius", "superhuman"};
+	std::string difficulties = "[";
+	unsigned visibleCount = 0, selectedCount = 0;
+	for (unsigned i = 0; i < 5; ++i)
+	{
+		// These private revision counters bind input ABA, not hidden model data.
+		out.selectionRevision += buttons[i]->agentSelectionRevision();
+		bool selected = false;
+		if (!Observer::agentWidgetUncovered(buttons[i], _surfaces) ||
+			!buttons[i]->agentPressed(selected)) continue;
+		const std::string label = Observer::agentButtonLabel(buttons[i]);
+		if (label.empty()) continue;
+		if (visibleCount++) difficulties += ",";
+		difficulties += "{\"value\":" + Observer::agentJsonString(values[i]) +
+			",\"label\":" + Observer::agentJsonString(label) + ",\"selected\":" + (selected ? "true" : "false") + "}";
+		if (selected) ++selectedCount;
+		Observer::agentIncludeWidget(out, buttons[i]);
+	}
+	difficulties += "]";
+	if (visibleCount && title != "null")
+		out.actions.push_back(Observer::AgentUiAction("select_difficulty", _txtTitle->getText(), "visible_text", "difficulty"));
+
+	bool ironman = false;
+	std::string ironmanJson = "null";
+	out.selectionRevision += _btnIronman->agentToggleRevision();
+	if (Observer::agentWidgetUncovered(_btnIronman, _surfaces) && _btnIronman->agentTogglePressed(ironman))
+	{
+		const std::string label = Observer::agentButtonLabel(_btnIronman);
+		if (!label.empty())
+		{
+			ironmanJson = ironman ? "true" : "false";
+			out.actions.push_back(Observer::AgentUiAction("set_ironman", label, "visible_text", "boolean"));
+			Observer::agentIncludeWidget(out, _btnIronman);
+		}
+	}
+	out.visible = "{\"title\":" + title + ",\"ironman_note\":" + ironmanNote +
+		",\"difficulty\":" + difficulties + ",\"ironman\":" + ironmanJson + "}";
+
+	if (selectedCount == 1 && ironmanJson != "null" && Observer::agentWidgetUncovered(_btnOk, _surfaces))
+	{
+		const std::string label = Observer::agentButtonLabel(_btnOk);
+		if (!label.empty())
+		{
+			out.actions.push_back(Observer::AgentUiAction("start_new_game", label, "visible_text"));
+			Observer::agentIncludeWidget(out, _btnOk);
+		}
+	}
+	if (Observer::agentWidgetUncovered(_btnCancel, _surfaces))
 	{
 		const std::string label = Observer::agentButtonLabel(_btnCancel);
 		if (!label.empty())
@@ -147,6 +195,35 @@ bool NewGameState::agentDispatch(const std::string &action)
 	btnCancelClick(nullptr);
 	return true;
 }
+
+bool NewGameState::agentDispatch(const Observer::AgentRequest &request)
+{
+	const std::string &action = request.action;
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(action)) return false;
+	if (action == "select_difficulty")
+	{
+		TextButton *buttons[] = {_btnBeginner, _btnExperienced, _btnVeteran, _btnGenius, _btnSuperhuman};
+		const char *values[] = {"beginner", "experienced", "veteran", "genius", "superhuman"};
+		for (unsigned i = 0; i < 5; ++i)
+		{
+			bool selected = false;
+			if (request.choice == values[i] && Observer::agentWidgetUncovered(buttons[i], _surfaces) &&
+				buttons[i]->agentPressed(selected)) return buttons[i]->selectRadio();
+		}
+		return false;
+	}
+	if (action == "set_ironman")
+	{
+		_btnIronman->setPressed(request.desired);
+		_btnIronman->draw();
+		return true;
+	}
+	if (action == "start_new_game") { btnOkClick(nullptr); return true; }
+	if (action == "cancel_menu") return agentDispatch(action);
+	return false;
+}
+
 #endif
 
 /**

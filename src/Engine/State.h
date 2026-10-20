@@ -63,6 +63,7 @@ public:
     // Opt-in typed public UI only. Unsupported states expose no actions.
     virtual bool agentUiState(Observer::AgentUiState &) const { return false; }
     virtual bool agentDispatch(const std::string &) { return false; }
+    virtual bool agentDispatch(const Observer::AgentRequest &request) { return agentDispatch(request.action); }
     virtual bool agentBindingCurrent(const Observer::AgentUiState &) const { return true; }
 #endif
 	/// Creates a new state linked to a game.

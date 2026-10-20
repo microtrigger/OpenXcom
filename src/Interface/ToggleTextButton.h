@@ -31,6 +31,10 @@ private:
     bool _isPressed;
     int _originalColor, _invertedColor;
     TextButton *_fakeGroup;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDrawnToggle = false;
+    std::uint64_t _agentToggleRevision = 0;
+#endif
 
 public:
 
@@ -38,6 +42,10 @@ public:
     void mousePress(Action *action, State *state);
     void setPressed(bool pressed);
     bool getPressed() const { return _isPressed; }
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentTogglePressed(bool &pressed) const;
+    std::uint64_t agentToggleRevision() const { return _agentToggleRevision; }
+#endif
 	void setColor(Uint8 color);
     void setInvertColor(Uint8 color);
     ToggleTextButton(int width, int height, int x, int y);

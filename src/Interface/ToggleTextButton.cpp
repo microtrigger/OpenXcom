@@ -40,10 +40,7 @@ void ToggleTextButton::mousePress(Action *action, State *state)
 {
 	if (action->getDetails()->button.button == SDL_BUTTON_LEFT || action->getDetails()->button.button == SDL_BUTTON_RIGHT)
 	{
-		_isPressed = !_isPressed;
-		_fakeGroup = _isPressed ? this : 0; // this is the trick that makes TextButton stick
-		if (_isPressed && _invertedColor > -1) TextButton::setColor(_invertedColor);
-		else TextButton::setColor(_originalColor);
+		setPressed(!_isPressed);
 	}
 
 	InteractiveSurface::mousePress(action, state); // skip TextButton's code as it will try to set *_group
@@ -53,6 +50,9 @@ void ToggleTextButton::mousePress(Action *action, State *state)
 /// set the _isPressed state of the button and force it to redraw
 void ToggleTextButton::setPressed(bool pressed)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_isPressed != pressed) ++_agentToggleRevision;
+#endif
 	_isPressed = pressed;
 	_fakeGroup = _isPressed ? this : 0;
 	if (_isPressed && _invertedColor > -1) TextButton::setColor(_invertedColor);
@@ -84,7 +84,19 @@ void ToggleTextButton::draw()
 	{
 		this->invert(_invertedColor + 4);
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentDrawnToggle = _isPressed;
+#endif
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ToggleTextButton::agentTogglePressed(bool &pressed) const
+{
+	if (agentLabel().empty()) return false;
+	pressed = _agentDrawnToggle;
+	return true;
+}
+#endif
 
 
 

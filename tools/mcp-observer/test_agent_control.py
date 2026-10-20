@@ -30,18 +30,33 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     ids = ['next_soldier', 'previous_soldier', 'kneel', 'open_pause_menu']
     if screen in a.STATE_FIELDS:
         visible = {key: key.title() for key in a.STATE_FIELDS[screen]}; ids = sorted(a.STATE_ACTIONS[screen])
+    elif screen == 'new_game':
+        visible = dict(title='Select Difficulty', ironman_note='One life', ironman=False,
+                       difficulty=[dict(value=value, label=value.title(), selected=value == 'beginner') for value in a.DIFFICULTIES])
+        ids = sorted(a.STATE_ACTIONS[screen])
+    elif screen == 'build_base':
+        visible = dict(title='Choose base site', globe=dict(width=256, height=200, sample_step=16,
+            samples=[dict(x=64, y=80, terrain='textured'), dict(x=80, y=80, terrain='untextured')]))
+        ids = ['place_base_site']
+    elif screen == 'geoscape':
+        visible = {field: field.title() for field in a.GEOSCAPE_FIELDS}
+        visible['buttons'] = [dict(id=value, label=value.title()) for value in a.GEOSCAPE_BUTTONS]
+        ids, capability = [], None
     elif screen == 'unsupported':
         visible, ids, capability = {}, [], None
     return dict(schema=a.SCHEMA, mode=a.MODE, type='state', challenge=challenge, epoch=EPOCH,
                 revision=revision, capability=capability, state=screen, visible=visible,
                 actions=[dict(id=action, label=action.replace('_', ' ').title(),
-                              label_source='visible_control_semantics' if screen in ('battlescape', 'inventory') else 'visible_text') for action in ids],
+                              label_source=a.label_source(screen, action), argument_kind=a.ARGUMENT_KINDS[action]) for action in ids],
                 event_sequence=event_sequence, semantics='presented_after_request')
 
 
-def arguments(obj=None, command_id=COMMAND, action='kneel'):
+def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
     obj = state() if obj is None else obj
-    return {**{k: obj[k] for k in ('epoch', 'capability', 'revision')}, 'command_id': command_id, 'action': action}
+    if args is None:
+        args = {'select_difficulty': {'value': 'beginner'}, 'set_ironman': {'value': False},
+                'replace_base_name': {'text': 'Alpha'}, 'place_base_site': {'x': 64, 'y': 80}}.get(action, {})
+    return {**{k: obj[k] for k in ('epoch', 'capability', 'revision')}, 'command_id': command_id, 'action': action, 'args': args}
 
 
 def result(command_id=COMMAND, status='dispatched', event_sequence=2, observation=None):
@@ -63,9 +78,22 @@ class NativeFixture:
         self.transform, self.screen = transform, screen
         self.transitions = transitions or {}
         self.revision, self.sequence, self.counter = 1, 0, 10
+        self.difficulty, self.ironman, self.base_name = 'beginner', False, ''
         self.latest = None
         self.hello = hello or dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
         self.thread = threading.Thread(target=self.run); self.thread.start()
+
+    def observation(self, challenge, capability):
+        obj = state(challenge, capability, self.revision, self.sequence, self.screen)
+        if self.screen == 'new_game':
+            obj['visible']['ironman'] = self.ironman
+            for choice in obj['visible']['difficulty']:
+                choice['selected'] = choice['value'] == self.difficulty
+        if self.screen == 'base_name':
+            obj['visible']['name'] = self.base_name
+            if not self.base_name:
+                obj['actions'] = [item for item in obj['actions'] if item['id'] != 'confirm_base_name']
+        return obj
 
     def run(self):
         try:
@@ -78,17 +106,23 @@ class NativeFixture:
                     obj = dict(schema=a.SCHEMA, mode=a.MODE, status='ready')
                 elif command[0] == 'R' and len(command) == 2:
                     self.counter += 1; self.sequence += 1
-                    obj = state(command[1], f'{self.counter:032x}', self.revision, self.sequence, self.screen)
+                    obj = self.observation(command[1], f'{self.counter:032x}')
                     self.latest = copy.deepcopy(obj)
-                elif command[0] == 'E' and len(command) == 6:
-                    _, ident, epoch, cap, revision, action = command
+                elif command[0] == 'E' and len(command) >= 6:
+                    _, ident, epoch, cap, revision, action = command[:6]
                     assert epoch == EPOCH and cap == self.latest['capability']
                     assert int(revision) == self.revision and action in [i['id'] for i in self.latest['actions']]
                     assert ident not in self.results, 'Native action unexpectedly replayed'
+                    kind = a.ARGUMENT_KINDS[action]
+                    expected_count = 6 if kind == 'none' else 8 if kind == 'point' else 7
+                    assert len(command) == expected_count
+                    if action == 'select_difficulty': self.difficulty = command[6]
+                    elif action == 'set_ironman': self.ironman = command[6] == '1'
+                    elif action == 'replace_base_name': self.base_name = '' if command[6] == '-' else bytes.fromhex(command[6]).decode('utf-8')
                     self.revision += 1; self.sequence += 1
                     self.screen = self.transitions.get((self.screen, action), self.screen)
                     obj = result(ident, event_sequence=self.sequence,
-                                 observation=state(None, None, self.revision, self.sequence, self.screen))
+                                 observation=self.observation(None, None))
                     self.results[ident] = copy.deepcopy(obj)
                 elif command[0] == 'S' and len(command) == 2:
                     obj = copy.deepcopy(self.results[command[1]])
@@ -171,26 +205,28 @@ class ValidationTests(unittest.TestCase):
         for name in obj['visible']: obj['visible'][name] = '\U0001f600' * 1000
         with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
 
-    def test_protocol_v1_hello_ready_state_and_result_are_rejected(self):
-        hello = dict(schema='openxcom-agent-control/1', mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
-        with self.assertRaises(Unavailable): a.validate_hello(dump(hello))
-        with self.assertRaises(Unavailable):
-            a.validate_ready(dump(dict(schema='openxcom-agent-control/1', mode=a.MODE, status='ready')))
-        obj = state(); obj['schema'] = 'openxcom-agent-control/1'
-        with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
-        obj = result(); obj['schema'] = 'openxcom-agent-control/1'
-        with self.assertRaises(Unavailable): a.validate_result(dump(obj), COMMAND, EPOCH)
+    def test_protocol_v1_and_v2_hello_ready_state_and_result_are_rejected(self):
+        for schema in ('openxcom-agent-control/1', 'openxcom-agent-control/2'):
+            with self.subTest(schema=schema):
+                hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
+                with self.assertRaises(Unavailable): a.validate_hello(dump(hello))
+                with self.assertRaises(Unavailable):
+                    a.validate_ready(dump(dict(schema=schema, mode=a.MODE, status='ready')))
+                obj = state(); obj['schema'] = schema
+                with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+                obj = result(); obj['schema'] = schema
+                with self.assertRaises(Unavailable): a.validate_result(dump(obj), COMMAND, EPOCH)
 
     def test_exact_menu_state_action_matrix(self):
         expected = {
             'main_menu': {'new_battle', 'open_new_game', 'open_options', 'open_load_game'},
             'new_battle': {'start_battle', 'cancel_menu'},
-            'new_game': {'cancel_menu'}, 'options_shell': {'cancel_menu'},
+            'new_game': {'cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game'}, 'options_shell': {'cancel_menu'},
             'pause_menu': {'open_load_game', 'open_save_game', 'open_options', 'resume_game'},
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 17); self.assertEqual(len(a.STATE_ACTIONS), 13)
+        self.assertEqual(len(a.ACTIONS), 23); self.assertEqual(len(a.STATE_ACTIONS), 16)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -211,7 +247,7 @@ class ValidationTests(unittest.TestCase):
 
     def test_menu_fields_are_exact_nullable_rendered_strings(self):
         fields = {
-            'new_game': ('title', 'ironman_note'), 'options_shell': ('category', 'tooltip'),
+            'base_name': ('title', 'name'), 'options_shell': ('category', 'tooltip'),
             'pause_menu': ('title',), 'load_list': ('title', 'name_heading', 'date_heading', 'details'),
             'save_list': ('title', 'name_heading', 'date_heading', 'details'), 'error_message': ('message',),
         }
@@ -233,6 +269,148 @@ class ValidationTests(unittest.TestCase):
                        dict(observation=observation, status='unknown_after_dispatch')):
             with self.subTest(change=change), self.assertRaises(Unavailable):
                 a.validate_result(dump(dict(result(), **change)), COMMAND, EPOCH)
+
+
+class TypedValidationTests(unittest.TestCase):
+    def test_exact_action_kind_catalog_not_peer_defined(self):
+        self.assertEqual(len(a.ACTIONS), 23)
+        self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
+            'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
+            'replace_base_name': 'text', 'place_base_site': 'point'})
+        for screen in a.STATE_ACTIONS:
+            obj = state(screen=screen)
+            for descriptor in obj['actions']:
+                for bad in ('arbitrary', 'none' if descriptor['argument_kind'] != 'none' else 'point', {}, None):
+                    changed = copy.deepcopy(obj)
+                    next(x for x in changed['actions'] if x['id'] == descriptor['id'])['argument_kind'] = bad
+                    with self.subTest(screen=screen, action=descriptor['id'], bad=bad), self.assertRaises(Unavailable):
+                        a.validate_state(changed, CHALLENGE, EPOCH)
+        obj = state(); del obj['actions'][0]['argument_kind']
+        with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_typed_args_required_and_exact(self):
+        invalid = {
+            'kneel': ({'value': False}, None, [], False),
+            'select_difficulty': ({}, {'value': 'hard'}, {'value': 0}, {'value': True}, {'value': 'beginner', 'index': 0}),
+            'set_ironman': ({}, {'value': 0}, {'value': 1}, {'value': 'false'}, {'value': None}, {'value': False, 'toggle': True}),
+            'replace_base_name': ({}, {'text': None}, {'text': b'Alpha'}, {'text': 123}, {'text': 'Alpha', 'confirm': True}),
+            'place_base_site': ({}, {'x': 1}, {'x': True, 'y': 0}, {'x': 0, 'y': 1.0}, {'x': -1, 'y': 0},
+                                {'x': 4096, 'y': 0}, {'x': 0, 'y': 4096}, {'x': 0, 'y': 0, 'world': True}),
+        }
+        for action, cases in invalid.items():
+            for args in cases:
+                obj = arguments(action=action); obj['args'] = args
+                with self.subTest(action=action, args=args), self.assertRaises(Unavailable): a.validate_action_arguments(obj)
+        obj = arguments(); del obj['args']
+        with self.assertRaises(Unavailable): a.validate_action_arguments(obj)
+        for action in ('generic_click', 'send_keys', 'set_base', 'advance_time', 'save_game'):
+            with self.subTest(action=action), self.assertRaises(Unavailable): a.validate_action_arguments(arguments(action=action))
+
+    def test_utf8_byte_limit_controls_and_surrogates(self):
+        for text in ('', 'A' * 128, 'é' * 64, '\U0001f600' * 32, 'e\u0301', ' A '):
+            a.validate_action_arguments(arguments(action='replace_base_name', args={'text': text}))
+        invalid = ['A' * 129, 'é' * 65, '\U0001f600' * 33, '\ud800', '\udfff']
+        invalid += ['A' + chr(c) + 'B' for c in [*range(32), *range(127, 160)]]
+        for text in invalid:
+            with self.subTest(text=repr(text)), self.assertRaises(Unavailable):
+                a.validate_action_arguments(arguments(action='replace_base_name', args={'text': text}))
+
+    def test_canonical_wire_suffixes_and_no_normalization(self):
+        cases = [('start_new_game', {}, ''), ('confirm_base_name', {}, ''),
+                 ('select_difficulty', {'value': 'superhuman'}, ' superhuman'),
+                 ('set_ironman', {'value': False}, ' 0'), ('set_ironman', {'value': True}, ' 1'),
+                 ('replace_base_name', {'text': ''}, ' -'), ('replace_base_name', {'text': 'é'}, ' c3a9'),
+                 ('replace_base_name', {'text': 'e\u0301'}, ' 65cc81'),
+                 ('place_base_site', {'y': 199, 'x': 0}, ' 0 199')]
+        for action, args, suffix in cases:
+            request = a.canonical_action_request(arguments(action=action, args=args))
+            self.assertEqual(request, f'E {COMMAND} {EPOCH} {CAPABILITY} 1 {action}{suffix}'.encode('ascii'))
+        largest = a.canonical_action_request(arguments(action='replace_base_name', args={'text': 'é' * 64}))
+        self.assertLessEqual(len(largest), a.MAX_REQUEST)
+        self.assertEqual(a.canonical_action_request(arguments(action='place_base_site', args={'x': 1, 'y': 2})),
+                         a.canonical_action_request(arguments(action='place_base_site', args={'y': 2, 'x': 1})))
+
+    def test_new_game_visible_choice_schema_and_selection(self):
+        obj = state(screen='new_game'); a.validate_state(obj, CHALLENGE, EPOCH)
+        cases = []
+        for key, value in (('ironman', 1), ('difficulty', None), ('hidden_campaign_seed', 5)):
+            changed = copy.deepcopy(obj); changed['visible'][key] = value; cases.append(changed)
+        for key, value in (('value', 'hard'), ('label', None), ('selected', 1), ('hidden_index', 3)):
+            changed = copy.deepcopy(obj); changed['visible']['difficulty'][0][key] = value; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['difficulty'][1]['selected'] = True; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['difficulty'][1]['value'] = 'beginner'; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['difficulty'] = []; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['ironman'] = None; cases.append(changed)
+        for changed in cases:
+            with self.subTest(changed=changed), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
+        obj['actions'] = [x for x in obj['actions'] if x['id'] in ('cancel_menu', 'start_new_game')]
+        obj['visible'].update(difficulty=[], ironman=None, title=None, ironman_note=None)
+        a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_globe_projection_strict_bounded_draw_only(self):
+        obj = state(screen='build_base'); a.validate_state(obj, CHALLENGE, EPOCH)
+        cases = []
+        for key, value in (('width', 0), ('width', 513), ('height', 401), ('height', True), ('sample_step', 16.0),
+                           ('sample_step', 8), ('samples', {}), ('world_longitude', 1.0), ('is_land', True)):
+            changed = copy.deepcopy(obj); changed['visible']['globe'][key] = value; cases.append(changed)
+        for key, value in (('x', -1), ('x', 256), ('x', 1.0), ('y', True), ('y', 200), ('terrain', 'ocean'),
+                           ('terrain', 'land'), ('legal_base_site', True), ('polygon_id', 42)):
+            changed = copy.deepcopy(obj); changed['visible']['globe']['samples'][0][key] = value; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['globe']['samples'].append(changed['visible']['globe']['samples'][0]); cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['globe']['samples'] *= 401; cases.append(changed)
+        for changed in cases:
+            with self.subTest(changed=changed), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
+
+    def test_no_globe_or_empty_samples_cannot_offer_site_action(self):
+        for globe in (None, dict(width=256, height=200, sample_step=16, samples=[])):
+            obj = state(screen='build_base'); obj['visible']['globe'] = globe
+            with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+            obj.update(actions=[], capability=None); a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_maximum_globe_frame_and_receipt_fit_mcp_response(self):
+        obj = state(screen='build_base', challenge=None, capability=None, event_sequence=2)
+        obj['visible']['title'] = '\\' * 4096
+        obj['visible']['globe'] = dict(width=512, height=400, sample_step=16,
+            samples=[dict(x=x, y=y, terrain='untextured') for y in range(8, 400, 16) for x in range(8, 512, 16)])
+        self.assertEqual(len(obj['visible']['globe']['samples']), 800)
+        receipt = result(observation=obj)
+        a.validate_result(dump(receipt), COMMAND, EPOCH)
+        response = dict(jsonrpc='2.0', id='i' * (adapter.MAX_MESSAGE - 256), result=dict(
+            content=[dict(type='text', text=json.dumps(receipt, separators=(',', ':')))], structuredContent=receipt, isError=False))
+        self.assertLess(len(json.dumps(response, ensure_ascii=True, separators=(',', ':')).encode()), adapter.MAX_RESPONSE)
+
+    def test_base_name_descriptor_sources_and_exact_fields(self):
+        obj = state(screen='base_name'); a.validate_state(obj, CHALLENGE, EPOCH)
+        sources = {item['id']: item['label_source'] for item in obj['actions']}
+        self.assertEqual(sources, dict(replace_base_name='visible_control_semantics', confirm_base_name='visible_text'))
+        for field in ('base_id', 'longitude', 'latitude', 'country', 'cost'):
+            changed = copy.deepcopy(obj); changed['visible'][field] = 1
+            with self.subTest(field=field), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
+
+    def test_geoscape_read_only_visible_labels_no_hidden_model(self):
+        obj = state(screen='geoscape'); a.validate_state(obj, CHALLENGE, EPOCH)
+        self.assertEqual(obj['actions'], []); self.assertIsNone(obj['capability'])
+        cases = []
+        for key, value in (('hour', 3), ('seconds_elapsed', 99), ('ufos', []), ('bases', []), ('time_paused', True)):
+            changed = copy.deepcopy(obj); changed['visible'][key] = value; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['capability'] = CAPABILITY; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['buttons'][0]['id'] = 'launch_mission'; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['buttons'][0]['enabled'] = True; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['buttons'].append(changed['visible']['buttons'][0]); cases.append(changed)
+        changed = copy.deepcopy(obj); changed['actions'] = state()['actions']; cases.append(changed)
+        for changed in cases:
+            with self.subTest(changed=changed), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
+        obj['visible'] = dict.fromkeys(a.GEOSCAPE_FIELDS); obj['visible']['buttons'] = []
+        a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_action_specific_schema_is_closed_and_requires_args(self):
+        schema = next(d for d in a.definitions() if d['name'] == 'execute_ui_action')['inputSchema']
+        self.assertFalse(schema['additionalProperties']); self.assertIn('args', schema['required'])
+        covered = []
+        for branch in schema['oneOf']:
+            covered.extend(branch['properties']['action']['enum'])
+            self.assertFalse(branch['properties']['args']['additionalProperties'])
+        self.assertEqual(sorted(covered), sorted(a.ACTIONS)); self.assertEqual(len(covered), len(set(covered)))
 
 
 class ClientTests(unittest.TestCase):
@@ -257,7 +435,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/2')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/3')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -271,7 +449,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/2']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/3']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -464,6 +642,145 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(native.client.state, 'CLOSED')
 
 
+class TypedClientTests(unittest.TestCase):
+    def fixture(self, **kwargs):
+        native = NativeFixture(**kwargs); self.addCleanup(native.close); return native
+
+    def test_v2_peer_closes_before_any_request(self):
+        native = self.fixture(hello=dict(schema='openxcom-agent-control/2', mode=a.MODE, epoch=EPOCH, ledger_capacity=64))
+        with self.assertRaises(Unavailable): native.client.observe()
+        self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
+
+    def test_each_typed_action_canonical_duplicate_and_changed_args(self):
+        cases = [('new_game', 'select_difficulty', {'value': 'genius'}, {'value': 'veteran'}),
+                 ('new_game', 'set_ironman', {'value': True}, {'value': False}),
+                 ('base_name', 'replace_base_name', {'text': 'é'}, {'text': 'e\u0301'}),
+                 ('build_base', 'place_base_site', {'x': 64, 'y': 80}, {'x': 65, 'y': 80})]
+        for screen, action, values, changed in cases:
+            with self.subTest(action=action):
+                native = self.fixture(screen=screen)
+                request = arguments(native.client.observe(), action=action, args=values)
+                expected_wire = a.canonical_action_request(request)
+                receipt = native.client.execute(**request)
+                self.assertEqual(native.requests[-1], expected_wire)
+                self.assertEqual(native.client.commands[COMMAND]['request'], expected_wire)
+                fresh = native.client.observe()
+                duplicate = dict(reversed(list(request.items()))); duplicate['args'] = dict(reversed(list(values.items())))
+                self.assertEqual(native.client.execute(**duplicate), receipt)
+                self.assertEqual(native.requests[-1], ('S ' + COMMAND).encode())
+                self.assertEqual(native.client.capability, fresh['capability'])
+                count = len(native.requests)
+                with self.assertRaises(Unavailable): native.client.execute(**dict(request, args=changed))
+                self.assertEqual(len(native.requests), count)
+                self.assertEqual(sum(req.startswith(b'E ') for req in native.requests), 1)
+
+    def test_mutating_caller_args_cannot_change_reserved_identity(self):
+        native = self.fixture(screen='base_name')
+        request = arguments(native.client.observe(), action='replace_base_name', args={'text': 'Original'})
+        receipt = native.client.execute(**request); request['args']['text'] = 'Changed'
+        count = len(native.requests)
+        with self.assertRaises(Unavailable): native.client.execute(**request)
+        self.assertEqual(len(native.requests), count)
+        request['args']['text'] = 'Original'
+        self.assertEqual(native.client.execute(**request), receipt)
+        self.assertEqual(native.requests[-1], ('S ' + COMMAND).encode())
+
+    def test_unexposed_difficulty_value_is_rejected_before_send(self):
+        def limited(op, obj):
+            if op == 'R': obj['visible']['difficulty'] = [x for x in obj['visible']['difficulty'] if x['value'] == 'genius']
+            return obj
+        native = self.fixture(screen='new_game', transform=limited); obj = native.client.observe()
+        count = len(native.requests)
+        # Caller cannot expand the cached visible choice set by mutating its DTO.
+        obj['visible']['difficulty'].append(dict(value='beginner', label='Forged', selected=False))
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(obj, action='select_difficulty', args={'value': 'beginner'}))
+        self.assertEqual(len(native.requests), count)
+        receipt = native.client.execute(**arguments(obj, action='select_difficulty', args={'value': 'genius'}))
+        self.assertTrue(next(x for x in receipt['observation']['visible']['difficulty'] if x['value'] == 'genius')['selected'])
+
+    def test_point_uses_fresh_sample_membership_without_terrain_preflight(self):
+        native = self.fixture(screen='build_base'); obj = native.client.observe(); count = len(native.requests)
+        obj['visible']['globe']['width'] = 4096
+        obj['visible']['globe']['samples'].append(dict(x=1, y=1, terrain='textured'))
+        for point in ({'x': 256, 'y': 0}, {'x': 0, 'y': 200}, {'x': 4095, 'y': 4095}, {'x': 1, 'y': 1}, {'x': 64, 'y': 81}):
+            with self.subTest(point=point), self.assertRaises(Unavailable):
+                native.client.execute(**arguments(obj, action='place_base_site', args=point))
+        self.assertEqual(len(native.requests), count)
+        # Advertised untextured coverage is not a land/eligibility prediction.
+        receipt = native.client.execute(**arguments(obj, action='place_base_site', args={'x': 80, 'y': 80}))
+        self.assertEqual(receipt['status'], 'dispatched')
+        self.assertTrue(native.requests[-1].endswith(b'place_base_site 80 80'))
+
+    def test_desired_boolean_does_not_toggle_and_text_clear_does_not_confirm(self):
+        native = self.fixture(screen='new_game')
+        for index in range(2):
+            receipt = native.client.execute(**arguments(native.client.observe(), command_id=f'{index:032x}',
+                                                        action='set_ironman', args={'value': False}))
+            self.assertIs(receipt['observation']['visible']['ironman'], False)
+        names = self.fixture(screen='base_name')
+        for index, text in enumerate(('Alpha', '')):
+            receipt = names.client.execute(**arguments(names.client.observe(), command_id=f'{index:032x}',
+                                                       action='replace_base_name', args={'text': text}))
+            self.assertEqual(receipt['observation']['visible']['name'], text)
+            self.assertEqual(receipt['observation']['state'], 'base_name')
+            self.assertIsNone(receipt['observation']['capability'])
+        fresh = names.client.observe(); count = len(names.requests)
+        with self.assertRaises(Unavailable): names.client.execute(**arguments(fresh, action='confirm_base_name'))
+        self.assertEqual(len(names.requests), count); self.assertNotIn('confirm_base_name', [x['id'] for x in fresh['actions']])
+
+    def test_typed_start_site_name_confirm_flow_to_read_only_geoscape(self):
+        native = self.fixture(screen='new_game', transitions={('new_game', 'start_new_game'): 'build_base',
+            ('build_base', 'place_base_site'): 'base_name', ('base_name', 'confirm_base_name'): 'geoscape'})
+        sequence = [('select_difficulty', {'value': 'veteran'}, 'new_game'),
+                    ('set_ironman', {'value': False}, 'new_game'), ('start_new_game', {}, 'build_base'),
+                    ('place_base_site', {'x': 64, 'y': 80}, 'base_name'),
+                    ('replace_base_name', {'text': 'Example'}, 'base_name'), ('confirm_base_name', {}, 'geoscape')]
+        for index, (action, args, destination) in enumerate(sequence):
+            receipt = native.client.execute(**arguments(native.client.observe(), command_id=f'{index:032x}', action=action, args=args))
+            self.assertEqual(receipt['observation']['state'], destination)
+        final = native.client.observe(); self.assertEqual(final['actions'], []); self.assertIsNone(final['capability'])
+        count = len(native.requests)
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(action='open_pause_menu'))
+        self.assertEqual(len(native.requests), count)
+
+    def test_typed_send_uncertainty_is_terminal_for_every_kind(self):
+        for screen, action in (('new_game', 'select_difficulty'), ('new_game', 'set_ironman'),
+                               ('base_name', 'replace_base_name'), ('build_base', 'place_base_site')):
+            with self.subTest(action=action):
+                native = self.fixture(screen=screen, transform=lambda op, obj: None if op == 'E' else obj)
+                request = arguments(native.client.observe(), action=action)
+                with self.assertRaises(a.ActionOutcomeUnknown) as failure: native.client.execute(**request)
+                self.assertEqual(failure.exception.command_id, COMMAND)
+                count = len(native.requests)
+                for operation in (lambda: native.client.execute(**request), native.client.observe, lambda: native.client.read_result(COMMAND)):
+                    with self.assertRaises(Unavailable): operation()
+                self.assertEqual(len(native.requests), count)
+                self.assertEqual(sum(req.startswith(b'E ') for req in native.requests), 1)
+
+    def test_v2_receipt_after_typed_send_is_adapter_unknown(self):
+        native = self.fixture(screen='new_game', transform=lambda op, obj: dict(obj, schema='openxcom-agent-control/2') if op == 'E' else obj)
+        request = arguments(native.client.observe(), action='set_ironman')
+        with self.assertRaises(a.ActionOutcomeUnknown): native.client.execute(**request)
+        self.assertEqual(native.client.state, 'CLOSED')
+
+    def test_all_strategy_tool_outputs_are_text_only(self):
+        for screen, action in (('new_game', 'select_difficulty'), ('new_game', 'set_ironman'), ('new_game', 'start_new_game'),
+                               ('build_base', 'place_base_site'), ('base_name', 'replace_base_name')):
+            with self.subTest(screen=screen, action=action):
+                native = self.fixture(screen=screen); server = adapter.Server(agent_control=native.client)
+                observation = call(server, 'read_ui_state')['result']
+                execution = call(server, 'execute_ui_action', arguments(observation['structuredContent'], action=action))['result']
+                status = call(server, 'read_ui_action_result', {'command_id': COMMAND})['result']
+                for output in (observation, execution, status):
+                    self.assertFalse(output['isError'])
+                    self.assertEqual([item['type'] for item in output['content']], ['text'])
+                    self.assertEqual(json.loads(output['content'][0]['text']), output['structuredContent'])
+        native = self.fixture(screen='geoscape'); server = adapter.Server(agent_control=native.client)
+        output = call(server, 'read_ui_state')['result']
+        self.assertEqual([item['type'] for item in output['content']], ['text'])
+        self.assertEqual(output['structuredContent']['actions'], [])
+
+
 class McpTests(unittest.TestCase):
     def test_tools_explicit_and_distinct_from_supervised(self):
         self.assertFalse({d['name'] for d in adapter.definitions()} & set(a.TOOL_NAMES))
@@ -478,7 +795,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.2.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.3.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -550,6 +867,52 @@ class LauncherTests(unittest.TestCase):
                 launch_presentation.main()
             spawn.assert_not_called()
 
+    def test_real_stdio_launcher_typed_strategy_flow(self):
+        steps = [('new_game', 'select_difficulty', {'value': 'veteran'}, ' veteran', 'new_game'),
+                 ('new_game', 'set_ironman', {'value': False}, ' 0', 'new_game'),
+                 ('new_game', 'start_new_game', {}, '', 'build_base'),
+                 ('build_base', 'place_base_site', {'x': 64, 'y': 80}, ' 64 80', 'base_name'),
+                 ('base_name', 'replace_base_name', {'text': 'Café'}, ' 436166c3a9', 'base_name'),
+                 ('base_name', 'confirm_base_name', {}, '', 'geoscape')]
+        fixtures, messages = [], [dict(jsonrpc='2.0', id=1, method='initialize', params=dict(
+            protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='typed-synthetic', version='1'))),
+            dict(jsonrpc='2.0', method='notifications/initialized')]
+        for index, (screen, action, values, suffix, after) in enumerate(steps):
+            cap, command = f'{index + 30:032x}', f'{index + 60:032x}'
+            observed = state(capability=cap, revision=index + 1, event_sequence=index * 2 + 1, screen=screen)
+            post = state(None, None, revision=index + 2, event_sequence=index * 2 + 2, screen=after)
+            if index >= 4: observed['visible']['name'] = '' if index == 4 else 'Café'
+            if index == 4: post['visible']['name'] = 'Café'
+            wire = f'E {command} {EPOCH} {cap} {index + 1} {action}{suffix}'
+            fixtures.append([observed, wire, result(command, event_sequence=index * 2 + 2, observation=post)])
+            args = arguments(observed, command_id=command, action=action, args=values)
+            for name, values in (('read_ui_state', {}), ('execute_ui_action', args), ('read_ui_action_result', {'command_id': command})):
+                messages.append(dict(jsonrpc='2.0', id=len(messages), method='tools/call', params=dict(name=name, arguments=values)))
+        child = r'''
+import json, os, socket
+channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
+def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
+send(dict(schema='openxcom-agent-control/3',mode='agent-control',epoch='1'*32,ledger_capacity=64))
+assert channel.recv(512) == b'H openxcom-agent-control/3'
+send(dict(schema='openxcom-agent-control/3',mode='agent-control',status='ready'))
+for observed, wire, receipt in FIXTURES:
+    request = channel.recv(512).decode(); assert request.startswith('R ')
+    observed['challenge'] = request[2:]; send(observed)
+    assert channel.recv(512).decode() == wire; send(receipt)
+    assert channel.recv(512).decode() == 'S ' + receipt['command_id']; send(receipt)
+assert channel.recv(512) == b''
+'''
+        child = 'FIXTURES = ' + repr(fixtures) + '\n' + child
+        completed = subprocess.run([sys.executable, str(Path(__file__).with_name('launch_presentation.py')), '--agent-control',
+            '--', sys.executable, '-c', child], input=b''.join(dump(message) + b'\n' for message in messages), capture_output=True, timeout=8)
+        self.assertEqual(completed.returncode, 0); self.assertEqual(completed.stderr, b'')
+        replies = [json.loads(line) for line in completed.stdout.splitlines()]
+        self.assertEqual(len(replies), 19)
+        for reply in replies[1:]:
+            self.assertFalse(reply['result']['isError'])
+            self.assertEqual([item['type'] for item in reply['result']['content']], ['text'])
+        self.assertEqual(replies[-1]['result']['structuredContent']['observation']['state'], 'geoscape')
+
     def test_real_stdio_launcher_synthetic_peer(self):
         child = r'''
 import json, os, socket, sys
@@ -559,13 +922,13 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/2', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/3', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=64))
-assert channel.recv(256) == b'H openxcom-agent-control/2'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/3'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),
- actions=[dict(id='continue_next_turn',label='Continue',label_source='visible_text')],event_sequence=1,semantics='presented_after_request')
+ actions=[dict(id='continue_next_turn',label='Continue',label_source='visible_text',argument_kind='none')],event_sequence=1,semantics='presented_after_request')
 send(observation)
 assert channel.recv(256) == ('E '+'3'*32+' '+epoch+' '+'2'*32+' 1 continue_next_turn').encode()
 observation.update(challenge=None,capability=None,revision=2,event_sequence=2)

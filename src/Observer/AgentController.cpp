@@ -68,7 +68,7 @@ void AgentController::close()
 }
 bool AgentController::sendPacket(const std::string &packet)
 {
-    if (_fd >= 0 && diagnosticProfileQualified() &&
+    if (_fd >= 0 && packet.size() <= 49152 && diagnosticProfileQualified() &&
         send(_fd, packet.data(), packet.size(), MSG_DONTWAIT | MSG_NOSIGNAL) == static_cast<ssize_t>(packet.size())) return true;
     close(); return false;
 }
@@ -148,7 +148,7 @@ void AgentController::poll()
         receipt(id);
     }
     // One packet per owner-loop iteration, never an unbounded event-loop drain.
-    char bytes[256];
+    char bytes[512];
     iovec vector = {bytes, sizeof(bytes)};
     msghdr message = {};
     message.msg_iov = &vector; message.msg_iovlen = 1;
@@ -157,7 +157,7 @@ void AgentController::poll()
     const ssize_t count = recvmsg(_fd, &message, MSG_DONTWAIT | MSG_TRUNC);
     if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
     if (count <= 0) { close(); return; }
-    if (count > 256 || (message.msg_flags & (MSG_TRUNC | MSG_CTRUNC))) { close(); return; }
+    if (count > 512 || (message.msg_flags & (MSG_TRUNC | MSG_CTRUNC))) { close(); return; }
     const std::string packet(bytes, static_cast<std::size_t>(count));
     AgentRequest request;
     if (!parseAgentRequest(packet, request)) { invalidate(); if (!_ready) close(); else unavailable(); return; }
@@ -193,7 +193,7 @@ void AgentController::poll()
     _ledger.find(request.id)->dispatched = true;
     try
     {
-        if (!target->agentDispatch(request.action))
+        if (!target->agentDispatch(request))
         {
             _pendingId.clear();
             _ledger.find(request.id)->response = resultPacket(request.id, "unavailable"); receipt(request.id);

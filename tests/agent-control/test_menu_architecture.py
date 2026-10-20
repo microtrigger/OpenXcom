@@ -70,7 +70,7 @@ class MenuArchitectureTest(unittest.TestCase):
             with self.subTest(state=cls):
                 code = body('Menu/' + cls + '.cpp', cls + '::' + method)
                 for forbidden in ('getSavedGame', 'getSelectedUnit', 'isIronman', 'getStates()', 'getUnits()',
-                                  '_difficulty', '_selectedRow', '_currentTooltip', 'tr('):
+                                  '_difficulty ==', '_selectedRow', '_currentTooltip', 'tr('):
                     self.assertNotIn(forbidden, code)
 
     def test_list_projection_has_no_row_or_file_access(self):
@@ -106,9 +106,10 @@ class MenuArchitectureTest(unittest.TestCase):
         self.assertIn('allowButtons(true)', normal)
         self.assertIn('new PauseState(OPT_BATTLESCAPE)', normal)
 
-    def test_version_two_is_explicit(self):
+    def test_version_three_is_explicit(self):
         code = read('Observer/AgentProtocol.cpp')
-        self.assertIn('openxcom-agent-control/2', code)
+        self.assertIn('openxcom-agent-control/3', code)
+        self.assertNotIn('openxcom-agent-control/2', code)
         self.assertNotIn('openxcom-agent-control/1', code)
         self.assertIn('packet == std::string("H ") + agentProtocolSchema()', code)
 

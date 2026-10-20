@@ -171,6 +171,32 @@ struct Ocean
 	}
 };
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+thread_local Observer::AgentGlobeProjection *agentShadowProjection = 0;
+thread_local const Uint8 *agentShadowPixels = 0;
+thread_local int agentShadowPitch = 0;
+void agentShadowSample(Uint8 &dest, bool survives)
+{
+    if (!agentShadowProjection || !agentShadowPitch) return;
+    const std::ptrdiff_t offset = &dest-agentShadowPixels;
+    if (offset >= 0) agentShadowProjection->shadow(offset%agentShadowPitch, offset/agentShadowPitch, survives);
+}
+bool agentOpaqueTexture(Surface *texture)
+{
+    SDL_Surface *raw = texture ? texture->getSurface() : 0;
+    if (!raw || raw->format->BytesPerPixel != 1 || (raw->flags & SDL_SRCALPHA)) return false;
+    if (Observer::agentObservePaint(SDL_LockSurface(raw)) < 0) return false;
+    bool opaque = true;
+    for (int y=0; y<raw->h && opaque; ++y) for (int x=0; x<raw->w; ++x)
+    {
+        const Uint8 pixel = static_cast<Uint8 *>(raw->pixels)[y*raw->pitch+x];
+        if (!pixel || ((raw->flags & SDL_SRCCOLORKEY) && pixel==raw->format->colorkey)) { opaque=false; break; }
+    }
+    SDL_UnlockSurface(raw);
+    return opaque;
+}
+#endif
+
 struct CreateShadow
 {
 	static inline Uint8 getShadowValue(const Cord& earth, const Cord& sun, const Sint16& noise)
@@ -241,6 +267,9 @@ struct CreateShadow
 		{
 			dest = 0;
 		}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		agentShadowSample(dest, dest && earth.z);
+#endif
 	}
 };
 
@@ -513,6 +542,9 @@ void Globe::rotateStopLat()
  */
 void Globe::setZoom(size_t zoom)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentViewRevision; _agentBlitReady=false;
+#endif
 	_zoom = Clamp(zoom, (size_t)0u, _zoomRadius.size() - 1);
 	_zoomTexture = (2 - (int)floor(_zoom / 2.0)) * (_texture->getTotalFrames() / 3);
 	_radius = _zoomRadius[_zoom];
@@ -636,6 +668,10 @@ bool Globe::zoomDogfightOut()
  */
 void Globe::center(double lon, double lat)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_cenLon != lon || _cenLat != lat) ++_agentViewRevision;
+	_agentBlitReady=false;
+#endif
 	_cenLon = lon;
 	_cenLat = lat;
 	_game->getSavedGame()->setGlobeLongitude(_cenLon);
@@ -864,6 +900,10 @@ void Globe::blink()
  */
 void Globe::rotate()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_rotLon || _rotLat) ++_agentViewRevision;
+	_agentBlitReady=false;
+#endif
 	_cenLon += _rotLon * ((110 - Options::geoScrollSpeed) / 100.0) / (_zoom+1);
 	_cenLat += _rotLat * ((110 - Options::geoScrollSpeed) / 100.0) / (_zoom+1);
 	_game->getSavedGame()->setGlobeLongitude(_cenLon);
@@ -876,6 +916,9 @@ void Globe::rotate()
  */
 void Globe::draw()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentBlitReady=false; _agentProjection.begin(getWidth(), getHeight());
+#endif
 	if (_redraw)
 	{
 		cachePolygons();
@@ -924,6 +967,9 @@ void Globe::drawLand()
 
 		// Apply textures according to zoom and shade
 		drawTexturedPolygon(x, y, (*i)->getPoints(), _texture->getFrame((*i)->getTexture() + _zoomTexture), 0, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		_agentProjection.polygon(x,y,(*i)->getPoints(),agentOpaqueTexture(_texture->getFrame((*i)->getTexture()+_zoomTexture)));
+#endif
 	}
 }
 
@@ -985,6 +1031,9 @@ Cord Globe::getSunDirection(double lon, double lat) const
 
 void Globe::drawShadow()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	agentShadowProjection=&_agentProjection; agentShadowPixels=static_cast<Uint8 *>(getSurface()->pixels); agentShadowPitch=getSurface()->pitch;
+#endif
 	if (Options::globeSurfaceCache)
 	{
 		ShaderMove<Cord> earth = ShaderMove<Cord>(_earthData[_zoom], getWidth(), getHeight());
@@ -1004,13 +1053,18 @@ void Globe::drawShadow()
 		ShaderDraw<CreateShadowWithoutCache>(ShaderSurface(this), helper::Offset(_cenX, _cenY), ShaderScalar(getSunDirection(_cenLon, _cenLat)), noise, ShaderScalar(_zoomRadius[_zoom]));
 		unlock();
 	}
-
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	agentShadowProjection=0; agentShadowPixels=0; agentShadowPitch=0;
+#endif
 }
 
 
 void Globe::XuLine(Surface* surface, Surface* src, double x1, double y1, double x2, double y2, int shade)
 {
 	if (_clipper->LineClip(&x1,&y1,&x2,&y2) != 1) return; //empty line
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentProjection.line(surface==_radars ? 1 : surface==_countries ? 2 : 4,x1,y1,x2,y2);
+#endif
 
 	double deltax = x2-x1, deltay = y2-y1;
 	bool inv;
@@ -1075,6 +1129,9 @@ void Globe::XuLine(Surface* surface, Surface* src, double x1, double y1, double 
  */
 void Globe::drawRadars()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentBlitReady=false; _agentProjection.clearLayer(1);
+#endif
 	_radars->clear();
 
 	// Draw craft circle instead of radar circles to avoid confusion
@@ -1244,6 +1301,9 @@ void Globe::drawVHLine(Surface *surface, double lon1, double lat1, double lon2, 
  */
 void Globe::drawDetail()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentBlitReady=false; _agentProjection.clearLayer(2);
+#endif
 	_countries->clear();
 
 	if (!Options::globeDetail)
@@ -1269,6 +1329,9 @@ void Globe::drawDetail()
 				polarToCart((*i)->getLongitude(j + 1), (*i)->getLatitude(j + 1), &x[1], &y[1]);
 
 				_countries->drawLine(x[0], y[0], x[1], y[1], LINE_COLOR);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+				_agentProjection.line(2,x[0],y[0],x[1],y[1]);
+#endif
 			}
 		}
 
@@ -1299,6 +1362,9 @@ void Globe::drawDetail()
 			label->setY(y);
 			label->setText(_game->getLanguage()->getString((*i)->getRules()->getType()));
 			label->blit(_countries);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			agentCoverRect(_countries,label);
+#endif
 		}
 
 		delete label;
@@ -1331,6 +1397,9 @@ void Globe::drawDetail()
 				label->setY(y + 2);
 				label->setText((*j)->getName(_game->getLanguage()));
 				label->blit(_countries);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			agentCoverRect(_countries,label);
+#endif
 			}
 		}
 		// Draw bases names
@@ -1344,6 +1413,9 @@ void Globe::drawDetail()
 			label->setColor(BASE_LABEL_COLOR);
 			label->setText((*j)->getName());
 			label->blit(_countries);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			agentCoverRect(_countries,label);
+#endif
 		}
 
 		delete label;
@@ -1530,6 +1602,9 @@ void Globe::drawTarget(Target *target, Surface *surface)
 		marker->setX(x - marker->getWidth() / 2);
 		marker->setY(y - marker->getHeight() / 2);
 		marker->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		agentCoverRect(surface,marker);
+#endif
 	}
 }
 
@@ -1539,6 +1614,9 @@ void Globe::drawTarget(Target *target, Surface *surface)
  */
 void Globe::drawMarkers()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentBlitReady=false; _agentProjection.clearLayer(4);
+#endif
 	_markers->clear();
 
 	// Draw the base markers
@@ -1591,6 +1669,9 @@ void Globe::blit(Surface *surface)
 	_radars->blit(surface);
 	_countries->blit(surface);
 	_markers->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentShownViewRevision=_agentViewRevision; _agentBlitReady=Observer::agentPaintHealthy();
+#endif
 }
 
 /**
@@ -1788,7 +1869,7 @@ void Globe::mouseClick(Action *action, State *state)
 	}
 
 	// Check for errors
-	if (lat == lat && lon == lon)
+	if (pointOnVisibleGlobe((int)floor(action->getAbsoluteXMouse()), (int)floor(action->getAbsoluteYMouse())))
 	{
 		InteractiveSurface::mouseClick(action, state);
 		if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
@@ -1859,6 +1940,9 @@ void Globe::toggleRadarLines()
  */
 void Globe::resize()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentViewRevision; _agentBlitReady=false;
+#endif
 	Surface *surfaces[4] = {this, _markers, _countries, _radars};
 	int width = Options::baseXGeoscape - 64;
 	int height = Options::baseYGeoscape;
@@ -1934,5 +2018,54 @@ void Globe::setCraftRange(double lon, double lat, double range)
 	_craftLat = lat;
 	_craftRange = range;
 }
+
+bool Globe::pointOnVisibleGlobe(int x,int y) const
+{
+    double lon,lat; cartToPolar(x,y,&lon,&lat);
+    return lat==lat && lon==lon;
+}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void Globe::agentRecordOccluders(const std::vector<Surface *> &paintOrder, bool safe)
+{
+    _agentProjection.clearLayer(8);
+    bool found=false;
+    for(const Surface *later:paintOrder)
+    {
+        if(later==this) { found=true; continue; }
+        if(found && later && later->getVisible()) _agentProjection.rect(8,later->getX(),later->getY(),later->getWidth(),later->getHeight());
+    }
+    if(!found || !safe) _agentBlitReady=false;
+}
+void Globe::agentCoverRect(Surface *layer,const Surface *painted)
+{
+    _agentProjection.rect(layer==_radars ? 1 : layer==_countries ? 2 : 4,
+        painted->getX(),painted->getY(),painted->getWidth(),painted->getHeight());
+}
+std::string Globe::agentGeography(Observer::AgentUiState &ui,const std::vector<Surface *> &overlays) const
+{
+    using namespace Observer;
+    if (!_agentBlitReady || _agentShownViewRevision!=_agentViewRevision || !agentPaintHealthy() ||
+        !agentWidgetVisible(this) || !agentWidgetVisible(_radars) || !agentWidgetVisible(_countries) ||
+        !agentWidgetVisible(_markers) || _isMouseScrolling || _isMouseScrolled || _rotLon || _rotLat ||
+        getX()!=0 || getY()!=0 || _agentProjection.samples.empty()) return "null";
+    std::string samples;
+    for (const auto &sample:_agentProjection.samples)
+    {
+        if (!_agentProjection.visible(sample)) continue;
+        bool covered=false;
+        for(const Surface *overlay:overlays) if(overlay && overlay->getVisible() &&
+            sample.x>=overlay->getX() && sample.y>=overlay->getY() &&
+            sample.x<overlay->getX()+overlay->getWidth() && sample.y<overlay->getY()+overlay->getHeight()) { covered=true; break; }
+        if(covered) continue;
+        if(!samples.empty()) samples+=",";
+        samples+="{\"x\":"+std::to_string(sample.x)+",\"y\":"+std::to_string(sample.y)+
+            ",\"terrain\":\""+(sample.textured?"textured":"untextured")+"\"}";
+        ui.regions.push_back({sample.x,sample.y,1,1});
+    }
+    if(samples.empty()) return "null";
+    return "{\"width\":"+std::to_string(getWidth())+",\"height\":"+std::to_string(getHeight())+
+        ",\"sample_step\":16,\"samples\":["+samples+"]}";
+}
+#endif
 
 }

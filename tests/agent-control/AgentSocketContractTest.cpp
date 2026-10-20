@@ -25,11 +25,11 @@ int main()
         local.sun_family == AF_UNIX && localSize == offsetof(sockaddr_un, sun_path), "unnamed local endpoint");
     check(getpeername(pair[0], reinterpret_cast<sockaddr *>(&peer), &peerSize) == 0 &&
         peer.sun_family == AF_UNIX && peerSize == offsetof(sockaddr_un, sun_path), "unnamed peer endpoint");
-    char bytes[256] = {}; iovec vector = {bytes, sizeof(bytes)}; msghdr message = {};
+    char bytes[512] = {}; iovec vector = {bytes, sizeof(bytes)}; msghdr message = {};
     message.msg_iov = &vector; message.msg_iovlen = 1;
-    char large[257] = {};
-    check(send(pair[1], large, sizeof(large), 0) == 257, "oversize packet sent atomically");
-    check(recvmsg(pair[0], &message, MSG_DONTWAIT | MSG_TRUNC) == 257 && (message.msg_flags & MSG_TRUNC), "oversize detected without overflow");
+    char large[513] = {};
+    check(send(pair[1], large, sizeof(large), 0) == 513, "oversize packet sent atomically");
+    check(recvmsg(pair[0], &message, MSG_DONTWAIT | MSG_TRUNC) == 513 && (message.msg_flags & MSG_TRUNC), "oversize detected without overflow");
     const int fd = open("/dev/null", O_RDONLY);
     check(fd >= 0, "bounded ancillary fixture");
     char payload = 'x'; iovec sendVector = {&payload, 1};

@@ -159,8 +159,40 @@ void Font::init(size_t index, const UString &str)
 			_chars[str[i]] = std::make_pair(index, rect);
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Font initialization already examines atlas opacity for glyph widths.
+    // Keep the full nonzero ink rectangle separately: cell padding is not ink.
+    // This metadata does not change the normal crop, spacing or rendering.
+    for (UCode codepoint : str)
+    {
+        const SDL_Rect &crop = _chars[codepoint].second;
+        int left=crop.w, top=crop.h, right=0, bottom=0;
+        for (int y=0; y<crop.h; ++y) for (int x=0; x<crop.w; ++x)
+            if (surface->getPixel(crop.x+x,crop.y+y))
+            {
+                left=std::min(left,x); top=std::min(top,y);
+                right=std::max(right,x+1); bottom=std::max(bottom,y+1);
+            }
+        SDL_Rect ink = {0,0,0,0};
+        if (left<right && top<bottom)
+        {
+            ink.x=left; ink.y=top; ink.w=right-left; ink.h=bottom-top;
+        }
+        _agentGlyphInk[codepoint]=ink;
+    }
+#endif
 	surface->unlock();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool Font::agentGlyphInk(UCode codepoint, SDL_Rect &ink) const
+{
+    const auto found=_agentGlyphInk.find(codepoint);
+    if (found==_agentGlyphInk.end() || !found->second.w || !found->second.h) return false;
+    ink=found->second;
+    return true;
+}
+#endif
 
 /**
  * Returns a particular character from the set stored in the font.

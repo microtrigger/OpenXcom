@@ -18,6 +18,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/InteractiveSurface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#endif
 
 namespace OpenXcom
 {
@@ -43,6 +46,10 @@ private:
 	TextButton **_group;
 	bool _contrast, _geoscapeButton;
 	ComboBox *_comboBox;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool _agentDrawnPressed = false;
+	std::uint64_t _agentSelectionRevision = 0;
+#endif
 	// for use by RuleInterface
 	void setSecondaryColor(Uint8 color) { setTextColor(color); }
 protected:
@@ -76,9 +83,14 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Gets only a fully rendered label, excluding an optional covered right edge.
 	std::string agentLabel(int rightInset = 0) const;
+	/// Reads the pressed appearance captured by the completed ordinary draw.
+	bool agentPressed(bool &pressed) const;
+	std::uint64_t agentSelectionRevision() const { return _agentSelectionRevision; }
 #endif
 	/// Sets the text button's group.
 	void setGroup(TextButton **group);
+	/// Selects this grouped radio button through the ordinary input operation.
+	bool selectRadio();
 	/// Sets the text button's palette.
 	void setPalette(SDL_Color *colors, int firstcolor = 0, int ncolors = 256);
 	/// Draws the text button.

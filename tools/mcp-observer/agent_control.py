@@ -21,10 +21,13 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/2'
+SCHEMA = 'openxcom-agent-control/3'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
-MAX_PACKET = 32768
+MAX_PACKET = 49152
+MAX_TEXT_PACKET = 32768
+MAX_REQUEST = 512
+MAX_NAME_BYTES = 128
 MAX_COMMANDS = 64
 MAX_COUNTER = 2**53 - 1
 TIMEOUT, ACTION_TIMEOUT, STARTUP_TIMEOUT = 2.0, 31.0, 31.0
@@ -32,14 +35,20 @@ CAPABILITY_TTL = 120.0
 ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_turn',
            'new_battle', 'start_battle', 'continue_briefing', 'close_inventory',
            'open_new_game', 'open_options', 'open_load_game', 'open_pause_menu',
-           'open_save_game', 'resume_game', 'cancel_menu', 'dismiss_error')
+           'open_save_game', 'resume_game', 'cancel_menu', 'dismiss_error',
+           'select_difficulty', 'set_ironman', 'start_new_game', 'place_base_site',
+           'replace_base_name', 'confirm_base_name')
+DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
+ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
+ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',
+                      replace_base_name='text', place_base_site='point')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
     'new_battle': ('mission', 'craft', 'terrain', 'difficulty', 'alien_race'),
     'briefing': ('title', 'target', 'craft', 'briefing'),
     'inventory': ('close_label',),
-    'new_game': ('title', 'ironman_note'),
+    'base_name': ('title', 'name'),
     'options_shell': ('category', 'tooltip'),
     'pause_menu': ('title',),
     'load_list': ('title', 'name_heading', 'date_heading', 'details'),
@@ -53,7 +62,10 @@ STATE_ACTIONS = {
     'new_battle': frozenset(('start_battle', 'cancel_menu')),
     'briefing': frozenset(('continue_briefing',)),
     'inventory': frozenset(('close_inventory',)),
-    'new_game': frozenset(('cancel_menu',)),
+    'new_game': frozenset(('cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game')),
+    'base_name': frozenset(('replace_base_name', 'confirm_base_name')),
+    'build_base': frozenset(('place_base_site',)),
+    'geoscape': frozenset(),
     'options_shell': frozenset(('cancel_menu',)),
     'pause_menu': frozenset(('open_load_game', 'open_save_game', 'open_options', 'resume_game')),
     'load_list': frozenset(('cancel_menu',)),
@@ -61,6 +73,8 @@ STATE_ACTIONS = {
     'error_message': frozenset(('dismiss_error',)),
     'unsupported': frozenset(),
 }
+GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year', 'funds', 'speed')
+GEOSCAPE_BUTTONS = ('intercept', 'bases', 'graphs', 'ufopaedia', 'options', 'funding')
 STATUSES = ('pending', 'dispatched', 'unavailable', 'unknown_after_dispatch', 'unknown')
 TERMINAL_STATUSES = ('dispatched', 'unavailable', 'unknown_after_dispatch')
 TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result')
@@ -88,8 +102,13 @@ def token(value):
 
 
 def visible_text(value, nullable=False):
-    require((nullable and value is None) or
-            (type(value) is str and len(value.encode('utf-8')) <= 4096))
+    if nullable and value is None:
+        return
+    require(type(value) is str)
+    try:
+        require(len(value.encode('utf-8')) <= 4096)
+    except UnicodeError:
+        raise Unavailable('Unavailable') from None
 
 
 def parse(raw):
@@ -120,6 +139,68 @@ def validate_ready(raw):
     require(obj['status'] == 'ready')
 
 
+def label_source(screen, action):
+    return ('visible_control_semantics' if screen in ('battlescape', 'inventory') or
+            action in ('replace_base_name', 'place_base_site') else 'visible_text')
+
+
+def validate_new_game(visible, actions):
+    exact(visible, 'title ironman_note difficulty ironman')
+    visible_text(visible['title'], nullable=True)
+    visible_text(visible['ironman_note'], nullable=True)
+    require(visible['ironman'] is None or type(visible['ironman']) is bool)
+    choices = visible['difficulty']
+    require(type(choices) is list and len(choices) <= len(DIFFICULTIES))
+    seen, selected = set(), 0
+    for choice in choices:
+        exact(choice, 'value label selected')
+        require(type(choice['value']) is str and choice['value'] in DIFFICULTIES and choice['value'] not in seen)
+        seen.add(choice['value'])
+        visible_text(choice['label']); require(bool(choice['label']))
+        require(type(choice['selected']) is bool)
+        selected += choice['selected']
+    require(selected <= 1)
+    require('select_difficulty' not in actions or (bool(seen) and visible['title'] is not None))
+    require('set_ironman' not in actions or visible['ironman'] is not None)
+
+
+def validate_geoscape(visible):
+    exact(visible, ' '.join(GEOSCAPE_FIELDS) + ' buttons')
+    for field in GEOSCAPE_FIELDS:
+        visible_text(visible[field], nullable=True)
+    require(type(visible['buttons']) is list and len(visible['buttons']) <= len(GEOSCAPE_BUTTONS))
+    seen = set()
+    for button in visible['buttons']:
+        exact(button, 'id label')
+        require(type(button['id']) is str and button['id'] in GEOSCAPE_BUTTONS and button['id'] not in seen)
+        seen.add(button['id'])
+        visible_text(button['label']); require(bool(button['label']))
+
+
+def validate_build_base(visible, actions):
+    exact(visible, 'title globe')
+    visible_text(visible['title'], nullable=True)
+    globe = visible['globe']
+    if globe is None:
+        require('place_base_site' not in actions)
+        return
+    exact(globe, 'width height sample_step samples')
+    integer(globe['width'], 1, 512)
+    integer(globe['height'], 1, 400)
+    integer(globe['sample_step'], 16, 16)
+    require(type(globe['samples']) is list and len(globe['samples']) <= 800)
+    seen = set()
+    for sample in globe['samples']:
+        exact(sample, 'x y terrain')
+        integer(sample['x'], 0, globe['width'] - 1)
+        integer(sample['y'], 0, globe['height'] - 1)
+        coordinate = (sample['x'], sample['y'])
+        require(coordinate not in seen)
+        seen.add(coordinate)
+        require(type(sample['terrain']) is str and sample['terrain'] in ('textured', 'untextured'))
+    require('place_base_site' not in actions or bool(seen))
+
+
 def validate_state(obj, challenge, epoch, *, post_action=False):
     exact(obj, 'schema mode type challenge epoch revision capability state visible actions event_sequence semantics')
     identity(obj)
@@ -138,13 +219,13 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
     require(type(obj['actions']) is list and len(obj['actions']) <= len(ACTIONS))
     seen = set()
     for action in obj['actions']:
-        exact(action, 'id label label_source')
+        exact(action, 'id label label_source argument_kind')
         require(type(action['id']) is str and action['id'] in ACTIONS and action['id'] not in seen)
         seen.add(action['id'])
         visible_text(action['label'])
         require(bool(action['label']))
-        require(action['label_source'] == ('visible_control_semantics' if obj['state'] in ('battlescape', 'inventory')
-                                          else 'visible_text'))
+        require(action['label_source'] == label_source(obj['state'], action['id']))
+        require(action['argument_kind'] == ARGUMENT_KINDS[action['id']])
     require(not {'kneel', 'stand'}.issubset(seen) and seen <= STATE_ACTIONS[obj['state']])
     visible = obj['visible']
     if obj['state'] == 'battlescape':
@@ -156,6 +237,12 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
         require(visible['kneel_indicator'] is None or
                 (type(visible['kneel_indicator']) is str and visible['kneel_indicator'] in ('standing', 'kneeling')))
         require('continue_next_turn' not in seen)
+    elif obj['state'] == 'new_game':
+        validate_new_game(visible, seen)
+    elif obj['state'] == 'geoscape':
+        validate_geoscape(visible)
+    elif obj['state'] == 'build_base':
+        validate_build_base(visible, seen)
     elif obj['state'] in STATE_FIELDS:
         exact(visible, ' '.join(STATE_FIELDS[obj['state']]))
         for text in visible.values():
@@ -170,7 +257,8 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
         require(obj['capability'] is not None)
     # The MCP output includes both text and structured JSON. Bound canonical
     # ASCII too, so Unicode/escape expansion cannot exceed the outer limit.
-    require(len(json.dumps(obj, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= MAX_PACKET)
+    limit = MAX_PACKET if obj['state'] == 'build_base' else MAX_TEXT_PACKET
+    require(len(json.dumps(obj, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= limit)
     return obj
 
 
@@ -186,32 +274,90 @@ def validate_result(raw, command_id, epoch):
         validate_state(obj['observation'], None, epoch, post_action=True)
         require(obj['observation']['event_sequence'] == obj['event_sequence'])
         require(obj['status'] == 'dispatched')
-    require(len(json.dumps(obj, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= MAX_PACKET)
+    # Only the bounded point-sample projection needs the larger envelope.
+    # Text-heavy states retain the tighter limit against escape expansion.
+    limit = MAX_PACKET if obj['observation'] is not None and obj['observation']['state'] == 'build_base' else MAX_TEXT_PACKET
+    require(len(json.dumps(obj, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= limit)
     return obj
 
 
 def validate_action_arguments(arguments):
-    exact(arguments, 'command_id epoch capability revision action')
+    exact(arguments, 'command_id epoch capability revision action args')
     for name in ('command_id', 'epoch', 'capability'):
         token(arguments[name])
     integer(arguments['revision'], 0, MAX_COUNTER)
     require(type(arguments['action']) is str and arguments['action'] in ACTIONS)
+    args = arguments['args']
+    kind = ARGUMENT_KINDS[arguments['action']]
+    if kind == 'none':
+        exact(args, '')
+    elif kind == 'difficulty':
+        exact(args, 'value')
+        require(type(args['value']) is str and args['value'] in DIFFICULTIES)
+    elif kind == 'boolean':
+        exact(args, 'value')
+        require(type(args['value']) is bool)
+    elif kind == 'text':
+        exact(args, 'text')
+        require(type(args['text']) is str)
+        try:
+            require(len(args['text'].encode('utf-8')) <= MAX_NAME_BYTES)
+        except UnicodeError:
+            raise Unavailable('Unavailable') from None
+        require(all(ord(c) >= 32 and not 127 <= ord(c) <= 159 for c in args['text']))
+    else:
+        exact(args, 'x y')
+        for coordinate in args.values():
+            integer(coordinate, 0, 4095)
+
+
+def canonical_action_request(arguments):
+    """Compile the closed typed action into immutable, canonical ledger bytes."""
+    validate_action_arguments(arguments)
+    action, args = arguments['action'], arguments['args']
+    kind = ARGUMENT_KINDS[action]
+    suffix = ''
+    if kind == 'difficulty':
+        suffix = ' ' + args['value']
+    elif kind == 'boolean':
+        suffix = ' 1' if args['value'] else ' 0'
+    elif kind == 'text':
+        suffix = ' ' + (args['text'].encode('utf-8').hex() or '-')
+    elif kind == 'point':
+        suffix = f' {args["x"]} {args["y"]}'
+    request = ('E {command_id} {epoch} {capability} {revision} {action}'.format(**arguments) + suffix).encode('ascii')
+    require(len(request) <= MAX_REQUEST)
+    return request
 
 
 def definitions():
     opaque = {'type': 'string', 'pattern': '^[0-9a-f]{32}$'}
+    def arg_schema(properties):
+        return {'type': 'object', 'properties': properties, 'required': list(properties), 'additionalProperties': False}
+    argument_schemas = {
+        'none': arg_schema({}),
+        'difficulty': arg_schema({'value': {'type': 'string', 'enum': list(DIFFICULTIES)}}),
+        'boolean': arg_schema({'value': {'type': 'boolean'}}),
+        'text': arg_schema({'text': {'type': 'string', 'maxLength': MAX_NAME_BYTES,
+                                     'not': {'pattern': '[\\u0000-\\u001f\\u007f-\\u009f]'}}}),
+        'point': arg_schema({key: {'type': 'integer', 'minimum': 0, 'maximum': 4095} for key in ('x', 'y')}),
+    }
+    execute_schema = {
+        'type': 'object', 'properties': {
+            'command_id': dict(opaque), 'epoch': dict(opaque), 'capability': dict(opaque),
+            'revision': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},
+            'action': {'type': 'string', 'enum': list(ACTIONS)}, 'args': {'type': 'object'}},
+        'required': ['command_id', 'epoch', 'capability', 'revision', 'action', 'args'], 'additionalProperties': False,
+        'oneOf': [{'properties': {'action': {'enum': [action for action in ACTIONS if ARGUMENT_KINDS[action] == kind]},
+                                  'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /2: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Unsupported screens have an empty catalog. Menu shells expose bounded rendered labels and navigation controls; they do not enumerate save files or offer campaign save/load/overwrite, campaign start, or settings edits. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /3: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. The first Geoscape observation is read-only. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
-         'inputSchema': {'type': 'object', 'properties': {
-             'command_id': dict(opaque), 'epoch': dict(opaque), 'capability': dict(opaque),
-             'revision': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},
-             'action': {'type': 'string', 'enum': list(ACTIONS)}},
-             'required': ['command_id', 'epoch', 'capability', 'revision', 'action'], 'additionalProperties': False},
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
          'description': 'Read a known command receipt without replaying it. The separate observation describes visible UI after dispatch; dispatched is not gameplay success. Public event_sequence is not a simulation counter. This tool never reconnects or retries an uncertain action.',
@@ -234,6 +380,9 @@ class AgentControlClient:
         self.state = 'NEW'
         self.epoch = self.capability = self.revision = self.last_capability = None
         self.available_actions = frozenset()
+        self.difficulty_values = frozenset()
+        self.viewport_bounds = None
+        self.viewport_samples = frozenset()
         self.capability_deadline = 0.0
         self.event_sequence = 0
         self.commands = {}
@@ -244,6 +393,9 @@ class AgentControlClient:
         self.state = 'CLOSED'
         self.capability = None
         self.available_actions = frozenset()
+        self.difficulty_values = frozenset()
+        self.viewport_bounds = None
+        self.viewport_samples = frozenset()
         if channel is not None:
             channel.close()
 
@@ -290,6 +442,9 @@ class AgentControlClient:
                 old_capability = self.last_capability
                 self.capability = None
                 self.available_actions = frozenset()
+                self.difficulty_values = frozenset()
+                self.viewport_bounds = None
+                self.viewport_samples = frozenset()
                 obj = validate_state(parse(self.exchange(('R ' + challenge).encode('ascii'))), challenge, self.epoch)
                 require(obj['revision'] >= (self.revision if self.revision is not None else 0)
                         and obj['event_sequence'] >= self.event_sequence)
@@ -299,6 +454,12 @@ class AgentControlClient:
                 if self.capability is not None:
                     self.last_capability = self.capability
                 self.available_actions = frozenset(action['id'] for action in obj['actions'])
+                if obj['state'] == 'new_game':
+                    self.difficulty_values = frozenset(choice['value'] for choice in obj['visible']['difficulty'])
+                if obj['state'] == 'build_base' and obj['visible']['globe'] is not None:
+                    globe = obj['visible']['globe']
+                    self.viewport_bounds = (globe['width'], globe['height'])
+                    self.viewport_samples = frozenset((sample['x'], sample['y']) for sample in globe['samples'])
                 self.capability_deadline = time.monotonic() + CAPABILITY_TTL
                 self.state = 'READY' if self.capability is not None else 'NEED_CONTEXT'
                 return obj
@@ -306,26 +467,39 @@ class AgentControlClient:
                 self.close()
                 raise Unavailable('Unavailable') from None
 
-    def execute(self, command_id, epoch, capability, revision, action):
-        arguments = dict(command_id=command_id, epoch=epoch, capability=capability, revision=revision, action=action)
+    def execute(self, command_id, epoch, capability, revision, action, args):
+        arguments = dict(command_id=command_id, epoch=epoch, capability=capability, revision=revision, action=action, args=args)
         validate_action_arguments(arguments)
+        # Values are primitives. Copy the caller's mutable object before
+        # compiling, and retain only immutable canonical bytes in the ledger.
+        args = dict(args)
+        arguments['args'] = args
+        request = canonical_action_request(arguments)
         with self.exclusive():
             previous = self.commands.get(command_id)
             if previous is not None:
-                require(previous['arguments'] == arguments)
+                require(previous['request'] == request)
                 return self._read_result(command_id)
             require(self.state == 'READY' and epoch == self.epoch and capability == self.capability
                     and revision == self.revision and action in self.available_actions
                     and time.monotonic() < self.capability_deadline)
+            if action == 'select_difficulty':
+                require(args['value'] in self.difficulty_values)
+            elif action == 'place_base_site':
+                require(self.viewport_bounds is not None)
+                require(args['x'] < self.viewport_bounds[0] and args['y'] < self.viewport_bounds[1]
+                        and (args['x'], args['y']) in self.viewport_samples)
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
                 raise Unavailable('Unavailable')
-            request = f'E {command_id} {epoch} {capability} {revision} {action}'.encode('ascii')
             # Spend the grant and reserve the ID before the only send attempt.
             self.capability = None
             self.available_actions = frozenset()
+            self.difficulty_values = frozenset()
+            self.viewport_bounds = None
+            self.viewport_samples = frozenset()
             self.state = 'PENDING'
-            self.commands[command_id] = {'arguments': arguments, 'result': None}
+            self.commands[command_id] = {'request': request, 'result': None}
             attempted = False
             def mark_send_attempted():
                 nonlocal attempted

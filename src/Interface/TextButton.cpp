@@ -187,6 +187,13 @@ std::string TextButton::agentLabel(int rightInset) const
         ink.x + ink.w > getWidth() - rightInset || ink.y + ink.h > getHeight()) return std::string();
     return _text->getText();
 }
+
+bool TextButton::agentPressed(bool &pressed) const
+{
+    if (agentLabel().empty()) return false;
+    pressed = _agentDrawnPressed;
+    return true;
+}
 #endif
 
 /**
@@ -197,6 +204,9 @@ std::string TextButton::agentLabel(int rightInset) const
 void TextButton::setGroup(TextButton **group)
 {
 	_group = group;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentSelectionRevision;
+#endif
 	_redraw = true;
 }
 
@@ -289,25 +299,41 @@ void TextButton::draw()
 			this->invert(_color + 3 * mul);
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentDrawnPressed = press;
+#endif
 	_text->setInvert(press);
 
 	_text->blit(this);
 }
 
 /**
- * Sets the button as the pressed button if it's part of a group.
+ * Selects and redraws this button through the ordinary radio input operation.
+ * @return False for a button that does not belong to a radio group.
+ */
+bool TextButton::selectRadio()
+{
+	if (!_group) return false;
+	TextButton *old = *_group;
+	*_group = this;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (old != this) ++_agentSelectionRevision;
+#endif
+	if (old != 0) old->draw();
+	draw();
+	return true;
+}
+
+/**
+ * Handles radio selection, sounds and ordinary mouse-press callbacks.
  * @param action Pointer to an action.
  * @param state State that the action handlers belong to.
  */
 void TextButton::mousePress(Action *action, State *state)
 {
-	if (action->getDetails()->button.button == SDL_BUTTON_LEFT && _group != 0)
+	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 	{
-		TextButton *old = *_group;
-		*_group = this;
-		if (old != 0)
-			old->draw();
-		draw();
+		selectRadio();
 	}
 
 	if (isButtonHandled(action->getDetails()->button.button))

@@ -45,11 +45,17 @@ private:
 	TextEdit *_edtName;
 	TextButton *_btnOk;
 	bool _first;
+	/// Shared ordinary name-change and Enter semantics.
+	void applyNameChange(bool commit);
 public:
 	/// Creates the Base Name state.
 	BaseNameState(Base *base, Globe *globe, bool first);
 	/// Cleans up the Base Name state.
 	~BaseNameState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
 	/// Handler for changing text on the Name edit.

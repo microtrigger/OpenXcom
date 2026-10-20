@@ -15,7 +15,7 @@ std::string AgentUiState::payload() const
     {
         if (i) out += ",";
         out += "{\"id\":" + agentJsonString(actions[i].id) + ",\"label\":" + agentJsonString(actions[i].label) +
-            ",\"label_source\":" + agentJsonString(actions[i].labelSource) + "}";
+            ",\"label_source\":" + agentJsonString(actions[i].labelSource) + ",\"argument_kind\":" + agentJsonString(actions[i].argumentKind) + "}";
     }
     return out + "]";
 }

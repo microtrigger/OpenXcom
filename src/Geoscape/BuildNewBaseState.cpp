@@ -219,19 +219,15 @@ void BuildNewBaseState::hoverRedraw(void)
  */
 void BuildNewBaseState::globeClick(Action *action)
 {
-	double lon, lat;
-	int mouseX = (int)floor(action->getAbsoluteXMouse()), mouseY = (int)floor(action->getAbsoluteYMouse());
-	_globe->cartToPolar(mouseX, mouseY, &lon, &lat);
+    if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
+        selectSite((int)floor(action->getAbsoluteXMouse()), (int)floor(action->getAbsoluteYMouse()));
+}
 
-	// Ignore window clicks
-	if (mouseY < 28)
-	{
-		return;
-	}
-
-	// Clicking on a polygon for a base location
-	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
-	{
+void BuildNewBaseState::selectSite(int mouseX, int mouseY)
+{
+    // Same normal geometry/window checks; eligibility is decided only here.
+    if (mouseY < 28 || !_globe->pointOnVisibleGlobe(mouseX,mouseY)) return;
+    double lon,lat; _globe->cartToPolar(mouseX,mouseY,&lon,&lat);
 		if (_globe->insideLand(lon, lat))
 		{
 			_base->setLongitude(lon);
@@ -254,7 +250,6 @@ void BuildNewBaseState::globeClick(Action *action)
 		{
 			_game->pushState(new ErrorMessageState(tr("STR_XCOM_BASE_CANNOT_BE_BUILT"), _palette, _game->getMod()->getInterface("geoscape")->getElement("genericWindow")->color, "BACK01.SCR", _game->getMod()->getInterface("geoscape")->getElement("palette")->color));
 		}
-	}
 }
 
 /**
@@ -391,5 +386,33 @@ void BuildNewBaseState::resize(int &dX, int &dY)
 		}
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BuildNewBaseState::agentUiState(Observer::AgentUiState &ui) const
+{
+    using namespace Observer;
+    // This bounded route covers first-base placement, whose Cancel is hidden.
+    if (!_first || _modal || _btnCancel->getVisible() || !agentWidgetVisible(_window)) return false;
+    ui.screen="build_base";
+    const std::string title=agentWidgetUncovered(_txtTitle,_surfaces) ? agentTextJson(_txtTitle) : "null";
+    if (title!="null") agentIncludeWidget(ui,_txtTitle);
+    const std::string geography=_globe->agentGeography(ui,_surfaces);
+    ui.visible="{\"title\":"+title+",\"globe\":"+geography+"}";
+    if (geography!="null") ui.actions.push_back(AgentUiAction("place_base_site","Choose base site","visible_control_semantics","point"));
+    ui.actor=_globe; ui.save=_base; ui.uiRevision=_globe->agentViewRevision();
+    return true;
+}
+bool BuildNewBaseState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState ui;
+    if (!agentUiState(ui) || request.action!="place_base_site" || !ui.offers(request.action)) return false;
+    // Exact freshly advertised point membership, never an eligibility preflight.
+    bool offered=false;
+    for(const auto &r:ui.regions) if(r.width==1 && r.height==1 && r.x==request.x && r.y==request.y) offered=true;
+    if(!offered || request.y<28 || !_globe->pointOnVisibleGlobe(request.x,request.y)) return false;
+    selectSite(request.x,request.y);
+    return true;
+}
+#endif
 
 }

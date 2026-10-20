@@ -22,6 +22,10 @@
 #include "../Engine/InteractiveSurface.h"
 #include "../Engine/FastLineClip.h"
 #include "Cord.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentGlobeProjection.h"
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -43,6 +47,12 @@ class RuleGlobe;
 class Globe : public InteractiveSurface
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	Observer::AgentGlobeProjection _agentProjection;
+	std::uint64_t _agentViewRevision = 0, _agentShownViewRevision = 0;
+	bool _agentBlitReady = false;
+	void agentCoverRect(Surface *layer, const Surface *painted);
+#endif
 	static const int NUM_LANDSHADES = 48;
 	static const int NUM_SEASHADES = 72;
 	static const int NEAR_RADIUS = 25;
@@ -111,6 +121,13 @@ public:
 	static Uint8 CITY_LABEL_COLOR;
 	static Uint8 BASE_LABEL_COLOR;
 
+	/// Shared ordinary click geometry; contains no site eligibility check.
+	bool pointOnVisibleGlobe(int x, int y) const;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	void agentRecordOccluders(const std::vector<Surface *> &paintOrder, bool safe = true);
+	std::string agentGeography(Observer::AgentUiState &ui, const std::vector<Surface *> &overlays) const;
+	std::uint64_t agentViewRevision() const { return _agentViewRevision; }
+#endif
 	/// Creates a new globe at the specified position and size.
 	Globe(Game* game, int cenX, int cenY, int width, int height, int x = 0, int y = 0);
 	/// Cleans up the globe.

@@ -22,6 +22,9 @@
 #include "../Engine/Font.h"
 #include "../Engine/Timer.h"
 #include "../Engine/Options.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -54,7 +57,7 @@ TextEdit::~TextEdit()
 	delete _timer;
 	// In case it was left focused
 	SDL_EnableKeyRepeat(0, SDL_DEFAULT_REPEAT_INTERVAL);
-	_state->setModal(0);
+	if (_state) _state->setModal(0);
 }
 
 /**
@@ -81,6 +84,9 @@ void TextEdit::handle(Action *action, State *state)
  */
 void TextEdit::setFocus(bool focus, bool modal)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (focus != _isFocused || modal != _modal) ++_agentInputRevision;
+#endif
 	_modal = modal;
 	if (focus != _isFocused)
 	{
@@ -144,6 +150,9 @@ void TextEdit::initText(Font *big, Font *small, Language *lang)
  */
 void TextEdit::setText(const std::string &text)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentInputRevision;
+#endif
 	_value = Unicode::convUtf8ToUtf32(text);
 	_caretPos = _value.length();
 	_redraw = true;
@@ -217,6 +226,9 @@ void TextEdit::setVerticalAlign(TextVAlign valign)
  */
 void TextEdit::setConstraint(TextEditConstraint constraint)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (constraint != _textEditConstraint) ++_agentInputRevision;
+#endif
 	_textEditConstraint = constraint;
 }
 
@@ -298,6 +310,9 @@ void TextEdit::blink()
  */
 void TextEdit::draw()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentCaretFits = false;
+#endif
 	Surface::draw();
 	UString newValue = _value;
 	if (Options::keyboardMode == KEYBOARD_OFF)
@@ -312,7 +327,7 @@ void TextEdit::draw()
 	_text->blit(this);
 	if (Options::keyboardMode == KEYBOARD_ON)
 	{
-		if (_isFocused && _blink)
+		if (_isFocused)
 		{
 			int x = 0;
 			switch (_text->getAlign())
@@ -346,7 +361,16 @@ void TextEdit::draw()
 				break;
 			}
 			_caret->setY(y);
-			_caret->blit(this);
+			if (_blink) _caret->blit(this);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			// A blinking caret is allowed to be off. Still validate its native
+			// glyph footprint at the current position, without painting it.
+			else _caret->draw();
+			SDL_Rect ink;
+			_agentCaretFits = _caret->agentContextVisible() && _caret->agentTextComplete() &&
+				_caret->agentPaintedBounds(ink) && ink.x >= 0 && ink.y >= 0 &&
+				ink.x + ink.w <= getWidth() && ink.y + ink.h <= getHeight();
+#endif
 		}
 	}
 }
@@ -408,6 +432,74 @@ bool TextEdit::isValidChar(UCode c) const
 	}
 }
 
+bool TextEdit::insertInputCharacter(UCode c)
+{
+	if (!isValidChar(c) || exceedsMaxWidth(c)) return false;
+	_value.insert(_caretPos, 1, c);
+	++_caretPos;
+	return true;
+}
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool TextEdit::agentRenderedText(std::string &text) const
+{
+	if (!Observer::agentWidgetVisible(this) || !_text || !_text->getFont() ||
+		!_text->agentContextVisible() || !_text->agentTextComplete() ||
+		_text->getText().size() > 128 || _text->getTextWidth() > getWidth() ||
+		_text->getTextHeight() > getHeight()) return false;
+	SDL_Rect ink;
+	if (_text->agentPaintedBounds(ink) && (ink.x < 0 || ink.y < 0 ||
+		ink.x + ink.w > getWidth() || ink.y + ink.h > getHeight())) return false;
+	if (_isFocused && Options::keyboardMode == KEYBOARD_ON && !_agentCaretFits) return false;
+	text = _text->getText();
+	return true;
+}
+
+bool TextEdit::agentEditable() const
+{
+	std::string rendered;
+	return _isFocused && Options::keyboardMode == KEYBOARD_ON && _agentCaretFits &&
+		agentRenderedText(rendered);
+}
+
+bool TextEdit::agentReplaceText(const std::string &text)
+{
+	if (!agentEditable() || !Observer::agentInputText(text)) return false;
+	const UString previous = _value;
+	const size_t previousCaret = _caretPos;
+	const bool previousBlink = _blink;
+	_value.clear();
+	_caretPos = 0;
+	const UString replacement = Unicode::convUtf8ToUtf32(text);
+	for (UCode c : replacement)
+	{
+		if (!insertInputCharacter(c))
+		{
+			_value = previous;
+			_caretPos = previousCaret;
+			return false;
+		}
+	}
+	_blink = true;
+	_redraw = true;
+	draw();
+	std::string rendered;
+	if (!agentRenderedText(rendered) || rendered != text || !_agentCaretFits)
+	{
+		// Unsupported glyphs or a clipped terminal caret must not leave a
+		// partial edit or call the state's change handler.
+		_value = previous;
+		_caretPos = previousCaret;
+		_blink = previousBlink;
+		_redraw = true;
+		draw();
+		return false;
+	}
+	++_agentInputRevision;
+	return true;
+}
+#endif
+
 /**
  * Focuses the text edit when it's pressed on.
  * @param action Pointer to an action.
@@ -415,6 +507,9 @@ bool TextEdit::isValidChar(UCode c) const
  */
 void TextEdit::mousePress(Action *action, State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	const size_t previousCaret = _caretPos;
+#endif
 	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 	{
 		if (!_isFocused)
@@ -444,6 +539,9 @@ void TextEdit::mousePress(Action *action, State *state)
 			_caretPos = c;
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_caretPos != previousCaret) ++_agentInputRevision;
+#endif
 	InteractiveSurface::mousePress(action, state);
 }
 
@@ -455,6 +553,11 @@ void TextEdit::mousePress(Action *action, State *state)
  */
 void TextEdit::keyboardPress(Action *action, State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	const UString previous = _value;
+	const size_t previousCaret = _caretPos;
+	const UCode previousChar = _char;
+#endif
 	if (Options::keyboardMode == KEYBOARD_OFF)
 	{
 		switch (action->getDetails()->key.keysym.sym)
@@ -533,14 +636,13 @@ void TextEdit::keyboardPress(Action *action, State *state)
 			break;
 		default:
 			UCode c = action->getDetails()->key.keysym.unicode;
-			if (isValidChar(c) && !exceedsMaxWidth(c))
-			{
-				_value.insert(_caretPos, 1, c);
-				_caretPos++;
-			}
+			insertInputCharacter(c);
 			break;
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_value != previous || _caretPos != previousCaret || _char != previousChar) ++_agentInputRevision;
+#endif
 	_redraw = true;
 	if (_change)
 	{

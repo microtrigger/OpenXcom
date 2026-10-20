@@ -20,6 +20,9 @@
 #include "../Engine/InteractiveSurface.h"
 #include "Text.h"
 #include "../Engine/Unicode.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#endif
 
 namespace OpenXcom
 {
@@ -44,6 +47,12 @@ private:
 	TextEditConstraint _textEditConstraint;
 	ActionHandler _change;
 	State *_state;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool _agentCaretFits = false;
+	std::uint64_t _agentInputRevision = 0;
+#endif
+	/// Native insertion shared by physical keyboard and bounded replacement.
+	bool insertInputCharacter(UCode c);
 	/// Checks if a character will exceed the maximum width.
 	bool exceedsMaxWidth(UCode c) const;
 	/// Checks if character is valid to be inserted at caret position.
@@ -69,6 +78,14 @@ public:
 	void setText(const std::string &text);
 	/// Gets the text edit's string.
 	std::string getText() const;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Reads only the complete currently rendered child text and caret.
+	bool agentRenderedText(std::string &text) const;
+	bool agentEditable() const;
+	/// Atomic replacement through the same native character/width constraints.
+	bool agentReplaceText(const std::string &text);
+	std::uint64_t agentInputRevision() const { return _agentInputRevision; }
+#endif
 	/// Sets the text edit's wordwrap setting.
 	void setWordWrap(bool wrap);
 	/// Sets the text edit's color invert setting.

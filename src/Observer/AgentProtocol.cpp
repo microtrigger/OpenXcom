@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "AgentProtocol.h"
 #include <sstream>
+#include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/2"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/3"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/2\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/3\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -31,12 +32,56 @@ bool agentActionId(const std::string &value)
         value == "start_battle" || value == "continue_briefing" || value == "close_inventory" ||
         value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
         value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||
-        value == "cancel_menu" || value == "dismiss_error";
+        value == "cancel_menu" || value == "dismiss_error" || value == "select_difficulty" ||
+        value == "set_ironman" || value == "start_new_game" || value == "place_base_site" ||
+        value == "replace_base_name" || value == "confirm_base_name";
+}
+const char *agentArgumentKind(const std::string &action)
+{
+    if (action == "select_difficulty") return "difficulty";
+    if (action == "set_ironman") return "boolean";
+    if (action == "replace_base_name") return "text";
+    if (action == "place_base_site") return "point";
+    return agentActionId(action) ? "none" : "unsupported";
+}
+bool agentInputText(const std::string &value)
+{
+    if (value.size() > 128) return false;
+    for (std::size_t i = 0; i < value.size();)
+    {
+        const unsigned char first = static_cast<unsigned char>(value[i++]);
+        unsigned code = 0, remaining = 0, minimum = 0;
+        if (first < 0x80) code = first;
+        else if (first >= 0xc2 && first <= 0xdf) { code = first & 31; remaining = 1; minimum = 0x80; }
+        else if (first >= 0xe0 && first <= 0xef) { code = first & 15; remaining = 2; minimum = 0x800; }
+        else if (first >= 0xf0 && first <= 0xf4) { code = first & 7; remaining = 3; minimum = 0x10000; }
+        else return false;
+        if (i + remaining > value.size()) return false;
+        for (unsigned j = 0; j < remaining; ++j)
+        {
+            const unsigned char next = static_cast<unsigned char>(value[i++]);
+            if ((next & 0xc0) != 0x80) return false;
+            code = (code << 6) | (next & 63);
+        }
+        if (code < minimum || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ||
+            code < 32 || (code >= 127 && code <= 159)) return false;
+    }
+    return true;
+}
+namespace {
+bool decimal(const std::string &text, std::uint64_t maximum, std::uint64_t &out)
+{
+    if (text.empty() || text.size() > 16 || (text.size() > 1 && text[0] == '0') ||
+        text.find_first_not_of("0123456789") != std::string::npos) return false;
+    out = 0;
+    for (char c : text) out = out * 10 + (c - '0');
+    return out <= maximum;
+}
 }
 bool parseAgentRequest(const std::string &packet, AgentRequest &request)
 {
     request = AgentRequest();
-    if (packet.empty() || packet.size() > 256 || packet.find_first_of("\r\n\t") != std::string::npos ||
+    if (packet.empty() || packet.size() > 512 || packet.find_first_of("\r\n\t") != std::string::npos ||
         packet.find('\0') != std::string::npos) return false;
     if (packet == std::string("H ") + agentProtocolSchema()) { request.kind = 'H'; return true; }
     if (packet.size() == 34 && packet[1] == ' ' && (packet[0] == 'R' || packet[0] == 'S'))
@@ -48,17 +93,51 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         return true;
     }
     std::istringstream input(packet);
-    std::string kind, revision, extra;
-    if (!(input >> kind >> request.id >> request.epoch >> request.capability >> revision >> request.action) ||
-        input >> extra || kind != "E" || !agentToken(request.id) || !agentToken(request.epoch) ||
-        !agentToken(request.capability) || !agentActionId(request.action) || revision.empty() ||
-        revision.size() > 16 || revision.find_first_not_of("0123456789") != std::string::npos ||
-        (revision.size() > 1 && revision[0] == '0')) return false;
-    for (char c : revision) request.revision = request.revision * 10 + (c - '0');
-    if (request.revision >= 9007199254740992ULL) return false;
-    const std::string canonical = "E " + request.id + " " + request.epoch + " " + request.capability + " " +
-        revision + " " + request.action;
-    if (canonical != packet) return false;
+    std::vector<std::string> parts; std::string part, canonical;
+    while (input >> part)
+    {
+        if (!canonical.empty()) canonical += " ";
+        canonical += part; parts.push_back(part);
+    }
+    if (canonical != packet || parts.size() < 6 || parts.size() > 8 || parts[0] != "E") return false;
+    request.id = parts[1]; request.epoch = parts[2]; request.capability = parts[3]; request.action = parts[5];
+    if (!agentToken(request.id) || !agentToken(request.epoch) || !agentToken(request.capability) ||
+        !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
+    const std::string kind = agentArgumentKind(request.action);
+    if (kind == "none") { if (parts.size() != 6) return false; }
+    else if (kind == "difficulty")
+    {
+        if (parts.size() != 7) return false;
+        request.choice = parts[6];
+        if (request.choice != "beginner" && request.choice != "experienced" && request.choice != "veteran" &&
+            request.choice != "genius" && request.choice != "superhuman") return false;
+    }
+    else if (kind == "boolean")
+    {
+        if (parts.size() != 7 || (parts[6] != "0" && parts[6] != "1")) return false;
+        request.desired = parts[6] == "1";
+    }
+    else if (kind == "text")
+    {
+        if (parts.size() != 7) return false;
+        const std::string &hex = parts[6];
+        if (hex != "-")
+        {
+            if (hex.empty() || hex.size() > 256 || hex.size() % 2 ||
+                hex.find_first_not_of("0123456789abcdef") != std::string::npos) return false;
+            const std::string digits = "0123456789abcdef";
+            for (std::size_t i = 0; i < hex.size(); i += 2)
+                request.text += static_cast<char>(digits.find(hex[i]) * 16 + digits.find(hex[i+1]));
+        }
+        if (!agentInputText(request.text)) return false;
+    }
+    else if (kind == "point")
+    {
+        std::uint64_t x, y;
+        if (parts.size() != 8 || !decimal(parts[6], 4095, x) || !decimal(parts[7], 4095, y)) return false;
+        request.x = static_cast<int>(x); request.y = static_cast<int>(y);
+    }
+    else return false;
     request.kind = 'E';
     return true;
 }

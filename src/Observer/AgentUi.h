@@ -6,9 +6,9 @@ namespace OpenXcom {
 class Surface; class Text; class TextButton;
 namespace Observer {
 struct AgentUiAction {
-    std::string id, label, labelSource;
-    AgentUiAction(const std::string &i, const std::string &l, const std::string &s)
-        : id(i), label(l), labelSource(s) {}
+    std::string id, label, labelSource, argumentKind;
+    AgentUiAction(const std::string &i, const std::string &l, const std::string &s, const std::string &a = "none")
+        : id(i), label(l), labelSource(s), argumentKind(a) {}
 };
 struct AgentUiRect {
     int x, y, width, height;

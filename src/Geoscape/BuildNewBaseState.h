@@ -48,7 +48,12 @@ private:
 	bool _oldshowradar;
 	double _oldlat,_oldlon;
 	int _mousex, _mousey;
+	void selectSite(int x, int y);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &ui) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Build New Base state.
 	BuildNewBaseState(Base *base, Globe *globe, bool first);
 	/// Cleans up the Build New Base state.
