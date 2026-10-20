@@ -9,8 +9,9 @@ unsigned checks=0;
 void check(bool b){++checks;if(!b)std::exit(1);}
 int main(int argc, char **argv)
 {
- char app[]="fixture-test",flag[]="--agent-report-fixture",oldAlias[]="alien-control-v1",newAlias[]="gameplay-v1",armoredAlias[]="gameplay-armored-v1",vehicleAlias[]="gameplay-vehicle-v1",wrong[]="bad",tail[]="-user",path[]="/tmp/unused";
- char *alias = argc == 2 && std::string(argv[1]) == "gameplay-vehicle-v1" ? vehicleAlias :
+ char app[]="fixture-test",flag[]="--agent-report-fixture",oldAlias[]="alien-control-v1",newAlias[]="gameplay-v1",armoredAlias[]="gameplay-armored-v1",vehicleAlias[]="gameplay-vehicle-v1",missionAlias[]="gameplay-mission-v1",wrong[]="bad",tail[]="-user",path[]="/tmp/unused";
+ char *alias = argc == 2 && std::string(argv[1]) == "gameplay-mission-v1" ? missionAlias :
+     argc == 2 && std::string(argv[1]) == "gameplay-vehicle-v1" ? vehicleAlias :
      argc == 2 && std::string(argv[1]) == "gameplay-armored-v1" ? armoredAlias :
      argc == 2 && std::string(argv[1]) == "gameplay-v1" ? newAlias : oldAlias;
  char *normal[]={app,nullptr};int n=1;AgentReportFixture::prepare(n,normal);check(n==1&&!AgentReportFixture::waiting());

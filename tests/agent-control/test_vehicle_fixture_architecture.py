@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[2]
 class VehicleFixtureArchitecture(unittest.TestCase):
  def test_alias_is_explicit_and_old_equipment_stays_gated(self):
   s=(ROOT/'tests/agent-report-fixture/AgentReportFixture.cpp').read_text()
-  self.assertIn('equippedVehicle=std::string(argv[i+1])=="gameplay-vehicle-v1";',s)
+  self.assertIn('equippedVehicle=missionContext || std::string(argv[i+1])=="gameplay-vehicle-v1";',s)
   self.assertIn('armored=equippedVehicle || std::string(argv[i+1])=="gameplay-armored-v1";',s)
   self.assertEqual(s.count('if (equippedVehicle)'),2)
   self.assertIn('gameplay=armored || std::string(argv[i+1])=="gameplay-v1";',s)

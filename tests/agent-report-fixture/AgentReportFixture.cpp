@@ -9,6 +9,7 @@
 #include "../../src/Savegame/SavedGame.h"
 #include "../../src/Savegame/SavedBattleGame.h"
 #include "../../src/Savegame/Base.h"
+#include "../../src/Savegame/Craft.h"
 #include "../../src/Savegame/Soldier.h"
 #include "../../src/Savegame/BattleUnit.h"
 #include "../../src/Savegame/BattleItem.h"
@@ -30,7 +31,7 @@
 #include <string>
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
-bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false;
+bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false, missionContext = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -52,10 +53,11 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
-        equippedVehicle=std::string(argv[i+1])=="gameplay-vehicle-v1";
+        missionContext=std::string(argv[i+1])=="gameplay-mission-v1";
+        equippedVehicle=missionContext || std::string(argv[i+1])=="gameplay-vehicle-v1";
         armored=equippedVehicle || std::string(argv[i+1])=="gameplay-armored-v1";
         gameplay=armored || std::string(argv[i+1])=="gameplay-v1";
         requested=true;
@@ -115,6 +117,18 @@ bool start(Game *game)
     UnitStats stats=rules->getMinStats();require(stats.psiStrength==0 && stats.psiSkill==0);
     person["initialStats"]=stats;person["currentStats"]=stats;
     soldier->load(person,mod,save.get());base->getSoldiers()->push_back(soldier.release());
+    if (missionContext)
+    {
+        // Ordinary skirmish ownership context, needed by normal debriefing.
+        // No target, outcome, AI, RNG or soldier-stat mutation is introduced.
+        std::unique_ptr<Craft> craft(new Craft(mod->getCraft(underwater?"STR_TRITON":"STR_SKYRANGER",true),base,1));
+        craft->setInBattlescape(true);
+        base->getSoldiers()->front()->setCraft(craft.get());
+        base->getCrafts()->push_back(craft.release());
+        require(save->getMonthsPassed()==-1 && !base->isInBattlescape() && base->getCrafts()->size()==1);
+        require(base->getCrafts()->front()->getBase()==base && base->getCrafts()->front()->isInBattlescape() &&
+            base->getSoldiers()->front()->getCraft()==base->getCrafts()->front());
+    }
     const int extent=gameplay?6:4;
     YAML::Node battle;battle["width"]=extent;battle["length"]=extent;battle["height"]=1;
     battle["missionType"]="STR_UFO_CRASH_RECOVERY";battle["globalshade"]=0;battle["turn"]=1;
