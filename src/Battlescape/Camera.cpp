@@ -36,6 +36,31 @@ AgentMapSnapshot Camera::agentViewportSnapshot(int x, int y, bool hiddenMovement
         _mapOffset.x, _mapOffset.y, _mapOffset.z), x, y, _screenWidth,
         _visibleMapHeight, hiddenMovement, paintedMessage);
 }
+bool Camera::agentScrollReady() const
+{
+    // Match normal camera input readiness; do not overlap held/queued input.
+    // The configured speed is bounded by the ordinary options slider range.
+    return _map && _map->getCursorType() != CT_NONE && !_scrollTrigger &&
+        !_scrollMouseX && !_scrollMouseY && !_scrollKeyX && !_scrollKeyY &&
+        (!_scrollMouseTimer || !_scrollMouseTimer->isRunning()) &&
+        (!_scrollKeyTimer || !_scrollKeyTimer->isRunning()) && SDL_GetMouseState(0, 0) == 0 &&
+        Options::battleScrollSpeed >= 2 && Options::battleScrollSpeed <= 20;
+}
+bool Camera::agentScrollStep(const std::string &direction)
+{
+    if (!agentScrollReady()) return false;
+    const int speed = Options::battleScrollSpeed;
+    int x = 0, y = 0;
+    if (direction == "left") x = speed;
+    else if (direction == "right") x = -speed;
+    else if (direction == "up") y = speed;
+    else if (direction == "down") y = -speed;
+    else return false;
+    // Same one-tick movement and private boundary clamp as scrollMouse/scrollKey.
+    // A boundary no-op is still a dispatch, never a map-eligibility oracle.
+    scrollXY(x, y, true);
+    return true;
+}
 #endif
 
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN

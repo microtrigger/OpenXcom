@@ -42,6 +42,10 @@ class MiniMapState : public State
 	/// Handles Minimap animation.
 	void animate();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the MiniMapState.
 	MiniMapState (Camera * camera, SavedBattleGame * battleGame);
 	/// Cleans up the MiniMapState.

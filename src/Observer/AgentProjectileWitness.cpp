@@ -92,6 +92,23 @@ AgentProjectileFact AgentProjectileWitness::evaluate(bool admitted,
         }
     return found ? AgentProjectileFact::Presented : (unproven ? AgentProjectileFact::Unknown : AgentProjectileFact::KnownAbsent);
 }
+bool AgentProjectileWitness::completeGlyph(int x, int y, std::uint16_t ink,
+    const Palette &palette, const FinalPixelProof &proof) const
+{
+    if (!_valid || !_sealed || !ink || !proof || x < 0 || y < 0 ||
+        x > _width - 4 || y > _height - 4) return false;
+    bool contrast = false;
+    for (int bit = 0; bit < 16; ++bit) if (ink & (1u << bit))
+    {
+        const int px = x + bit % 4, py = y + bit / 4;
+        const Pixel &pixel = _pixels[static_cast<std::size_t>(py) * _width + px];
+        if (!pixel.candidate || palette[pixel.before] > 0xffffff || palette[pixel.after] > 0xffffff ||
+            !proof(px, py, palette[pixel.after])) return false;
+        contrast = contrast || palette[pixel.before] != palette[pixel.after];
+    }
+    return contrast;
+}
+
 bool AgentProjectileRaster::begin(AgentProjectileWitness &witness, void *bytes, int width, int height, int pitch)
 {
     return begin({{&witness, nullptr, nullptr, nullptr, nullptr}}, bytes, width, height, pitch);

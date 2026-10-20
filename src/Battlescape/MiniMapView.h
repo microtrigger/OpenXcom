@@ -19,6 +19,9 @@
  */
 #include "../Engine/InteractiveSurface.h"
 #include "Position.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentMiniMapPresentation.h"
+#endif
 
 namespace OpenXcom
 {
@@ -47,6 +50,12 @@ class MiniMapView : public InteractiveSurface
 	Uint32 _mouseScrollingStartTime;
 	int _totalMouseMoveX, _totalMouseMoveY;
 	bool _mouseMovedOverThreshold;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentMiniMapPresentation _agentPresentation;
+    std::uint64_t _agentDrawCameraRevision = 0;
+    void agentDrawGlyph(Surface *glyph, Observer::AgentMiniMapKind kind, int x, int y);
+#endif
+    void activatePoint(int x, int y);
 	/// Handles pressing on the MiniMap.
 	void mousePress(Action *action, State *state);
 	/// Handles clicking on the MiniMap.
@@ -56,6 +65,12 @@ class MiniMapView : public InteractiveSurface
 	/// Handles moving the mouse into the MiniMap surface.
 	void mouseIn(Action *action, State *state);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    const Observer::AgentMiniMapPresentation &agentPresentation() const { return _agentPresentation; }
+    bool agentReady() const;
+    std::uint64_t agentCameraRevision() const;
+    void agentActivatePoint(int x, int y) { activatePoint(x, y); }
+#endif
 	/// Creates the MiniMapView.
 	MiniMapView(int w, int h, int x, int y, Game * game, Camera * camera, SavedBattleGame * battleGame);
 	/// Draws the minimap.

@@ -1182,16 +1182,19 @@ bool Screen::agentPresentationReady() const
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace OpenXcom {
+bool Screen::agentCaptureOutput(const Surface *source, Observer::AgentProjectileOutput &output) const
+{
+    return source && _surface && agentPresentationReady() &&
+        _surface->getWidth() == _baseWidth && _surface->getHeight() == _baseHeight &&
+        output.capture(_agentLastFlipOk, useOpenGL() || use32bitScaler() || Options::useScaleFilter || Options::useHQXFilter || Options::useXBRZFilter,
+            _surface->getSurface(), _screen, source->getSurface(),
+            _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand);
+}
 Observer::AgentProjectileFact Screen::agentProjectileFact(const Observer::AgentProjectileWitness &witness,
     const Surface *map, int visibleHeight, const std::function<bool(int, int)> &pixelAdmitted) const
 {
     Observer::AgentProjectileOutput output;
-    if (!map || !_surface || !agentPresentationReady() ||
-        _surface->getWidth() != _baseWidth || _surface->getHeight() != _baseHeight ||
-        !output.capture(_agentLastFlipOk, useOpenGL() || use32bitScaler() || Options::useScaleFilter || Options::useHQXFilter || Options::useXBRZFilter,
-            _surface->getSurface(), _screen, map->getSurface(),
-            _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand))
-        return Observer::AgentProjectileFact::Unknown;
+    if (!agentCaptureOutput(map, output)) return Observer::AgentProjectileFact::Unknown;
     return witness.evaluate(true, {0, 0, map->getWidth(), visibleHeight}, {}, output.palette,
         [&](int x, int y, std::uint32_t rgb) { return output.matches(map->getX() + x, map->getY() + y, rgb); }, pixelAdmitted);
 }

@@ -2,6 +2,7 @@
 	#pragma once
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "../Observer/AgentProjectileWitness.h"
+#include "../Observer/AgentProjectileOutput.h"
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include <cstdint>
@@ -109,6 +110,7 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentPresentationReady() const;
+    bool agentCaptureOutput(const Surface *source, Observer::AgentProjectileOutput &output) const;
     Observer::AgentProjectileFact agentProjectileFact(const Observer::AgentProjectileWitness &witness,
         const Surface *map, int visibleHeight, const std::function<bool(int, int)> &pixelAdmitted) const;
     std::uint64_t agentDisplayRevision() const { return _agentDisplayRevision; }

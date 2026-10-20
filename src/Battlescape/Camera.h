@@ -61,6 +61,9 @@ public:
     std::uint64_t agentViewRevision() const { return _agentViewRevision; }
     AgentMapSnapshot agentViewportSnapshot(int x, int y, bool hiddenMovement,
         const std::string &paintedMessage) const;
+    bool agentScrollReady() const;
+    // One ordinary configured scroll step; never a synthetic key or mouse event.
+    bool agentScrollStep(const std::string &direction);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     std::uint64_t turnControlRevision() const { return _turnControlRevision; }

@@ -63,6 +63,8 @@ private:
     bool _agentShownKneeled = false;
     std::uint64_t _agentUiRevision = 0;
     bool _agentEnemyPainted[10] = {};
+    std::string agentViewportControls(Observer::AgentUiState &out) const;
+    bool agentViewportDispatch(const Observer::AgentRequest &request, const Observer::AgentUiState &shown);
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     friend class Observer::StanceController;

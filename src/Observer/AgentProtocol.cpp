@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/15"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/16"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/15\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/16\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -40,7 +40,10 @@ bool agentActionId(const std::string &value)
         value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
         value == "choose_weapon_action" || value == "choose_grenade_timer" || value == "cancel_grenade_timer" || value == "cancel_weapon_action" || value == "close_debriefing" ||
         value == "open_inventory" || value == "inventory_hover" || value == "inventory_activate" ||
-        value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page";
+        value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page" ||
+        value == "view_level_up" || value == "view_level_down" || value == "toggle_layers" ||
+        value == "open_minimap" || value == "close_minimap" || value == "unit_up" || value == "unit_down" ||
+        value == "camera_pan" || value == "minimap_center";
 }
 const char *agentArgumentKind(const std::string &action)
 {
@@ -50,6 +53,8 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "choose_weapon_action") return "weapon_action";
     if (action == "choose_grenade_timer") return "grenade_timer";
     if (action == "inventory_hover" || action == "inventory_activate") return "inventory_target";
+    if (action == "camera_pan") return "camera_direction";
+    if (action == "minimap_center") return "minimap_target";
     if (action == "open_new_battle_choice") return "choice_control";
     if (action == "choose_visible_row") return "visible_row";
     if (action == "scroll_visible_list") return "scroll_direction";
@@ -162,6 +167,19 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         std::uint64_t target;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'v' ||
             !decimal(parts[6].substr(1), 95, target)) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "minimap_target")
+    {
+        std::uint64_t target;
+        if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'm' ||
+            !decimal(parts[6].substr(1), 159, target)) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "camera_direction")
+    {
+        if (parts.size() != 7 || (parts[6] != "left" && parts[6] != "right" &&
+            parts[6] != "up" && parts[6] != "down")) return false;
         request.choice = parts[6];
     }
     else if (kind == "visible_row")

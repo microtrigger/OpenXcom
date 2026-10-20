@@ -40,6 +40,11 @@ public:
         const AgentProjectileRect &viewport, const std::vector<AgentProjectileRect> &covers,
         const Palette &finalPalette, const FinalPixelProof &proof,
         const std::function<bool(int, int)> &pixelAdmitted = std::function<bool(int, int)>()) const;
+    // Complete known 4x4 glyph admission. Every original ink pixel must retain
+    // this role's write and match successful final output; at least one must
+    // contribute contrast. This does not classify arbitrary screen pixels.
+    bool completeGlyph(int x, int y, std::uint16_t ink, const Palette &palette,
+        const FinalPixelProof &proof) const;
     std::size_t storageCells() const { return _pixels.size(); }
 
 private:

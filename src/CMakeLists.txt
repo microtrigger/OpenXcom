@@ -746,7 +746,7 @@ endif()
 
 # Separate default-off semantic execution ABI; no supervised confirmation overlay.
 if ( EXPERIMENTAL_AGENT_CONTROL )
-  target_sources ( openxcom PRIVATE Observer/AgentProtocol.cpp Observer/AgentUi.cpp Observer/AgentController.cpp Observer/AgentAudioEvents.cpp Observer/AgentProjectileWitness.cpp Observer/AgentProjectileOutput.cpp )
+  target_sources ( openxcom PRIVATE Observer/AgentProtocol.cpp Observer/AgentUi.cpp Observer/AgentController.cpp Observer/AgentAudioEvents.cpp Observer/AgentProjectileWitness.cpp Observer/AgentProjectileOutput.cpp Observer/AgentMiniMapPresentation.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_AGENT_CONTROL )
 endif()
 

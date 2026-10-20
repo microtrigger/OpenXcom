@@ -20,10 +20,11 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/15", "inventory schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/15\",\"mode\":\"agent-control\"",
-        "inventory envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/15", r) && r.kind == 'H', "exact handshake");
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/16", "viewport schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/16\",\"mode\":\"agent-control\"",
+        "viewport envelope schema matches handshake");
+    check(parseAgentRequest("H openxcom-agent-control/16", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/15", r), "prior inventory schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/14", r), "prior renderer union rejected");
     check(!parseAgentRequest("H openxcom-agent-control/13", r), "prior64-target schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/12", r), "prior body schema rejected");
@@ -39,7 +40,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/15\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/16\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -54,7 +55,8 @@ int main()
         "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",
         "resume_game", "cancel_menu", "dismiss_error", "start_new_game", "confirm_base_name",
         "close_dropdown", "open_funding", "close_funding", "end_turn", "acknowledge_message", "close_debriefing",
-        "open_inventory", "cancel_inventory_hold", "unload_inventory", "next_inventory_ground_page"};
+        "open_inventory", "cancel_inventory_hold", "unload_inventory", "next_inventory_ground_page",
+        "view_level_up", "view_level_down", "toggle_layers", "open_minimap", "close_minimap", "unit_up", "unit_down"};
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
@@ -85,6 +87,59 @@ int main()
         check(parseAgentRequest(prefix+"0 scroll_visible_list "+direction,r) && r.choice==direction, "one step direction");
     for (const char *direction : {"top", "bottom", "up 2", ""})
         check(!parseAgentRequest(prefix+"0 scroll_visible_list "+direction,r), "unbounded scroll rejected");
+    for (const char *action : {"view_level_up", "view_level_down", "toggle_layers", "open_minimap",
+        "close_minimap", "unit_up", "unit_down"})
+    {
+        check(agentActionId(action) && std::string(agentArgumentKind(action)) == "none",
+            "viewport button has no argument");
+        for (const char *extra : {"1", "0", "m0", "up", "true", "null", "none"})
+            check(!parseAgentRequest(prefix+"0 "+action+" "+extra,r), "viewport button rejects extra argument");
+    }
+    check(agentActionId("camera_pan") && std::string(agentArgumentKind("camera_pan")) == "camera_direction",
+        "camera direction kind is closed");
+    for (const char *direction : {"left", "right", "up", "down"})
+        check(parseAgentRequest(prefix+"9007199254740991 camera_pan "+direction,r) && r.kind == 'E' &&
+            r.choice == direction && r.action == "camera_pan" && r.revision == 9007199254740991ULL &&
+            r.id == token(3) && r.epoch == token(4) && r.capability == token(5),
+            "one canonical camera direction preserves request identity");
+    check(!parseAgentRequest(prefix+"0 camera_pan",r), "camera direction required");
+    for (const char *direction : {"LEFT", "north", "top", "bottom", "left 2", "up down", "0", "m0", "",
+        " left", "left ", "left\n", "left\t", "left\r", "left,right"})
+        check(!parseAgentRequest(prefix+"0 camera_pan "+direction,r), "noncanonical or repeated pan rejected");
+    check(agentActionId("minimap_center") && std::string(agentArgumentKind("minimap_center")) == "minimap_target",
+        "minimap target kind is closed");
+    for (unsigned i = 0; i < 160; ++i)
+    {
+        const std::string target = "m" + std::to_string(i);
+        check(parseAgentRequest(prefix+"12 minimap_center "+target,r) && r.kind == 'E' &&
+            r.choice == target && r.action == "minimap_center" && r.revision == 12 &&
+            r.id == token(3) && r.epoch == token(4) && r.capability == token(5),
+            "all160 local minimap handles preserve request identity");
+    }
+    check(!parseAgentRequest(prefix+"0 minimap_center",r), "minimap target required");
+    for (const char *target : {"m160", "m999", "m18446744073709551616", "m00", "m01", "m0159", "m-1",
+        "m+1", "m1.0", "m1e0", "m0x1", "m", "M0", "0", "v0", "g0", "e0", "a0", "r0",
+        "m0 m1", "m0 extra", " m0", "m0 ", "m0\t", "m0\n", "m0\r"})
+        check(!parseAgentRequest(prefix+"0 minimap_center "+target,r), "noncanonical or unbounded minimap handle rejected");
+    for (const char *action : {"camera_up", "set_view_level", "unit_level_up", "minimap_click", "map_pan", "center_minimap"})
+        check(!agentActionId(action) && !parseAgentRequest(prefix+"0 "+action,r), "unlisted viewport alias rejected");
+    AgentLedger viewportLedger;
+    const std::string panRequest = prefix + "0 camera_pan left";
+    check(viewportLedger.begin(token(3), panRequest) == AgentLedger::Fresh, "pan reserves ordinary shared command identity");
+    viewportLedger.find(token(3))->dispatched = true;
+    viewportLedger.find(token(3))->response = "viewport receipt";
+    check(viewportLedger.begin(token(3), panRequest) == AgentLedger::Duplicate, "duplicate pan cannot repeat");
+    check(viewportLedger.begin(token(3), prefix+"0 camera_pan right") == AgentLedger::Conflict,
+        "changed direction under same command ID conflicts");
+    check(viewportLedger.begin(token(3), prefix+"0 minimap_center m0") == AgentLedger::Conflict,
+        "changed viewport action under same command ID conflicts");
+    check(viewportLedger.find(token(3))->dispatched && viewportLedger.find(token(3))->response == "viewport receipt",
+        "viewport identity conflicts preserve original receipt");
+    const std::string centerRequest = prefix + "0 minimap_center m159";
+    check(viewportLedger.begin(token(6), centerRequest) == AgentLedger::Fresh, "minimap center uses shared ledger");
+    check(viewportLedger.begin(token(6), centerRequest) == AgentLedger::Duplicate, "duplicate minimap center cannot repeat");
+    check(viewportLedger.begin(token(6), prefix+"0 minimap_center m158") == AgentLedger::Conflict,
+        "changed minimap target under same identity conflicts");
     for (const char *action : {"map_primary", "map_secondary"}) {
         for (const char *cell : {"g0", "g9", "g127"}) check(parseAgentRequest(prefix+"0 "+action+" "+cell,r), "listed grid syntax");
         for (const char *cell : {"g128", "g01", "g-1", "r0"}) check(!parseAgentRequest(prefix+"0 "+action+" "+cell,r), "invalid grid syntax");

@@ -2753,6 +2753,64 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
         ",\"fragment_status\":\"unavailable\",\"fragments\":[],\"truncated\":" + (truncated ? "true" : "false") + "}";
 }
 }
+std::string BattlescapeState::agentViewportControls(Observer::AgentUiState &out) const
+{
+    // Only the painted HUD digit is public. Camera z/show-all state is not a
+    // substitute when that digit is hidden, dirty, clipped or covered.
+    SDL_Rect layerInk;
+    std::vector<Observer::AgentUiRect> layerRegion;
+    if (_numLayers && _numLayers->agentPaintedBounds(layerInk))
+        layerRegion.push_back({layerInk.x, layerInk.y, layerInk.w, layerInk.h});
+    const bool layersShown = !layerRegion.empty() &&
+        (_numLayers->getValue() == 1 || _numLayers->getValue() == 2) &&
+        Observer::agentRegionsUncovered(layerRegion, _numLayers, _surfaces);
+    bool layersIncluded = false;
+    const Surface *buttons[] = {_btnMapUp, _btnMapDown, _btnShowMap, _btnUnitUp, _btnUnitDown};
+    const char *actions[] = {"view_level_up", "view_level_down", "open_minimap", "unit_up", "unit_down"};
+    const char *labels[] = {"View level above", "View level below", "Minimap", "Unit level above", "Unit level below"};
+    for (unsigned i = 0; i < 5; ++i)
+    {
+        if (!Observer::agentWidgetUncovered(buttons[i], _surfaces)) continue;
+        out.actions.push_back(Observer::AgentUiAction(actions[i], labels[i], "visible_control_semantics"));
+        Observer::agentIncludeWidget(out, buttons[i]);
+    }
+    // The ordinary layer digit is part of this button's visible composition.
+    // Ignore only that proved, contained digit when checking later occluders.
+    std::vector<Surface *> layerOrder = _surfaces;
+    const bool contained = layersShown && _btnShowLayers &&
+        layerInk.x >= _btnShowLayers->getX() && layerInk.y >= _btnShowLayers->getY() &&
+        layerInk.x + layerInk.w <= _btnShowLayers->getX() + _btnShowLayers->getWidth() &&
+        layerInk.y + layerInk.h <= _btnShowLayers->getY() + _btnShowLayers->getHeight();
+    if (contained)
+        layerOrder.erase(std::remove(layerOrder.begin(), layerOrder.end(), _numLayers), layerOrder.end());
+    if (Observer::agentWidgetUncovered(_btnShowLayers, layerOrder))
+    {
+        out.actions.push_back(Observer::AgentUiAction("toggle_layers", "Toggle map layers", "visible_control_semantics"));
+        Observer::agentIncludeWidget(out, _btnShowLayers);
+        layersIncluded = contained;
+    }
+    if (layersShown && !layersIncluded)
+        out.regions.insert(out.regions.end(), layerRegion.begin(), layerRegion.end());
+    // Grid regions already prove an uncovered painted map viewport. No unit,
+    // terrain, destination or hidden bounds query grants camera authority.
+    if (!out.points.empty() && !_isMouseScrolling && !_isMouseScrolled && _map->getCamera()->agentScrollReady())
+        out.actions.push_back(Observer::AgentUiAction("camera_pan", "Pan camera one step", "visible_control_semantics", "camera_direction"));
+    return layersShown ? std::to_string(_numLayers->getValue()) : "null";
+}
+bool BattlescapeState::agentViewportDispatch(const Observer::AgentRequest &request, const Observer::AgentUiState &shown)
+{
+    if (!shown.offers(request.action)) return false;
+    if (request.action == "view_level_up") btnMapUpClick(nullptr);
+    else if (request.action == "view_level_down") btnMapDownClick(nullptr);
+    else if (request.action == "toggle_layers") btnShowLayersClick(nullptr);
+    else if (request.action == "open_minimap") btnShowMapClick(nullptr);
+    else if (request.action == "unit_up") btnUnitUpClick(nullptr);
+    else if (request.action == "unit_down") btnUnitDownClick(nullptr);
+    else if (request.action == "camera_pan")
+        return !_isMouseScrolling && !_isMouseScrolled && _map->getCamera()->agentScrollStep(request.choice);
+    else return false;
+    return true;
+}
 bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
 {
     if (_warning->getVisible())
@@ -2783,7 +2841,7 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     std::string focus;
     const std::string tactical = agentTacticalJson(_map, _game, _surfaces, out, focus);
     out.visible.pop_back();
-    out.visible += ",\"hands\":[";
+    out.visible += ",\"layers_indicator\":" + agentViewportControls(out) + ",\"hands\":[";
     InteractiveSurface *hands[] = {_btnLeftHandItem, _btnRightHandItem};
     NumberText *ammo[] = {_numAmmoLeft, _numAmmoRight};
     unsigned handCount = 0;
@@ -2828,6 +2886,7 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     out.widgets.push_back(std::make_pair(current->weapon, 0));
     out.context = {static_cast<std::uint64_t>(current->type), current->targeting ? 1ULL : 0ULL,
         static_cast<std::uint64_t>(_map->getCursorType()), _battleGame->isBusy() ? 1ULL : 0ULL};
+    out.context.push_back(static_cast<std::uint64_t>(Options::battleScrollSpeed));
     if (handCount) out.actions.push_back(Observer::AgentUiAction("open_hand_action_menu", "Activate hand control", "visible_control_semantics", "hand"));
     if (!out.rows.empty()) out.actions.push_back(Observer::AgentUiAction("center_enemy", "Center on enemy button", "visible_control_semantics", "enemy_button"));
     if (Observer::agentWidgetUncovered(_btnCenter, _surfaces))
@@ -2894,6 +2953,7 @@ bool BattlescapeState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState shown;
     if (!agentUiState(shown) || !shown.offers(request.action)) return false;
+    if (agentViewportDispatch(request, shown)) return true;
     if (request.action == "map_primary" || request.action == "map_secondary")
     {
         const unsigned cell = static_cast<unsigned>(std::stoul(request.choice.substr(1)));

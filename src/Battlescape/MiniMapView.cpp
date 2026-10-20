@@ -32,6 +32,9 @@
 #include "../Mod/Armor.h"
 #include "../Engine/Options.h"
 #include "../Engine/Screen.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -62,12 +65,23 @@ void MiniMapView::draw()
 	int _startX = _camera->getCenterPosition().x - ((getWidth() / CELL_WIDTH) / 2);
 	int _startY = _camera->getCenterPosition().y - ((getHeight() / CELL_HEIGHT) / 2);
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentAttachProjectileRaster(nullptr);
+    _agentPresentation.invalidate();
+#endif
 	InteractiveSurface::draw();
 	if (!_set)
 	{
 		return;
 	}
 	drawRect(0, 0, getWidth(), getHeight(), 15);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    SDL_Surface *agentSurface = getSurface();
+    if (agentSurface && agentSurface->format->BytesPerPixel == 1 &&
+        _agentPresentation.begin(agentSurface->pixels, getWidth(), getHeight(), agentSurface->pitch))
+        agentAttachProjectileRaster(_agentPresentation.raster());
+    _agentDrawCameraRevision = _camera->agentViewRevision();
+#endif
 	this->lock();
 	for (int lvl = 0; lvl <= _camera->getCenterPosition().z; lvl++)
 	{
@@ -99,7 +113,13 @@ void MiniMapView::draw()
 								shade = t->getShade();
 								if (shade > 7) shade = 7; //vanilla
 							}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                            _agentPresentation.role(Observer::AgentMiniMapKind::Terrain);
+#endif
 							s->blitNShade(this, x, y, shade);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                            agentDrawGlyph(s, Observer::AgentMiniMapKind::Terrain, x, y);
+#endif
 						}
 					}
 				}
@@ -112,6 +132,9 @@ void MiniMapView::draw()
 					frame += t->getPosition().x - t->getUnit()->getPosition().x;
 					frame += _frame * size * size;
 					Surface * s = _set->getFrame(frame);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    _agentPresentation.role(Observer::AgentMiniMapKind::Unit);
+#endif
 					if (size > 1 && t->getUnit()->getFaction() == FACTION_NEUTRAL)
 					{
 						s->blitNShade(this, x, y, 0, false, Pathfinding::red);
@@ -120,13 +143,22 @@ void MiniMapView::draw()
 					{
 						s->blitNShade(this, x, y, 0);
 					}
-				}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    agentDrawGlyph(s, Observer::AgentMiniMapKind::Unit, x, y);
+#endif
+                }
 				// perhaps (at least one) item on this tile?
 				if (t->isDiscovered(2) && !t->getInventory()->empty())
 				{
 					int frame = 9 + _frame;
 					Surface * s = _set->getFrame(frame);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    _agentPresentation.role(Observer::AgentMiniMapKind::Item);
+#endif
 					s->blitNShade(this, x, y, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    agentDrawGlyph(s, Observer::AgentMiniMapKind::Item, x, y);
+#endif
 				}
 
 				px++;
@@ -140,6 +172,14 @@ void MiniMapView::draw()
 	Uint8 color = 1 + _frame * 3;
 	int xOffset = CELL_WIDTH / 2;
 	int yOffset = CELL_HEIGHT / 2;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // The unchanged SDL line primitive is a bulk write. Its known whole
+    // reticle bounds conservatively retire glyphs before leaving the raster;
+    // no final role proof relies on pixels touched by this pass.
+    _agentPresentation.retire(centerX-CELL_WIDTH, centerY-CELL_HEIGHT,
+        2*CELL_WIDTH+1, 2*CELL_HEIGHT+1);
+    agentAttachProjectileRaster(nullptr);
+#endif
 	drawLine(centerX - CELL_WIDTH, centerY - CELL_HEIGHT,
 		 centerX - xOffset, centerY - yOffset,
 		 color); // top left
@@ -152,6 +192,10 @@ void MiniMapView::draw()
 	drawLine(centerX + CELL_WIDTH, centerY + CELL_HEIGHT,
 		 centerX + xOffset, centerY + yOffset,
 		 color); //bottom right
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentPresentation.seal(Observer::agentPaintHealthy());
+    agentAttachProjectileRaster(_agentPresentation.raster());
+#endif
 }
 
 /**
@@ -262,6 +306,12 @@ void MiniMapView::mouseClick(Action *action, State *state)
 	{
 		int origX = action->getRelativeXMouse() / action->getXScale();
 		int origY = action->getRelativeYMouse() / action->getYScale();
+        activatePoint(origX, origY);
+	}
+}
+
+void MiniMapView::activatePoint(int origX, int origY)
+{
 		// get offset (in cells) of the click relative to center of screen
 		int xOff = (origX / CELL_WIDTH) - ((getWidth() / 2) / CELL_WIDTH);
 		int yOff = (origY / CELL_HEIGHT) - ((getHeight() / 2) / CELL_HEIGHT);
@@ -270,7 +320,6 @@ void MiniMapView::mouseClick(Action *action, State *state)
 		int newY = _camera->getCenterPosition().y + yOff;
 		_camera->centerOnPosition(Position(newX,newY,_camera->getViewLevel()));
 		_redraw = true;
-	}
 }
 
 /**
@@ -416,3 +465,31 @@ void MiniMapView::stopScrolling(Action *action)
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+namespace OpenXcom {
+void MiniMapView::agentDrawGlyph(Surface *glyph, Observer::AgentMiniMapKind kind, int x, int y)
+{
+    // SCANG's normal primitive is 4x4. Larger/cropped/blank mod glyphs remain
+    // unsupported, while their actual writes still occlude all earlier roles.
+    std::uint16_t ink = 0;
+    if (glyph && glyph->getWidth() == 4 && glyph->getHeight() == 4 &&
+        glyph->agentContextVisible() && glyph->getSurface() &&
+        glyph->getSurface()->format->BytesPerPixel == 1)
+        for (int py = 0; py < 4; ++py) for (int px = 0; px < 4; ++px)
+            if (glyph->getPixel(px, py)) ink |= std::uint16_t(1u << (py * 4 + px));
+    _agentPresentation.glyph(kind, x - getX(), y - getY(), ink);
+    _agentPresentation.ordinary();
+}
+bool MiniMapView::agentReady() const
+{
+    return agentContextVisible() && !_isMouseScrolling &&
+        _camera && _agentDrawCameraRevision == _camera->agentViewRevision();
+}
+std::uint64_t MiniMapView::agentCameraRevision() const
+{
+    return _camera ? _camera->agentViewRevision() : 0;
+}
+}
+#endif
