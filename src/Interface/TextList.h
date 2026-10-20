@@ -33,9 +33,13 @@ namespace OpenXcom
 // never protocol fields; the owning state allocates its own grant-local rN slots.
 struct AgentPurchaseCell
 {
+	// Private expected RGB at the opaque pixels of this already drawn Text.
+	// Used only while the ordinary list draw is in progress, never serialized.
+	struct Pixel { Sint16 x, y; Uint8 r, g, b; };
 	bool known = false;
 	std::string text;
 	std::vector<SDL_Rect> regions;
+	std::vector<Pixel> ink;
 };
 struct AgentPurchaseRow
 {

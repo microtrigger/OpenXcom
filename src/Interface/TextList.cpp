@@ -1027,6 +1027,11 @@ void TextList::draw()
 			}
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	// Expected masks are needed only until the last ordinary row write.
+	for (AgentPurchaseRow &row : _agentDrawPurchaseRows)
+		for (AgentPurchaseCell &cell : row.cells) cell.ink.clear();
+#endif
 }
 
 /**
@@ -1543,6 +1548,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		return false;
 	};
 	std::vector<std::vector<SDL_Rect> > cells;
+	std::vector<std::vector<AgentPurchaseCell::Pixel> > purchaseInk;
 	std::vector<SDL_Rect> allInk;
 	const bool purchaseCells = !_comboBox && _selectable && _bg && _selector && !_dot &&
 		_columns.size() == 4 && _texts[logicalIndex].size() == 4 && _arrowPos != -1 && _arrowType == ARROW_VERTICAL;
@@ -1550,7 +1556,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 	{
 		// An explicitly hidden Purchase cell paints no pixels. Its own text
 		// stays unknown, while independent sibling cells/arrows retain proof.
-		if (purchaseCells && (!cell->getVisible() || cell->_hidden)) { cells.emplace_back(); continue; }
+		if (purchaseCells && (!cell->getVisible() || cell->_hidden)) { cells.emplace_back(); purchaseInk.emplace_back(); continue; }
 		SDL_Surface *pixels = cell->getSurface();
 		if ((!cell->agentContextVisible() && !(purchaseCells && !cell->_redraw)) || !pixels || !pixels->format ||
 			pixels->format->BytesPerPixel != 1 || !(pixels->flags & SDL_SRCCOLORKEY) ||
@@ -1561,6 +1567,9 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		if (work > maxWork - std::min(maxWork, _agentCoverageWork)) { fail(); return; }
 		_agentCoverageWork += work;
 		std::vector<SDL_Rect> runs;
+		std::vector<AgentPurchaseCell::Pixel> expected;
+		if (purchaseCells && (!pixels->format->palette || !pixels->format->palette->colors ||
+			pixels->format->palette->ncolors != 256)) { fail(); return; }
 		const int locked = Observer::agentObservePaint(SDL_LockSurface(pixels));
 		if (locked < 0) { fail(); return; }
 		const SDL_Rect crop = cell->_crop;
@@ -1576,6 +1585,11 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			{
 				const int dx = cell->getX() + sx - (cropped ? crop.x : 0);
 				const bool opaque = sx < cell->getWidth() && (!cropped || (sx >= crop.x && sx < crop.x + crop.w)) && dx >= 0 && dx < getWidth() && line[sx] != 0;
+				if (purchaseCells && opaque)
+				{
+					const SDL_Color color = pixels->format->palette->colors[line[sx]];
+					expected.push_back({static_cast<Sint16>(dx), static_cast<Sint16>(dy), color.r, color.g, color.b});
+				}
 				if (opaque && begin < 0) begin = dx;
 				if (!opaque && begin >= 0)
 				{
@@ -1591,13 +1605,41 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		if (_agentCoverageRuns > maxRuns) { fail(); return; }
 		allInk.insert(allInk.end(), runs.begin(), runs.end());
 		cells.push_back(runs);
+		purchaseInk.push_back(std::move(expected));
 	}
 	std::sort(allInk.begin(), allInk.end(), order);
+	const auto unchanged = [&](const std::vector<AgentPurchaseCell::Pixel> &ink) -> bool {
+		// Compare only the typed cell's original opaque mask. This is an
+		// unchanged-paint proof, not recognition of text in the destination.
+		SDL_Surface *target = getSurface();
+		if (!target->format->palette || !target->format->palette->colors || target->format->palette->ncolors != 256 ||
+			ink.size() > maxWork - std::min(maxWork, _agentCoverageWork)) { fail(); return false; }
+		_agentCoverageWork += ink.size();
+		if (Observer::agentObservePaint(SDL_LockSurface(target)) < 0) { fail(); return false; }
+		bool same = true;
+		for (const AgentPurchaseCell::Pixel &pixel : ink)
+		{
+			const Uint8 index = *(static_cast<const Uint8 *>(target->pixels) + pixel.y * target->pitch + pixel.x);
+			const SDL_Color color = target->format->palette->colors[index];
+			// Index zero would become transparent when the list is blitted.
+			if (!index || color.r != pixel.r || color.g != pixel.g || color.b != pixel.b) { same = false; break; }
+		}
+		SDL_UnlockSurface(target);
+		return same;
+	};
 	// A later row/column may cover only one cell. Keep the four independent
 	// witnesses separate; this opt-in does not relax the existing list guards.
 	for (AgentPurchaseRow &prior : _agentDrawPurchaseRows)
 		for (AgentPurchaseCell &cell : prior.cells)
-			if (cell.known && overlaps(cell.regions, allInk)) { cell.known = false; cell.regions.clear(); }
+		{
+			if (!cell.known) continue;
+			const bool overlap = overlaps(cell.regions, allInk);
+			if (!_agentCoverageHealthy) return;
+			if (!overlap) continue;
+			const bool preserved = unchanged(cell.ink);
+			if (!_agentCoverageHealthy) return;
+			if (!preserved) { cell.known = false; cell.regions.clear(); cell.ink.clear(); }
+		}
 	if (!_agentCoverageHealthy) return;
 	const int purchaseHeight = _font->getHeight() + _font->getSpacing();
 	if (!_comboBox && _selectable && _bg && _selector && !_dot && _columns.size() == 4 &&
@@ -1618,16 +1660,17 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			const bool ink = cell->agentPaintedBounds(rect);
 			if (ink && (rect.x < 0 || rect.y < 0 || rect.x + rect.w > getWidth() ||
 				rect.y + rect.h > getHeight() || cells[column].empty())) continue;
-			bool covered = false;
-			for (size_t later = column + 1; later < 4; ++later)
-				if (overlaps(cells[column], cells[later])) covered = true;
+			// Later columns have already been blitted too. Require their final
+			// destination to preserve every opaque source RGB, even at overlap.
+			const bool preserved = unchanged(purchaseInk[column]);
 			if (!_agentCoverageHealthy) return;
-			if (covered) continue;
+			if (!preserved) continue;
 			UString shown = Unicode::convUtf8ToUtf32(cell->getText());
 			shown.erase(std::remove(shown.begin(), shown.end(), Unicode::TOK_COLOR_FLIP), shown.end());
 			row.cells[column].known = true;
 			row.cells[column].text = Unicode::convUtf32ToUtf8(shown);
 			row.cells[column].regions = cells[column];
+			row.cells[column].ink = std::move(purchaseInk[column]);
 		}
 		_agentDrawPurchaseRows.push_back(row);
 	}

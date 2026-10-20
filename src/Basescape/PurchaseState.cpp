@@ -571,6 +571,48 @@ bool PurchaseState::agentUiState(Observer::AgentUiState &out) const
         if (agentRegionsDisjoint(out)) return true;
         out.regions.resize(before); return false;
     };
+    // Complete Purchase cells can share unchanged ink (stock '$' spans the
+    // next row). Check each FULL mask against later widgets and overlays;
+    // only then union already certified cell ink for the global disjoint gate.
+    // This never deduplicates an overlap with a button, arrow or other widget.
+    std::vector<AgentUiRect> purchaseInk;
+    size_t purchaseWork = 0;
+    bool purchaseHealthy = true;
+    const auto inkOrder = [](const AgentUiRect &a, const AgentUiRect &b) {
+        return a.y != b.y ? a.y < b.y : a.x < b.x;
+    };
+    const auto includeCell = [&](const std::vector<AgentUiRect> &regions) -> bool {
+        if (!purchaseHealthy || regions.empty() || regions.size() > 8192 ||
+            !agentRegionsUncovered(regions, _lstItems, painted)) return false;
+        AgentUiState part; part.regions = regions;
+        if (!allowed(part)) return false;
+        std::vector<AgentUiRect> additions;
+        for (const AgentUiRect &run : regions)
+        {
+            if (++purchaseWork > 2 * 1024 * 1024 || run.height != 1 || run.width <= 0 ||
+                run.x < 0 || run.y < 0 || run.x + run.width > 640 || run.y >= 400)
+            { purchaseHealthy = false; return false; }
+            int left = run.x, right = run.x + run.width;
+            auto prior = std::lower_bound(purchaseInk.begin(), purchaseInk.end(), run.y,
+                [](const AgentUiRect &r, int y) { return r.y < y; });
+            for (; prior != purchaseInk.end() && prior->y == run.y && left < right; ++prior)
+            {
+                if (++purchaseWork > 2 * 1024 * 1024) { purchaseHealthy = false; return false; }
+                if (prior->x + prior->width <= left) continue;
+                if (prior->x >= right) break;
+                if (prior->x > left) additions.push_back({left, run.y, prior->x-left, 1});
+                left = std::max(left, prior->x + prior->width);
+            }
+            if (left < right) additions.push_back({left, run.y, right-left, 1});
+            if (additions.size() + purchaseInk.size() > 8192) { purchaseHealthy = false; return false; }
+        }
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), additions.begin(), additions.end());
+        if (!agentRegionsDisjoint(out)) { out.regions.resize(before); return false; }
+        purchaseInk.insert(purchaseInk.end(), additions.begin(), additions.end());
+        std::sort(purchaseInk.begin(), purchaseInk.end(), inkOrder);
+        return true;
+    };
     const auto include = [&](const Surface *widget) -> bool {
         AgentUiState part; agentIncludeWidget(part, widget);
         return includeRegions(part.regions, widget);
@@ -663,7 +705,7 @@ bool PurchaseState::agentUiState(Observer::AgentUiState &out) const
             if (i) cells += ",";
             std::vector<AgentUiRect> regions;
             for (const SDL_Rect &r : row.cells[i].regions) regions.push_back({r.x,r.y,r.w,r.h});
-            const bool known = row.cells[i].known && (regions.empty() || includeRegions(regions, _lstItems));
+            const bool known = row.cells[i].known && (regions.empty() || includeCell(regions));
             cells += known ? agentJsonString(row.cells[i].text) : "null";
         }
         cells += "]";
