@@ -30,6 +30,7 @@ Coverage varies by snapshot and visible screen; use the offered-action catalog. 
 ```sh
 (cd tools/mcp-observer && python3 -B -m unittest discover -v)
 (cd tools/mcp-observer && python3 -B -O -m unittest discover -v)
+sh tests/agent-control/run-portable-smoke.sh
 ```
 
 Adapter and asset-free smoke tests do not replace full native/live-game acceptance. Historical fixtures may require matching protocol versions or generated includes; a portable run-all native suite is unfinished. WIP branches are not releases. The MCP-versus-screen/input benchmark has not run.
