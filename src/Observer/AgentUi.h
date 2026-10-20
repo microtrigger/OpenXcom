@@ -21,6 +21,10 @@ struct AgentUiState {
     // Read-only tactical presentation is not an action target in /5.
     // A provider may bind control authority to its separate visible controls.
     std::string controlVisible;
+    // Exact complete displayed report text; no cause, translation key or actor.
+    // Empty means unknown/not a report, never proof that an old report ended.
+    std::string displayedMessage;
+    bool displayedMessageAbsent = false;
     std::vector<AgentUiAction> actions;
     // Visible projection regions: private geometry binding and overlay checks.
     std::vector<AgentUiRect> regions;

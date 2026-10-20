@@ -10,6 +10,9 @@ class AgentController {
     Game *_game;
     int _fd = -1;
     bool _ready = false;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+    bool _fixtureHelloSent = false;
+#endif
     std::string _epoch, _capability, _readChallenge, _pendingId;
     AgentLedger _ledger;
     AgentPublicEvents _publicEvents;

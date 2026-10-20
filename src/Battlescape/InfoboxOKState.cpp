@@ -90,4 +90,39 @@ void InfoboxOKState::btnOkClick(Action *)
 	_game->popState();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool InfoboxOKState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal || !_game->isState(const_cast<InfoboxOKState *>(this)) ||
+        !Observer::agentWidgetVisible(_frame)) return false;
+    out = Observer::AgentUiState();
+    out.screen = "infobox_ok";
+    const std::string message = Observer::agentWidgetUncovered(_txtTitle, _surfaces) ?
+        Observer::agentTextJson(_txtTitle) : "null";
+    out.visible = "{\"message\":" + message + "}";
+    if (message != "null")
+    {
+        Observer::agentIncludeWidget(out, _txtTitle);
+        out.displayedMessage = _txtTitle->getText();
+    }
+    if (Observer::agentWidgetUncovered(_btnOk, _surfaces))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnOk);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("acknowledge_message", label, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnOk);
+        }
+    }
+    return true;
+}
+bool InfoboxOKState::agentDispatch(const std::string &action)
+{
+    Observer::AgentUiState current;
+    if (action != "acknowledge_message" || !agentUiState(current) || !current.offers(action)) return false;
+    btnOkClick(nullptr);
+    return true;
+}
+#endif
+
 }

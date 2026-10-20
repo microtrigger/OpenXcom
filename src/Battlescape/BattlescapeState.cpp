@@ -2751,7 +2751,12 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     // Bind existing controls to the same HUD and private generations as /4.
     out.controlVisible = out.visible;
     out.visible.pop_back();
-    out.visible += ",\"tactical\":" + agentTacticalJson(_map, _game, _surfaces) + "}";
+    const std::string tactical = agentTacticalJson(_map, _game, _surfaces);
+    out.visible += ",\"tactical\":" + tactical + "}";
+    // Game clears the composite before painting this top full-screen state.
+    // Require a post-overlay public map witness too; unavailable/hidden views
+    // never prove that an earlier displayed report disappeared.
+    out.displayedMessageAbsent = tactical.find("{\"mode\":\"map\",") == 0;
     if (Observer::agentWidgetUncovered(_btnEndTurn, _surfaces))
     {
         out.actions.push_back(Observer::AgentUiAction("end_turn", "End turn", "visible_control_semantics"));

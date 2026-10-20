@@ -109,6 +109,10 @@ endif()
 
 # SPDX-License-Identifier: GPL-3.0-or-later; distinct native agent-control profile, 2026-10-18.
 option ( EXPERIMENTAL_AGENT_CONTROL "Build bounded semantic native agent control (separate opt-in ABI)" OFF )
+option ( EXPERIMENTAL_AGENT_REPORT_FIXTURE "Build isolated ordinary-AI report acceptance setup (explicit runtime alias required)" OFF )
+if ( EXPERIMENTAL_AGENT_REPORT_FIXTURE AND NOT EXPERIMENTAL_AGENT_CONTROL )
+  message ( FATAL_ERROR "Report fixture requires the separate agent-control profile" )
+endif()
 if ( EXPERIMENTAL_AGENT_CONTROL AND (NOT UNIX OR NOT OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS) )
   message ( FATAL_ERROR "Agent control requires POSIX and OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS" )
 endif()

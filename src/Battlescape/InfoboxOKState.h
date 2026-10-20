@@ -37,6 +37,10 @@ private:
 	Frame *_frame;
 	Text *_txtTitle;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 	/// Creates the InfoboxOKState.
 	InfoboxOKState(const std::string &msg);
 	/// Cleans up the InfoboxOKState.

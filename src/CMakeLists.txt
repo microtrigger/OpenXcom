@@ -749,3 +749,9 @@ if ( EXPERIMENTAL_AGENT_CONTROL )
   target_sources ( openxcom PRIVATE Observer/AgentProtocol.cpp Observer/AgentUi.cpp Observer/AgentController.cpp Observer/AgentAudioEvents.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_AGENT_CONTROL )
 endif()
+
+# Test-only bootstrap; no simulation/message injection in agent providers.
+if ( EXPERIMENTAL_AGENT_REPORT_FIXTURE )
+  target_sources ( openxcom PRIVATE ../tests/agent-report-fixture/AgentReportFixture.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE )
+endif()

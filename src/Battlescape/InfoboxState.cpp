@@ -102,4 +102,23 @@ void InfoboxState::close()
 	_game->popState();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool InfoboxState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal || !_game->isState(const_cast<InfoboxState *>(this)) ||
+        !Observer::agentWidgetVisible(_frame)) return false;
+    out = Observer::AgentUiState();
+    out.screen = "infobox";
+    const std::string message = Observer::agentWidgetUncovered(_text, _surfaces) ?
+        Observer::agentTextJson(_text) : "null";
+    out.visible = "{\"message\":" + message + "}";
+    if (message != "null")
+    {
+        Observer::agentIncludeWidget(out, _text);
+        out.displayedMessage = _text->getText();
+    }
+    return true;
+}
+#endif
+
 }

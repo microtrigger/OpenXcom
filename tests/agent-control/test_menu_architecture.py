@@ -108,7 +108,7 @@ class MenuArchitectureTest(unittest.TestCase):
 
     def test_version_five_is_explicit(self):
         code = read('Observer/AgentProtocol.cpp')
-        self.assertIn('openxcom-agent-control/5', code)
+        self.assertIn('openxcom-agent-control/6', code)
         self.assertNotIn('openxcom-agent-control/2', code)
         self.assertNotIn('openxcom-agent-control/1', code)
         self.assertIn('packet == std::string("H ") + agentProtocolSchema()', code)

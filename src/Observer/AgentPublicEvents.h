@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "AgentProtocol.h"
+#include "AgentDisplayedMessages.h"
 #include <algorithm>
 #include <cstdint>
 #include <deque>
@@ -21,6 +22,7 @@ public:
     };
 private:
     std::string _epoch, _lastPresentation;
+    AgentDisplayedMessages _messages;
     std::uint64_t _newest = 0;
     std::deque<Record> _records;
     // Conservative canonical-ASCII upper bound without interpreting strings.
@@ -54,6 +56,11 @@ public:
         if (body == _lastPresentation) return true;
         if (!append(body)) return false;
         _lastPresentation = body; return true;
+    }
+    bool displayedMessage(const std::string &text, bool knownAbsent)
+    {
+        const std::string body = _messages.observe(text, knownAbsent);
+        return body.empty() || append(body);
     }
     bool read(const std::string &epoch, std::uint64_t after, unsigned limit, Page &page) const
     {

@@ -36,6 +36,9 @@ private:
 	Frame *_frame;
 	Timer *_timer;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+#endif
 	static const int INFOBOX_DELAY = 2000;
 	/// Creates the Infobox state.
 	InfoboxState(const std::string &msg);

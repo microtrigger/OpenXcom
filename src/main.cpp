@@ -37,6 +37,9 @@
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 #include "../tests/battle-observer/RenderPairGate.h"
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+#include "../tests/agent-report-fixture/AgentReportFixture.h"
+#endif
 #include <sstream>
 #include "version.h"
 #include "Engine/Logger.h"
@@ -133,6 +136,9 @@ int main(int argc, char *argv[])
 	Logger::reportingLevel() = LOG_DEBUG;
 #else
 	Logger::reportingLevel() = LOG_INFO;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+    AgentReportFixture::prepare(argc, argv);
 #endif
 	if (!Options::init(argc, argv))
 		return EXIT_SUCCESS;

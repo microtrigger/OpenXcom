@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/5'
+SCHEMA = 'openxcom-agent-control/6'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -42,7 +42,7 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'select_difficulty', 'set_ironman', 'start_new_game', 'place_base_site',
            'replace_base_name', 'confirm_base_name', 'open_new_battle_choice',
            'choose_visible_row', 'scroll_visible_list', 'close_dropdown',
-           'open_funding', 'close_funding', 'end_turn')
+           'open_funding', 'close_funding', 'end_turn', 'acknowledge_message')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -64,6 +64,8 @@ STATE_FIELDS = {
     'load_list': ('title', 'name_heading', 'date_heading', 'details'),
     'save_list': ('title', 'name_heading', 'date_heading', 'details'),
     'error_message': ('message',),
+    'infobox': ('message',),
+    'infobox_ok': ('message',),
 }
 STATE_ACTIONS = {
     'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'open_pause_menu', 'end_turn')),
@@ -83,6 +85,8 @@ STATE_ACTIONS = {
     'load_list': frozenset(('cancel_menu',)),
     'save_list': frozenset(('cancel_menu',)),
     'error_message': frozenset(('dismiss_error',)),
+    'infobox': frozenset(),
+    'infobox_ok': frozenset(('acknowledge_message',)),
     'unsupported': frozenset(),
 }
 GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year', 'funds', 'speed')
@@ -384,6 +388,18 @@ def validate_event_arguments(arguments):
     integer(arguments['limit'], 1, MAX_EVENTS)
 
 
+def displayed_message_report(text):
+    """Classify only the exact bounded displayed phrase, never its game cause."""
+    if len(text.encode('utf-8')) > 1024 or text.count('\n') != 1:
+        return None
+    prefix, suffix = text.split('\n')
+    if not prefix or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in prefix):
+        return None
+    return {'is under alien control': 'alien_control',
+            'is under Molecular Control': 'alien_control',
+            'has Panicked': 'panic', 'has gone Berserk': 'berserk'}.get(suffix)
+
+
 def validate_events(raw, challenge, epoch, after, limit, audio_history):
     obj = parse(raw)
     exact(obj, 'schema mode type challenge epoch audio_history audio_status after oldest newest next_cursor gap events')
@@ -409,6 +425,14 @@ def validate_events(raw, challenge, epoch, after, limit, audio_history):
         if event['kind'] == 'presentation':
             exact(event, 'seq kind state visible')
             validate_visible(event['state'], event['visible'], frozenset())
+        elif event['kind'] == 'displayed_message':
+            exact(event, 'seq kind text report source position')
+            visible_text(event['text'])
+            require(bool(event['text']) and len(event['text'].encode('utf-8')) <= 1024)
+            require(event['source'] is None and event['position'] is None)
+            expected_report = displayed_message_report(event['text'])
+            require(event['report'] is None if expected_report is None else
+                    type(event['report']) is str and event['report'] == expected_report)
         elif event['kind'] == 'audio_output':
             exact(event, 'seq kind duration_ms nonzero source sound position')
             require(audio_history == 'mixed_output')
@@ -514,7 +538,7 @@ def definitions():
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /5: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /6: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
@@ -527,7 +551,7 @@ def definitions():
                          'required': ['command_id'], 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_public_events',
-         'description': 'Read retained public presentation and digital mixed-output history after a cursor, without consuming it or an action grant. First read_ui_state supplies the session epoch. The independent native ring retains256 public events; after is exclusive, limit is1..16, next_cursor advances through returned events and gap explicitly reports expired history. A byte-bounded page may contain fewer than limit. Identical cursor reads may include newer events; retained records are immutable. Presentation events contain only the same bounded visible DTO, no action authority. audio_history is compiled mixed_output capability or unavailable; current audio_status is pending, active, or unavailable. Ordered audio_status events also disclose discarded partial windows on terminal reset/failure. Current status may differ from older paged history. audio_output records an actual100ms digital final-mix window; nonzero does not identify an enemy, shot, source, direction, or physical audibility. Those unknown attribution fields stay null. audio_gap reports lost completed callback windows separately from public-ring gap. Sequence gives order only; completed PCM windows have no shared video clock, and trace receive time is not event occurrence time. Event-to-video synchronization is unproved. A grid or unclassified fragment is not enemy semantics or movement legality. This read does not advance simulation, refresh a stale grant, reconnect, or retry uncertain actions.',
+         'description': 'Read retained public presentation, exact displayed-message reports and digital mixed-output history after a cursor, without consuming it or an action grant. First read_ui_state supplies the session epoch. The independent native ring retains256 public events; after is exclusive, limit is1..16, next_cursor advances through returned events and gap explicitly reports expired history. A byte-bounded page may contain fewer than limit. Identical cursor reads may include newer events; retained records are immutable. Presentation events contain only the same bounded visible DTO, no action authority. displayed_message contains complete shown text and an exact compiled phrase report or null; source and position stay null, and no hidden cause or actor identity is inferred. audio_history is compiled mixed_output capability or unavailable; current audio_status is pending, active, or unavailable. Ordered audio_status events also disclose discarded partial windows on terminal reset/failure. Current status may differ from older paged history. audio_output records an actual100ms digital final-mix window; nonzero does not identify an enemy, shot, source, direction, or physical audibility. Those unknown attribution fields stay null. audio_gap reports lost completed callback windows separately from public-ring gap. Sequence gives order only; completed PCM windows have no shared video clock, and trace receive time is not event occurrence time. Event-to-video synchronization is unproved. A grid or unclassified fragment is not enemy semantics or movement legality. This read does not advance simulation, refresh a stale grant, reconnect, or retry uncertain actions.',
          'inputSchema': arg_schema({'epoch': dict(opaque),
              'after': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},
              'limit': {'type': 'integer', 'minimum': 1, 'maximum': MAX_EVENTS}}),

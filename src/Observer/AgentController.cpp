@@ -3,6 +3,9 @@
 #include "AgentController.h"
 #include "DiagnosticProfile.h"
 #include "AgentAudioEvents.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+#include "../../tests/agent-report-fixture/AgentReportFixture.h"
+#endif
 #include "../Engine/Game.h"
 #include "../Engine/Screen.h"
 #include "../Engine/State.h"
@@ -64,6 +67,10 @@ AgentController::AgentController(Game *game) : _game(game)
     const int flags = fcntl(_fd, F_GETFL);
     if (flags < 0 || fcntl(_fd, F_SETFL, flags | O_NONBLOCK) || !randomToken(_epoch)) { close(); return; }
     if (!_publicEvents.start(_epoch)) { close(); return; }
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+    if (AgentReportFixture::waiting()) return;
+    _fixtureHelloSent = true;
+#endif
     sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
         ",\"ledger_capacity\":64,\"audio_history\":\"mixed_output\"}");
 }
@@ -176,6 +183,15 @@ void AgentController::drainAudioEvents()
 void AgentController::poll()
 {
     if (_fd < 0) return;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+    if (AgentReportFixture::waiting()) return;
+    if (!_fixtureHelloSent)
+    {
+        _fixtureHelloSent = true;
+        if (!sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
+            ",\"ledger_capacity\":64,\"audio_history\":\"mixed_output\"}")) return;
+    }
+#endif
     drainAudioEvents();
     if (_fd < 0) return;
     if (!diagnosticProfileQualified() || !agentPaintHealthy()) { close(); return; }
@@ -276,6 +292,9 @@ void AgentController::presented()
     // Identical public presentations do not create repeated journal entries.
     // This runs after successful flip, independent of state/event polling.
     if (!_publicEvents.presentation(ui.screen, ui.visible)) { close(); return; }
+    // Only the explicitly admitted map provider proves report absence.
+    // Unsupported, covered, incomplete and other state types remain unknown.
+    if (!_publicEvents.displayedMessage(ui.displayedMessage, ui.displayedMessageAbsent)) { close(); return; }
     if (!_pendingId.empty())
     {
         const std::string id = _pendingId; _pendingId.clear();

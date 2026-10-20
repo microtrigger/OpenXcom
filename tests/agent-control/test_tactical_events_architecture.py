@@ -57,7 +57,7 @@ class TacticalEventsArchitectureTest(unittest.TestCase):
         self.assertIn('Capacity = 256',ring)
     def test_version_and_bounded_messages(self):
         p=(ROOT/'Observer/AgentProtocol.cpp').read_text()
-        self.assertIn('openxcom-agent-control/5',p)
+        self.assertIn('openxcom-agent-control/6',p)
         self.assertIn('parts.size() == 5 && parts[0] == "V"',p)
         self.assertIn('9007199254740991ULL, request.after',p)
         c=(ROOT/'Observer/AgentController.cpp').read_text()

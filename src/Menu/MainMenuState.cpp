@@ -18,6 +18,9 @@
  */
 #include "MainMenuState.h"
 #include <sstream>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+#include "../../tests/agent-report-fixture/AgentReportFixture.h"
+#endif
 #include "../version.h"
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -40,6 +43,9 @@ void GoToMainMenuState::init()
 {
 	Screen::updateScale(Options::geoscapeScale, Options::baseXGeoscape, Options::baseYGeoscape, true);
 	_game->getScreen()->resetDisplay(false);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
+    if (AgentReportFixture::start(_game)) return;
+#endif
 	_game->setState(new MainMenuState);
 }
 
