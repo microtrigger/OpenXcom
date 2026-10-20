@@ -19,7 +19,10 @@ struct BasescapeState {Game*_game;const void*_base=nullptr;Surface*_modal=nullpt
 }
 void namedTests(Font&big,Font&small,Language&lang,const std::string&source,const std::string&game)
 {
- Paint p(big,small,lang,source,game,"basescape");NamedButton::Game g;NamedButton::BasescapeState s;s._game=&g;g.top=&s;g.screen.logical=&p.canvas;
+ Paint p(big,small,lang,source,game,"basescape");
+ // Match Screen::resetDisplay: the final logical canvas is opaque, not a keyed source.
+ check(SDL_SetColorKey(p.canvas.getSurface(), 0, 0)==0,"opaque actual-screen destination");
+ NamedButton::Game g;NamedButton::BasescapeState s;s._game=&g;g.top=&s;g.screen.logical=&p.canvas;
  s._edtBase=p.edit(nullptr,127,17,193,0,"MCP Outfitting");s._txtLocation=p.text(126,9,194,16,"Europe");s._txtFunds=p.text(126,9,194,24,"$4 145 000");s._btnBaseInfo=p.button(128,12,192,71,"STR_BASE_INFORMATION");s._btnSoldiers=p.button(128,12,192,84,"STR_SOLDIERS_UC");s._btnCrafts=p.button(128,12,192,97,"STR_EQUIP_CRAFT");s._btnResearch=p.button(128,12,192,123,"STR_RESEARCH");s._btnManufacture=p.button(128,12,192,136,"STR_MANUFACTURE");s._btnPurchase=p.button(128,12,192,162,"STR_PURCHASE_RECRUIT");s._btnGeoscape=p.button(128,12,192,188,"STR_GEOSCAPE_UC");s._surfaces=p.surfaces;
  Surface cursor(9,13,318,198);cursor.setPalette(p.palette);cursor.clear(200);cursor.setVisible(false);g._cursor=&cursor;cursor.agentTrackPresentation();
  for(auto*w:s._surfaces)w->agentTrackPresentation();for(auto*w:{s._btnBaseInfo,s._btnSoldiers,s._btnCrafts,s._btnResearch,s._btnManufacture,s._btnPurchase,s._btnGeoscape})w->agentEnableNamedControl();
@@ -48,17 +51,19 @@ void namedTests(Font&big,Font&small,Language&lang,const std::string&source,const
  // SDL 1.2 may reject alpha/color-key combinations outright. A failed blit
  // intentionally poisons paint health for the process, so isolate each negative
  // rather than resetting that production latch to let this fixture continue.
- for (int variant = 0; variant < 4; ++variant)
+ for (int variant = 0; variant < 5; ++variant)
  {
      const auto pid = fork();
      check(pid >= 0, "unsupported compositing child");
      if (!pid)
      {
-         SDL_Surface *surface = variant < 2 ? button->getSurface() : p.canvas.getSurface();
-         if (variant % 2 == 0) SDL_SetAlpha(surface, SDL_SRCALPHA, 128);
+         SDL_Surface *surface = (variant < 2 || variant == 4) ? button->getSurface() : p.canvas.getSurface();
+         if (variant == 4) SDL_SetColorKey(surface, 0, 0);
+         else if (variant % 2 == 0) SDL_SetAlpha(surface, SDL_SRCALPHA, 128);
          else SDL_SetColorKey(surface, SDL_SRCCOLORKEY, 1);
          paint();
-         if (variant % 2 == 0) SDL_SetAlpha(surface, 0, 255);
+         if (variant == 4) SDL_SetColorKey(surface, SDL_SRCCOLORKEY, 0);
+         else if (variant % 2 == 0) SDL_SetAlpha(surface, 0, 255);
          else SDL_SetColorKey(surface, SDL_SRCCOLORKEY, 0);
          if (offered()) _exit(2);
          const bool healthy = agentPaintHealthy();

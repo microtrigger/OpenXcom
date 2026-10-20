@@ -5,13 +5,13 @@ interface to the game's **displayed UI**, rather than unrestricted memory access
 or a stream of mouse coordinates. It supports UFO Defense and Terror from the
 Deep with separately supplied original game data.
 
-**Status: experimental v21d plus named-button admission guards.** TFTD Stores return route passed the latest live
-check. UFO Stores quantity was verified, but its full return route is partial:
-return-to-Geoscape was not offered. The guarded Basescape button update now tolerates
-cursor overlap with decorative corners while still requiring the full label and
-activation point to be clear. Full native build, offscreen UFO/TFTD regression,
-ASan/UBSan and agent-OFF/ON raster parity pass; the original live route still
-needs rechecking. Full interface coverage is unfinished.
+**Status: experimental v21d plus named-button admission guards.** On 20 October
+2026, live UFO and TFTD stock-fixture runs passed the route Geoscape → Bases →
+Base Information → Stores → back to Geoscape, including a cursor on the bottom-right
+decorative corner. Named buttons require a fully visible label and clear activation
+point; opaque final-screen canvases are supported. Native, ASan/UBSan and agent-OFF/ON
+raster-parity checks also pass. This is bounded route acceptance, not full interface
+coverage or proof of the original historical failure's exact cursor geometry.
 `wip/named-button-v21e` and `wip/research-v22` preserve unfinished work; they are not
 releases. Build the native game and use the Python adapter from the **same branch**.
 
@@ -178,7 +178,7 @@ queries, not a general retry strategy. For events, use the epoch from UI state a
   deliberately suppresses game stdout/stderr; diagnose startup by running the
   game normally outside MCP, not by putting logs on the protocol stream.
 - **An expected action is absent:** do not guess it. This can be an unsupported
-  screen/coverage gap (including the known UFO return route), not a failed click.
+  screen/coverage gap, not necessarily a failed click.
 - **Stale authority / invalid arguments:** read UI again only when no action has
   an unknown outcome; use exact live schema and offered handles.
 - **Restarting the client opens another game:** each launcher starts a new game.
@@ -200,3 +200,24 @@ Historical fixtures may need matching protocol versions or generated includes;
 a portable run-all native suite is unfinished. The MCP-versus-screen/input
 benchmark has not run. This series reconstructs saved development snapshots;
 it does not reproduce their original commit history.
+
+### Live Basescape return smoke
+
+Use a matching build with `EXPERIMENTAL_AGENT_REPORT_FIXTURE=ON` in a real desktop
+session and separately supplied stock data:
+
+```sh
+python3 tools/mcp-observer/run_basescape_return_smoke.py \
+  --binary /path/to/openxcom --data /path/to/data --master xcom1 \
+  --output /tmp/ufo-return --focus-ready-file /tmp/ufo-return/focus-ready
+```
+
+Wait for `ready.json`, visually verify and focus the newly launched game, then
+create the marker from a separate shell without taking game focus. The runner
+waits at most 120 seconds; it never simulates focus or replays uncertain actions.
+It creates an isolated unsaved stock fixture, checks offered actions and receipt
+plus fresh displayed postconditions, and writes a private `RESULT.json`.
+Repeat with `xcom2` and a new output directory. `--sdk /path/to/sdk/usr` supports
+non-system libraries; `--before-return-gate /path/to/new-marker` optionally pauses
+for a Basescape screenshot and obtains fresh authority after that marker appears.
+Close the test game normally afterward: MCP EOF deliberately leaves it running.

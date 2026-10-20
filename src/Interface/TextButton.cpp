@@ -447,11 +447,15 @@ void TextButton::setGeoscapeButton(bool geo)
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace {
-bool namedPixels(const SDL_Surface *p)
+// Screen disables color key on the logical destination; source transparency
+// requirements must not be applied to that final raster. Nonzero enabled keys
+// and alpha remain unsupported, and label pixels/palettes are still checked.
+bool namedPixels(const SDL_Surface *p, bool destination = false)
 {
     return p && p->w>0 && p->h>0 && p->w<=640 && p->h<=400 && p->format &&
         p->format->BytesPerPixel==1 && p->format->palette && p->format->palette->colors && p->format->palette->ncolors==256 &&
-        (p->flags&SDL_SRCCOLORKEY) && p->format->colorkey==0 && !(p->flags&SDL_SRCALPHA) &&
+        (destination ? (!(p->flags&SDL_SRCCOLORKEY) || p->format->colorkey==0) :
+            ((p->flags&SDL_SRCCOLORKEY) && p->format->colorkey==0)) && !(p->flags&SDL_SRCALPHA) &&
         p->clip_rect.x==0 && p->clip_rect.y==0 && p->clip_rect.w==p->w && p->clip_rect.h==p->h;
 }
 }
@@ -459,9 +463,9 @@ void TextButton::blit(Surface *surface)
 {
     if(!_agentNamedControl){Surface::blit(surface);return;}
     _agentNamedBlitValid=false;
-    const bool before=namedPixels(_surface)&&surface&&namedPixels(surface->getSurface());
+    const bool before=namedPixels(_surface)&&surface&&namedPixels(surface->getSurface(), true);
     Surface::blit(surface);
-    _agentNamedBlitValid=before&&namedPixels(_surface)&&surface&&namedPixels(surface->getSurface())&&agentPresentationPaintedTo(surface);
+    _agentNamedBlitValid=before&&namedPixels(_surface)&&surface&&namedPixels(surface->getSurface(), true)&&agentPresentationPaintedTo(surface);
 }
 void TextButton::agentCaptureNamedControl()
 {
@@ -482,7 +486,7 @@ bool TextButton::agentNamedControl(const Surface *destination,std::string &label
     label.clear();
     if (!_agentNamedControl || !_agentNamedPaint || !_agentNamedBlitValid || !agentPresentationPaintedTo(destination) ||
         _agentNamedLabelRevision!=agentLabelRevision() || agentLabel()!=_agentNamedLabel ||
-        !namedPixels(_surface) || !destination || !namedPixels(destination->getSurface()) ||
+        !namedPixels(_surface) || !destination || !namedPixels(destination->getSurface(), true) ||
         getX()<0 || getY()<0 || getX()+getWidth()>destination->getWidth() || getY()+getHeight()>destination->getHeight()) return false;
     SDL_Surface *target=destination->getSurface();
     for(int i=0;i<256;++i){const auto&a=_agentNamedPalette[i];const auto&b=_surface->format->palette->colors[i];const auto&c=target->format->palette->colors[i];if(a.r!=b.r||a.g!=b.g||a.b!=b.b||a.r!=c.r||a.g!=c.g||a.b!=c.b)return false;}
