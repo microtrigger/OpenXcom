@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/19"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/21"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/19\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/21\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -53,10 +53,18 @@ bool agentActionId(const std::string &value)
         value == "close_research_list" || value == "open_manufacture" || value == "open_new_production" ||
         value == "select_production_project" || value == "start_production" || value == "cancel_production_start" ||
         value == "adjust_engineers" || value == "accept_production" || value == "stop_production" ||
-        value == "close_production_list";
+        value == "close_production_list" || value == "change_production_quantity" ||
+        value == "set_production_sell" || value == "open_purchase" || value == "change_purchase_quantity" ||
+        value == "accept_purchase" || value == "cancel_purchase" || value == "open_purchase_category" ||
+        value == "scroll_purchase" || value == "position_purchase_list";
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "change_production_quantity") return "production_quantity";
+    if (action == "change_purchase_quantity") return "purchase_quantity";
+    if (action == "set_production_sell") return "boolean_value";
+    if (action == "scroll_purchase") return "purchase_scroll";
+    if (action == "position_purchase_list") return "purchase_position";
     if (action == "select_research_project" || action == "select_production_project") return "project_row";
     if (action == "adjust_scientists" || action == "adjust_engineers") return "staff_direction";
     if (action == "choose_geoscape_speed") return "geoscape_speed";
@@ -142,12 +150,47 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         request.kind = 'V'; request.challenge = parts[1]; request.epoch = parts[2];
         request.limit = static_cast<unsigned>(limit); return true;
     }
-    if (canonical != packet || parts.size() < 6 || parts.size() > 8 || parts[0] != "E") return false;
+    if (canonical != packet || parts.size() < 6 || parts.size() > 9 || parts[0] != "E") return false;
     request.id = parts[1]; request.epoch = parts[2]; request.capability = parts[3]; request.action = parts[5];
     if (!agentToken(request.id) || !agentToken(request.epoch) || !agentToken(request.capability) ||
         !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
     const std::string kind = agentArgumentKind(request.action);
     if (kind == "none") { if (parts.size() != 6) return false; }
+    else if (kind == "production_quantity" || kind == "purchase_quantity")
+    {
+        if (parts.size()!=8 && parts.size()!=9) return false;
+        if (kind=="production_quantity") { if (parts[6]!="engineers" && parts[6]!="units") return false; request.control=parts[6]; }
+        else { std::uint64_t row; if (parts[6].size()<2 || parts[6][0]!='r' || !decimal(parts[6].substr(1),31,row)) return false; request.choice=parts[6]; }
+        request.operation=parts[7];
+        if (request.operation=="max" || request.operation=="clear") { if(parts.size()!=8) return false; }
+        else if (request.operation=="adjust" || request.operation=="set")
+        {
+            if (parts.size()!=9) return false;
+            const bool negative=!parts[8].empty() && parts[8][0]=='-';
+            std::uint64_t value;
+            if (!decimal(negative?parts[8].substr(1):parts[8],request.operation=="adjust"?1000:100000,value) ||
+                (negative && (!value || request.operation=="set")) || (!value && request.operation=="adjust")) return false;
+            request.value=negative?-static_cast<int>(value):static_cast<int>(value);
+        }
+        else return false;
+    }
+    else if (kind == "boolean_value")
+    {
+        if (parts.size()!=7 || (parts[6]!="true" && parts[6]!="false")) return false;
+        request.desired=parts[6]=="true";
+    }
+    else if (kind == "purchase_scroll")
+    {
+        if (parts.size()!=8 || (parts[6]!="up" && parts[6]!="down") ||
+            (parts[7]!="step" && parts[7]!="page" && parts[7]!="end")) return false;
+        request.direction=parts[6]; request.amount=parts[7];
+    }
+    else if (kind == "purchase_position")
+    {
+        std::uint64_t target;
+        if (parts.size()!=7 || parts[6].size()<2 || parts[6][0]!='t' || !decimal(parts[6].substr(1),2,target)) return false;
+        request.choice=parts[6];
+    }
     else if (kind == "difficulty")
     {
         if (parts.size() != 7) return false;

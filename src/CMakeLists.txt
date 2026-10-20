@@ -305,6 +305,8 @@ set ( savegame_src
   Savegame/MovingTarget.cpp
   Savegame/Node.cpp
   Savegame/Production.cpp
+  Savegame/ProductionCommands.cpp
+  Savegame/PurchaseCommands.cpp
   Savegame/Region.cpp
   Savegame/ResearchProject.cpp
   Savegame/SaveConverter.cpp

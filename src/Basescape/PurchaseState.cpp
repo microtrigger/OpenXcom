@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "PurchaseState.h"
+#include "../Savegame/PurchaseCommands.h"
 #include <algorithm>
 #include <sstream>
 #include <climits>
@@ -33,6 +34,9 @@
 #include "../Interface/Text.h"
 #include "../Interface/ComboBox.h"
 #include "../Interface/TextList.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Interface/ScrollBar.h"
+#endif
 #include "../Savegame/SavedGame.h"
 #include "../Mod/RuleCraft.h"
 #include "../Mod/RuleItem.h"
@@ -326,59 +330,9 @@ void PurchaseState::updateList()
  */
 void PurchaseState::btnOkClick(Action *)
 {
-	_game->getSavedGame()->setFunds(_game->getSavedGame()->getFunds() - _total);
-	for (std::vector<TransferRow>::const_iterator i = _items.begin(); i != _items.end(); ++i)
-	{
-		if (i->amount > 0)
-		{
-			Transfer *t = 0;
-			switch (i->type)
-			{
-			case TRANSFER_SOLDIER:
-				for (int s = 0; s < i->amount; s++)
-				{
-					RuleSoldier *rule = (RuleSoldier*)i->rule;
-					int time = rule->getTransferTime();
-					if (time == 0)
-						time = _game->getMod()->getPersonnelTime();
-					t = new Transfer(time);
-					t->setSoldier(_game->getMod()->genSoldier(_game->getSavedGame(), rule->getType()));
-					_base->getTransfers()->push_back(t);
-				}
-				break;
-			case TRANSFER_SCIENTIST:
-				t = new Transfer(_game->getMod()->getPersonnelTime());
-				t->setScientists(i->amount);
-				_base->getTransfers()->push_back(t);
-				break;
-			case TRANSFER_ENGINEER:
-				t = new Transfer(_game->getMod()->getPersonnelTime());
-				t->setEngineers(i->amount);
-				_base->getTransfers()->push_back(t);
-				break;
-			case TRANSFER_CRAFT:
-				for (int c = 0; c < i->amount; c++)
-				{
-					RuleCraft *rule = (RuleCraft*)i->rule;
-					t = new Transfer(rule->getTransferTime());
-					Craft *craft = new Craft(rule, _base, _game->getSavedGame()->getId(rule->getType()));
-					craft->setStatus("STR_REFUELLING");
-					t->setCraft(craft);
-					_base->getTransfers()->push_back(t);
-				}
-				break;
-			case TRANSFER_ITEM:
-				{
-					RuleItem *rule = (RuleItem*)i->rule;
-					t = new Transfer(rule->getTransferTime());
-					t->setItems(rule->getType(), i->amount);
-					_base->getTransfers()->push_back(t);
-				}
-				break;
-			}
-		}
-	}
-	_game->popState();
+    PurchaseCommands::commit(*_base, *_game->getSavedGame(), _items, _total, _game->getMod()->getPersonnelTime(),
+        [this](const std::string &type) { return _game->getMod()->genSoldier(_game->getSavedGame(), type); });
+    _game->popState();
 }
 
 /**
@@ -387,7 +341,8 @@ void PurchaseState::btnOkClick(Action *)
  */
 void PurchaseState::btnCancelClick(Action *)
 {
-	_game->popState();
+    PurchaseCommands::discard(_items, PurchaseDraft(_total, _pQty, _cQty, _iQty));
+    _game->popState();
 }
 
 /**
@@ -511,90 +466,7 @@ void PurchaseState::increase()
  */
 void PurchaseState::increaseByValue(int change)
 {
-	if (0 >= change) return;
-	std::string errorMessage;
-
-	if (_total + getRow().cost > _game->getSavedGame()->getFunds())
-	{
-		errorMessage = tr("STR_NOT_ENOUGH_MONEY");
-	}
-	else
-	{
-		RuleItem *rule = 0;
-		switch (getRow().type)
-		{
-		case TRANSFER_SOLDIER:
-		case TRANSFER_SCIENTIST:
-		case TRANSFER_ENGINEER:
-			if (_pQty + 1 > _base->getAvailableQuarters() - _base->getUsedQuarters())
-			{
-				errorMessage = tr("STR_NOT_ENOUGH_LIVING_SPACE");
-			}
-			break;
-		case TRANSFER_CRAFT:
-			if (_cQty + 1 > _base->getAvailableHangars() - _base->getUsedHangars())
-			{
-				errorMessage = tr("STR_NO_FREE_HANGARS_FOR_PURCHASE");
-			}
-			break;
-		case TRANSFER_ITEM:
-			rule = (RuleItem*)getRow().rule;
-			if (_base->storesOverfull(_iQty + rule->getSize()))
-			{
-				errorMessage = tr("STR_NOT_ENOUGH_STORE_SPACE");
-			}
-			break;
-		}
-	}
-
-	if (errorMessage.empty())
-	{
-		int maxByMoney = (_game->getSavedGame()->getFunds() - _total) / getRow().cost;
-		if (maxByMoney >= 0)
-			change = std::min(maxByMoney, change);
-		switch (getRow().type)
-		{
-		case TRANSFER_SOLDIER:
-		case TRANSFER_SCIENTIST:
-		case TRANSFER_ENGINEER:
-			{
-				int maxByQuarters = _base->getAvailableQuarters() - _base->getUsedQuarters() - _pQty;
-				change = std::min(maxByQuarters, change);
-				_pQty += change;
-			}
-			break;
-		case TRANSFER_CRAFT:
-			{
-				int maxByHangars = _base->getAvailableHangars() - _base->getUsedHangars() - _cQty;
-				change = std::min(maxByHangars, change);
-				_cQty += change;
-			}
-			break;
-		case TRANSFER_ITEM:
-		{
-			RuleItem *rule = (RuleItem*)getRow().rule;
-			double storesNeededPerItem = rule->getSize();
-			double freeStores = _base->getAvailableStores() - _base->getUsedStores() - _iQty;
-			double maxByStores = (double)(INT_MAX);
-			if (!AreSame(storesNeededPerItem, 0.0))
-			{
-				maxByStores = (freeStores + 0.05) / storesNeededPerItem;
-			}
-			change = std::min((int)maxByStores, change);
-			_iQty += change * storesNeededPerItem;
-		}
-			break;
-		}
-		getRow().amount += change;
-		_total += getRow().cost * change;
-		updateItemStrings();
-	}
-	else
-	{
-		_timerInc->stop();
-		RuleInterface *menuInterface = _game->getMod()->getInterface("buyMenu");
-		_game->pushState(new ErrorMessageState(errorMessage, _palette, menuInterface->getElement("errorMessage")->color, "BACK13.SCR", menuInterface->getElement("errorPalette")->color));
-	}
+    if (change > 0) changeQuantity(_sel, QuantityOperation::Adjust, change);
 }
 
 /**
@@ -613,33 +485,29 @@ void PurchaseState::decrease()
  */
 void PurchaseState::decreaseByValue(int change)
 {
-	if (0 >= change || 0 >= getRow().amount) return;
-	change = std::min(getRow().amount, change);
-
-	RuleItem *rule = 0;
-	switch (getRow().type)
-	{
-	case TRANSFER_SOLDIER:
-	case TRANSFER_SCIENTIST:
-	case TRANSFER_ENGINEER:
-		_pQty -= change;
-		break;
-	case TRANSFER_CRAFT:
-		_cQty -= change;
-		break;
-	case TRANSFER_ITEM:
-		rule = (RuleItem*)getRow().rule;
-		_iQty -= rule->getSize() * change;
-		break;
-	}
-	getRow().amount -= change;
-	_total -= getRow().cost * change;
-	updateItemStrings();
+    if (change > 0) changeQuantity(_sel, QuantityOperation::Adjust, -change);
 }
 
 /**
  * Updates the quantity-strings of the selected item.
  */
+void PurchaseState::changeQuantity(size_t row, QuantityOperation operation, int value)
+{
+    if (row >= _rows.size() || _rows[row] < 0 || static_cast<size_t>(_rows[row]) >= _items.size()) return;
+    _sel = row;
+    const int previousAmount = getRow().amount;
+    const PurchaseWarning warning = PurchaseCommands::quantity(*_base, *_game->getSavedGame(), getRow(),
+        PurchaseDraft(_total, _pQty, _cQty, _iQty), operation, value);
+    if (warning == PurchaseWarning::None) { if (getRow().amount != previousAmount) updateItemStrings(); return; }
+    const char *message = warning == PurchaseWarning::Money ? "STR_NOT_ENOUGH_MONEY" :
+        warning == PurchaseWarning::Quarters ? "STR_NOT_ENOUGH_LIVING_SPACE" :
+        warning == PurchaseWarning::Hangars ? "STR_NO_FREE_HANGARS_FOR_PURCHASE" : "STR_NOT_ENOUGH_STORE_SPACE";
+    _timerInc->stop();
+    RuleInterface *menuInterface = _game->getMod()->getInterface("buyMenu");
+    _game->pushState(new ErrorMessageState(tr(message), _palette, menuInterface->getElement("errorMessage")->color,
+        "BACK13.SCR", menuInterface->getElement("errorPalette")->color));
+}
+
 void PurchaseState::updateItemStrings()
 {
 	_txtPurchases->setText(tr("STR_COST_OF_PURCHASES").arg(Unicode::formatFunding(_total)));
@@ -681,5 +549,223 @@ void PurchaseState::cbxCategoryChange(Action *)
 {
 	updateList();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool PurchaseState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<PurchaseState *>(this)) || !agentPaintHealthy()) return false;
+    const bool dropdown = _cbxCategory->agentPopupOpen();
+    if ((_modal && (!dropdown || _modal != _cbxCategory)) || (dropdown && _modal != _cbxCategory)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    out = AgentUiState(); out.actor = _base;
+    out.widgets.emplace_back(_lstItems, _lstItems->agentListRevision());
+    out.widgets.emplace_back(_cbxCategory, _cbxCategory->agentUiRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto includeRegions = [&](const std::vector<AgentUiRect> &regions, const Surface *owner) -> bool {
+        if (regions.empty() || !agentRegionsUncovered(regions, owner, painted)) return false;
+        AgentUiState part; part.regions = regions;
+        if (!allowed(part)) return false;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), regions.begin(), regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    const auto include = [&](const Surface *widget) -> bool {
+        AgentUiState part; agentIncludeWidget(part, widget);
+        return includeRegions(part.regions, widget);
+    };
+    const auto includeCombo = [&]() -> bool {
+        if (!_cbxCategory->agentToggleUncovered(painted)) return false;
+        AgentUiState part; agentIncludeWidget(part, _cbxCategory);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    if (dropdown)
+    {
+        out.screen = "purchase_category";
+        if (!includeCombo()) return false;
+        AgentListProjection list;
+        if (!agentProjectList(_cbxCategory->agentList(), _cbxCategory->agentList(), painted, 1, true, out, list, allowed)) return false;
+        out.context = {list.up ? 1u : 0u, list.down ? 1u : 0u};
+        out.visible = "{\"control\":\"category\",\"label\":null,\"rows\":" + list.rows + ",\"scroll\":" + list.scroll + "}";
+        if (!out.rows.empty()) out.actions.emplace_back("choose_visible_row", "Choose visible row", "visible_control_semantics", "visible_row");
+        if (list.up || list.down) out.actions.emplace_back("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction");
+        out.actions.emplace_back("close_dropdown", "Close choices", "visible_control_semantics");
+        return agentRegionsDisjoint(out) && out.visible.size() <= 9000;
+    }
+    out.screen = "purchase";
+    const auto text = [&](const Text *widget) -> std::string {
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !agentWidgetUncovered(widget, painted)) return "null";
+        return widget->getText().empty() || include(widget) ? value : "null";
+    };
+    const auto title = text(_txtTitle), funds = text(_txtFunds), total = text(_txtPurchases), space = text(_txtSpaceUsed);
+    const auto headings = "[" + text(_txtCost) + "," + text(_txtQuantity) + "]";
+    std::string category = "null", buttons = "[";
+    const auto label = _cbxCategory->agentLabel();
+    if (!label.empty() && label.size() <= 1024 && includeCombo())
+    {
+        category = "{\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back("open_purchase_category", label, "visible_text");
+    }
+    const auto button = [&](TextButton *widget, const char *id, const char *action, const char *kind) {
+        const auto shown = agentButtonLabel(widget);
+        if (shown.empty() || shown.size() > 1024 || !include(widget)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(shown) + "}";
+        out.actions.emplace_back(action, shown, "visible_text", kind);
+    };
+    button(_btnOk, "accept", "accept_purchase", "none");
+    button(_btnCancel, "cancel", "cancel_purchase", "none"); buttons += "]";
+    const Surface *up = nullptr, *down = nullptr;
+    _lstItems->agentScrollControls(up, down);
+    const bool canUp = up && include(up), canDown = down && include(down);
+    out.context = {canUp ? 1u : 0u, canDown ? 1u : 0u};
+    const std::string scroll = std::string("{\"up\":") + (canUp ? "true" : "false") + ",\"down\":" + (canDown ? "true" : "false") + "}";
+    if (canUp || canDown) out.actions.emplace_back("scroll_purchase", "Scroll purchase list", "visible_control_semantics", "purchase_scroll");
+    std::string scrollbar = "null";
+    ScrollBar *bar = _lstItems->agentPurchaseScrollbar(); SDL_Rect track = {}, thumb = {};
+    if (bar && bar->agentPaintGeometry(track, thumb) && includeRegions({{track.x,track.y,track.w,track.h}},bar))
+    {
+        out.points.emplace_back(thumb.x + thumb.w / 2, thumb.y + thumb.h / 2);
+        const int targets[] = {track.y + thumb.h / 2, track.y + track.h / 2, track.y + track.h - 1 - (thumb.h - 1) / 2};
+        const char *names[] = {"top", "middle", "bottom"};
+        scrollbar = "{\"targets\":[";
+        for (unsigned i = 0; i < 3; ++i)
+        {
+            if (i && targets[i] == targets[i-1]) continue;
+            const auto slot = out.points.size() - 1;
+            if (slot) scrollbar += ",";
+            scrollbar += "{\"handle\":\"t" + std::to_string(slot) + "\",\"position\":" + agentJsonString(names[i]) + "}";
+            out.points.emplace_back(i, targets[i]);
+        }
+        scrollbar += "]}";
+        out.actions.emplace_back("position_purchase_list", "Position purchase list", "visible_control_semantics", "purchase_position");
+    }
+    const std::string prefix = "{\"title\":" + title + ",\"funds\":" + funds + ",\"total\":" + total + ",\"space_used\":" + space + ",\"headings\":" + headings + ",\"category\":" + category + ",\"rows\":";
+    const std::string suffix = ",\"scroll\":" + scroll + ",\"scrollbar\":" + scrollbar + ",\"buttons\":" + buttons + "}";
+    std::vector<AgentPurchaseRow> rows;
+    if (!_lstItems->agentPurchaseRows(rows)) return false;
+    std::string shownRows = "[";
+    for (const AgentPurchaseRow &row : rows)
+    {
+        if (out.rows.size() == 32) break;
+        const auto before = out.regions.size();
+        const bool inc = row.increase && include(row.increase), dec = row.decrease && include(row.decrease);
+        if (!inc && !dec) continue;
+        std::string cells = "[";
+        for (unsigned i = 0; i < 4; ++i)
+        {
+            if (i) cells += ",";
+            std::vector<AgentUiRect> regions;
+            for (const SDL_Rect &r : row.cells[i].regions) regions.push_back({r.x,r.y,r.w,r.h});
+            const bool known = row.cells[i].known && (regions.empty() || includeRegions(regions, _lstItems));
+            cells += known ? agentJsonString(row.cells[i].text) : "null";
+        }
+        cells += "]";
+        // A selector is useful only if its whole painted band is uncovered.
+        // This separate check never grants a row control or a cell string.
+        AgentUiState selected; selected.regions = {{row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h}};
+        bool isSelected = row.selected && allowed(selected);
+        bool afterList = false;
+        for (const Surface *later : _surfaces)
+        {
+            if (later == _lstItems) { afterList = true; continue; }
+            if (afterList && later && later->getVisible() &&
+                later->getY() < row.bounds.y + row.bounds.h && later->getY()+later->getHeight() > row.bounds.y &&
+                later->getX() < row.bounds.x+row.bounds.w && later->getX()+later->getWidth() > row.bounds.x) isSelected = false;
+        }
+        std::string controls = inc ? "[\"increase\"" : "[";
+        if (dec) controls += inc ? ",\"decrease\"" : "\"decrease\"";
+        controls += "]";
+        const std::string entry = (out.rows.empty() ? "" : ",") + std::string("{\"handle\":\"r") + std::to_string(out.rows.size()) + "\",\"cells\":" + cells + ",\"selected\":" + (isSelected ? "true" : "false") + ",\"controls\":" + controls + "}";
+        if (prefix.size() + shownRows.size() + entry.size() + suffix.size() + 1 > 9000) { out.regions.resize(before); break; }
+        shownRows += entry; out.rows.push_back(row.logicalIndex); out.context.push_back((inc ? 1u : 0u) | (dec ? 2u : 0u));
+    }
+    shownRows += "]";
+    if (!out.rows.empty()) out.actions.emplace_back("change_purchase_quantity", "Change purchase quantity", "visible_control_semantics", "purchase_quantity");
+    out.visible = prefix + shownRows + suffix;
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 9000;
+}
+
+bool PurchaseState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    const auto slot = [](const std::string &value, char prefix, unsigned limit) -> int {
+        if (value.size() < 2 || value.size() > 3 || value[0] != prefix || (value.size() == 3 && value[1] == '0')) return -1;
+        unsigned result = 0;
+        for (size_t i = 1; i < value.size(); ++i) { if (value[i] < '0' || value[i] > '9') return -1; result = result * 10 + value[i] - '0'; }
+        return result < limit ? static_cast<int>(result) : -1;
+    };
+    if (current.screen == "purchase_category")
+    {
+        if (request.action == "close_dropdown") return _cbxCategory->agentClose(nullptr, this);
+        if (request.action == "choose_visible_row")
+        {
+            const int index = slot(request.choice, 'r', current.rows.size());
+            return index >= 0 && _cbxCategory->agentChooseVisibleRow(current.rows[index], nullptr, this);
+        }
+        if (request.action == "scroll_visible_list" && current.context.size() == 2)
+        {
+            if (request.choice == "up" && current.context[0]) { _cbxCategory->agentList()->scrollUp(false,false); return true; }
+            if (request.choice == "down" && current.context[1]) { _cbxCategory->agentList()->scrollDown(false,false); return true; }
+        }
+        return false;
+    }
+    if (request.action == "open_purchase_category") return _cbxCategory->agentOpen();
+    if (request.action == "accept_purchase") { btnOkClick(nullptr); return true; }
+    if (request.action == "cancel_purchase") { btnCancelClick(nullptr); return true; }
+    if (request.action == "change_purchase_quantity")
+    {
+        const int index = slot(request.choice, 'r', current.rows.size());
+        if (index < 0 || current.context.size() != current.rows.size()+2) return false;
+        QuantityOperation operation;
+        unsigned required;
+        if (request.operation == "adjust" && request.value && request.value >= -1000 && request.value <= 1000)
+        { operation = QuantityOperation::Adjust; required = request.value > 0 ? 1 : 2; }
+        else if (request.operation == "set" && request.value >= 0 && request.value <= 100000)
+        { operation = QuantityOperation::Set; required = 3; }
+        else if (request.operation == "max") { operation = QuantityOperation::Maximum; required = 1; }
+        else if (request.operation == "clear") { operation = QuantityOperation::Clear; required = 2; }
+        else return false;
+        if ((current.context[index+2] & required) != required) return false;
+        changeQuantity(current.rows[index], operation, request.value);
+        return true;
+    }
+    if (request.action == "scroll_purchase")
+    {
+        const unsigned direction = request.direction == "up" ? 0 : request.direction == "down" ? 1 : 2;
+        if (direction > 1 || current.context.size() < 2 || !current.context[direction]) return false;
+        if (request.amount == "step" || request.amount == "end")
+        {
+            if (direction) _lstItems->scrollDown(request.amount == "end", false);
+            else _lstItems->scrollUp(request.amount == "end", false);
+            return true;
+        }
+        if (request.amount == "page")
+        {
+            const size_t at = _lstItems->getScroll(), page = _lstItems->getVisibleRows();
+            _lstItems->scrollTo(direction ? at + page : at - std::min(at, page));
+            return true;
+        }
+        return false;
+    }
+    if (request.action == "position_purchase_list" && current.points.size() > 1)
+    {
+        const int index = slot(request.choice,'t',current.points.size()-1);
+        if (index < 0 || _lstItems->getRows() <= _lstItems->getVisibleRows()) return false;
+        const size_t last = _lstItems->getRows() - _lstItems->getVisibleRows();
+        const int position = current.points[index+1].first;
+        _lstItems->scrollTo(position == 0 ? 0 : position == 1 ? last/2 : last);
+        return true;
+    }
+    return false;
+}
+#endif
 
 }

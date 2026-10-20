@@ -31,6 +31,20 @@ namespace OpenXcom
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 // A painted row. logicalIndex and geometry are private grant bindings,
 // never protocol fields; the owning state allocates its own grant-local rN slots.
+struct AgentPurchaseCell
+{
+	bool known = false;
+	std::string text;
+	std::vector<SDL_Rect> regions;
+};
+struct AgentPurchaseRow
+{
+	size_t logicalIndex;
+	AgentPurchaseCell cells[4];
+	SDL_Rect bounds;
+	bool selected = false;
+	const Surface *increase = nullptr, *decrease = nullptr;
+};
 struct AgentListRow
 {
 	size_t logicalIndex;
@@ -85,6 +99,8 @@ private:
 	std::uint64_t _agentListRevision = 0, _agentPaintRevision = UINT64_MAX;
 	std::vector<AgentListRow> _agentDrawRows, _agentPaintRows, _agentDrawControls, _agentPaintControls;
 	std::vector<Surface *> _agentPaintOrder;
+	std::vector<AgentPurchaseRow> _agentDrawPurchaseRows, _agentPaintPurchaseRows;
+	SDL_Rect _agentPurchaseClip = {};
 	bool _agentCoverageHealthy = false;
 	size_t _agentCoverageWork = 0, _agentCoverageRuns = 0;
 	void agentCaptureRow(size_t logicalIndex, int y);
@@ -97,6 +113,9 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
+	// Purchase-only, independent text witnesses and exact painted row arrows.
+	bool agentPurchaseRows(std::vector<AgentPurchaseRow> &rows) const;
+	ScrollBar *agentPurchaseScrollbar() const;
 	// Explicit opt-in for new-research controls; text proof remains separate.
 	bool agentControlRows(std::vector<AgentListRow> &rows) const;
 	std::uint64_t agentListRevision() const { return _agentListRevision; }

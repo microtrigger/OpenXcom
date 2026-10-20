@@ -18,6 +18,11 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/InteractiveSurface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#include <vector>
+#include <utility>
+#endif
 
 namespace OpenXcom
 {
@@ -37,11 +42,20 @@ private:
 	SDL_Rect _thumbRect;
 	int _offset;
 	Surface *_bg;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool _agentPainted = false;
+	std::uint64_t _agentListPaintRevision = UINT64_MAX;
+	SDL_Rect _agentTrackPaint = {}, _agentThumbPaint = {};
+#endif
 	/// Draws the scrollbar track.
 	void drawTrack();
 	/// Draws the scrollbar thumb.
 	void drawThumb();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	// Private presented geometry only; never exposes row count or scroll ratio.
+	bool agentPaintGeometry(SDL_Rect &track, SDL_Rect &thumb) const;
+#endif
 	/// Creates a new scrollbar with the specified size and position.
 	ScrollBar(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the scrollbar.

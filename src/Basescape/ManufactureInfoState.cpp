@@ -171,6 +171,7 @@ void ManufactureInfoState::buildUi()
 	_txtUnitDown->setText(tr("STR_DECREASE_UC"));
 
 	_btnSell->setText(tr("STR_SELL_PRODUCTION"));
+	_btnSell->onMousePress((ActionHandler)&ManufactureInfoState::btnSellPress, 0);
 	_btnSell->onMouseClick((ActionHandler)&ManufactureInfoState::btnSellClick, 0);
 
 	_btnOk->setText(tr("STR_OK"));
@@ -185,7 +186,8 @@ void ManufactureInfoState::buildUi()
 		_production = new Production (_item, 1);
 		_base->addProduction(_production);
 	}
-	_btnSell->setPressed(_production->getSellItems());
+	ProductionCommands::setSell(_productionDraft, _production->getSellItems());
+	_btnSell->setPressed(_productionDraft.sell);
 	initProfitInfo();
 	setAssignedEngineer();
 
@@ -230,7 +232,7 @@ int ManufactureInfoState::getMonthlyNetFunds () const
 	static const int AVG_HOURS_PER_MONTH = (365 * 24) / 12;
 
 	const RuleManufacture *item = _production->getRules();
-	int saleValue = _btnSell->getPressed() ? _producedItemsValue : 0;
+	int saleValue = _productionDraft.sell ? _producedItemsValue : 0;
 
 	int numEngineers = _production->getAssignedEngineers();
 	int manHoursPerMonth = AVG_HOURS_PER_MONTH * numEngineers;
@@ -261,9 +263,16 @@ ManufactureInfoState::~ManufactureInfoState()
  * Refreshes profit values.
  * @param action A pointer to an Action.
  */
+void ManufactureInfoState::btnSellPress(Action *action)
+{
+    if (action->getDetails()->button.button==SDL_BUTTON_LEFT || action->getDetails()->button.button==SDL_BUTTON_RIGHT)
+        ProductionCommands::setSell(_productionDraft, _btnSell->getPressed());
+}
+
 void ManufactureInfoState::btnSellClick(Action *)
 {
-	setAssignedEngineer();
+    ProductionCommands::setSell(_productionDraft, _btnSell->getPressed());
+    setAssignedEngineer();
 }
 
 /**
@@ -272,8 +281,8 @@ void ManufactureInfoState::btnSellClick(Action *)
  */
 void ManufactureInfoState::btnStopClick(Action *)
 {
-	_base->removeProduction(_production);
-	exitState();
+    ProductionCommands::stop(*_base,*_production);
+    exitState();
 }
 
 /**
@@ -282,12 +291,8 @@ void ManufactureInfoState::btnStopClick(Action *)
  */
 void ManufactureInfoState::btnOkClick(Action *)
 {
-	if (_item)
-	{
-		_production->startItem(_base, _game->getSavedGame(), _game->getMod());
-	}
-	_production->setSellItems(_btnSell->getPressed());
-	exitState();
+    ProductionCommands::accept(*_base,*_production,*_game->getSavedGame(),_game->getMod(),_productionDraft,_item!=nullptr);
+    exitState();
 }
 
 /**
@@ -327,18 +332,20 @@ void ManufactureInfoState::setAssignedEngineer()
  * Adds given number of engineers to the project if possible.
  * @param change How much we want to add.
  */
+void ManufactureInfoState::applyQuantityResult(const ProductionCommandResult &result)
+{
+    if (result.warning==ProductionWarning::NoFreeHangars)
+    {
+        _timerMoreUnit->stop();
+        _game->pushState(new ErrorMessageState(tr("STR_NO_FREE_HANGARS_FOR_CRAFT_PRODUCTION"), _palette, _game->getMod()->getInterface("basescape")->getElement("errorMessage")->color, "BACK17.SCR", _game->getMod()->getInterface("basescape")->getElement("errorPalette")->color));
+    }
+    for (unsigned refresh=0;refresh<result.refresh;++refresh) setAssignedEngineer();
+}
+
 void ManufactureInfoState::moreEngineer(int change)
 {
-	if (change <= 0) return;
-	int availableEngineer = _base->getAvailableEngineers();
-	int availableWorkSpace = _base->getFreeWorkshops();
-	if (availableEngineer > 0 && availableWorkSpace > 0)
-	{
-		change = std::min(std::min(availableEngineer, availableWorkSpace), change);
-		_production->setAssignedEngineers(_production->getAssignedEngineers()+change);
-		_base->setEngineers(_base->getEngineers()-change);
-		setAssignedEngineer();
-	}
+    if (change<=0) return;
+    applyQuantityResult(ProductionCommands::rawEngineers(*_base,*_production,change));
 }
 
 /**
@@ -379,15 +386,8 @@ void ManufactureInfoState::moreEngineerClick(Action *action)
  */
 void ManufactureInfoState::lessEngineer(int change)
 {
-	if (change <= 0) return;
-	int assigned = _production->getAssignedEngineers();
-	if (assigned > 0)
-	{
-		change = std::min(assigned, change);
-		_production->setAssignedEngineers(assigned-change);
-		_base->setEngineers(_base->getEngineers()+change);
-		setAssignedEngineer();
-	}
+    if (change<=0) return;
+    applyQuantityResult(ProductionCommands::rawEngineers(*_base,*_production,-change));
 }
 
 /**
@@ -428,21 +428,8 @@ void ManufactureInfoState::lessEngineerClick(Action *action)
  */
 void ManufactureInfoState::moreUnit(int change)
 {
-	if (change <= 0) return;
-	if (_production->getRules()->getCategory() == "STR_CRAFT" && _base->getAvailableHangars() - _base->getUsedHangars() <= 0)
-	{
-		_timerMoreUnit->stop();
-		_game->pushState(new ErrorMessageState(tr("STR_NO_FREE_HANGARS_FOR_CRAFT_PRODUCTION"), _palette, _game->getMod()->getInterface("basescape")->getElement("errorMessage")->color, "BACK17.SCR", _game->getMod()->getInterface("basescape")->getElement("errorPalette")->color));
-	}
-	else
-	{
-		int units = _production->getAmountTotal();
-		change = std::min(INT_MAX - units, change);
-		if (_production->getRules()->getCategory() == "STR_CRAFT")
-			change = std::min(_base->getAvailableHangars() - _base->getUsedHangars(), change);
-		_production->setAmountTotal(units+change);
-		setAssignedEngineer();
-	}
+    if (change<=0) return;
+    applyQuantityResult(ProductionCommands::rawUnits(*_base,*_production,change));
 }
 
 /**
@@ -474,23 +461,10 @@ void ManufactureInfoState::moreUnitRelease(Action *action)
  */
 void ManufactureInfoState::moreUnitClick(Action *action)
 {
-	if (_production->getInfiniteAmount()) return; // We can't increase over infinite :)
-	if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
-	{
-		if (_production->getRules()->getCategory() == "STR_CRAFT")
-		{
-			moreUnit(INT_MAX);
-		}
-		else
-		{
-			_production->setInfiniteAmount(true);
-			setAssignedEngineer();
-		}
-	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
-	{
-		moreUnit(1);
-	}
+    if (action->getDetails()->button.button==SDL_BUTTON_RIGHT)
+        applyQuantityResult(ProductionCommands::quantity(*_base,*_production,ProductionControl::Units,QuantityOperation::Maximum));
+    else if (action->getDetails()->button.button==SDL_BUTTON_LEFT)
+        applyQuantityResult(ProductionCommands::quantity(*_base,*_production,ProductionControl::Units,QuantityOperation::Adjust,1));
 }
 
 /**
@@ -499,11 +473,8 @@ void ManufactureInfoState::moreUnitClick(Action *action)
  */
 void ManufactureInfoState::lessUnit(int change)
 {
-	if (change <= 0) return;
-	int units = _production->getAmountTotal();
-	change = std::min(units-(_production->getAmountProduced()+1), change);
-	_production->setAmountTotal(units-change);
-	setAssignedEngineer();
+    if (change<=0) return;
+    applyQuantityResult(ProductionCommands::rawUnits(*_base,*_production,-change));
 }
 
 /**
@@ -534,18 +505,10 @@ void ManufactureInfoState::lessUnitRelease(Action *action)
  */
 void ManufactureInfoState::lessUnitClick(Action *action)
 {
-	if (action->getDetails()->button.button == SDL_BUTTON_RIGHT
-	||  action->getDetails()->button.button == SDL_BUTTON_LEFT)
-	{
-		_production->setInfiniteAmount(false);
-		if (action->getDetails()->button.button == SDL_BUTTON_RIGHT
-		|| _production->getAmountTotal() <= _production->getAmountProduced())
-		{ // So the produced item number is increased over the planned, OR it was simply a right-click
-			_production->setAmountTotal(_production->getAmountProduced()+1);
-			setAssignedEngineer();
-		}
-		if (action->getDetails()->button.button == SDL_BUTTON_LEFT) lessUnit(1);
-	}
+    if (action->getDetails()->button.button==SDL_BUTTON_RIGHT)
+        applyQuantityResult(ProductionCommands::quantity(*_base,*_production,ProductionControl::Units,QuantityOperation::Clear));
+    else if (action->getDetails()->button.button==SDL_BUTTON_LEFT)
+        applyQuantityResult(ProductionCommands::quantity(*_base,*_production,ProductionControl::Units,QuantityOperation::Adjust,-1));
 }
 
 /**
@@ -638,54 +601,96 @@ bool ManufactureInfoState::agentUiState(Observer::AgentUiState &out) const
     {
         const auto value=agentTextJson(widget);
         // Empty shown text is public but has no ink footprint to include.
-        if (value=="null" || !agentWidgetUncovered(widget,painted)) return "null";
+        if (value=="null" || widget->getText().size()>1024 || !agentWidgetUncovered(widget,painted)) return "null";
         if (widget->getText().empty()) return value;
         return include(widget)?value:"null";
     };
-    std::string buttons="[";
-    const auto button=[&](TextButton *widget,const char *id,const char *action,bool authority)->bool
+    std::string buttons="[", controls="[";
+    const auto addButton=[&](const char *id,const std::string &labelJson)
     {
-        const auto label=agentButtonLabel(widget);
-        if (label.empty() || label.size()>1024 || !include(widget)) return false;
         if (buttons.size()>1) buttons+=",";
-        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
-        if (authority) out.actions.emplace_back(action,label,"visible_text");
-        return true;
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+labelJson+"}";
     };
     const auto title=text(_txtTitle);
     const auto available=text(_txtAvailableEngineer),space=text(_txtAvailableSpace),allocated=text(_txtAllocated),units=text(_txtTodo),profit=text(_txtMonthlyProfit);
     std::string staffLabel;
-    const auto staff=[&](ArrowButton *arrow,Text *label,const char *id)->bool
+    const auto arrow=[&](ArrowButton *widget,Text *label,const char *id,const char *legacy)->bool
     {
         const auto value=agentTextJson(label);
-        if (value=="null" || label->getText().empty()) return false;
+        if (value=="null" || label->getText().empty() || label->getText().size()>1024) return false;
         const auto old=out.regions.size();
-        if (!include(label) || !include(arrow)) { out.regions.resize(old); return false; }
-        if (buttons.size()>1) buttons+=",";
-        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+value+"}";
-        if (staffLabel.empty()) staffLabel=label->getText();
+        if (!include(label) || !include(widget)) { out.regions.resize(old); return false; }
+        (void)id;
+        if (legacy) { addButton(legacy,value); if (staffLabel.empty()) staffLabel=label->getText(); }
         return true;
     };
-    const bool more=staff(_btnEngineerUp,_txtEngineerUp,"increase");
-    const bool less=staff(_btnEngineerDown,_txtEngineerDown,"decrease");
-    out.context.push_back(more?1:0); out.context.push_back(less?1:0);
+    const bool more=arrow(_btnEngineerUp,_txtEngineerUp,"engineers_increase","increase");
+    const bool less=arrow(_btnEngineerDown,_txtEngineerDown,"engineers_decrease","decrease");
+    const bool unitsMore=arrow(_btnUnitUp,_txtUnitUp,"units_increase",nullptr);
+    const bool unitsLess=arrow(_btnUnitDown,_txtUnitDown,"units_decrease",nullptr);
+    bool pressed=false;
+    std::string sell="null";
+    const auto sellLabel=agentButtonLabel(_btnSell);
+    const bool sellShown=!sellLabel.empty() && sellLabel.size()<=1024 && _btnSell->agentTogglePressed(pressed) && include(_btnSell);
+    if (sellShown)
+    {
+        sell="{\"label\":"+agentJsonString(sellLabel)+",\"pressed\":"+(pressed?"true":"false")+"}";
+        out.actions.emplace_back("set_production_sell",sellLabel,"visible_text","boolean_value");
+    }
+    out.widgets.push_back({_btnSell,_btnSell->agentToggleRevision()});
+    const auto button=[&](TextButton *widget,const char *id,const char *action)->bool
+    {
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return false;
+        addButton(id,agentJsonString(label));
+        if (title!="null") out.actions.emplace_back(action,label,"visible_text");
+        return true;
+    };
+    const bool accept=button(_btnOk,"accept","accept_production");
+    const bool stop=button(_btnStop,"stop","stop_production");
+    buttons+="]";
+    if (more || less) controls+="{\"control\":\"engineers\",\"increase\":"+std::string(more?"true":"false")+",\"decrease\":"+(less?"true":"false")+"}";
+    if (unitsMore || unitsLess) { if (controls.size()>1) controls+=","; controls+="{\"control\":\"units\",\"increase\":"+std::string(unitsMore?"true":"false")+",\"decrease\":"+(unitsLess?"true":"false")+"}"; }
+    controls+="]";
+    for (bool present : {more,less,unitsMore,unitsLess,sellShown,accept,stop}) out.context.push_back(present?1:0);
     if (title!="null" && allocated!="null" && !staffLabel.empty()) out.actions.emplace_back("adjust_engineers",staffLabel,"visible_text","staff_direction");
-    button(_btnOk,"accept","accept_production",title!="null");
-    button(_btnStop,"stop","stop_production",title!="null"); buttons+="]";
-    out.visible="{\"title\":"+title+",\"available\":"+available+",\"space\":"+space+",\"allocated\":"+allocated+",\"units\":"+units+",\"monthly_profit\":"+profit+",\"buttons\":"+buttons+"}";
-    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
+    if (more || less || unitsMore || unitsLess) out.actions.emplace_back("change_production_quantity","Change production quantity","visible_control_semantics","production_quantity");
+    out.visible="{\"title\":"+title+",\"available\":"+available+",\"space\":"+space+",\"allocated\":"+allocated+",\"units\":"+units+",\"monthly_profit\":"+profit+",\"buttons\":"+buttons+",\"sell\":"+sell+",\"quantity_controls\":"+controls+"}";
+    // UTF-8 -> ensure_ascii JSON expands at most threefold. Conservative
+    // bound is intentionally stricter than the wire's canonical 32768 limit.
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=9000;
 }
 
 bool ManufactureInfoState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
-    if (!agentUiState(current) || !current.offers(request.action)) return false;
-    if (request.action=="accept_production") { btnOkClick(nullptr); return true; }
-    if (request.action=="stop_production") { btnStopClick(nullptr); return true; }
-    if (request.action=="adjust_engineers" && current.context.size()==3)
+    if (!agentUiState(current) || !current.offers(request.action) || current.context.size()!=8) return false;
+    if (request.action=="accept_production" && current.context[6]) { btnOkClick(nullptr); return true; }
+    if (request.action=="stop_production" && current.context[7]) { btnStopClick(nullptr); return true; }
+    if (request.action=="adjust_engineers")
     {
         if (request.choice=="increase" && current.context[1]) { moreEngineer(1); return true; }
         if (request.choice=="decrease" && current.context[2]) { lessEngineer(1); return true; }
+    }
+    if (request.action=="set_production_sell" && current.context[5])
+    {
+        ProductionCommands::setSell(_productionDraft,request.desired);
+        _btnSell->setPressed(_productionDraft.sell); setAssignedEngineer(); return true;
+    }
+    if (request.action=="change_production_quantity")
+    {
+        const bool engineers=request.control=="engineers";
+        if (!engineers && request.control!="units") return false;
+        const unsigned index=engineers?1:3;
+        const bool increase=current.context[index],decrease=current.context[index+1];
+        QuantityOperation operation;
+        if (request.operation=="adjust") { if (!request.value || request.value < -1000 || request.value > 1000 || !(request.value>0?increase:decrease)) return false; operation=QuantityOperation::Adjust; }
+        else if (request.operation=="set") { if (!increase || !decrease || request.value<0 || request.value>100000) return false; operation=QuantityOperation::Set; }
+        else if (request.operation=="max") { if (!increase) return false; operation=QuantityOperation::Maximum; }
+        else if (request.operation=="clear") { if (!decrease) return false; operation=QuantityOperation::Clear; }
+        else return false;
+        applyQuantityResult(ProductionCommands::quantity(*_base,*_production,engineers?ProductionControl::Engineers:ProductionControl::Units,operation,request.value));
+        return true;
     }
     return false;
 }

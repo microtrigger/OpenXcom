@@ -19,6 +19,7 @@
  */
 #include "../Engine/State.h"
 #include "../Savegame/Transfer.h"
+#include "../Savegame/QuantityCommand.h"
 #include <vector>
 #include <string>
 #include <set>
@@ -57,11 +58,16 @@ private:
 	double _iQty;
 	Uint8 _ammoColor;
 	Timer *_timerInc, *_timerDec;
+	void changeQuantity(size_t row, QuantityOperation operation, int value = 0);
 	/// Gets the category of the current selection.
 	std::string getCategory(int sel) const;
 	/// Gets the row of the current selection.
 	TransferRow &getRow() { return _items[_rows[_sel]]; }
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Purchase state.
 	PurchaseState(Base *base);
 	/// Cleans up the Purchase state.

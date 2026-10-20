@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/19'
+SCHEMA = 'openxcom-agent-control/21'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -56,7 +56,9 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'open_research', 'open_new_research', 'select_research_project', 'adjust_scientists',
            'accept_research', 'cancel_research_project', 'close_research_list',
            'open_manufacture', 'open_new_production', 'select_production_project', 'start_production',
-           'cancel_production_start', 'adjust_engineers', 'accept_production', 'stop_production', 'close_production_list')
+           'cancel_production_start', 'adjust_engineers', 'accept_production', 'stop_production', 'close_production_list',
+           'change_production_quantity', 'set_production_sell', 'open_purchase', 'change_purchase_quantity',
+           'accept_purchase', 'cancel_purchase', 'open_purchase_category', 'scroll_purchase', 'position_purchase_list')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -70,8 +72,8 @@ CAMERA_DIRECTIONS = ('left', 'right', 'up', 'down')
 MINIMAP_TARGET_HANDLES = tuple(f'm{index}' for index in range(160))
 GEOSCAPE_SPEED_HANDLES = tuple(f's{index}' for index in range(6))
 BASE_TARGET_HANDLES = tuple(f'b{index}' for index in range(8))
-BASE_BUTTONS = {'basescape': ('base_info', 'research', 'manufacture', 'geoscape'), 'base_info': ('ok', 'stores', 'transfers')}
-BASE_BUTTON_ACTIONS = {'basescape': {'open_base_info': 'base_info', 'open_research': 'research', 'open_manufacture': 'manufacture', 'return_geoscape': 'geoscape'},
+BASE_BUTTONS = {'basescape': ('base_info', 'research', 'manufacture', 'purchase', 'geoscape'), 'base_info': ('ok', 'stores', 'transfers')}
+BASE_BUTTON_ACTIONS = {'basescape': {'open_base_info': 'base_info', 'open_research': 'research', 'open_manufacture': 'manufacture', 'open_purchase': 'purchase', 'return_geoscape': 'geoscape'},
                        'base_info': {'close_base_info': 'ok', 'open_base_stores': 'stores', 'open_base_transfers': 'transfers'}}
 STAFF_DIRECTIONS = ('increase', 'decrease')
 PROJECT_LISTS = {'research': (3, 3), 'new_research': (0, 1), 'manufacture': (4, 5), 'new_manufacture': (0, 2)}
@@ -92,6 +94,14 @@ PROJECT_BUTTON_ACTIONS = {
 PROJECT_SELECTION_ACTIONS = {'research': 'select_research_project', 'new_research': 'select_research_project',
                              'manufacture': 'select_production_project', 'new_manufacture': 'select_production_project'}
 PROJECT_STAFF_ACTIONS = {'research_info': 'adjust_scientists', 'manufacture_info': 'adjust_engineers'}
+QUANTITY_CONTROLS = ('engineers', 'units')
+QUANTITY_OPERATIONS = ('adjust', 'set', 'max', 'clear')
+PURCHASE_SCROLL_HANDLES = tuple(f't{index}' for index in range(3))
+PURCHASE_POSITIONS = ('top', 'middle', 'bottom')
+PURCHASE_AMOUNTS = ('step', 'page', 'end')
+QUANTITY_SEMANTIC_LABELS = {'change_production_quantity': 'Change production quantity',
+    'change_purchase_quantity': 'Change purchase quantity', 'scroll_purchase': 'Scroll purchase list',
+    'position_purchase_list': 'Position purchase list'}
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
@@ -104,7 +114,10 @@ ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',
                       choose_grenade_timer='grenade_timer', camera_pan='camera_direction',
                       minimap_center='minimap_target', choose_geoscape_speed='geoscape_speed',
                       select_base='base_target', select_research_project='project_row', select_production_project='project_row',
-                      adjust_scientists='staff_direction', adjust_engineers='staff_direction')
+                      adjust_scientists='staff_direction', adjust_engineers='staff_direction',
+                      change_production_quantity='production_quantity', set_production_sell='boolean_value',
+                      change_purchase_quantity='purchase_quantity', scroll_purchase='purchase_scroll',
+                      position_purchase_list='purchase_position')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
@@ -138,7 +151,7 @@ STATE_ACTIONS = {
     'base_name': frozenset(('replace_base_name', 'confirm_base_name')),
     'build_base': frozenset(('place_base_site',)),
     'geoscape': frozenset(('open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
-    'basescape': frozenset(('select_base', 'open_base_info', 'open_research', 'open_manufacture', 'return_geoscape')),
+    'basescape': frozenset(('select_base', 'open_base_info', 'open_research', 'open_manufacture', 'open_purchase', 'return_geoscape')),
     'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers')),
     'base_stores': frozenset(('scroll_visible_list', 'close_base_stores')),
     'base_transfers': frozenset(('scroll_visible_list', 'close_base_transfers')),
@@ -148,7 +161,10 @@ STATE_ACTIONS = {
     'manufacture': frozenset(('open_new_production', 'select_production_project', 'scroll_visible_list', 'close_production_list')),
     'new_manufacture': frozenset(('select_production_project', 'scroll_visible_list', 'close_production_list')),
     'manufacture_start': frozenset(('start_production', 'cancel_production_start', 'scroll_visible_list')),
-    'manufacture_info': frozenset(('adjust_engineers', 'accept_production', 'stop_production')),
+    'manufacture_info': frozenset(('adjust_engineers', 'accept_production', 'stop_production', 'change_production_quantity', 'set_production_sell')),
+    'purchase': frozenset(('change_purchase_quantity', 'accept_purchase', 'cancel_purchase',
+                           'open_purchase_category', 'scroll_purchase', 'position_purchase_list')),
+    'purchase_category': frozenset(('choose_visible_row', 'scroll_visible_list', 'close_dropdown')),
     'options_shell': frozenset(('cancel_menu',)),
     'pause_menu': frozenset(('open_load_game', 'open_save_game', 'open_options', 'resume_game')),
     'load_list': frozenset(('cancel_menu',)),
@@ -230,7 +246,7 @@ def validate_ready(raw):
 
 
 def label_source(screen, action):
-    if screen == 'new_research' and action == 'select_research_project':
+    if action in QUANTITY_SEMANTIC_LABELS or (screen == 'new_research' and action == 'select_research_project'):
         return 'visible_control_semantics'
     return ('visible_control_semantics' if screen in ('battlescape', 'inventory', 'minimap') or
             action in ('replace_base_name', 'place_base_site', 'open_new_battle_choice',
@@ -339,7 +355,7 @@ def validate_projects(screen, visible, actions):
         fields = ('title', 'engineer_hours', 'cost', 'space', 'materials_heading')
         columns = 3
     else:
-        exact(visible, 'title available space allocated units monthly_profit buttons')
+        exact(visible, 'title available space allocated units monthly_profit buttons sell quantity_controls')
         fields = ('title', 'available', 'space', 'allocated', 'units', 'monthly_profit')
     for field in fields: strategy_text(visible[field], nullable=True)
     if screen in PROJECT_LISTS or screen == 'manufacture_start':
@@ -368,8 +384,78 @@ def validate_projects(screen, visible, actions):
         index = PROJECT_BUTTONS[screen].index(button['id']); require(index > previous); previous = index
         strategy_text(button['label']); require(bool(button['label'])); seen.add(button['id'])
     for action, button in PROJECT_BUTTON_ACTIONS[screen].items(): require(action not in actions or button in seen)
+    if screen == 'manufacture_info': validate_quantity_controls(visible, actions)
     staff = PROJECT_STAFF_ACTIONS.get(screen)
     require(staff not in actions or (visible['title'] is not None and visible['allocated'] is not None and bool(seen.intersection(STAFF_DIRECTIONS))))
+
+
+def ordered_subset(values, allowed, *, nonempty=False):
+    require(type(values) is list and len(values) <= len(allowed) and (bool(values) or not nonempty))
+    previous = -1
+    for value in values:
+        require(type(value) is str and value in allowed)
+        index = allowed.index(value); require(index > previous); previous = index
+
+
+def validate_quantity_controls(visible, actions):
+    controls = visible['quantity_controls']
+    require(type(controls) is list and len(controls) <= len(QUANTITY_CONTROLS))
+    ordered_subset([entry.get('control') if type(entry) is dict else None for entry in controls], QUANTITY_CONTROLS)
+    by_control = {}
+    for entry in controls:
+        exact(entry, 'control increase decrease')
+        require(type(entry['increase']) is bool and type(entry['decrease']) is bool)
+        require(entry['increase'] or entry['decrease'])
+        by_control[entry['control']] = entry
+    buttons = {entry['id'] for entry in visible['buttons']}
+    engineers = by_control.get('engineers', {})
+    for direction in STAFF_DIRECTIONS: require(engineers.get(direction, False) == (direction in buttons))
+    sell = visible['sell']
+    if sell is not None:
+        exact(sell, 'label pressed'); strategy_text(sell['label']); require(bool(sell['label']))
+        require(type(sell['pressed']) is bool)
+    require('change_production_quantity' not in actions or bool(controls))
+    require('set_production_sell' not in actions or sell is not None)
+
+
+def validate_purchase(visible, actions):
+    exact(visible, 'title funds total space_used headings category rows scroll scrollbar buttons')
+    for key in ('title', 'funds', 'total', 'space_used'): strategy_text(visible[key], nullable=True)
+    require(type(visible['headings']) is list and len(visible['headings']) == 2)
+    for value in visible['headings']: strategy_text(value, nullable=True)
+    if visible['category'] is not None:
+        exact(visible['category'], 'label'); strategy_text(visible['category']['label']); require(bool(visible['category']['label']))
+    rows = visible['rows']; require(type(rows) is list and len(rows) <= len(ROW_HANDLES))
+    selected = 0
+    for index, row in enumerate(rows):
+        exact(row, 'handle cells selected controls'); require(row['handle'] == ROW_HANDLES[index])
+        require(type(row['cells']) is list and len(row['cells']) == 4)
+        for value in row['cells']: strategy_text(value, nullable=True)
+        require(type(row['selected']) is bool); selected += row['selected']
+        ordered_subset(row['controls'], STAFF_DIRECTIONS, nonempty=True)
+    require(selected <= 1)
+    exact(visible['scroll'], 'up down')
+    for value in visible['scroll'].values(): require(type(value) is bool)
+    scrollbar = visible['scrollbar']
+    if scrollbar is not None:
+        exact(scrollbar, 'targets')
+        targets = scrollbar['targets']; require(type(targets) is list and 0 < len(targets) <= 3)
+        positions = []
+        for index, target in enumerate(targets):
+            exact(target, 'handle position'); require(target['handle'] == PURCHASE_SCROLL_HANDLES[index])
+            positions.append(target['position'])
+        ordered_subset(positions, PURCHASE_POSITIONS, nonempty=True)
+    buttons = visible['buttons']; require(type(buttons) is list and len(buttons) <= 2)
+    ordered_subset([entry.get('id') if type(entry) is dict else None for entry in buttons], ('accept', 'cancel'))
+    for button in buttons:
+        exact(button, 'id label'); strategy_text(button['label']); require(bool(button['label']))
+    shown = {button['id'] for button in buttons}
+    require('change_purchase_quantity' not in actions or bool(rows))
+    require('open_purchase_category' not in actions or visible['category'] is not None)
+    require('position_purchase_list' not in actions or scrollbar is not None)
+    require('scroll_purchase' not in actions or any(visible['scroll'].values()))
+    for action, button in (('accept_purchase', 'accept'), ('cancel_purchase', 'cancel')):
+        require(action not in actions or button in shown)
 
 
 def validate_base_table(visible, actions):
@@ -382,7 +468,7 @@ def validate_base_table(visible, actions):
         for value in row['cells']: strategy_text(value)
 
 
-def validate_visible_list(visible, actions, *, funding=False):
+def validate_visible_list(visible, actions, *, funding=False, purchase_category=False):
     """Only fully rendered, grant-local rows; no backing indices or totals."""
     exact(visible, 'title headings rows scroll' if funding else 'control label rows scroll')
     if funding:
@@ -391,8 +477,8 @@ def validate_visible_list(visible, actions, *, funding=False):
         for heading in visible['headings']:
             visible_text(heading, nullable=True)
     else:
-        require(type(visible['control']) is str and visible['control'] in CHOICE_CONTROLS)
-        visible_text(visible['label'], nullable=True)
+        require(type(visible['control']) is str and visible['control'] in (('category',) if purchase_category else CHOICE_CONTROLS))
+        (strategy_text if purchase_category else visible_text)(visible['label'], nullable=True)
     rows = visible['rows']
     require(type(rows) is list and len(rows) <= len(ROW_HANDLES))
     selected = 0
@@ -401,7 +487,7 @@ def validate_visible_list(visible, actions, *, funding=False):
         require(row['handle'] == ROW_HANDLES[index])
         require(type(row['cells']) is list and len(row['cells']) == (3 if funding else 1))
         for cell in row['cells']:
-            visible_text(cell)
+            (strategy_text if purchase_category else visible_text)(cell)
             require(funding or bool(cell))
         require(type(row['selected']) is bool)
         selected += row['selected']
@@ -663,8 +749,10 @@ def validate_visible(screen, visible, seen):
         validate_projects(screen, visible, seen)
     elif screen in ('base_stores', 'base_transfers'):
         validate_base_table(visible, seen)
-    elif screen in ('new_battle_dropdown', 'funding'):
-        validate_visible_list(visible, seen, funding=screen == 'funding')
+    elif screen == 'purchase':
+        validate_purchase(visible, seen)
+    elif screen in ('new_battle_dropdown', 'funding', 'purchase_category'):
+        validate_visible_list(visible, seen, funding=screen == 'funding', purchase_category=screen == 'purchase_category')
     elif screen == 'build_base':
         validate_build_base(visible, seen)
     elif screen in STATE_FIELDS:
@@ -733,6 +821,18 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
                                                 else obj['visible']['rows'][0]['cells'][0]))
             elif action == PROJECT_STAFF_ACTIONS.get(obj['state']):
                 require(descriptor['label'] == next(buttons[key] for key in STAFF_DIRECTIONS if key in buttons))
+    if obj['state'] in ('purchase', 'purchase_category', 'manufacture_info'):
+        visible = obj['visible']
+        buttons = {button['id']: button['label'] for button in visible.get('buttons', [])}
+        for descriptor in obj['actions']:
+            action = descriptor['id']; strategy_text(descriptor['label'])
+            expected = QUANTITY_SEMANTIC_LABELS.get(action)
+            if action == 'set_production_sell': expected = visible['sell']['label']
+            elif action == 'open_purchase_category': expected = visible['category']['label']
+            elif action in ('accept_purchase', 'cancel_purchase'): expected = buttons[action.split('_')[0]]
+            elif action in ('choose_visible_row', 'scroll_visible_list', 'close_dropdown'):
+                expected = {'choose_visible_row': 'Choose visible row', 'scroll_visible_list': 'Scroll visible list', 'close_dropdown': 'Close choices'}[action]
+            if expected is not None: require(descriptor['label'] == expected)
     # An empty/unsupported catalog never authorizes an action.
     if not seen:
         require(obj['capability'] is None)
@@ -859,6 +959,22 @@ def validate_action_arguments(arguments):
     elif kind == 'boolean':
         exact(args, 'value')
         require(type(args['value']) is bool)
+    elif kind == 'boolean_value':
+        exact(args, 'enabled'); require(type(args['enabled']) is bool)
+    elif kind in ('production_quantity', 'purchase_quantity'):
+        key, domain = ('control', QUANTITY_CONTROLS) if kind == 'production_quantity' else ('row', ROW_HANDLES)
+        require(type(args) is dict and type(args.get('operation')) is str and args['operation'] in QUANTITY_OPERATIONS)
+        operation = args['operation']
+        exact(args, key + ' operation' + (' value' if operation in ('adjust', 'set') else ''))
+        require(type(args[key]) is str and args[key] in domain)
+        if operation == 'adjust': integer(args['value'], -1000, 1000); require(args['value'] != 0)
+        elif operation == 'set': integer(args['value'], 0, 100000)
+    elif kind == 'purchase_scroll':
+        exact(args, 'direction amount')
+        require(type(args['direction']) is str and args['direction'] in SCROLL_DIRECTIONS)
+        require(type(args['amount']) is str and args['amount'] in PURCHASE_AMOUNTS)
+    elif kind == 'purchase_position':
+        exact(args, 'target'); require(type(args['target']) is str and args['target'] in PURCHASE_SCROLL_HANDLES)
     elif kind == 'text':
         exact(args, 'text')
         require(type(args['text']) is str)
@@ -903,6 +1019,15 @@ def canonical_action_request(arguments):
         suffix = ' ' + args['value']
     elif kind == 'boolean':
         suffix = ' 1' if args['value'] else ' 0'
+    elif kind == 'boolean_value':
+        suffix = ' true' if args['enabled'] else ' false'
+    elif kind in ('production_quantity', 'purchase_quantity'):
+        suffix = ' ' + args['control' if kind == 'production_quantity' else 'row'] + ' ' + args['operation']
+        if args['operation'] in ('adjust', 'set'): suffix += ' ' + str(args['value'])
+    elif kind == 'purchase_scroll':
+        suffix = ' ' + args['direction'] + ' ' + args['amount']
+    elif kind == 'purchase_position':
+        suffix = ' ' + args['target']
     elif kind == 'text':
         suffix = ' ' + (args['text'].encode('utf-8').hex() or '-')
     elif kind == 'point':
@@ -942,6 +1067,18 @@ def definitions():
         'project_row': arg_schema({'row': {'type': 'string', 'enum': list(ROW_HANDLES)}}),
         'staff_direction': arg_schema({'direction': {'type': 'string', 'enum': list(STAFF_DIRECTIONS)}}),
     }
+    for kind, key, domain in (('production_quantity', 'control', QUANTITY_CONTROLS), ('purchase_quantity', 'row', ROW_HANDLES)):
+        branches = []
+        for operation in QUANTITY_OPERATIONS:
+            properties = {key: {'type': 'string', 'enum': list(domain)}, 'operation': {'type': 'string', 'enum': [operation]}}
+            if operation == 'adjust': properties['value'] = {'type': 'integer', 'minimum': -1000, 'maximum': 1000, 'not': {'enum': [0]}}
+            elif operation == 'set': properties['value'] = {'type': 'integer', 'minimum': 0, 'maximum': 100000}
+            branches.append(arg_schema(properties))
+        argument_schemas[kind] = {'oneOf': branches}
+    argument_schemas.update(
+        boolean_value=arg_schema({'enabled': {'type': 'boolean'}}),
+        purchase_scroll=arg_schema({'direction': {'type': 'string', 'enum': list(SCROLL_DIRECTIONS)}, 'amount': {'type': 'string', 'enum': list(PURCHASE_AMOUNTS)}}),
+        purchase_position=arg_schema({'target': {'type': 'string', 'enum': list(PURCHASE_SCROLL_HANDLES)}}))
     execute_schema = {
         'type': 'object', 'properties': {
             'command_id': dict(opaque), 'epoch': dict(opaque), 'capability': dict(opaque),
@@ -952,11 +1089,11 @@ def definitions():
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /19: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes shown time-speed controls, Funding, Bases and Pause. Base screens expose painted local selection slots, displayed metrics and read-only Stores/Transfers projections. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered Fire/Prime/Throw rows through choose_weapon_action; the tactical grenade timer exposes only fully shown button labels and fresh local tN handles; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Inventory exposes the two painted hands, shown stock body cells and current painted ground page through local vN targets, actual shown text and held-sprite evidence; unknown item/held projection never asserts emptiness or eligibility. Standalone hover obtains ordinary rendered inspection text. Tactical viewport controls add ordinary view-level, layer-mode, camera pan and vertical-unit commands; layers_indicator1/2 is the painted display mode, never a world level. The minimap exposes its actual level label, bounded draw-derived terrain rectangles and generic unit/item markers with fresh local mN center targets; these reveal no identity, faction, world position, legal destination or item contents. Research and Manufacture expose bounded current/new project lists, actual displayed allocation/details and explicit ordinary accept/cancel/stop controls. New Research rows are in top-to-bottom admitted ordinary click-band order. A null first cell is an admitted row control with unavailable complete text, never a project name; select_research_project has the semantic label Select research project there. Other project tables retain complete string cells. Project labels and grant-local rows reveal no stable identity or hidden recipe; rendered counts remain text, without computed eligibility. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings, quantity/sale/infinite production controls or unlisted strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /21: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes shown time-speed controls, Funding, Bases and Pause. Base screens expose painted local selection slots, displayed metrics and read-only Stores/Transfers projections. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered Fire/Prime/Throw rows through choose_weapon_action; the tactical grenade timer exposes only fully shown button labels and fresh local tN handles; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Inventory exposes the two painted hands, shown stock body cells and current painted ground page through local vN targets, actual shown text and held-sprite evidence; unknown item/held projection never asserts emptiness or eligibility. Standalone hover obtains ordinary rendered inspection text. Tactical viewport controls add ordinary view-level, layer-mode, camera pan and vertical-unit commands; layers_indicator1/2 is the painted display mode, never a world level. The minimap exposes its actual level label, bounded draw-derived terrain rectangles and generic unit/item markers with fresh local mN center targets; these reveal no identity, faction, world position, legal destination or item contents. Research and Manufacture expose bounded current/new project lists, actual displayed allocation/details and explicit ordinary accept/cancel/stop controls. New Research rows are in top-to-bottom admitted ordinary click-band order. A null first cell is an admitted row control with unavailable complete text, never a project name; select_research_project has the semantic label Select research project there. Other project tables retain complete string cells. Project labels and grant-local rows reveal no stable identity or hidden recipe; rendered counts remain text, without computed eligibility. Unsupported screens have an empty catalog. Manufacture additionally exposes shown quantity direction controls and Sell state. Purchase exposes bounded nullable displayed cells independently of shown quantity arrows, a category dropdown and local scroll-position targets. Empty or unknown text never establishes item identity, stock or eligibility. No campaign save/load/overwrite, file rows, arbitrary settings or unlisted strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, minimap, inventory, enemy-button, hand, weapon-action and grenade-timer handles must come from the same fresh grant. Timer selection dispatch does not establish activation; require the later actual rendered warning. Throw target dispatch does not establish flight, landing, detonation or a hit. Timer cancel follows the ordinary popup cancel handler. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. View-level controls may clamp at a boundary; vertical-unit controls may silently refuse. Camera pan is an ordinary directional step, and minimap_center uses only a fresh listed local point. Dispatch never establishes camera motion, level change, movement eligibility or unit movement. Funding, Stores and Transfers rows cannot be selected. Geoscape speed and base-slot handles are fresh local painted choices; they expose no base existence, persistent identity or eligibility. Ordinary speed controls advance real game time; opening Bases can reset the speed through its normal handler. Shown base labels and metric strings are not recomputed from hidden state. Empty admitted tables do not prove empty stores or transfers. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. Select New Research using a freshly offered row handle, including an admitted unknown-label row; never infer its name from the handle or array order. Read the later complete detail title before claiming a shown project name. Selecting a new Research row immediately creates a project and can consume an item and ordinary RNG. accept_research retains the project/assignments; cancel_research_project removes it and follows ordinary unfinished-item/staff refund rules. start_production opens allocation and creates a Production. accept_production charges the first unit/materials for a new production, while existing-project acceptance does not charge again. stop_production removes it and releases assigned staff without refunding already spent costs. Only cancel_production_start is the ordinary side-effect-free detail return; there is no generic allocation cancel. adjust_scientists/adjust_engineers make one ordinary increase/decrease step from a currently shown direction, with ordinary clamping or refusal. Fresh displayed rows/text are required to establish changes or postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, minimap, inventory, enemy-button, hand, weapon-action and grenade-timer handles must come from the same fresh grant. Timer selection dispatch does not establish activation; require the later actual rendered warning. Throw target dispatch does not establish flight, landing, detonation or a hit. Timer cancel follows the ordinary popup cancel handler. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. View-level controls may clamp at a boundary; vertical-unit controls may silently refuse. Camera pan is an ordinary directional step, and minimap_center uses only a fresh listed local point. Dispatch never establishes camera motion, level change, movement eligibility or unit movement. Funding, Stores and Transfers rows cannot be selected. Geoscape speed and base-slot handles are fresh local painted choices; they expose no base existence, persistent identity or eligibility. Ordinary speed controls advance real game time; opening Bases can reset the speed through its normal handler. Shown base labels and metric strings are not recomputed from hidden state. Empty admitted tables do not prove empty stores or transfers. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. Select New Research using a freshly offered row handle, including an admitted unknown-label row; never infer its name from the handle or array order. Read the later complete detail title before claiming a shown project name. Selecting a new Research row immediately creates a project and can consume an item and ordinary RNG. accept_research retains the project/assignments; cancel_research_project removes it and follows ordinary unfinished-item/staff refund rules. start_production opens allocation and creates a Production. accept_production charges the first unit/materials for a new production, while existing-project acceptance does not charge again. stop_production removes it and releases assigned staff without refunding already spent costs. Only cancel_production_start is the ordinary side-effect-free detail return; there is no generic allocation cancel. adjust_scientists/adjust_engineers make one ordinary increase/decrease step from a currently shown direction, with ordinary clamping or refusal. Direct change_production_quantity and change_purchase_quantity apply bounded adjust, finite set, max or clear through shared ordinary semantic helpers. Positive adjust/max needs a shown increase control; negative adjust/clear needs decrease; set needs both. Ordinary clamping, resource limits and warnings still apply. max for units follows ordinary craft/noncraft behavior; clear means the ordinary minimum, which need not be zero. set_production_sell takes the desired boolean. Purchase changes remain a draft until accept_purchase commits ordinary costs/transfers; cancel_purchase discards the draft. scroll_purchase makes one semantic step/page/end and position_purchase_list uses a fresh advertised local target. None of these commands accepts pointer gestures, durations, holds or repeat counts. Fresh displayed rows/text are required to establish changes or postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
@@ -1003,6 +1140,9 @@ class AgentControlClient:
         self.base_targets = frozenset()
         self.project_rows = frozenset()
         self.staff_directions = frozenset()
+        self.quantity_directions = frozenset()
+        self.purchase_rows = frozenset()
+        self.purchase_targets = frozenset()
         self.capability_deadline = 0.0
         self.event_sequence = 0
         self.audio_history = None
@@ -1034,6 +1174,9 @@ class AgentControlClient:
         self.base_targets = frozenset()
         self.project_rows = frozenset()
         self.staff_directions = frozenset()
+        self.quantity_directions = frozenset()
+        self.purchase_rows = frozenset()
+        self.purchase_targets = frozenset()
         self.public_event_records = {}
         if channel is not None:
             channel.close()
@@ -1100,6 +1243,9 @@ class AgentControlClient:
                 self.base_targets = frozenset()
                 self.project_rows = frozenset()
                 self.staff_directions = frozenset()
+                self.quantity_directions = frozenset()
+                self.purchase_rows = frozenset()
+                self.purchase_targets = frozenset()
                 obj = validate_state(parse(self.exchange(('R ' + challenge).encode('ascii'))), challenge, self.epoch)
                 require(obj['revision'] >= (self.revision if self.revision is not None else 0)
                         and obj['event_sequence'] >= self.event_sequence)
@@ -1111,9 +1257,9 @@ class AgentControlClient:
                 self.available_actions = frozenset(action['id'] for action in obj['actions'])
                 if obj['state'] == 'new_battle':
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
-                if obj['state'] == 'new_battle_dropdown':
+                if obj['state'] in ('new_battle_dropdown', 'purchase_category'):
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
-                if obj['state'] in ('new_battle_dropdown', 'funding', 'base_stores', 'base_transfers', 'manufacture_start') or obj['state'] in PROJECT_LISTS:
+                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'funding', 'base_stores', 'base_transfers', 'manufacture_start') or obj['state'] in PROJECT_LISTS:
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
                 if obj['state'] == 'geoscape':
                     self.geoscape_speeds = frozenset(speed['handle'] for speed in obj['visible']['speeds'])
@@ -1123,6 +1269,12 @@ class AgentControlClient:
                     self.project_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
                 if obj['state'] in PROJECT_STAFF_ACTIONS:
                     self.staff_directions = frozenset(button['id'] for button in obj['visible']['buttons'] if button['id'] in STAFF_DIRECTIONS)
+                if obj['state'] == 'manufacture_info':
+                    self.quantity_directions = frozenset((entry['control'], direction) for entry in obj['visible']['quantity_controls'] for direction in STAFF_DIRECTIONS if entry[direction])
+                if obj['state'] == 'purchase':
+                    self.purchase_rows = frozenset((entry['handle'], direction) for entry in obj['visible']['rows'] for direction in entry['controls'])
+                    bar = obj['visible']['scrollbar']
+                    self.purchase_targets = frozenset(entry['handle'] for entry in bar['targets']) if bar is not None else frozenset()
                 if obj['state'] == 'new_game':
                     self.difficulty_values = frozenset(choice['value'] for choice in obj['visible']['difficulty'])
                 if obj['state'] == 'build_base' and obj['visible']['globe'] is not None:
@@ -1196,6 +1348,17 @@ class AgentControlClient:
                 require(args['row'] in self.visible_rows)
             elif action == 'scroll_visible_list':
                 require(args['direction'] in self.scroll_directions)
+            elif action in ('change_production_quantity', 'change_purchase_quantity'):
+                key = args['control'] if action == 'change_production_quantity' else args['row']
+                shown = self.quantity_directions if action == 'change_production_quantity' else self.purchase_rows
+                operation = args['operation']
+                required = (STAFF_DIRECTIONS if operation == 'set' else
+                            ('increase',) if operation == 'max' or (operation == 'adjust' and args['value'] > 0) else ('decrease',))
+                require(all((key, direction) in shown for direction in required))
+            elif action == 'scroll_purchase':
+                require(args['direction'] in self.scroll_directions)
+            elif action == 'position_purchase_list':
+                require(args['target'] in self.purchase_targets)
             elif action == 'place_base_site':
                 require(self.viewport_bounds is not None)
                 require(args['x'] < self.viewport_bounds[0] and args['y'] < self.viewport_bounds[1]
@@ -1245,6 +1408,9 @@ class AgentControlClient:
             self.base_targets = frozenset()
             self.project_rows = frozenset()
             self.staff_directions = frozenset()
+            self.quantity_directions = frozenset()
+            self.purchase_rows = frozenset()
+            self.purchase_targets = frozenset()
             self.state = 'PENDING'
             self.commands[command_id] = {'request': request, 'result': None}
             attempted = False

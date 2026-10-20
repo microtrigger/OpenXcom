@@ -18,7 +18,8 @@ struct AgentRequest {
     std::string id, epoch, capability, action, challenge;
     std::uint64_t revision = 0, after = 0;
     unsigned limit = 0;
-    std::string choice, text;
+    std::string choice, text, control, operation, direction, amount;
+    int value = 0;
     bool desired = false;
     int x = 0, y = 0;
 };

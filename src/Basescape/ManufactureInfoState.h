@@ -18,6 +18,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#include "../Savegame/ProductionCommands.h"
 
 namespace OpenXcom
 {
@@ -38,6 +39,8 @@ class InteractiveSurface;
  */
 class ManufactureInfoState : public State
 {
+    ProductionDraft _productionDraft;
+    void applyQuantityResult(const ProductionCommandResult &result);
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	std::uint64_t _agentProjectRevision = 0;
@@ -59,6 +62,7 @@ private:
 	int getMonthlyNetFunds () const;
 	/// Handler for the Sell button.
 	void btnSellClick (Action * action);
+	void btnSellPress(Action *action);
 	/// Handler for the Stop button.
 	void btnStopClick (Action * action);
 	/// Handler for the OK button.

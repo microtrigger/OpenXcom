@@ -24,6 +24,8 @@ def descriptors(obj, ids):
     visible=obj['visible'];buttons={x['id']:x['label'] for x in visible['buttons']}
     mapping=a.PROJECT_BUTTON_ACTIONS.get(obj['state'],a.BASE_BUTTON_ACTIONS.get(obj['state'],{}))
     def label(action):
+        if action in a.QUANTITY_SEMANTIC_LABELS:return a.QUANTITY_SEMANTIC_LABELS[action]
+        if action=='set_production_sell':return visible['sell']['label']
         if obj['state']=='new_research' and action=='select_research_project':return 'Select research project'
         if action==a.PROJECT_SELECTION_ACTIONS.get(obj['state']):return visible['rows'][0]['cells'][0]
         if action==a.PROJECT_STAFF_ACTIONS.get(obj['state']):return next(buttons[x] for x in a.STAFF_DIRECTIONS if x in buttons)
@@ -49,8 +51,8 @@ def sized_project(size):
 
 class ProjectsContractTests(unittest.TestCase):
     def test_wire_catalog_limits_and_exact_new_kinds(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/19')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(82,36,4))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/21')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(91,38,4))
         self.assertEqual(len(NEW_STATES),7);self.assertEqual(len(NEW_ACTIONS),16)
         typed={'select_research_project':'project_row','select_production_project':'project_row',
                'adjust_scientists':'staff_direction','adjust_engineers':'staff_direction'}
@@ -58,7 +60,7 @@ class ProjectsContractTests(unittest.TestCase):
         self.assertEqual((a.MAX_COMMANDS,a.EVENT_CAPACITY,a.MAX_TEXT_PACKET,a.MAX_PACKET),(256,256,32768,49152))
 
     def test_every_prior_wire_rejected(self):
-        for version in range(1,19):
+        for version in range(1,21):
             obj=state(screen='research');obj['schema']=f'openxcom-agent-control/{version}'
             with self.subTest(version=version),self.assertRaises(Unavailable):checked(obj)
             with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
@@ -191,6 +193,7 @@ class ProjectsContractTests(unittest.TestCase):
             obj=state(screen=screen);obj['visible']['buttons']=[x for x in obj['visible']['buttons'] if x['id'] not in a.STAFF_DIRECTIONS]
             with self.assertRaises(Unavailable):checked(obj)
             obj=state(screen=screen);obj['visible']['buttons']=[x for x in obj['visible']['buttons'] if x['id']!='increase']
+            if screen=='manufacture_info':obj['visible']['quantity_controls'][0]['increase']=False
             descriptors(obj,[x['id'] for x in obj['actions']]);checked(obj)
             self.assertEqual(next(x['label'] for x in obj['actions'] if x['id']==action),'Decrease')
 
@@ -283,6 +286,7 @@ class ProjectsClientTests(unittest.TestCase):
         def only_decrease(op,obj):
             if op=='R':
                 obj['visible']['buttons']=[x for x in obj['visible']['buttons'] if x['id']!='increase']
+                if obj['state']=='manufacture_info':obj['visible']['quantity_controls'][0]['increase']=False
                 descriptors(obj,[x['id'] for x in obj['actions']])
             return obj
         for screen,action in a.PROJECT_STAFF_ACTIONS.items():

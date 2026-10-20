@@ -22,6 +22,9 @@
 #include "../Engine/Action.h"
 #include "TextList.h"
 #include "../Engine/Palette.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -171,14 +174,51 @@ void ScrollBar::handle(Action *action, State *state)
  */
 void ScrollBar::blit(Surface *surface)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentPainted = false;
+#endif
 	Surface::blit(surface);
 	if (_visible && !_hidden)
 	{
 		_track->blit(surface);
 		_thumb->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		const SDL_Rect clip = surface->getSurface()->clip_rect;
+		_agentTrackPaint = {static_cast<Sint16>(getX()), static_cast<Sint16>(getY()),
+			static_cast<Uint16>(getWidth()), static_cast<Uint16>(getHeight())};
+		_agentThumbPaint = _thumbRect;
+		_agentThumbPaint.x += getX(); _agentThumbPaint.y += getY();
+		const auto inside = [](const SDL_Rect &a, const SDL_Rect &b) { return a.w && a.h && a.x >= b.x && a.y >= b.y &&
+			a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h; };
+		_agentPainted = _list && Observer::agentPaintHealthy() && Surface::agentContextVisible() &&
+			_track->agentContextVisible() && _thumb->agentContextVisible() &&
+			_track->getX() == getX() + 1 && _track->getY() == getY() && _track->getWidth() == getWidth() - 2 &&
+			_track->getHeight() == getHeight() && _thumb->getX() == getX() && _thumb->getY() == getY() &&
+			_thumb->getWidth() == getWidth() && _thumb->getHeight() == getHeight() &&
+			inside(_agentTrackPaint, clip) && inside(_agentThumbPaint, _agentTrackPaint) &&
+			_agentThumbPaint.h < _agentTrackPaint.h;
+		if (_agentPainted) _agentListPaintRevision = _list->agentListRevision();
+#endif
 		invalidate();
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ScrollBar::agentPaintGeometry(SDL_Rect &track, SDL_Rect &thumb) const
+{
+	// This composite intentionally invalidates itself after every ordinary blit.
+	// Its children and recorded destination clip prove the last completed paint.
+	if (!_agentPainted || !_visible || _hidden || _crop.w || _crop.h || !_list ||
+		_agentListPaintRevision != _list->agentListRevision() || !Observer::agentPaintHealthy() ||
+		!_track->agentContextVisible() || !_thumb->agentContextVisible() ||
+		_agentTrackPaint.x != getX() || _agentTrackPaint.y != getY() ||
+		_agentTrackPaint.w != getWidth() || _agentTrackPaint.h != getHeight() ||
+		_agentThumbPaint.x != getX() + _thumbRect.x || _agentThumbPaint.y != getY() + _thumbRect.y ||
+		_agentThumbPaint.w != _thumbRect.w || _agentThumbPaint.h != _thumbRect.h) return false;
+	track = _agentTrackPaint; thumb = _agentThumbPaint;
+	return true;
+}
+#endif
 
 /**
  * The scrollbar only moves while the button is pressed.
