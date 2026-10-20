@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/16"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/17"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/16\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/17\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -43,10 +43,16 @@ bool agentActionId(const std::string &value)
         value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page" ||
         value == "view_level_up" || value == "view_level_down" || value == "toggle_layers" ||
         value == "open_minimap" || value == "close_minimap" || value == "unit_up" || value == "unit_down" ||
-        value == "camera_pan" || value == "minimap_center";
+        value == "camera_pan" || value == "minimap_center" ||
+        value == "choose_geoscape_speed" || value == "select_base" || value == "open_bases" ||
+        value == "return_geoscape" || value == "open_base_info" || value == "close_base_info" ||
+        value == "open_base_stores" || value == "close_base_stores" ||
+        value == "open_base_transfers" || value == "close_base_transfers";
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "choose_geoscape_speed") return "geoscape_speed";
+    if (action == "select_base") return "base_target";
     if (action == "map_primary" || action == "map_secondary") return "grid_cell";
     if (action == "center_enemy") return "enemy_button";
     if (action == "open_hand_action_menu") return "hand";
@@ -152,6 +158,15 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     {
         const char prefix = kind == "grid_cell" ? 'g' : (kind == "enemy_button" ? 'e' : (kind == "grenade_timer" ? 't' : 'a'));
         const unsigned maximum = kind == "grid_cell" ? 127 : (kind == "enemy_button" ? 9 : (kind == "grenade_timer" ? 23 : 5));
+        std::uint64_t index;
+        if (parts.size() != 7 || parts[6].empty() || parts[6][0] != prefix ||
+            !decimal(parts[6].substr(1), maximum, index)) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "geoscape_speed" || kind == "base_target")
+    {
+        const char prefix = kind == "geoscape_speed" ? 's' : 'b';
+        const unsigned maximum = kind == "geoscape_speed" ? 5 : 7;
         std::uint64_t index;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != prefix ||
             !decimal(parts[6].substr(1), maximum, index)) return false;

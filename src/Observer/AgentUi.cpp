@@ -41,7 +41,8 @@ bool AgentUiState::offers(const std::string &id) const
     return false;
 }
 bool agentProjectList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
-    unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection)
+    unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection,
+    const std::function<bool(const AgentUiState &)> &regionAllowed)
 {
     projection = AgentListProjection();
     std::vector<AgentListRow> rows;
@@ -56,6 +57,9 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
         std::vector<AgentUiRect> regions;
         for (const SDL_Rect &r : row.regions) regions.push_back({r.x, r.y, r.w, r.h});
         if (!agentRegionsUncovered(regions, owner, paintOrder)) continue;
+        AgentUiState candidate;
+        candidate.regions = regions;
+        if (regionAllowed && !regionAllowed(candidate)) continue;
         const std::size_t oldSize = ui.regions.size();
         ui.regions.insert(ui.regions.end(), regions.begin(), regions.end());
         if (!agentRegionsDisjoint(ui)) { ui.regions.resize(oldSize); continue; }
@@ -77,7 +81,8 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
         if (!agentWidgetVisible(arrow)) return false;
         AgentUiState footprint;
         agentIncludeWidget(footprint, arrow);
-        if (!agentRegionsUncovered(footprint.regions, arrow, paintOrder)) return false;
+        if (!agentRegionsUncovered(footprint.regions, arrow, paintOrder) ||
+            (regionAllowed && !regionAllowed(footprint))) return false;
         const std::size_t oldSize = ui.regions.size();
         ui.regions.insert(ui.regions.end(), footprint.regions.begin(), footprint.regions.end());
         if (!agentRegionsDisjoint(ui)) { ui.regions.resize(oldSize); return false; }

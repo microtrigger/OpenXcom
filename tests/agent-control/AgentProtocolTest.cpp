@@ -20,10 +20,11 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/16", "viewport schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/16\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/17", "viewport schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/17\",\"mode\":\"agent-control\"",
         "viewport envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/16", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/17", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/16", r), "previous viewport schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/15", r), "prior inventory schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/14", r), "prior renderer union rejected");
     check(!parseAgentRequest("H openxcom-agent-control/13", r), "prior64-target schema rejected");
@@ -40,7 +41,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/16\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/17\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -60,6 +61,41 @@ int main()
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
+    for (const char *action : {"open_bases", "return_geoscape", "open_base_info", "close_base_info",
+        "open_base_stores", "close_base_stores", "open_base_transfers", "close_base_transfers"})
+    {
+        check(agentActionId(action) && std::string(agentArgumentKind(action)) == "none" &&
+            parseAgentRequest(prefix + "12 " + action, r), "bounded base navigation without payload");
+        for (const char *extra : {"b0", "s0", "0", "1", "yes", "null"})
+            check(!parseAgentRequest(prefix + "12 " + action + " " + extra, r), "base navigation rejects payload");
+    }
+    for (const char *action : {"choose_geoscape_speed", "select_base"})
+    {
+        const bool speed = std::string(action) == "choose_geoscape_speed";
+        const std::string marker = speed ? "s" : "b";
+        check(agentActionId(action) && std::string(agentArgumentKind(action)) ==
+            (speed ? "geoscape_speed" : "base_target"), "closed strategic target kind");
+        for (unsigned i = 0; i < (speed ? 6u : 8u); ++i)
+        {
+            const std::string choice = marker + std::to_string(i);
+            check(parseAgentRequest(prefix + "9007199254740991 " + action + " " + choice, r) &&
+                r.kind == 'E' && r.action == action && r.choice == choice && r.id == token(3) &&
+                r.epoch == token(4) && r.capability == token(5) && r.revision == 9007199254740991ULL,
+                "every local strategic handle preserves identity");
+        }
+        check(!parseAgentRequest(prefix + "0 " + action, r), "strategic target required");
+        for (const char *suffix : {"", "00", "01", "-1", "+1", "1.0", "1e0", "0x1", "8", "99",
+            "18446744073709551616", "0 extra", "0 1", "0 ", "0\t", "0\n", "0\r"})
+            check(!parseAgentRequest(prefix + "0 " + action + " " + marker + suffix, r),
+                "noncanonical or unbounded strategic target rejected");
+        for (const char *other : {"g0", "m0", "v0", "r0", "e0", "a0", "0", "S0", "B0", " 0"})
+            check(!parseAgentRequest(prefix + "0 " + action + " " + other, r), "foreign strategic target rejected");
+        check(!parseAgentRequest(prefix + "0 " + action + (speed ? " b0" : " s0"), r), "other strategic kind rejected");
+    }
+    check(!parseAgentRequest(prefix + "0 choose_geoscape_speed s6", r), "seventh speed rejected");
+    check(!parseAgentRequest(prefix + "0 choose_geoscape_speed s7", r), "eighth speed rejected");
+    for (const char *alias : {"set_speed", "set_geoscape_speed", "choose_base", "open_base", "pause", "open_stores"})
+        check(!agentActionId(alias) && !parseAgentRequest(prefix + "0 " + alias, r), "unlisted strategic alias rejected");
     check(parseAgentRequest(prefix+"0 select_difficulty experienced",r) && r.choice=="experienced", "typed enum");
     check(!parseAgentRequest(prefix+"0 select_difficulty custom",r), "closed enum");
     check(!parseAgentRequest(prefix+"0 select_difficulty",r), "enum requires payload");

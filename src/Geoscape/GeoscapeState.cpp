@@ -413,7 +413,6 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 {
 	if (_modal) return false;
 	// Dogfight windows are painted after this state's ordinary surface list.
-	// Their independent projection is outside this read-only HUD slice.
 	if (!_dogfights.empty()) return false;
 	out = Observer::AgentUiState();
 	out.screen = "geoscape";
@@ -428,6 +427,7 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 	const Text *fields[] = {_txtHour, _txtMin, _txtSec, _txtWeekday, _txtDay, _txtMonth, _txtYear, _txtFunds};
 	const char *keys[] = {"hour", "minute", "second", "weekday", "day", "month", "year", "funds"};
 	out.visible = "{";
+	int left = fields[0]->getX(), top = fields[0]->getY(), right = left, bottom = top;
 	for (unsigned i = 0; i < 8; ++i)
 	{
 		std::string value = "null";
@@ -438,24 +438,44 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 		}
 		if (i) out.visible += ",";
 		out.visible += Observer::agentJsonString(keys[i]) + ":" + value;
+		left = std::min(left, fields[i]->getX());
+		top = std::min(top, fields[i]->getY());
+		right = std::max(right, fields[i]->getX() + fields[i]->getWidth());
+		bottom = std::max(bottom, fields[i]->getY() + fields[i]->getHeight());
 	}
+	// Text above still needs individual final-paint, clipping and coverage proof.
+	// Bind a conservative fixed HUD allocation union instead of changing glyph
+	// bounds. Cursor/FPS overlap checks retain coverage of every projected glyph,
+	// while an ordinary clock tick cannot revoke an unrelated button grant.
+	const Observer::AgentUiRect hud = {left, top, right - left, bottom - top};
+	if (!Observer::agentRegionVisible(hud)) return false;
+	out.regions.clear();
+	out.regions.push_back(hud);
 
 	const TextButton *speeds[] = {_btn5Secs, _btn1Min, _btn5Mins, _btn30Mins, _btn1Hour, _btn1Day};
-	const TextButton *selectedSpeed = nullptr;
+	std::string speed = "null", choices = "[", firstLabel;
 	unsigned selectedCount = 0;
-	for (const TextButton *button : speeds)
+	for (unsigned i = 0; i < 6; ++i)
 	{
+		const TextButton *button = speeds[i];
+		// Include every member's generation, including hidden members, to retain
+		// radio selection away/back (ABA) freshness without serializing identity.
+		out.widgets.push_back(std::make_pair(button, button->agentSelectionRevision()));
 		bool selected = false;
-		if (Observer::agentWidgetUncovered(button, _surfaces) && button->agentPressed(selected) && selected)
-		{
-			selectedSpeed = button;
-			++selectedCount;
-		}
+		if (!Observer::agentWidgetUncovered(button, _surfaces) || !button->agentPressed(selected)) continue;
+		const std::string label = Observer::agentButtonLabel(button);
+		if (label.empty() || !includeDisjoint(button)) continue;
+		if (selected) { speed = Observer::agentJsonString(label); ++selectedCount; }
+		if (out.rows.empty()) firstLabel = label; else choices += ",";
+		choices += "{\"handle\":\"s" + std::to_string(out.rows.size()) + "\",\"label\":" +
+			Observer::agentJsonString(label) + ",\"selected\":" + (selected ? "true" : "false") + "}";
+		out.rows.push_back(i);
 	}
-	std::string speed = "null";
-	if (selectedCount == 1 && includeDisjoint(selectedSpeed))
-		speed = Observer::agentJsonString(Observer::agentButtonLabel(selectedSpeed));
-	out.visible += ",\"speed\":" + speed + ",\"buttons\":[";
+	if (selectedCount > 1) return false;
+	choices += "]";
+	if (!out.rows.empty())
+		out.actions.push_back(Observer::AgentUiAction("choose_geoscape_speed", firstLabel, "visible_text", "geoscape_speed"));
+	std::string controls = "{\"speed\":" + speed + ",\"speeds\":" + choices + ",\"buttons\":[";
 
 	const TextButton *buttons[] = {_btnIntercept, _btnBases, _btnGraphs, _btnUfopaedia, _btnOptions, _btnFunding};
 	const char *ids[] = {"intercept", "bases", "graphs", "ufopaedia", "options", "funding"};
@@ -465,24 +485,46 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 		if (!Observer::agentWidgetUncovered(buttons[i], _surfaces)) continue;
 		const std::string label = Observer::agentButtonLabel(buttons[i]);
 		if (label.empty() || !includeDisjoint(buttons[i])) continue;
-        if (buttons[i] == _btnFunding)
-            out.actions.push_back(Observer::AgentUiAction("open_funding", label, "visible_text"));
-		if (count++) out.visible += ",";
-		out.visible += "{\"id\":" + Observer::agentJsonString(ids[i]) +
+		out.widgets.push_back(std::make_pair(buttons[i], buttons[i]->agentSelectionRevision()));
+		if (buttons[i] == _btnBases)
+			out.actions.push_back(Observer::AgentUiAction("open_bases", label, "visible_text"));
+		if (buttons[i] == _btnOptions)
+			out.actions.push_back(Observer::AgentUiAction("open_pause_menu", label, "visible_text"));
+		if (buttons[i] == _btnFunding)
+			out.actions.push_back(Observer::AgentUiAction("open_funding", label, "visible_text"));
+		if (count++) controls += ",";
+		controls += "{\"id\":" + Observer::agentJsonString(ids[i]) +
 			",\"label\":" + Observer::agentJsonString(label) + "}";
 	}
-	out.visible += "]}";
-	// Only the painted Funding navigation button is admitted in this slice.
+	controls += "]}";
+	out.visible += ",";
+	out.visible.append(controls, 1, std::string::npos);
+	out.controlVisible = controls;
 	return true;
 }
 
 bool GeoscapeState::agentDispatch(const std::string &action)
 {
-    Observer::AgentUiState current;
-    if (!agentUiState(current) || !current.offers(action)) return false;
-    if (action == "open_funding") { btnFundingClick(nullptr); return true; }
-    return false;
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(action)) return false;
+	if (action == "open_funding") { btnFundingClick(nullptr); return true; }
+	if (action == "open_bases") { btnBasesClick(nullptr); return true; }
+	if (action == "open_pause_menu") { btnOptionsClick(nullptr); return true; }
+	return false;
 }
+
+bool GeoscapeState::agentDispatch(const Observer::AgentRequest &request)
+{
+	if (request.action != "choose_geoscape_speed") return agentDispatch(request.action);
+	Observer::AgentUiState current;
+	if (!agentUiState(current) || !current.offers(request.action) || request.choice.size() != 2 ||
+		request.choice[0] != 's' || request.choice[1] < '0' || request.choice[1] > '5') return false;
+	const unsigned slot = static_cast<unsigned>(request.choice[1] - '0');
+	if (slot >= current.rows.size()) return false;
+	TextButton *speeds[] = {_btn5Secs, _btn1Min, _btn5Mins, _btn30Mins, _btn1Hour, _btn1Day};
+	return selectGeoscapeSpeed(speeds[current.rows[slot]]);
+}
+
 #endif
 
 /**
@@ -1868,10 +1910,7 @@ void GeoscapeState::time1Month()
  */
 void GeoscapeState::timerReset()
 {
-	SDL_Event ev;
-	ev.button.button = SDL_BUTTON_LEFT;
-	Action act(&ev, _game->getScreen()->getXScale(), _game->getScreen()->getYScale(), _game->getScreen()->getCursorTopBlackBand(), _game->getScreen()->getCursorLeftBlackBand());
-	_btn5Secs->mousePress(&act, this);
+	selectGeoscapeSpeed(_btn5Secs);
 }
 
 /**
@@ -2746,11 +2785,16 @@ bool GeoscapeState::processCommand(RuleMissionScript *command)
  */
 void GeoscapeState::btnTimerClick(Action *action)
 {
-	SDL_Event ev;
-	ev.type = SDL_MOUSEBUTTONDOWN;
-	ev.button.button = SDL_BUTTON_LEFT;
-	Action a = Action(&ev, 0.0, 0.0, 0, 0);
-	action->getSender()->mousePress(&a, this);
+	if (action) selectGeoscapeSpeed(dynamic_cast<TextButton *>(action->getSender()));
+}
+
+/** Selects one owned speed button through the ordinary radio-group operation. */
+bool GeoscapeState::selectGeoscapeSpeed(TextButton *button)
+{
+	TextButton *speeds[] = {_btn5Secs, _btn1Min, _btn5Mins, _btn30Mins, _btn1Hour, _btn1Day};
+	for (TextButton *speed : speeds)
+		if (speed == button) return speed->selectRadio();
+	return false;
 }
 
 /**

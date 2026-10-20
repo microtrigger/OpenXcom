@@ -66,7 +66,18 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     elif screen == 'geoscape':
         visible = {field: field.title() for field in a.GEOSCAPE_FIELDS}
         visible['buttons'] = [dict(id=value, label=value.title()) for value in a.GEOSCAPE_BUTTONS]
+        visible.update(speed=None, speeds=[])
         ids = ['open_funding']
+    elif screen in ('basescape', 'base_info'):
+        visible = dict(base_name='Base',base_slots=[dict(handle='b0',selected=True),dict(handle='b1',selected=False)],
+                       buttons=[dict(id=key,label=key.title()) for key in a.BASE_BUTTONS[screen]])
+        if screen == 'basescape': visible.update(location='Area',funds='$1,000')
+        else: visible.update(personnel_heading='Personnel',space_heading='Space',metrics=[dict(label='Soldiers',value='10:20')])
+        ids=sorted(a.STATE_ACTIONS[screen])
+    elif screen in ('base_stores', 'base_transfers'):
+        visible=dict(title='Stores' if screen=='base_stores' else 'Transfers', headings=['Item','Quantity','Size'],
+                     rows=[dict(handle='r0',cells=['Rifle','2','0.2'],selected=False)],scroll=dict(up=True,down=True))
+        ids=sorted(a.STATE_ACTIONS[screen])
     elif screen == 'new_battle_dropdown':
         visible = dict(control='mission', label='Mission',
                        rows=[dict(handle='r0', cells=['Ground assault'], selected=False),
@@ -83,9 +94,15 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         visible, ids, capability = {}, [], None
     if not ids:
         capability = None
+    def action_label(action):
+        if action == 'select_base': return 'Select base'
+        mapping = ({'open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if screen=='geoscape'
+                   else a.BASE_BUTTON_ACTIONS.get(screen,{}))
+        if action in mapping: return next(x['label'] for x in visible['buttons'] if x['id']==mapping[action])
+        return (visible['rows'][0]['label'] if action == 'choose_weapon_action' else visible['timers'][0]['label'] if action == 'choose_grenade_timer' else 'Cancel timer' if action == 'cancel_grenade_timer' else action.replace('_', ' ').title())
     return dict(schema=a.SCHEMA, mode=a.MODE, type='state', challenge=challenge, epoch=EPOCH,
                 revision=revision, capability=capability, state=screen, visible=visible,
-                actions=[dict(id=action, label=(visible['rows'][0]['label'] if action == 'choose_weapon_action' else visible['timers'][0]['label'] if action == 'choose_grenade_timer' else 'Cancel timer' if action == 'cancel_grenade_timer' else action.replace('_', ' ').title()),
+                actions=[dict(id=action, label=action_label(action),
                               label_source=a.label_source(screen, action), argument_kind=a.ARGUMENT_KINDS[action]) for action in ids],
                 event_sequence=event_sequence, semantics='presented_after_request')
 
@@ -100,7 +117,8 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'map_secondary': {'cell':'g0'}, 'center_enemy': {'button':'e0'},
                 'open_hand_action_menu': {'hand':'left'}, 'choose_weapon_action': {'row':'a0'}, 'inventory_hover': {'target':'v0'},
                 'inventory_activate': {'target':'v0'}, 'choose_grenade_timer': {'timer':'t0'},
-                'camera_pan': {'direction':'left'}, 'minimap_center': {'target':'m0'}}.get(action, {})
+                'camera_pan': {'direction':'left'}, 'minimap_center': {'target':'m0'},
+                'choose_geoscape_speed': {'speed':'s0'}, 'select_base': {'target':'b0'}}.get(action, {})
     return {**{k: obj[k] for k in ('epoch', 'capability', 'revision')}, 'command_id': command_id, 'action': action, 'args': args}
 
 
@@ -298,7 +316,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 56); self.assertEqual(len(a.STATE_ACTIONS), 25)
+        self.assertEqual(len(a.ACTIONS), 66); self.assertEqual(len(a.STATE_ACTIONS), 29)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -345,7 +363,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 56)
+        self.assertEqual(len(a.ACTIONS), 66)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
@@ -353,7 +371,8 @@ class TypedValidationTests(unittest.TestCase):
             'scroll_visible_list': 'scroll_direction', 'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
             'center_enemy': 'enemy_button', 'open_hand_action_menu': 'hand', 'choose_weapon_action': 'weapon_action',
             'inventory_hover': 'inventory_target', 'inventory_activate': 'inventory_target', 'choose_grenade_timer': 'grenade_timer',
-            'camera_pan': 'camera_direction', 'minimap_center': 'minimap_target'})
+            'camera_pan': 'camera_direction', 'minimap_center': 'minimap_target',
+            'choose_geoscape_speed': 'geoscape_speed', 'select_base': 'base_target'})
         for screen in a.STATE_ACTIONS:
             obj = state(screen=screen)
             for descriptor in obj['actions']:
@@ -477,7 +496,7 @@ class TypedValidationTests(unittest.TestCase):
         changed = copy.deepcopy(obj); changed['actions'] = state()['actions']; cases.append(changed)
         for changed in cases:
             with self.subTest(changed=changed), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
-        obj['visible'] = dict.fromkeys(a.GEOSCAPE_FIELDS); obj['visible']['buttons'] = []
+        obj['visible'] = dict.fromkeys(a.GEOSCAPE_FIELDS); obj['visible'].update(buttons=[],speeds=[])
         obj.update(actions=[], capability=None)
         a.validate_state(obj, CHALLENGE, EPOCH)
 
@@ -513,7 +532,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/16')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/17')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -527,7 +546,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/16']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/17']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -864,7 +883,7 @@ class ListValidationTests(unittest.TestCase):
         expected = {
             'new_battle': {'start_battle', 'cancel_menu', 'open_new_battle_choice'},
             'new_battle_dropdown': {'choose_visible_row', 'scroll_visible_list', 'close_dropdown'},
-            'funding': {'scroll_visible_list', 'close_funding'}, 'geoscape': {'open_funding'},
+            'funding': {'scroll_visible_list', 'close_funding'}, 'geoscape': {'open_funding', 'open_bases', 'open_pause_menu', 'choose_geoscape_speed'},
         }
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
@@ -1146,7 +1165,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.16.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.17.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -1243,9 +1262,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/16',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/16'
-send(dict(schema='openxcom-agent-control/16',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/17',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/17'
+send(dict(schema='openxcom-agent-control/17',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1290,9 +1309,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/16',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/16'
-send(dict(schema='openxcom-agent-control/16',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/17',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/17'
+send(dict(schema='openxcom-agent-control/17',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1323,9 +1342,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/16', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/17', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/16'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/17'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

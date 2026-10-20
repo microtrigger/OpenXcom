@@ -37,6 +37,12 @@
 #include "StoresState.h"
 #include "BasescapeState.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProjectileOutput.h"
+#include "../Engine/Screen.h"
+#endif
+
 namespace OpenXcom
 {
 
@@ -453,5 +459,104 @@ void BaseInfoState::btnMonthlyCostsClick(Action *)
 {
 	_game->pushState(new MonthlyCostsState(_base));
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (_modal || !_game->isState(const_cast<BaseInfoState *>(this)) || !agentPaintHealthy()) return false;
+    out=AgentUiState(); out.screen="base_info"; out.actor=_base;
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    const auto include=[&](const Surface *widget)->bool
+    {
+        if (!agentWidgetUncovered(widget,painted)) return false;
+        AgentUiState part; agentIncludeWidget(part,widget);
+        if (part.regions.empty() || !_game->agentOverlayClear(part)) return false;
+        const auto old=out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (!agentRegionsDisjoint(out)) { out.regions.resize(old); return false; }
+        return true;
+    };
+    const auto text=[&](const Text *widget)->std::string
+    {
+        const auto value=agentTextJson(widget);
+        return value!="null" && include(widget) ? value : "null";
+    };
+    std::string name="null",shown;
+    SDL_Rect nameInk;
+    if (_edtBase && _edtBase->agentRenderedText(shown) && shown.size()<=1024 && _edtBase->agentRenderedBounds(nameInk))
+    {
+        AgentUiState part; part.regions.push_back({nameInk.x,nameInk.y,nameInk.w,nameInk.h});
+        if (agentRegionsUncovered(part.regions,_edtBase,painted) && _game->agentOverlayClear(part))
+        {
+            const auto old=out.regions.size(); out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+            if (agentRegionsDisjoint(out)) name=agentJsonString(shown); else out.regions.resize(old);
+        }
+    }
+    if (_edtBase) out.widgets.push_back({_edtBase,_edtBase->agentInputRevision()});
+    std::string slots="[";
+    if (_mini)
+    {
+        out.widgets.push_back({_mini,_mini->agentRevision()});
+        AgentProjectileOutput output;
+        if (agentWidgetVisible(_mini) && _game->getScreen()->agentCaptureOutput(_mini,output))
+            for (const auto &slot:_mini->agentSlots(output))
+            {
+                AgentUiState part; part.regions.push_back({_mini->getX()+int(slot.slot)*16,_mini->getY(),16,16});
+                if (!agentRegionsUncovered(part.regions,_mini,painted) || !_game->agentOverlayClear(part)) continue;
+                const auto old=out.regions.size(); out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+                if (!agentRegionsDisjoint(out)) { out.regions.resize(old); continue; }
+                if (!out.rows.empty()) slots+=",";
+                slots+="{\"handle\":\"b"+std::to_string(out.rows.size())+"\",\"selected\":"+(slot.selected?"true":"false")+"}";
+                out.rows.push_back(slot.slot);
+            }
+    }
+    slots+="]";
+    if (!out.rows.empty()) out.actions.emplace_back("select_base","Select base","visible_control_semantics","base_target");
+    std::string buttons="[";
+    const auto button=[&](TextButton *widget,const char *id,const char *action)
+    {
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return;
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
+        out.actions.emplace_back(action,label,"visible_text");
+    };
+    const auto personnel=text(_txtPersonnel),space=text(_txtSpace);
+    std::string metrics="[";
+    const auto metric=[&](const Text *labelWidget,const Text *valueWidget)
+    {
+        const auto label=text(labelWidget);
+        if (label=="null" || label=="\"\"") return;
+        const auto value=text(valueWidget);
+        if (metrics.size()>1) metrics+=",";
+        metrics+="{\"label\":"+label+",\"value\":"+value+"}";
+    };
+    metric(_txtSoldiers,_numSoldiers); metric(_txtEngineers,_numEngineers); metric(_txtScientists,_numScientists);
+    metric(_txtQuarters,_numQuarters); metric(_txtStores,_numStores); metric(_txtLaboratories,_numLaboratories); metric(_txtWorkshops,_numWorkshops);
+    if (Options::storageLimitsEnforced) metric(_txtContainment,_numContainment);
+    metric(_txtHangars,_numHangars); metric(_txtDefense,_numDefense); metric(_txtShortRange,_numShortRange); metric(_txtLongRange,_numLongRange); metrics+="]";
+    button(_btnOk,"ok","close_base_info"); button(_btnStores,"stores","open_base_stores"); button(_btnTransfers,"transfers","open_base_transfers"); buttons+="]";
+    out.visible="{\"base_name\":"+name+",\"base_slots\":"+slots+",\"personnel_heading\":"+personnel+",\"space_heading\":"+space+",\"metrics\":"+metrics+",\"buttons\":"+buttons+"}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
+}
+
+bool BaseInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;
+    if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if (request.action=="select_base")
+    {
+        if (request.choice.size()!=2 || request.choice[0]!='b' || request.choice[1]<'0' || request.choice[1]>'7') return false;
+        const unsigned index=request.choice[1]-'0';
+        if (index>=fresh.rows.size()) return false;
+        _mini->hoverAt(int(fresh.rows[index])*16+8); miniClick(nullptr); return true;
+    }
+    if (request.action=="close_base_info") { btnOkClick(nullptr); return true; }
+    if (request.action=="open_base_stores") { btnStoresClick(nullptr); return true; }
+    if (request.action=="open_base_transfers") { btnTransfersClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

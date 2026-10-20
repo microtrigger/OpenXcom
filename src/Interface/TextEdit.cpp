@@ -467,6 +467,14 @@ bool TextEdit::agentRenderedText(std::string &text) const
 	return true;
 }
 
+bool TextEdit::agentRenderedBounds(SDL_Rect &bounds) const
+{
+    std::string text;
+    if (!agentRenderedText(text) || !_text->agentPaintedBounds(bounds)) return false;
+    bounds.x += getX(); bounds.y += getY();
+    return true;
+}
+
 bool TextEdit::agentCaretBounds(SDL_Rect &bounds) const
 {
 	if (!Observer::agentWidgetVisible(this) || !_agentCaretPainted) return false;

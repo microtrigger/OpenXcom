@@ -45,6 +45,11 @@ private:
 	Base *_base;
 	Globe *_globe;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
+
 	/// Creates the Basescape state.
 	BasescapeState(Base *base, Globe *globe);
 	/// Cleans up the Basescape state.

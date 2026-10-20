@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/16'
+SCHEMA = 'openxcom-agent-control/17'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -49,7 +49,10 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'cancel_inventory_hold', 'unload_inventory', 'next_inventory_ground_page',
            'choose_grenade_timer', 'cancel_grenade_timer',
            'view_level_up', 'view_level_down', 'toggle_layers', 'open_minimap',
-           'close_minimap', 'minimap_center', 'camera_pan', 'unit_up', 'unit_down')
+           'close_minimap', 'minimap_center', 'camera_pan', 'unit_up', 'unit_down',
+           'choose_geoscape_speed', 'open_bases', 'select_base', 'open_base_info',
+           'close_base_info', 'return_geoscape', 'open_base_stores', 'close_base_stores',
+           'open_base_transfers', 'close_base_transfers')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -61,6 +64,11 @@ GRENADE_TIMER_HANDLES = tuple(f't{index}' for index in range(24))
 HANDS = ('left', 'right')
 CAMERA_DIRECTIONS = ('left', 'right', 'up', 'down')
 MINIMAP_TARGET_HANDLES = tuple(f'm{index}' for index in range(160))
+GEOSCAPE_SPEED_HANDLES = tuple(f's{index}' for index in range(6))
+BASE_TARGET_HANDLES = tuple(f'b{index}' for index in range(8))
+BASE_BUTTONS = {'basescape': ('base_info', 'geoscape'), 'base_info': ('ok', 'stores', 'transfers')}
+BASE_BUTTON_ACTIONS = {'basescape': {'open_base_info': 'base_info', 'return_geoscape': 'geoscape'},
+                       'base_info': {'close_base_info': 'ok', 'open_base_stores': 'stores', 'open_base_transfers': 'transfers'}}
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
@@ -71,7 +79,8 @@ ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',
                       center_enemy='enemy_button', open_hand_action_menu='hand', choose_weapon_action='weapon_action',
                       inventory_hover='inventory_target', inventory_activate='inventory_target',
                       choose_grenade_timer='grenade_timer', camera_pan='camera_direction',
-                      minimap_center='minimap_target')
+                      minimap_center='minimap_target', choose_geoscape_speed='geoscape_speed',
+                      select_base='base_target')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
@@ -104,7 +113,11 @@ STATE_ACTIONS = {
     'new_game': frozenset(('cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game')),
     'base_name': frozenset(('replace_base_name', 'confirm_base_name')),
     'build_base': frozenset(('place_base_site',)),
-    'geoscape': frozenset(('open_funding',)),
+    'geoscape': frozenset(('open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
+    'basescape': frozenset(('select_base', 'open_base_info', 'return_geoscape')),
+    'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers')),
+    'base_stores': frozenset(('scroll_visible_list', 'close_base_stores')),
+    'base_transfers': frozenset(('scroll_visible_list', 'close_base_transfers')),
     'options_shell': frozenset(('cancel_menu',)),
     'pause_menu': frozenset(('open_load_game', 'open_save_game', 'open_options', 'resume_game')),
     'load_list': frozenset(('cancel_menu',)),
@@ -189,7 +202,7 @@ def label_source(screen, action):
     return ('visible_control_semantics' if screen in ('battlescape', 'inventory', 'minimap') or
             action in ('replace_base_name', 'place_base_site', 'open_new_battle_choice',
                        'choose_visible_row', 'scroll_visible_list', 'close_dropdown', 'cancel_weapon_action',
-                       'cancel_grenade_timer') else 'visible_text')
+                       'cancel_grenade_timer', 'select_base') else 'visible_text')
 
 
 def validate_new_game(visible, actions):
@@ -212,8 +225,13 @@ def validate_new_game(visible, actions):
     require('set_ironman' not in actions or visible['ironman'] is not None)
 
 
+def strategy_text(value, nullable=False):
+    visible_text(value, nullable=nullable)
+    require(value is None or len(value.encode('utf-8')) <= 1024)
+
+
 def validate_geoscape(visible, actions):
-    exact(visible, ' '.join(GEOSCAPE_FIELDS) + ' buttons')
+    exact(visible, ' '.join(GEOSCAPE_FIELDS) + ' buttons speeds')
     for field in GEOSCAPE_FIELDS:
         visible_text(visible[field], nullable=True)
     require(type(visible['buttons']) is list and len(visible['buttons']) <= len(GEOSCAPE_BUTTONS))
@@ -223,7 +241,64 @@ def validate_geoscape(visible, actions):
         require(type(button['id']) is str and button['id'] in GEOSCAPE_BUTTONS and button['id'] not in seen)
         seen.add(button['id'])
         visible_text(button['label']); require(bool(button['label']))
-    require('open_funding' not in actions or 'funding' in seen)
+    for action, button in (('open_funding', 'funding'), ('open_bases', 'bases'), ('open_pause_menu', 'options')):
+        require(action not in actions or button in seen)
+    speeds = visible['speeds']
+    require(type(speeds) is list and len(speeds) <= len(GEOSCAPE_SPEED_HANDLES))
+    selected = []
+    for index, speed in enumerate(speeds):
+        exact(speed, 'handle label selected')
+        require(speed['handle'] == GEOSCAPE_SPEED_HANDLES[index])
+        strategy_text(speed['label']); require(bool(speed['label']))
+        require(type(speed['selected']) is bool)
+        if speed['selected']: selected.append(speed['label'])
+    require(len(selected) <= 1 and visible['speed'] == (selected[0] if selected else None))
+    require('choose_geoscape_speed' not in actions or bool(speeds))
+
+
+def validate_base_navigation(screen, visible, actions):
+    fields = ('base_name location funds base_slots buttons' if screen == 'basescape' else
+              'base_name base_slots personnel_heading space_heading metrics buttons')
+    exact(visible, fields)
+    for name in (('base_name', 'location', 'funds') if screen == 'basescape' else
+                 ('base_name', 'personnel_heading', 'space_heading')):
+        strategy_text(visible[name], nullable=True)
+    slots = visible['base_slots']
+    require(type(slots) is list and len(slots) <= len(BASE_TARGET_HANDLES))
+    selected = 0
+    for index, slot in enumerate(slots):
+        exact(slot, 'handle selected')
+        require(slot['handle'] == BASE_TARGET_HANDLES[index] and type(slot['selected']) is bool)
+        selected += slot['selected']
+    require(selected <= 1 and ('select_base' not in actions or bool(slots)))
+    buttons = visible['buttons']
+    require(type(buttons) is list and len(buttons) <= len(BASE_BUTTONS[screen]))
+    previous, seen = -1, set()
+    for button in buttons:
+        exact(button, 'id label')
+        require(type(button['id']) is str and button['id'] in BASE_BUTTONS[screen])
+        index = BASE_BUTTONS[screen].index(button['id'])
+        require(index > previous); previous = index; seen.add(button['id'])
+        strategy_text(button['label']); require(bool(button['label']))
+    for action, button in BASE_BUTTON_ACTIONS[screen].items():
+        require(action not in actions or button in seen)
+    if screen == 'base_info':
+        metrics = visible['metrics']
+        require(type(metrics) is list and len(metrics) <= 12)
+        for metric in metrics:
+            exact(metric, 'label value')
+            strategy_text(metric['label']); require(bool(metric['label']))
+            strategy_text(metric['value'], nullable=True)
+
+
+def validate_base_table(visible, actions):
+    # Read-only use of the existing rendered multi-column projection. An empty
+    # admitted slice is not a claim that the underlying list is empty.
+    validate_visible_list(visible, actions, funding=True)
+    strategy_text(visible['title'], nullable=True)
+    for value in visible['headings']: strategy_text(value, nullable=True)
+    for row in visible['rows']:
+        for value in row['cells']: strategy_text(value)
 
 
 def validate_visible_list(visible, actions, *, funding=False):
@@ -501,6 +576,10 @@ def validate_visible(screen, visible, seen):
         validate_new_game(visible, seen)
     elif screen == 'geoscape':
         validate_geoscape(visible, seen)
+    elif screen in ('basescape', 'base_info'):
+        validate_base_navigation(screen, visible, seen)
+    elif screen in ('base_stores', 'base_transfers'):
+        validate_base_table(visible, seen)
     elif screen in ('new_battle_dropdown', 'funding'):
         validate_visible_list(visible, seen, funding=screen == 'funding')
     elif screen == 'build_base':
@@ -549,6 +628,17 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
             expected = (obj['visible']['timers'][0]['label'] if descriptor['id'] == 'choose_grenade_timer'
                         else 'Cancel timer')
             require(descriptor['label'] == expected)
+    if obj['state'] in ('geoscape', 'basescape', 'base_info', 'base_stores', 'base_transfers'):
+        buttons = {button['id']: button['label'] for button in obj['visible'].get('buttons', [])}
+        mapping = ({'open_funding': 'funding', 'open_bases': 'bases', 'open_pause_menu': 'options'}
+                   if obj['state'] == 'geoscape' else BASE_BUTTON_ACTIONS.get(obj['state'], {}))
+        for descriptor in obj['actions']:
+            action = descriptor['id']
+            strategy_text(descriptor['label'])
+            if action in mapping: require(descriptor['label'] == buttons[mapping[action]])
+            elif action == 'choose_geoscape_speed':
+                require(descriptor['label'] == obj['visible']['speeds'][0]['label'])
+            elif action == 'select_base': require(descriptor['label'] == 'Select base')
     # An empty/unsupported catalog never authorizes an action.
     if not seen:
         require(obj['capability'] is None)
@@ -700,6 +790,8 @@ def validate_action_arguments(arguments):
             'inventory_target': ('target', INVENTORY_TARGET_HANDLES),
             'camera_direction': ('direction', CAMERA_DIRECTIONS),
             'minimap_target': ('target', MINIMAP_TARGET_HANDLES),
+            'geoscape_speed': ('speed', GEOSCAPE_SPEED_HANDLES),
+            'base_target': ('target', BASE_TARGET_HANDLES),
         }[kind]
         exact(args, field)
         require(type(args[field]) is str and args[field] in values)
@@ -719,9 +811,9 @@ def canonical_action_request(arguments):
         suffix = ' ' + (args['text'].encode('utf-8').hex() or '-')
     elif kind == 'point':
         suffix = f' {args["x"]} {args["y"]}'
-    elif kind in ('choice_control', 'visible_row', 'scroll_direction', 'grid_cell', 'enemy_button', 'hand', 'weapon_action', 'grenade_timer', 'inventory_target', 'camera_direction', 'minimap_target'):
+    elif kind in ('choice_control', 'visible_row', 'scroll_direction', 'grid_cell', 'enemy_button', 'hand', 'weapon_action', 'grenade_timer', 'inventory_target', 'camera_direction', 'minimap_target', 'geoscape_speed', 'base_target'):
         suffix = ' ' + args[{'choice_control': 'control', 'visible_row': 'row', 'scroll_direction': 'direction',
-                                 'grid_cell': 'cell', 'enemy_button': 'button', 'hand': 'hand', 'weapon_action': 'row', 'grenade_timer': 'timer', 'inventory_target': 'target', 'camera_direction': 'direction', 'minimap_target': 'target'}[kind]]
+                                 'grid_cell': 'cell', 'enemy_button': 'button', 'hand': 'hand', 'weapon_action': 'row', 'grenade_timer': 'timer', 'inventory_target': 'target', 'camera_direction': 'direction', 'minimap_target': 'target', 'geoscape_speed': 'speed', 'base_target': 'target'}[kind]]
     request = ('E {command_id} {epoch} {capability} {revision} {action}'.format(**arguments) + suffix).encode('ascii')
     require(len(request) <= MAX_REQUEST)
     return request
@@ -749,6 +841,8 @@ def definitions():
         'inventory_target': arg_schema({'target': {'type': 'string', 'enum': list(INVENTORY_TARGET_HANDLES)}}),
         'camera_direction': arg_schema({'direction': {'type': 'string', 'enum': list(CAMERA_DIRECTIONS)}}),
         'minimap_target': arg_schema({'target': {'type': 'string', 'enum': list(MINIMAP_TARGET_HANDLES)}}),
+        'geoscape_speed': arg_schema({'speed': {'type': 'string', 'enum': list(GEOSCAPE_SPEED_HANDLES)}}),
+        'base_target': arg_schema({'target': {'type': 'string', 'enum': list(BASE_TARGET_HANDLES)}}),
     }
     execute_schema = {
         'type': 'object', 'properties': {
@@ -764,7 +858,7 @@ def definitions():
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, minimap, inventory, enemy-button, hand, weapon-action and grenade-timer handles must come from the same fresh grant. Timer selection dispatch does not establish activation; require the later actual rendered warning. Throw target dispatch does not establish flight, landing, detonation or a hit. Timer cancel follows the ordinary popup cancel handler. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. View-level controls may clamp at a boundary; vertical-unit controls may silently refuse. Camera pan is an ordinary directional step, and minimap_center uses only a fresh listed local point. Dispatch never establishes camera motion, level change, movement eligibility or unit movement. Funding rows cannot be selected. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, minimap, inventory, enemy-button, hand, weapon-action and grenade-timer handles must come from the same fresh grant. Timer selection dispatch does not establish activation; require the later actual rendered warning. Throw target dispatch does not establish flight, landing, detonation or a hit. Timer cancel follows the ordinary popup cancel handler. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. View-level controls may clamp at a boundary; vertical-unit controls may silently refuse. Camera pan is an ordinary directional step, and minimap_center uses only a fresh listed local point. Dispatch never establishes camera motion, level change, movement eligibility or unit movement. Funding, Stores and Transfers rows cannot be selected. Geoscape speed and base-slot handles are fresh local painted choices; they expose no base existence, persistent identity or eligibility. Ordinary speed controls advance real game time; opening Bases can reset the speed through its normal handler. Shown base labels and metric strings are not recomputed from hidden state. Empty admitted tables do not prove empty stores or transfers. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
@@ -807,6 +901,8 @@ class AgentControlClient:
         self.grenade_timers = frozenset()
         self.inventory_targets = frozenset()
         self.minimap_targets = frozenset()
+        self.geoscape_speeds = frozenset()
+        self.base_targets = frozenset()
         self.capability_deadline = 0.0
         self.event_sequence = 0
         self.audio_history = None
@@ -834,6 +930,8 @@ class AgentControlClient:
         self.grenade_timers = frozenset()
         self.inventory_targets = frozenset()
         self.minimap_targets = frozenset()
+        self.geoscape_speeds = frozenset()
+        self.base_targets = frozenset()
         self.public_event_records = {}
         if channel is not None:
             channel.close()
@@ -896,6 +994,8 @@ class AgentControlClient:
                 self.grenade_timers = frozenset()
                 self.inventory_targets = frozenset()
                 self.minimap_targets = frozenset()
+                self.geoscape_speeds = frozenset()
+                self.base_targets = frozenset()
                 obj = validate_state(parse(self.exchange(('R ' + challenge).encode('ascii'))), challenge, self.epoch)
                 require(obj['revision'] >= (self.revision if self.revision is not None else 0)
                         and obj['event_sequence'] >= self.event_sequence)
@@ -909,8 +1009,12 @@ class AgentControlClient:
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
                 if obj['state'] == 'new_battle_dropdown':
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
-                if obj['state'] in ('new_battle_dropdown', 'funding'):
+                if obj['state'] in ('new_battle_dropdown', 'funding', 'base_stores', 'base_transfers'):
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
+                if obj['state'] == 'geoscape':
+                    self.geoscape_speeds = frozenset(speed['handle'] for speed in obj['visible']['speeds'])
+                if obj['state'] in ('basescape', 'base_info'):
+                    self.base_targets = frozenset(slot['handle'] for slot in obj['visible']['base_slots'])
                 if obj['state'] == 'new_game':
                     self.difficulty_values = frozenset(choice['value'] for choice in obj['visible']['difficulty'])
                 if obj['state'] == 'build_base' and obj['visible']['globe'] is not None:
@@ -1000,6 +1104,10 @@ class AgentControlClient:
                 require(args['timer'] in self.grenade_timers)
             elif action == 'minimap_center':
                 require(args['target'] in self.minimap_targets)
+            elif action == 'choose_geoscape_speed':
+                require(args['speed'] in self.geoscape_speeds)
+            elif action == 'select_base':
+                require(args['target'] in self.base_targets)
             elif action in ('inventory_hover', 'inventory_activate'):
                 require(args['target'] in self.inventory_targets)
             if len(self.commands) >= MAX_COMMANDS:
@@ -1021,6 +1129,8 @@ class AgentControlClient:
             self.grenade_timers = frozenset()
             self.inventory_targets = frozenset()
             self.minimap_targets = frozenset()
+            self.geoscape_speeds = frozenset()
+            self.base_targets = frozenset()
             self.state = 'PENDING'
             self.commands[command_id] = {'request': request, 'result': None}
             attempted = False

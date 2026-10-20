@@ -42,6 +42,10 @@ private:
 	Text *_txtTitle, *_txtItem, *_txtQuantity, *_txtSpaceUsed;
 	TextList *_lstStores;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Stores state.
 	StoresState(Base *base);
 	/// Cleans up the Stores state.

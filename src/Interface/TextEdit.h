@@ -82,6 +82,8 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Reads only the complete currently rendered child text.
 	bool agentRenderedText(std::string &text) const;
+    // Complete visible editor text ink, excluding transparent allocation padding.
+    bool agentRenderedBounds(SDL_Rect &bounds) const;
 	bool agentEditable() const;
 	/// Actual blink-on caret ink, clipped to the editor, in screen coordinates.
 	bool agentCaretBounds(SDL_Rect &bounds) const;

@@ -4,6 +4,7 @@
 #include "AgentProjectileWitness.h"
 #include <vector>
 #include <utility>
+#include <functional>
 namespace OpenXcom {
 class Surface; class Text; class TextButton; class TextList;
 namespace Observer {
@@ -53,8 +54,11 @@ struct AgentListProjection {
     bool up = false, down = false;
 };
 // Called only by explicitly supported state providers, never generic discovery.
+// An optional filter can only omit each candidate row/arrow region; it never
+// replaces native paint, clipping, sibling coverage or final disjoint guards.
 bool agentProjectList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
-    unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection);
+    unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection,
+    const std::function<bool(const AgentUiState &)> &regionAllowed = std::function<bool(const AgentUiState &)>());
 bool agentWidgetVisible(const Surface *widget);
 // Conservative check against later-painted surfaces in this explicit state.
 // The paint order/geometry is used only for visibility, never serialized.

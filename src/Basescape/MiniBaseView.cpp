@@ -23,6 +23,10 @@
 #include "../Savegame/Base.h"
 #include "../Savegame/BaseFacility.h"
 #include "../Mod/RuleBaseFacility.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProjectileOutput.h"
+#endif
 
 namespace OpenXcom
 {
@@ -51,6 +55,9 @@ MiniBaseView::~MiniBaseView()
  */
 void MiniBaseView::setBases(std::vector<Base*> *bases)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentRevision;
+#endif
 	_bases = bases;
 	_redraw = true;
 }
@@ -62,6 +69,9 @@ void MiniBaseView::setBases(std::vector<Base*> *bases)
  */
 void MiniBaseView::setTexture(SurfaceSet *texture)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentRevision;
+#endif
 	_texture = texture;
 }
 
@@ -81,6 +91,9 @@ size_t MiniBaseView::getHoveredBase() const
  */
 void MiniBaseView::setSelectedBase(size_t base)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_base != base) ++_agentRevision;
+#endif
 	_base = base;
 	_redraw = true;
 }
@@ -92,6 +105,9 @@ void MiniBaseView::setSelectedBase(size_t base)
 void MiniBaseView::draw()
 {
 	Surface::draw();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::array<const void *, 8> mapping{};
+#endif
 	for (size_t i = 0; i < MAX_BASES; ++i)
 	{
 		// Draw base squares
@@ -111,6 +127,9 @@ void MiniBaseView::draw()
 		// Draw facilities
 		if (i < _bases->size())
 		{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            mapping[i] = _bases->at(i);
+#endif
 			SDL_Rect r;
 			lock();
 			for (std::vector<BaseFacility*>::iterator f = _bases->at(i)->getFacilities()->begin(); f != _bases->at(i)->getFacilities()->end(); ++f)
@@ -146,6 +165,9 @@ void MiniBaseView::draw()
 			unlock();
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentCaptureSlots(mapping);
+#endif
 }
 
 /**
@@ -155,9 +177,84 @@ void MiniBaseView::draw()
  */
 void MiniBaseView::mouseOver(Action *action, State *state)
 {
-	_hoverBase = (int)floor(action->getRelativeXMouse() / ((MINI_SIZE + 2) * action->getXScale()));
+	hoverAt((int)floor(action->getRelativeXMouse() / action->getXScale()));
 	InteractiveSurface::mouseOver(action, state);
 }
+
+void MiniBaseView::hoverAt(int localX)
+{
+    _hoverBase = (int)floor(static_cast<double>(localX) / (MINI_SIZE + 2));
+}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void MiniBaseView::agentCaptureSlots(const std::array<const void *, 8> &mapping)
+{
+    const auto oldPixels = _agentPixels;
+    const auto oldDrawn = _agentDrawn;
+    const auto oldSelected = _agentSelectedInk;
+    _agentDrawn.fill(false); _agentSelectedInk.fill(false); _agentSelectedContrast.fill(false);
+    const Surface *frame = _texture ? _texture->getFrame(41) : nullptr;
+    bool frameOk = frame && frame->agentContextVisible() && Observer::agentPaintHealthy();
+    // Stock BASEBITS frames allocate 32x40; this mini-square's ink is 16x16.
+    // Transparent padding is harmless, but any omitted source ink is refused.
+    if (frameOk) for (int y=0;y<frame->getHeight();++y) for (int x=0;x<frame->getWidth();++x)
+        if ((x>=16 || y>=16) && frame->getPixel(x,y)) frameOk=false;
+    for (unsigned slot=0; slot<8; ++slot)
+    {
+        if (!frameOk || int(slot*16+16)>getWidth() || getHeight()<16) continue;
+        bool ink = false, selected = false;
+        for (int y=0; y<16; ++y) for (int x=0; x<16; ++x)
+        {
+            const Uint8 pixel = getPixel(slot*16+x,y);
+            _agentPixels[slot][y*16+x] = pixel; ink = ink || pixel != 0;
+            const bool edge = x==0 || y==0 || x==15 || y==15;
+            if (!selected && slot==_base && edge && pixel==1 && frame->getPixel(x,y)==0)
+            { selected=true; _agentSelectedPoint[slot]=y*16+x; }
+        }
+        _agentDrawn[slot]=ink; _agentSelectedInk[slot]=selected;
+    }
+    if (oldPixels!=_agentPixels || oldDrawn!=_agentDrawn || oldSelected!=_agentSelectedInk || mapping!=_agentMapping) ++_agentRevision;
+    _agentMapping=mapping;
+}
+void MiniBaseView::blit(Surface *surface)
+{
+    _agentSelectedContrast.fill(false);
+    if (_visible && !_hidden && _redraw) draw();
+    if (surface && agentContextVisible() && surface->getSurface()->format->BitsPerPixel==8 &&
+        getSurface()->format->BitsPerPixel==8 && surface->getSurface()->format->palette && getSurface()->format->palette)
+    {
+        const SDL_Palette *to=surface->getSurface()->format->palette, *from=getSurface()->format->palette;
+        for (unsigned slot=0;slot<8;++slot) if (_agentSelectedInk[slot])
+            for (int y=0;y<16;++y) for (int x=0;x<16;++x)
+            {
+                const int dx=getX()+slot*16+x,dy=getY()+y;
+                if (unsigned(y*16+x)!=_agentSelectedPoint[slot] || _agentPixels[slot][y*16+x]!=1 ||
+                    dx<0 || dy<0 || dx>=surface->getWidth() || dy>=surface->getHeight()) continue;
+                const unsigned previous=surface->getPixel(dx,dy);
+                if (previous>=unsigned(to->ncolors) || from->ncolors<=1) continue;
+                const SDL_Color a=from->colors[1],b=to->colors[previous];
+                if (a.r!=b.r || a.g!=b.g || a.b!=b.b) _agentSelectedContrast[slot]=true;
+            }
+    }
+    Surface::blit(surface);
+}
+std::vector<AgentMiniBaseSlot> MiniBaseView::agentSlots(const Observer::AgentProjectileOutput &output) const
+{
+    std::vector<AgentMiniBaseSlot> slots;
+    if (!agentContextVisible() || !Observer::agentPaintHealthy()) return slots;
+    for (unsigned slot=0;slot<8;++slot)
+    {
+        if (!_agentDrawn[slot] || int(slot*16+16)>getWidth() || getHeight()<16) continue;
+        bool complete=true;
+        for (int y=0;y<16;++y) for (int x=0;x<16;++x)
+        {
+            const Uint8 pixel=_agentPixels[slot][y*16+x];
+            if (getPixel(slot*16+x,y)!=pixel || (pixel && !output.matches(getX()+slot*16+x,getY()+y,output.palette[pixel]))) complete=false;
+        }
+        if (complete) slots.push_back({slot,_agentSelectedInk[slot] && _agentSelectedContrast[slot]});
+    }
+    return slots;
+}
+#endif
 
 void MiniBaseView::setColor(Uint8 color)
 {

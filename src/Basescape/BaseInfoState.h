@@ -58,6 +58,11 @@ private:
 	Text *_numDefense, *_numShortRange, *_numLongRange;
 	Bar *_barDefense, *_barShortRange, *_barLongRange;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
+
 	/// Creates the Base Info state.
 	BaseInfoState(Base *base, BasescapeState *state);
 	/// Cleans up the Base Info state.

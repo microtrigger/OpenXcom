@@ -112,4 +112,67 @@ void TransfersState::btnOkClick(Action *)
 	_game->popState();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool TransfersState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (!_game->isState(const_cast<TransfersState *>(this)) || _modal || !Observer::agentPaintHealthy()) return false;
+    out = Observer::AgentUiState();
+    out.screen = "base_transfers";
+    const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
+    const auto regionAllowed = [this](const Observer::AgentUiState &candidate) -> bool
+    { return _game->agentOverlayClear(candidate); };
+    const auto include = [&](const Surface *widget) -> bool
+    {
+        Observer::AgentUiState candidate;
+        Observer::agentIncludeWidget(candidate, widget);
+        if (!regionAllowed(candidate)) return false;
+        const std::size_t before = out.regions.size();
+        out.regions.insert(out.regions.end(), candidate.regions.begin(), candidate.regions.end());
+        if (Observer::agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    const auto text = [&](const Text *widget) -> std::string
+    {
+        if (!Observer::agentWidgetUncovered(widget, painted)) return "null";
+        const std::string value = Observer::agentTextJson(widget);
+        return value != "null" && include(widget) ? value : "null";
+    };
+    const std::string title = text(_txtTitle);
+    const std::string item = text(_txtItem), quantity = text(_txtQuantity), last = text(_txtArrivalTime);
+    Observer::AgentListProjection list;
+    // The ordinary hover selector remains enabled. This table is read-only:
+    // no row activation is offered and every public row has selected=false.
+    if (!Observer::agentProjectList(_lstTransfers, _lstTransfers, painted, 3, false, out, list, regionAllowed)) return false;
+    out.visible = "{\"title\":" + title + ",\"headings\":[" + item + "," + quantity + "," + last +
+        "],\"rows\":" + list.rows + ",\"scroll\":" + list.scroll + "}";
+    // Keep dispatch tied to exactly the arrows admitted with the full table,
+    // including disjointness with its title/headings, not a broader reprojection.
+    out.context.push_back(list.up ? 1 : 0);
+    out.context.push_back(list.down ? 1 : 0);
+    if (list.up || list.down)
+        out.actions.push_back(Observer::AgentUiAction("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction"));
+    if (Observer::agentWidgetUncovered(_btnOk, painted))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnOk);
+        if (!label.empty() && label.size() <= 1024 && include(_btnOk))
+            out.actions.push_back(Observer::AgentUiAction("close_base_transfers", label, "visible_text"));
+    }
+    return true;
+}
+
+bool TransfersState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "close_base_transfers") { btnOkClick(nullptr); return true; }
+    if (request.action == "scroll_visible_list" && current.context.size() == 2)
+    {
+        if (request.choice == "up" && current.context[0]) { _lstTransfers->scrollUp(false, false); return true; }
+        if (request.choice == "down" && current.context[1]) { _lstTransfers->scrollDown(false, false); return true; }
+    }
+    return false;
+}
+#endif
+
 }

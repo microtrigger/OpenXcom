@@ -62,9 +62,10 @@ public:
 	/// Cleans up the Geoscape state.
 	~GeoscapeState();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	/// Read-only projection of the currently rendered strategic HUD.
+	/// Painted strategic HUD and bounded ordinary navigation/speed controls.
 	bool agentUiState(Observer::AgentUiState &out) const override;
 	bool agentDispatch(const std::string &action) override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
 #endif
 	/// Handle keypresses.
 	void handle(Action *action);
@@ -160,6 +161,8 @@ private:
 	/// Process each individual mission script command.
 	bool processCommand(RuleMissionScript *command);
 	bool buttonsDisabled();
+	/// Shared ordinary keyboard, reset and native speed selection.
+	bool selectGeoscapeSpeed(TextButton *button);
 };
 
 }

@@ -42,6 +42,10 @@ private:
 	Text *_txtTitle, *_txtItem, *_txtQuantity, *_txtArrivalTime;
 	TextList *_lstTransfers;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Transfers state.
 	TransfersState(Base *base);
 	/// Cleans up the Transfers state.

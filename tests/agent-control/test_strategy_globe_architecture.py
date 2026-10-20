@@ -42,9 +42,11 @@ class GlobeArchitectureTest(unittest.TestCase):
         code=read('Observer/AgentController.cpp')
         self.assertIn('char bytes[512]',code); self.assertIn('MSG_TRUNC | MSG_CTRUNC',code)
         self.assertIn('packet.size() <= 49152',code)
-    def test_geoscape_only_adds_visible_funding_navigation(self):
+    def test_geoscape_only_adds_bounded_visible_navigation(self):
         code=body('Geoscape/GeoscapeState.cpp','GeoscapeState::agentUiState')
-        self.assertEqual(code.count('actions.push_back'), 1)
+        self.assertEqual(code.count('actions.push_back'), 4)
+        for action in ('choose_geoscape_speed','open_bases','open_pause_menu'):
+            self.assertIn(action,code)
         self.assertIn('AgentUiAction("open_funding", label, "visible_text")',code)
         self.assertNotIn('getSavedGame',code)
 
