@@ -95,6 +95,8 @@ public:
 	std::uint64_t agentListRevision() const { return _agentListRevision; }
 	void agentScrollControls(const Surface *&up, const Surface *&down) const;
 	bool agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state);
+	// Selection only for explicitly audited project lists; never fires callbacks.
+	bool agentSelectProjectRow(size_t logicalIndex);
 	void agentPaintOrder(std::vector<Surface *> &out) const;
 #endif
 	/// Creates a text list with the specified size and position.

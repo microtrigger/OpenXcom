@@ -14,7 +14,8 @@ class VehicleFixtureArchitecture(unittest.TestCase):
   self.assertLess(s.index('appendVehicleArmament('),s.index('tactical->load(battle,mod,save.get())'))
   for text in ['gun->isFixed()', 'gun->getBattleType()==BT_FIREARM','gun->getCompatibleAmmo()->front()', 'rounds->getClipSize()', 'gun->getTurretType()']:
    self.assertIn(text,s)
-  self.assertLess(s.index('vehicleUnit->getTurretType()==gun->getRules()->getTurretType()'),s.index('finished=true'))
+  tactical_commit=s.index('save->setBattleGame(tactical.release())')
+  self.assertLess(s.index('vehicleUnit->getTurretType()==gun->getRules()->getTurretType()'),s.index('finished=true',tactical_commit))
  def test_no_live_controller_or_hidden_weapon_fields(self):
   s=(ROOT/'tests/agent-report-fixture/AgentVehicleFixture.h').read_text()
   for text in ['RNG::','setSeed','getUnits','getTile','agentDispatch','has_weapon','ammo_reason','weapon_name','SDL_','Game *']:
@@ -26,5 +27,5 @@ class VehicleFixtureArchitecture(unittest.TestCase):
   g=(ROOT/'src/Battlescape/BattlescapeGenerator.cpp').read_text()
   for text in ['getCompatibleAmmo()->front()', 'unit->setTurretType(v->getRules()->getTurretType())', 'item->setSlot(!rightWeapon ? rightHand : leftHand)']:
    self.assertIn(text,g)
-  p=(ROOT/'src/Observer/AgentProtocol.cpp').read_text();self.assertIn('openxcom-agent-control/12',p)
+  p=(ROOT/'src/Observer/AgentProtocol.cpp').read_text();self.assertIn('openxcom-agent-control/18',p);self.assertNotIn('openxcom-agent-control/12',p)
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -27,6 +27,7 @@ class Window;
 class Text;
 class TextList;
 class Base;
+class Production;
 
 /**
  * Manufacture screen that lets the player manage
@@ -35,6 +36,11 @@ class Base;
 class ManufactureState : public State
 {
 private:
+	void selectProduction(size_t row);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentMappingRevision = 0;
+	std::vector<Production *> _agentProjects;
+#endif
 	Base *_base;
 	TextButton *_btnNew, *_btnOk;
 	Window *_window;
@@ -42,6 +48,10 @@ private:
 	TextList *_lstManufacture;
 	void lstManufactureClick(Action * action);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Manufacture state.
 	ManufactureState(Base *base);
 	/// Cleans up the Manufacture state.

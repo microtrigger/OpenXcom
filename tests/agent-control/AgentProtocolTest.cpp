@@ -20,10 +20,11 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/17", "viewport schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/17\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/18", "viewport schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/18\",\"mode\":\"agent-control\"",
         "viewport envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/17", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/18", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/17", r), "prior geoscape schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/16", r), "previous viewport schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/15", r), "prior inventory schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/14", r), "prior renderer union rejected");
@@ -41,7 +42,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/17\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/18\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -96,6 +97,23 @@ int main()
     check(!parseAgentRequest(prefix + "0 choose_geoscape_speed s7", r), "eighth speed rejected");
     for (const char *alias : {"set_speed", "set_geoscape_speed", "choose_base", "open_base", "pause", "open_stores"})
         check(!agentActionId(alias) && !parseAgentRequest(prefix + "0 " + alias, r), "unlisted strategic alias rejected");
+    for (const char *action : {"open_research","open_new_research","accept_research","cancel_research_project","close_research_list","open_manufacture","open_new_production","start_production","cancel_production_start","accept_production","stop_production","close_production_list"})
+    {
+        check(agentActionId(action) && std::string(agentArgumentKind(action))=="none" && parseAgentRequest(prefix+"0 "+action,r),"project ordinary action admitted");
+        check(!parseAgentRequest(prefix+"0 "+action+" 1",r),"project no-argument action rejects payload");
+    }
+    for(const char *action:{"select_research_project","select_production_project"})
+    {
+        check(std::string(agentArgumentKind(action))=="project_row","project row kind");
+        for(unsigned i=0;i<32;++i)check(parseAgentRequest(prefix+"0 "+action+" r"+std::to_string(i),r),"all32 project handles");
+        for(const char *suffix:{"r32","r01","r-1","r+1","r1.0","r0 extra","b0","0","r99999999999999999"})check(!parseAgentRequest(prefix+"0 "+action+" "+suffix,r),"project handle bounds/canonical grammar");
+    }
+    for(const char *action:{"adjust_scientists","adjust_engineers"})
+    {
+        check(std::string(agentArgumentKind(action))=="staff_direction","staff direction kind");
+        for(const char *direction:{"increase","decrease"})check(parseAgentRequest(prefix+"0 "+action+" "+direction,r),"one-step staffing syntax");
+        for(const char *direction:{"up","down","1","max","increase extra","decrease "})check(!parseAgentRequest(prefix+"0 "+action+" "+direction,r),"no arbitrary amount/max/hold staffing");
+    }
     check(parseAgentRequest(prefix+"0 select_difficulty experienced",r) && r.choice=="experienced", "typed enum");
     check(!parseAgentRequest(prefix+"0 select_difficulty custom",r), "closed enum");
     check(!parseAgentRequest(prefix+"0 select_difficulty",r), "enum requires payload");

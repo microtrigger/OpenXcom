@@ -1584,6 +1584,24 @@ void TextList::agentPaintOrder(std::vector<Surface *> &out) const
 	out.insert(out.end(), _agentPaintOrder.begin(), _agentPaintOrder.end());
 }
 
+bool TextList::agentSelectProjectRow(size_t logicalIndex)
+{
+	if (_comboBox || !_selectable || !_bg || !_selector || !_font) return false;
+	std::vector<AgentListRow> rows;
+	if (!agentRows(rows)) return false;
+	for (const AgentListRow &row : rows)
+	{
+		if (row.logicalIndex != logicalIndex) continue;
+		if (row.cells.empty() || row.cells[0].empty() ||
+			std::count(_rows.begin(), _rows.end(), logicalIndex) != 1) return false;
+		const auto physical = std::find(_rows.begin(), _rows.end(), logicalIndex);
+		if (physical == _rows.end()) return false;
+		selectPhysicalRow(physical - _rows.begin());
+		return true;
+	}
+	return false;
+}
+
 bool TextList::agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state)
 {
 	// Only the audited combo route is enabled. An arbitrary list callback may

@@ -182,4 +182,68 @@ void ManufactureStartState::btnStartClick(Action *)
 	}
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ManufactureStartState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (_modal || !_game->isState(const_cast<ManufactureStartState *>(this)) || !agentPaintHealthy()) return false;
+    out=AgentUiState(); out.screen="manufacture_start"; out.actor=_base; out.save=_item;
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    const auto allowed=[this](const AgentUiState &part)->bool { return _game->agentOverlayClear(part); };
+    const auto include=[&](const Surface *widget)->bool
+    {
+        if (!agentWidgetUncovered(widget,painted)) return false;
+        AgentUiState part; agentIncludeWidget(part,widget);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before=out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    const auto text=[&](const Text *widget)->std::string
+    {
+        const auto value=agentTextJson(widget);
+        // Empty shown text is public but has no ink footprint to include.
+        if (value=="null" || !agentWidgetUncovered(widget,painted)) return "null";
+        if (widget->getText().empty()) return value;
+        return include(widget)?value:"null";
+    };
+    std::string buttons="[";
+    const auto button=[&](TextButton *widget,const char *id,const char *action,bool authority)->bool
+    {
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return false;
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
+        if (authority) out.actions.emplace_back(action,label,"visible_text");
+        return true;
+    };
+    const auto title=text(_txtTitle);
+    const auto hours=text(_txtManHour),cost=text(_txtCost),space=text(_txtWorkSpace),materials=text(_txtRequiredItemsTitle);
+    const auto name=text(_txtItemNameColumn),required=text(_txtUnitRequiredColumn),available=text(_txtUnitAvailableColumn);
+    AgentListProjection list;
+    if (_lstRequiredItems->getVisible() && !agentProjectList(_lstRequiredItems,_lstRequiredItems,painted,3,false,out,list,allowed)) return false;
+    out.context.push_back(list.up?1:0); out.context.push_back(list.down?1:0);
+    if (list.up || list.down) out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    button(_btnStart,"start","start_production",title!="null");
+    button(_btnCancel,"cancel","cancel_production_start",true); buttons+="]";
+    out.visible="{\"title\":"+title+",\"engineer_hours\":"+hours+",\"cost\":"+cost+",\"space\":"+space+",\"materials_heading\":"+materials+",\"headings\":["+name+","+required+","+available+"],\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+buttons+"}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
+}
+
+bool ManufactureStartState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action=="cancel_production_start") { btnCancelClick(nullptr); return true; }
+    if (request.action=="start_production") { btnStartClick(nullptr); return true; }
+    if (request.action=="scroll_visible_list" && current.context.size()==2)
+    {
+        if (request.choice=="up" && current.context[0]) { _lstRequiredItems->scrollUp(false,false); return true; }
+        if (request.choice=="down" && current.context[1]) { _lstRequiredItems->scrollDown(false,false); return true; }
+    }
+    return false;
+}
+#endif
+
 }

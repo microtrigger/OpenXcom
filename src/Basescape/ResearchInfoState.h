@@ -50,7 +50,14 @@ private:
 	void buildUi();
 	Timer *_timerMore, *_timerLess;
 	InteractiveSurface *_surfaceScientists;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentProjectRevision = 0;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the ResearchProject state.
 	ResearchInfoState(Base *base, RuleResearch *rule);
 	ResearchInfoState(Base *base, ResearchProject *project);

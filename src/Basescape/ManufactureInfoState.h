@@ -39,6 +39,9 @@ class InteractiveSurface;
 class ManufactureInfoState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentProjectRevision = 0;
+#endif
 	Base * _base;
 	RuleManufacture * _item;
 	Production * _production;
@@ -113,6 +116,10 @@ private:
 	/// Helper to exit the State.
 	void exitState();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the State (new production).
 	ManufactureInfoState(Base * base, RuleManufacture * _item);
 	/// Creates the State (modify production).

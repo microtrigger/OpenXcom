@@ -33,7 +33,7 @@
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
 bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false, missionContext = false;
-bool inventoryBody = false, inventoryPaging = false;
+bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -55,9 +55,10 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
+        manufactureCampaign=std::string(argv[i+1])=="manufacture-medikit-v1";
         inventoryPaging=std::string(argv[i+1])=="inventory-paging-v1";
         inventoryBody=inventoryPaging || std::string(argv[i+1])=="inventory-body-v1";
         missionContext=std::string(argv[i+1])=="gameplay-mission-v1";
@@ -80,6 +81,28 @@ bool start(Game *game)
     require(master=="xcom1" || master=="xcom2");
     const bool underwater=master=="xcom2";
     Mod *mod=game->getMod();
+    if (manufactureCampaign)
+    {
+        // Explicit isolated strategic precondition, never a completed MCP
+        // research claim. Ordinary newSave owns all stock funds, staff, items,
+        // facilities and ordinary RNG initialization; no seed is set here.
+        std::unique_ptr<SavedGame> campaign(mod->newSave());
+        require(campaign && campaign->getBases()->size()==1 && campaign->getDiscoveredResearch().empty());
+        Base *base=campaign->getBases()->front();
+        base->setName("MCP Manufacture");
+        // Fixed setup sites only, withheld from the playing controller. Match
+        // ordinary first-base placement by keeping home crafts at the base.
+        const double longitude=underwater?0.0:0.15, latitude=underwater?0.0:-0.85;
+        base->setLongitude(longitude); base->setLatitude(latitude);
+        for (Craft *craft:*base->getCrafts()) { craft->setLongitude(longitude); craft->setLatitude(latitude); }
+        campaign->addFinishedResearchSimple(mod->getResearch("STR_MEDI_KIT",true));
+        require(campaign->getDiscoveredResearch().size()==1 && !campaign->getSavedBattle());
+        campaign->setDifficulty(DIFF_BEGINNER); campaign->setIronman(false);
+        game->setSavedGame(campaign.release());
+        game->setState(new GeoscapeState);
+        finished=true;
+        return true;
+    }
     const std::string dataset=underwater?"SAND":"CULTIVAT";
     MapDataSet *terrain=mod->getMapDataSet(dataset);require(terrain);
     terrain->loadData(mod->getMCDPatch(dataset));

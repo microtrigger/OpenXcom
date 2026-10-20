@@ -42,7 +42,7 @@ bool AgentUiState::offers(const std::string &id) const
 }
 bool agentProjectList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection,
-    const std::function<bool(const AgentUiState &)> &regionAllowed)
+    const std::function<bool(const AgentUiState &)> &regionAllowed, bool allowMultiColumnSelection)
 {
     projection = AgentListProjection();
     std::vector<AgentListRow> rows;
@@ -53,7 +53,8 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
     for (const AgentListRow &row : rows)
     {
         if (count == 32) break;
-        if (row.cells.size() != columns || (selectable && (columns != 1 || row.cells[0].empty()))) continue;
+        if (row.cells.size() != columns || (selectable &&
+            ((columns != 1 && (!allowMultiColumnSelection || (columns != 2 && columns != 3 && columns != 5))) || row.cells[0].empty()))) continue;
         std::vector<AgentUiRect> regions;
         for (const SDL_Rect &r : row.regions) regions.push_back({r.x, r.y, r.w, r.h});
         if (!agentRegionsUncovered(regions, owner, paintOrder)) continue;
@@ -63,6 +64,7 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
         const std::size_t oldSize = ui.regions.size();
         ui.regions.insert(ui.regions.end(), regions.begin(), regions.end());
         if (!agentRegionsDisjoint(ui)) { ui.regions.resize(oldSize); continue; }
+        if (!count && selectable) projection.firstLabel = row.cells[0];
         if (count) projection.rows += ",";
         projection.rows += "{\"handle\":\"r" + std::to_string(count++) + "\",\"cells\":[";
         for (unsigned i = 0; i < columns; ++i)

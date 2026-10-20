@@ -50,6 +50,7 @@ struct AgentUiState {
     bool offers(const std::string &id) const;
 };
 struct AgentListProjection {
+    std::string firstLabel;
     std::string rows = "[]", scroll = "{\"up\":false,\"down\":false}";
     bool up = false, down = false;
 };
@@ -58,7 +59,8 @@ struct AgentListProjection {
 // replaces native paint, clipping, sibling coverage or final disjoint guards.
 bool agentProjectList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection,
-    const std::function<bool(const AgentUiState &)> &regionAllowed = std::function<bool(const AgentUiState &)>());
+    const std::function<bool(const AgentUiState &)> &regionAllowed = std::function<bool(const AgentUiState &)>(),
+    bool allowMultiColumnSelection = false);
 bool agentWidgetVisible(const Surface *widget);
 // Conservative check against later-painted surfaces in this explicit state.
 // The paint order/geometry is used only for visibility, never serialized.

@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/17"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/18"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/17\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/18\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -47,10 +47,18 @@ bool agentActionId(const std::string &value)
         value == "choose_geoscape_speed" || value == "select_base" || value == "open_bases" ||
         value == "return_geoscape" || value == "open_base_info" || value == "close_base_info" ||
         value == "open_base_stores" || value == "close_base_stores" ||
-        value == "open_base_transfers" || value == "close_base_transfers";
+        value == "open_base_transfers" || value == "close_base_transfers" ||
+        value == "open_research" || value == "open_new_research" || value == "select_research_project" ||
+        value == "adjust_scientists" || value == "accept_research" || value == "cancel_research_project" ||
+        value == "close_research_list" || value == "open_manufacture" || value == "open_new_production" ||
+        value == "select_production_project" || value == "start_production" || value == "cancel_production_start" ||
+        value == "adjust_engineers" || value == "accept_production" || value == "stop_production" ||
+        value == "close_production_list";
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "select_research_project" || action == "select_production_project") return "project_row";
+    if (action == "adjust_scientists" || action == "adjust_engineers") return "staff_direction";
     if (action == "choose_geoscape_speed") return "geoscape_speed";
     if (action == "select_base") return "base_target";
     if (action == "map_primary" || action == "map_secondary") return "grid_cell";
@@ -197,11 +205,16 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
             parts[6] != "up" && parts[6] != "down")) return false;
         request.choice = parts[6];
     }
-    else if (kind == "visible_row")
+    else if (kind == "visible_row" || kind == "project_row")
     {
         std::uint64_t row;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'r' ||
             !decimal(parts[6].substr(1), 31, row)) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "staff_direction")
+    {
+        if (parts.size() != 7 || (parts[6] != "increase" && parts[6] != "decrease")) return false;
         request.choice = parts[6];
     }
     else if (kind == "scroll_direction")

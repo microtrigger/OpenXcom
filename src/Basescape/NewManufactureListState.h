@@ -37,6 +37,10 @@ class ComboBox;
 class NewManufactureListState : public State
 {
 private:
+	void selectProduction(size_t row);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentMappingRevision = 0;
+#endif
 	Base *_base;
 	TextButton *_btnOk;
 	Window *_window;
@@ -48,6 +52,10 @@ private:
 	std::vector<std::string> _displayedStrings;
 
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the state.
 	NewManufactureListState(Base *base);
 	/// Initializes state.

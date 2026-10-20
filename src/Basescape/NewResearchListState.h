@@ -42,8 +42,17 @@ private:
 	Text *_txtTitle;
 	TextList *_lstResearch;
 	void onSelectProject(Action *action);
+	/// Shared ordinary row activation after native or semantic selection.
+	void selectProject(std::size_t row);
 	std::vector<RuleResearch *> _projects;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentMappingRevision = 0;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the New research list state.
 	NewResearchListState(Base *base);
 	/// Handler for clicking the OK button.

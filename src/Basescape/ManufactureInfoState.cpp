@@ -307,6 +307,9 @@ void ManufactureInfoState::exitState()
  */
 void ManufactureInfoState::setAssignedEngineer()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentProjectRevision;
+#endif
 	_txtAvailableEngineer->setText(tr("STR_ENGINEERS_AVAILABLE_UC").arg(_base->getAvailableEngineers()));
 	_txtAvailableSpace->setText(tr("STR_WORKSHOP_SPACE_AVAILABLE_UC").arg(_base->getFreeWorkshops()));
 	std::ostringstream s3;
@@ -612,5 +615,80 @@ void ManufactureInfoState::think()
 	_timerMoreUnit->think(this, 0);
 	_timerLessUnit->think(this, 0);
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ManufactureInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (_modal || !_game->isState(const_cast<ManufactureInfoState *>(this)) || !agentPaintHealthy()) return false;
+    out=AgentUiState(); out.screen="manufacture_info"; out.actor=_base; out.save=_production; out.actorRevision=_agentProjectRevision; out.context.push_back(_item?1:0);
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    const auto allowed=[this](const AgentUiState &part)->bool { return _game->agentOverlayClear(part); };
+    const auto include=[&](const Surface *widget)->bool
+    {
+        if (!agentWidgetUncovered(widget,painted)) return false;
+        AgentUiState part; agentIncludeWidget(part,widget);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before=out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    const auto text=[&](const Text *widget)->std::string
+    {
+        const auto value=agentTextJson(widget);
+        // Empty shown text is public but has no ink footprint to include.
+        if (value=="null" || !agentWidgetUncovered(widget,painted)) return "null";
+        if (widget->getText().empty()) return value;
+        return include(widget)?value:"null";
+    };
+    std::string buttons="[";
+    const auto button=[&](TextButton *widget,const char *id,const char *action,bool authority)->bool
+    {
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return false;
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
+        if (authority) out.actions.emplace_back(action,label,"visible_text");
+        return true;
+    };
+    const auto title=text(_txtTitle);
+    const auto available=text(_txtAvailableEngineer),space=text(_txtAvailableSpace),allocated=text(_txtAllocated),units=text(_txtTodo),profit=text(_txtMonthlyProfit);
+    std::string staffLabel;
+    const auto staff=[&](ArrowButton *arrow,Text *label,const char *id)->bool
+    {
+        const auto value=agentTextJson(label);
+        if (value=="null" || label->getText().empty()) return false;
+        const auto old=out.regions.size();
+        if (!include(label) || !include(arrow)) { out.regions.resize(old); return false; }
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+value+"}";
+        if (staffLabel.empty()) staffLabel=label->getText();
+        return true;
+    };
+    const bool more=staff(_btnEngineerUp,_txtEngineerUp,"increase");
+    const bool less=staff(_btnEngineerDown,_txtEngineerDown,"decrease");
+    out.context.push_back(more?1:0); out.context.push_back(less?1:0);
+    if (title!="null" && allocated!="null" && !staffLabel.empty()) out.actions.emplace_back("adjust_engineers",staffLabel,"visible_text","staff_direction");
+    button(_btnOk,"accept","accept_production",title!="null");
+    button(_btnStop,"stop","stop_production",title!="null"); buttons+="]";
+    out.visible="{\"title\":"+title+",\"available\":"+available+",\"space\":"+space+",\"allocated\":"+allocated+",\"units\":"+units+",\"monthly_profit\":"+profit+",\"buttons\":"+buttons+"}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
+}
+
+bool ManufactureInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action=="accept_production") { btnOkClick(nullptr); return true; }
+    if (request.action=="stop_production") { btnStopClick(nullptr); return true; }
+    if (request.action=="adjust_engineers" && current.context.size()==3)
+    {
+        if (request.choice=="increase" && current.context[1]) { moreEngineer(1); return true; }
+        if (request.choice=="decrease" && current.context[2]) { lessEngineer(1); return true; }
+    }
+    return false;
+}
+#endif
 
 }

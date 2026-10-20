@@ -160,6 +160,9 @@ void ManufactureState::btnNewProductionClick(Action *)
 void ManufactureState::fillProductionList()
 {
 	const std::vector<Production *> productions(_base->getProductions());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentMappingRevision; _agentProjects = productions;
+#endif
 	_lstManufacture->clearList();
 	for (std::vector<Production *>::const_iterator iter = productions.begin(); iter != productions.end(); ++iter)
 	{
@@ -206,8 +209,94 @@ void ManufactureState::fillProductionList()
  */
 void ManufactureState::lstManufactureClick(Action *)
 {
-	const std::vector<Production*> productions(_base->getProductions());
-	_game->pushState(new ManufactureInfoState(_base, productions[_lstManufacture->getSelectedRow()]));
+	selectProduction(_lstManufacture->getSelectedRow());
 }
+
+void ManufactureState::selectProduction(size_t row)
+{
+	const std::vector<Production*> productions(_base->getProductions());
+	_game->pushState(new ManufactureInfoState(_base, productions[row]));
+}
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ManufactureState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (_modal || !_game->isState(const_cast<ManufactureState *>(this)) || !agentPaintHealthy()) return false;
+    out=AgentUiState(); out.screen="manufacture"; out.actor=_base; out.uiRevision=_agentMappingRevision;
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    const auto allowed=[this](const AgentUiState &part)->bool { return _game->agentOverlayClear(part); };
+    const auto include=[&](const Surface *widget)->bool
+    {
+        if (!agentWidgetUncovered(widget,painted)) return false;
+        AgentUiState part; agentIncludeWidget(part,widget);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before=out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    const auto text=[&](const Text *widget)->std::string
+    {
+        const auto value=agentTextJson(widget);
+        // Empty shown text is public but has no ink footprint to include.
+        if (value=="null" || !agentWidgetUncovered(widget,painted)) return "null";
+        if (widget->getText().empty()) return value;
+        return include(widget)?value:"null";
+    };
+    std::string buttons="[";
+    const auto button=[&](TextButton *widget,const char *id,const char *action,bool authority)->bool
+    {
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return false;
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
+        if (authority) out.actions.emplace_back(action,label,"visible_text");
+        return true;
+    };
+    const auto title=text(_txtTitle);
+    const std::string summary="["+text(_txtAvailable)+","+text(_txtAllocated)+","+text(_txtSpace)+","+text(_txtFunds)+"]";
+    const std::string headings="["+text(_txtItem)+","+text(_txtEngineers)+","+text(_txtProduced)+","+text(_txtCost)+","+text(_txtTimeLeft)+"]";
+    AgentListProjection list;
+    if (!agentProjectList(_lstManufacture,_lstManufacture,painted,5,true,out,list,allowed,true)) return false;
+    out.context.push_back(list.up?1:0); out.context.push_back(list.down?1:0);
+    if (list.up || list.down) out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    if (title!="null" && !list.firstLabel.empty())
+        out.actions.emplace_back("select_production_project",list.firstLabel,"visible_text","project_row");
+    for (const auto row:out.rows) { if (row>=_agentProjects.size()) return false; out.widgets.push_back({_agentProjects[row],0}); }
+    button(_btnNew,"new","open_new_production",true);
+    button(_btnOk,"close","close_production_list",true);
+    buttons+="]";
+    out.visible="{\"title\":"+title+",\"summary\":"+summary+",\"headings\":"+headings+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+buttons+"}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
+}
+
+bool ManufactureState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action=="close_production_list") { btnOkClick(nullptr); return true; }
+    if (request.action=="open_new_production") { btnNewProductionClick(nullptr); return true; }
+    if (request.action=="scroll_visible_list" && current.context.size()==2)
+    {
+        if (request.choice=="up" && current.context[0]) { _lstManufacture->scrollUp(false,false); return true; }
+        if (request.choice=="down" && current.context[1]) { _lstManufacture->scrollDown(false,false); return true; }
+    }
+    if (request.action=="select_production_project")
+    {
+        if (request.choice.size()<2 || request.choice.size()>3 || request.choice[0]!='r' ||
+            (request.choice.size()==3 && request.choice[1]=='0')) return false;
+        unsigned index=0;
+        for (std::size_t i=1;i<request.choice.size();++i) { if (request.choice[i]<'0' || request.choice[i]>'9') return false; index=index*10+request.choice[i]-'0'; }
+        if (index>=current.rows.size()) return false;
+        const auto row=current.rows[index];
+        const auto projects=_base->getProductions();
+        if (row>=projects.size() || row>=_agentProjects.size() || projects[row]!=_agentProjects[row]) return false;
+        if (!_lstManufacture->agentSelectProjectRow(row)) return false;
+        selectProduction(row); return true;
+    }
+    return false;
+}
+#endif
 
 }

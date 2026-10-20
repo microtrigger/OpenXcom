@@ -35,7 +35,8 @@ class InventoryFixtureArchitecture(unittest.TestCase):
         self.assertIn('EXPERIMENTAL_AGENT_REPORT_FIXTURE "Build isolated ordinary-AI report acceptance setup (explicit runtime alias required)" OFF', cmake)
         self.assertIn('require(mode && std::string(mode)=="1");', self.fixture)
         self.assertLess(self.fixture.index('appendInventoryStock('), self.fixture.index('tactical->load(battle,mod,save.get())'))
-        self.assertLess(self.fixture.index('tactical->load(battle,mod,save.get())'), self.fixture.index('finished=true;'))
+        tactical_commit = self.fixture.index('save->setBattleGame(tactical.release())')
+        self.assertLess(self.fixture.index('tactical->load(battle,mod,save.get())'), self.fixture.index('finished=true;', tactical_commit))
         for folder in ("src/Observer", "src/Battlescape", "src/Savegame"):
             for path in (ROOT / folder).glob("*.[ch]*"):
                 self.assertNotIn('AgentInventoryFixture', path.read_text())

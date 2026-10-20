@@ -33,6 +33,7 @@
 #include "../Engine/Timer.h"
 #include "../Engine/RNG.h"
 #include <climits>
+#include <algorithm>
 
 namespace OpenXcom
 {
@@ -188,6 +189,9 @@ void ResearchInfoState::btnCancelClick(Action *)
  */
 void ResearchInfoState::setAssignedScientist()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentProjectRevision;
+#endif
 	_txtAvailableScientist->setText(tr("STR_SCIENTISTS_AVAILABLE_UC").arg(_base->getAvailableScientists()));
 	_txtAvailableSpace->setText(tr("STR_LABORATORY_SPACE_AVAILABLE_UC").arg(_base->getFreeLaboratories()));
 	_txtAllocatedScientist->setText(tr("STR_SCIENTISTS_ALLOCATED").arg(_project->getAssigned()));
@@ -336,5 +340,94 @@ void ResearchInfoState::think()
 	_timerLess->think (this, 0);
 	_timerMore->think (this, 0);
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ResearchInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (!_game->isState(const_cast<ResearchInfoState *>(this)) || _modal || !Observer::agentPaintHealthy()) return false;
+    if (!_base || !_project) return false;
+    // Bind only identity and membership privately; all public values come from
+    // the complete painted widgets, never the underlying project or rule.
+    const std::vector<ResearchProject *> &projects = _base->getResearch();
+    if (std::find(projects.begin(), projects.end(), _project) == projects.end()) return false;
+    out = Observer::AgentUiState();
+    out.screen = "research_info";
+    out.actor = _base;
+    out.save = _project;
+    out.actorRevision = _agentProjectRevision;
+    out.widgets.push_back(std::make_pair(_rule, 0));
+    const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
+    const auto regionAllowed = [this](const Observer::AgentUiState &candidate) -> bool
+    { return _game->agentOverlayClear(candidate); };
+    const auto include = [&](const Surface *widget) -> bool
+    {
+        Observer::AgentUiState candidate;
+        Observer::agentIncludeWidget(candidate, widget);
+        if (!regionAllowed(candidate)) return false;
+        const std::size_t before = out.regions.size();
+        out.regions.insert(out.regions.end(), candidate.regions.begin(), candidate.regions.end());
+        if (Observer::agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    const auto text = [&](const Text *widget) -> std::string
+    {
+        if (!Observer::agentWidgetUncovered(widget, painted)) return "null";
+        const std::string value = Observer::agentTextJson(widget);
+        return value != "null" && include(widget) ? value : "null";
+    };
+    const std::string title = text(_txtTitle), available = text(_txtAvailableScientist),
+        space = text(_txtAvailableSpace), allocated = text(_txtAllocatedScientist);
+    std::string buttons = "[", firstDirection;
+    const auto appendButton = [&](const char *id, const std::string &label)
+    {
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + Observer::agentJsonString(id) + ",\"label\":" + Observer::agentJsonString(label) + "}";
+    };
+    const auto direction = [&](const ArrowButton *arrow, const Text *label, const char *id) -> bool
+    {
+        if (!Observer::agentWidgetUncovered(arrow, painted) || !Observer::agentWidgetUncovered(label, painted) ||
+            Observer::agentTextJson(label) == "null" || label->getText().empty()) return false;
+        const std::size_t before = out.regions.size();
+        if (!include(label) || !include(arrow)) { out.regions.resize(before); return false; }
+        appendButton(id, label->getText());
+        if (firstDirection.empty()) firstDirection = label->getText();
+        return true;
+    };
+    out.context.push_back(direction(_btnMore, _txtMore, "increase") ? 1 : 0);
+    out.context.push_back(direction(_btnLess, _txtLess, "decrease") ? 1 : 0);
+    if (title != "null" && allocated != "null" && !firstDirection.empty())
+        out.actions.push_back(Observer::AgentUiAction("adjust_scientists", firstDirection, "visible_text", "staff_direction"));
+    const auto button = [&](const TextButton *widget, const char *id, const char *action)
+    {
+        if (!Observer::agentWidgetUncovered(widget, painted)) return;
+        const std::string label = Observer::agentButtonLabel(widget);
+        if (label.empty() || label.size() > 1024 || !include(widget)) return;
+        appendButton(id, label);
+        if (title != "null") out.actions.push_back(Observer::AgentUiAction(action, label, "visible_text"));
+    };
+    button(_btnOk, "accept", "accept_research");
+    button(_btnCancel, "cancel", "cancel_research_project");
+    out.visible = "{\"title\":" + title + ",\"available\":" + available + ",\"space\":" + space +
+        ",\"allocated\":" + allocated + ",\"buttons\":" + buttons + "]}";
+    return !out.regions.empty() && Observer::agentRegionsDisjoint(out) && out.visible.size() <= 32768;
+}
+
+bool ResearchInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "accept_research") { btnOkClick(nullptr); return true; }
+    if (request.action == "cancel_research_project") { btnCancelClick(nullptr); return true; }
+    if (request.action == "adjust_scientists" && current.context.size() == 2)
+    {
+        // Deliberately one ordinary increment only: no timer, hold, wheel or
+        // right-click behavior is synthesized by this semantic operation.
+        if (request.choice == "increase" && current.context[0]) { moreByValue(1); return true; }
+        if (request.choice == "decrease" && current.context[1]) { lessByValue(1); return true; }
+    }
+    return false;
+}
+#endif
 
 }

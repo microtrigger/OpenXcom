@@ -45,8 +45,8 @@ class InventoryValidationTests(unittest.TestCase):
         with self.assertRaises(Unavailable):self.valid(obj)
 
     def test_closed_counts_state_action_matrix_and_prebattle_close_only(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/17')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(66,29,4))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/18')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(82,36,4))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW},NEW)
         self.assertIn('open_inventory',a.STATE_ACTIONS['battlescape'])
         self.assertEqual(a.STATE_ACTIONS['inventory'],set(NEW)-{'open_inventory'}|{'close_inventory'})

@@ -27,6 +27,7 @@ class Window;
 class Text;
 class TextList;
 class Base;
+class ResearchProject;
 
 /**
  * Research screen that lets the player manage
@@ -40,7 +41,17 @@ private:
 	Window *_window;
 	Text *_txtTitle, *_txtAvailable, *_txtAllocated, *_txtSpace, *_txtProject, *_txtScientists, *_txtProgress;
 	TextList *_lstResearch;
+	/// Shared ordinary row activation after native or semantic selection.
+	void selectProject(std::size_t row);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::vector<ResearchProject *> _agentProjectMapping;
+	std::uint64_t _agentMappingRevision = 0;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Research state.
 	ResearchState(Base *base);
 	/// Cleans up the Research state.

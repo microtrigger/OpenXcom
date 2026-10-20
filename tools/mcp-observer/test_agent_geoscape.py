@@ -59,8 +59,8 @@ class StrategyFixture(NativeFixture):
 
 class GeoscapeContractTests(unittest.TestCase):
     def test_exact_wire_catalog_and_argument_domains(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/17')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(66,29,4))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/18')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(82,36,4))
         self.assertEqual(a.GEOSCAPE_SPEED_HANDLES,tuple(f's{i}' for i in range(6)))
         self.assertEqual(a.BASE_TARGET_HANDLES,tuple(f'b{i}' for i in range(8)))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},dict.fromkeys(set(NEW_ACTIONS)-{'choose_geoscape_speed','select_base'},'none')|{'choose_geoscape_speed':'geoscape_speed','select_base':'base_target'})
@@ -162,7 +162,7 @@ class GeoscapeContractTests(unittest.TestCase):
                 obj=state(screen=screen)
                 if change=='reverse':obj['visible']['buttons'].reverse()
                 elif change=='duplicate':obj['visible']['buttons'].append(copy.deepcopy(obj['visible']['buttons'][0]))
-                elif change=='extra':obj['visible']['buttons'][0]['id']='research'
+                elif change=='extra':obj['visible']['buttons'][0]['id']='hidden_action'
                 else:obj['visible']['buttons'][0]['label']=''
                 with self.subTest(screen=screen,change=change),self.assertRaises(Unavailable):checked(obj)
 
