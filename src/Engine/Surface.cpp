@@ -674,6 +674,9 @@ void Surface::draw()
  */
 void Surface::blit(Surface *surface)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_agentPresentationTracked) _agentPresentationPainted = false;
+#endif
 	if (_visible && !_hidden)
 	{
 		if (_redraw)
@@ -696,7 +699,23 @@ void Surface::blit(Surface *surface)
         surface->_agentCollapsePaint = false;
         if (surface->_agentProjectileRaster) surface->_agentProjectileRaster->unknownWrite();
 #endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        const auto fullClip=[](const SDL_Surface *p) { return p && p->clip_rect.x==0 && p->clip_rect.y==0 &&
+            p->clip_rect.w==p->w && p->clip_rect.h==p->h; };
+        const bool agentBefore=_agentPresentationTracked && _agentPresentationGeneration &&
+            !_crop.w && !_crop.h && fullClip(_surface) && fullClip(surface->getSurface());
+        const auto agentGeneration=_agentPresentationGeneration;
+#endif
 		OPENXCOM_AGENT_PAINT(SDL_BlitSurface(_surface, cropper, surface->getSurface(), &target));
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (agentBefore && agentGeneration==_agentPresentationGeneration &&
+            fullClip(_surface) && fullClip(surface->getSurface()) && Observer::agentPaintHealthy())
+        {
+            _agentPresentationDestination=surface;
+            _agentPresentationPaintRevision=_agentPresentationGeneration;
+            _agentPresentationPainted=true;
+        }
+#endif
 	}
 }
 
@@ -865,6 +884,9 @@ void Surface::drawString(Sint16 x, Sint16 y, const char *s, Uint8 color)
  */
 void Surface::setX(int x)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (x != _x) agentPresentationMutation();
+#endif
 	_x = x;
 }
 
@@ -874,6 +896,9 @@ void Surface::setX(int x)
  */
 void Surface::setY(int y)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (y != _y) agentPresentationMutation();
+#endif
 	_y = y;
 }
 
@@ -884,6 +909,9 @@ void Surface::setY(int y)
  */
 void Surface::setVisible(bool visible)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (visible != _visible) agentPresentationMutation();
+#endif
 	_visible = visible;
 }
 
@@ -902,6 +930,9 @@ bool Surface::getVisible() const
  */
 void Surface::resetCrop()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_crop.w = 0;
 	_crop.h = 0;
 	_crop.x = 0;
@@ -925,6 +956,9 @@ SDL_Rect *Surface::getCrop()
  */
 void Surface::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	if (_surface->format->BitsPerPixel == 8)
 		SDL_SetColors(_surface, colors, firstcolor, ncolors);
 }
@@ -938,6 +972,9 @@ void Surface::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
  */
 void Surface::setHidden(bool hidden)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (hidden != _hidden) agentPresentationMutation();
+#endif
 	_hidden = hidden;
 }
 
@@ -1132,6 +1169,9 @@ void Surface::setTooltip(const std::string &tooltip)
 void Surface::resize(int width, int height)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
@@ -1220,6 +1260,21 @@ void Surface::agentCopyCollapsePaint(const Surface &source)
         source.getHeight() == getHeight() && agentContextVisible() &&
         _surface->clip_rect.x == 0 && _surface->clip_rect.y == 0 &&
         _surface->clip_rect.w == getWidth() && _surface->clip_rect.h == getHeight();
+}
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+bool Surface::agentPresentationPaintedTo(const Surface *destination) const
+{
+    if (!_agentPresentationTracked || !_agentPresentationPainted || !agentContextVisible() ||
+        !_agentPresentationGeneration || _agentPresentationPaintRevision!=_agentPresentationGeneration ||
+        destination!=_agentPresentationDestination || !destination || !Observer::agentPaintHealthy()) return false;
+    const SDL_Surface *target=destination->getSurface();
+    return _surface && target && _surface->clip_rect.x==0 && _surface->clip_rect.y==0 &&
+        _surface->clip_rect.w==_surface->w && _surface->clip_rect.h==_surface->h &&
+        target->clip_rect.x==0 && target->clip_rect.y==0 && target->clip_rect.w==target->w && target->clip_rect.h==target->h;
 }
 }
 #endif

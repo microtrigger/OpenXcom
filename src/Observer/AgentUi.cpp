@@ -430,6 +430,21 @@ bool agentRegionsDisjoint(const AgentUiState &ui)
     return true;
 }
 
+std::string agentProjectNamedButton(const TextButton *button,const Surface *destination,
+    const std::vector<Surface *> &paintOrder,AgentUiState &ui,
+    const std::function<bool(const AgentUiState &)> &regionAllowed)
+{
+    std::string label;SDL_Rect ink,point;
+    if(!button || !button->agentNamedControl(destination,label,ink,point))return {};
+    AgentUiState part;part.regions.push_back({ink.x,ink.y,ink.w,ink.h});
+    if(point.x<ink.x || point.x>=ink.x+ink.w || point.y<ink.y || point.y>=ink.y+ink.h)
+        part.regions.push_back({point.x,point.y,1,1});
+    if(!agentRegionsUncovered(part.regions,button,paintOrder) || (regionAllowed&&!regionAllowed(part)))return {};
+    const auto old=ui.regions.size();ui.regions.insert(ui.regions.end(),part.regions.begin(),part.regions.end());
+    if(!agentRegionsDisjoint(ui)){ui.regions.resize(old);return {};}
+    ui.points.emplace_back(point.x,point.y);ui.widgets.emplace_back(button,button->agentPresentationRevision());
+    ui.widgets.emplace_back(button,button->agentLabelRevision());return label;
+}
 std::string agentButtonLabel(const TextButton *widget)
 {
     return agentWidgetVisible(widget) ? widget->agentLabel() : std::string();

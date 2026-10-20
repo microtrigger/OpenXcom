@@ -1,6 +1,6 @@
 # Experimental semantic MCP control
 
-**v21d** — Latest tested snapshot: TFTD Stores return route passed. UFO Stores quantity was verified, but the full UFO route remains partial because return-to-Geoscape was unavailable. Full interface coverage is unfinished.
+**v21e-wip** — WIP named-button admission. Focused provider/pixel gates are incomplete or failing. No final native build or live acceptance.
 
 ## Build and use
 

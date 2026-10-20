@@ -84,4 +84,8 @@ bool agentPaintHealthy();
 std::string agentTextJson(const Text *widget);
 std::string agentCompositeTextJson(const Text *text, int width, int height, const std::vector<Surface *> &paintOrder);
 std::string agentButtonLabel(const TextButton *widget);
+// Explicit named TextButton opt-in; never used for icons or anonymous controls.
+std::string agentProjectNamedButton(const TextButton *button,const Surface *destination,
+    const std::vector<Surface *> &paintOrder,AgentUiState &ui,
+    const std::function<bool(const AgentUiState &)> &regionAllowed);
 } }
