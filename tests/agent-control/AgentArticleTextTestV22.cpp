@@ -3,18 +3,46 @@
 #define main retainedOutfittingFixtureMain
 #include "AgentOutfittingProviderTestV21.cpp"
 #undef main
-#include "OldTextScroll.generated.inc"
+// Frozen v21 ordinary wheel rule, independent of current scrollLine implementation.
+int oldTextScroll(bool scroll,int height,int textHeight,int step,int offset,bool down)
+{ const int area=height-textHeight; return scroll && area<0 ? std::max(area,std::min(0,offset+(down?-step:step))) : offset; }
 namespace {
 void repaint(Text &text,Surface &canvas) {canvas.clear(40);text.blit(&canvas);}
 std::vector<Text::AgentVisibleLine> shown(Text &text,Surface &canvas)
 {std::vector<Text::AgentVisibleLine> v;check(text.agentVisibleLines(&canvas,v),"qualified actual line paint");return v;}
 void lineTests(Font&big,Font&small,Language&lang,const std::string&source,const std::string&game)
 {
- Paint p(big,small,lang,source,game,"storesInfo");
+ Paint p(big,small,lang,source,game,"storesInfo");p.canvas.setHeight(400);
+ // Actual Screen disables destination color key; source text remains keyed.
+ check(SDL_SetColorKey(p.canvas.getSurface(),0,0)==0,"opaque final Screen canvas");
  Text text(200,80,10,30);text.initText(&big,&small,&lang);text.setPalette(p.palette);text.setColor(2);text.setWordWrap(true);text.setScrollable(true);text.agentEnableVisibleLines();
  text.setText("Visible line\nSecond line");repaint(text,p.canvas);auto lines=shown(text,p.canvas);
 
  check(lines.size()==2&&lines[0].complete&&lines[0].text=="Visible line"&&lines[1].text=="Second line","two actual glyph lines complete");
+ // Unsupported format flags must not borrow authority from a previous good blit.
+ for(int mode=0;mode<5;++mode)
+ {
+  const pid_t child=fork();check(child>=0,"format guard child");
+  if(!child){
+   SDL_Surface *surface=mode<3?text.getSurface():p.canvas.getSurface();
+   if(mode==0)SDL_SetColorKey(surface,0,0);
+   else if(mode==2 || mode==4)SDL_SetAlpha(surface,SDL_SRCALPHA,128);
+   else SDL_SetColorKey(surface,SDL_SRCCOLORKEY,1);
+   text.blit(&p.canvas);std::vector<Text::AgentVisibleLine> rejected;
+   if(text.agentVisibleLines(&p.canvas,rejected))_exit(2);
+   if(mode<3) {SDL_SetAlpha(surface,0,255);SDL_SetColorKey(surface,SDL_SRCCOLORKEY,0);}
+   else {SDL_SetAlpha(surface,0,255);SDL_SetColorKey(surface,0,0);}
+   if(text.agentVisibleLines(&p.canvas,rejected))_exit(3);
+   repaint(text,p.canvas);
+   const bool available=text.agentVisibleLines(&p.canvas,rejected);
+   if(available!=agentPaintHealthy())_exit(4);
+   _exit(0);
+  }
+  int status=0;check(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0,"unsupported flags and restore without repaint refuse");
+ }
+ SDL_SetColorKey(p.canvas.getSurface(),SDL_SRCCOLORKEY,0);repaint(text,p.canvas);
+ check(text.agentVisibleLines(&p.canvas,lines)&&lines.size()==2&&lines[0].complete,"legacy zero-key canvas still supported");
+ SDL_SetColorKey(p.canvas.getSurface(),0,0);repaint(text,p.canvas);
  check(text.agentVisibleLineControl(&p.canvas),"separate shown scroll control");const auto initial=text.agentPresentationRevision();repaint(text,p.canvas);check(text.agentPresentationRevision()==initial,"unchanged repaint preserves mutation binding");
  text.setText(text.getText());check(text.agentPresentationRevision()!=initial,"same text setter invalidates binding");std::vector<Text::AgentVisibleLine> none;check(!text.agentVisibleLines(&p.canvas,none),"same text requires fresh paint");repaint(text,p.canvas);
  const auto before=text.agentPresentationRevision();text.setColor(3);text.setColor(2);check(text.agentPresentationRevision()!=before&&!text.agentVisibleLines(&p.canvas,none),"color ABA invalidates");repaint(text,p.canvas);
@@ -42,13 +70,13 @@ void lineTests(Font&big,Font&small,Language&lang,const std::string&source,const 
  text.setText("A");repaint(text,p.canvas);text.agentBeginVisibleLines();text.agentStartVisibleLine(0,9);text._agentLinePixelCount=65536;text.agentCaptureVisibleGlyph('A',&small,small.getChar('A'),0,0,2,1,0);text.agentFinishVisibleLine();text.agentFinishVisibleLines();check(!text.agentVisibleLineSource(),"explicit captured-pixel work cap fails closed");text.invalidate();repaint(text,p.canvas);
  text.agentBeginVisibleLines();text.agentStartVisibleLine(0,9);text._agentLineWork=2097152;text.agentCaptureVisibleGlyph('A',&small,small.getChar('A'),0,0,2,1,0);text.agentFinishVisibleLine();text.agentFinishVisibleLines();check(!text.agentVisibleLineSource(),"explicit operation work cap fails closed");text.invalidate();repaint(text,p.canvas);
  const pid_t child=fork();check(child>=0,"paint failure child");if(!child){agentObservePaint(-1);if(text.agentVisibleLines(&p.canvas,none))_exit(2);repaint(text,p.canvas);if(text.agentVisibleLines(&p.canvas,none))_exit(3);_exit(0);}int status=0;check(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0,"failed paint never recovers by ordinary repaint");
- // The independent old ordinary function was extracted from frozen /21.
+ // Embedded v21 ordinary clamp oracle, independent of the current helper.
  for(const std::string content:{std::string(),std::string("Short"),many})for(bool scroll:{false,true})
  {
   Text helper(200,30),wheel(200,30);for(auto*t:{&helper,&wheel}){t->initText(&big,&small,&lang);t->setPalette(p.palette);t->setScrollable(scroll);t->setText(content);}
   int expected=0;for(int step=0;step<100;++step){const bool down=step<50;expected=oldTextScroll(scroll,helper.getHeight(),helper.getTextHeight(),small.getHeight()+small.getSpacing(),expected,down);helper.scrollLine(down);SDL_Event e={};e.type=SDL_MOUSEBUTTONDOWN;e.button.button=down?SDL_BUTTON_WHEELDOWN:SDL_BUTTON_WHEELUP;Action a(&e,1,1,0,0);wheel.mousePress(&a,nullptr);helper.draw();wheel.draw();
    check(helper.getSurface()->pitch==wheel.getSurface()->pitch&&std::memcmp(helper.getSurface()->pixels,wheel.getSurface()->pixels,helper.getSurface()->pitch*helper.getHeight())==0,"shared helper and ordinary wheel pixel parity");
-   check(agentTextOffset(helper)==expected&&agentTextOffset(wheel)==expected,"shared helper and GUI match independently extracted frozen clamp");
+   check(agentTextOffset(helper)==expected&&agentTextOffset(wheel)==expected,"shared helper and GUI match embedded v21 clamp oracle");
   }
  }
 }

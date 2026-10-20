@@ -877,12 +877,13 @@ void Text::scrollLine(bool down)
 }
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace {
-bool agentArticlePixels(const SDL_Surface *p)
+bool agentArticlePixels(const SDL_Surface *p, bool destination = false)
 {
     return p && p->format && p->w > 0 && p->h > 0 && p->w <= 640 && p->h <= 400 &&
         p->format->BytesPerPixel == 1 && p->format->palette && p->format->palette->colors &&
-        p->format->palette->ncolors == 256 && (p->flags & SDL_SRCCOLORKEY) &&
-        p->format->colorkey == 0 && !(p->flags & SDL_SRCALPHA) &&
+        p->format->palette->ncolors == 256 &&
+        ((p->flags & SDL_SRCCOLORKEY) ? p->format->colorkey == 0 : destination) &&
+        !(p->flags & SDL_SRCALPHA) &&
         p->clip_rect.x == 0 && p->clip_rect.y == 0 && p->clip_rect.w == p->w && p->clip_rect.h == p->h;
 }
 bool agentArticleColors(const SDL_Color *a, const SDL_Color *b)
@@ -1031,7 +1032,7 @@ void Text::blit(Surface *surface)
         !_crop.w && !_crop.h && agentArticleColors(_agentLinePalette,_surface->format->palette->colors))
         _agentLineDrawRevision=agentPresentationRevision();
     SDL_Surface *target=surface?surface->getSurface():nullptr;
-    const bool qualified=surface && agentVisibleLineSource() && agentArticlePixels(target) &&
+    const bool qualified=surface && agentVisibleLineSource() && agentArticlePixels(target, true) &&
         getX()>=0 && getY()>=0 && getX()+getWidth()<=target->w && getY()+getHeight()<=target->h &&
         agentArticleColors(_agentLinePalette,target->format->palette->colors);
     if (qualified)
@@ -1049,7 +1050,7 @@ void Text::blit(Surface *surface)
         }
     }
     Surface::blit(surface); // unchanged ordinary renderer; proof never repairs its input
-    if (!qualified || !agentVisibleLineSource() || !agentArticlePixels(target) ||
+    if (!qualified || !agentVisibleLineSource() || !agentArticlePixels(target, true) ||
         !agentArticleColors(_agentLinePalette,target->format->palette->colors)) return;
     _agentLineDestination=surface;_agentLineBlitRevision=agentPresentationRevision();_agentLineBlitValid=true;
 }
@@ -1059,7 +1060,7 @@ bool Text::agentVisibleLines(const Surface *destination,std::vector<AgentVisible
     if (!_agentLineBlitValid || destination!=_agentLineDestination ||
         _agentLineBlitRevision!=agentPresentationRevision() || !agentVisibleLineSource()) return false;
     SDL_Surface *target=destination?destination->getSurface():nullptr;
-    if (!agentArticlePixels(target) || getX()<0 || getY()<0 || getX()+getWidth()>target->w || getY()+getHeight()>target->h ||
+    if (!agentArticlePixels(target, true) || getX()<0 || getY()<0 || getX()+getWidth()>target->w || getY()+getHeight()>target->h ||
         !agentArticleColors(_agentLinePalette,target->format->palette->colors)) return false;
     const int a=Observer::agentObservePaint(SDL_LockSurface(_surface));
     const int b=Observer::agentObservePaint(SDL_LockSurface(target));
