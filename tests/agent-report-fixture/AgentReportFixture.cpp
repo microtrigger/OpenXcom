@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Artificial isolated setup only. Never called by MCP or after setup completes.
 #include "AgentReportFixture.h"
+#include "AgentVehicleFixture.h"
 #include "../../src/Engine/Game.h"
 #include "../../src/Engine/Options.h"
 #include "../../src/Engine/Screen.h"
@@ -29,7 +30,7 @@
 #include <string>
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
-bool requested = false, finished = false, gameplay = false, armored = false;
+bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -51,10 +52,11 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
-        armored=std::string(argv[i+1])=="gameplay-armored-v1";
+        equippedVehicle=std::string(argv[i+1])=="gameplay-vehicle-v1";
+        armored=equippedVehicle || std::string(argv[i+1])=="gameplay-armored-v1";
         gameplay=armored || std::string(argv[i+1])=="gameplay-v1";
         requested=true;
         for(int j=i;j+2<argc;++j)argv[j]=argv[j+2];
@@ -105,7 +107,7 @@ bool start(Game *game)
     require(!mod->getSoldiersList().empty());
     RuleSoldier *rules=mod->getSoldier(mod->getSoldiersList().front(),true);
     // A separately named fixture uses ordinary stock armor. Original aliases
-    // retain their original equipment; no stats, AI or outcome is changed.
+    // retain their original equipment; no base-stat override or forced outcome.
     const std::string soldierArmor=armored?(underwater?"STR_MAGNETIC_ION_ARMOR_UC":"STR_POWER_SUIT_UC"):rules->getArmor();
     // id=0 constructs a blank soldier: no random name/stat generation or seed manipulation.
     std::unique_ptr<Soldier> soldier(new Soldier(rules,mod->getArmor(soldierArmor,true),0));
@@ -144,7 +146,18 @@ bool start(Game *game)
     const int tankId=BattleUnit::MAX_SOLDIER_ID,alienId=tankId+1;
     YAML::Node victim=unitNode(1,FACTION_PLAYER,"",soldierArmor,2,gameplay?2:1,4);victim["morale"]=gameplay?100:0;
     battle["units"].push_back(victim);
-    battle["units"].push_back(unitNode(tankId,FACTION_PLAYER,tankType,tankRule->getArmor(),0,0,4));
+    YAML::Node vehicle=unitNode(tankId,FACTION_PLAYER,tankType,tankRule->getArmor(),0,0,4);
+    if (equippedVehicle)
+    {
+        // Match the stock generator's fixed hand weapon, compatible magazine
+        // and turret. Serialize before ordinary load; never equip during play.
+        RuleItem *gun=mod->getItem(tankType,true);
+        require(gun->isFixed() && gun->getBattleType()==BT_FIREARM && !gun->getCompatibleAmmo()->empty());
+        RuleItem *rounds=mod->getItem(gun->getCompatibleAmmo()->front(),true);
+        require(rounds->getBattleType()==BT_AMMO && rounds->getClipSize()>0 && gun->getTurretType()>=0);
+        appendVehicleArmament(battle,vehicle,gun->getType(),rounds->getType(),rounds->getClipSize(),gun->getTurretType());
+    }
+    battle["units"].push_back(vehicle);
     battle["units"].push_back(unitNode(alienId,FACTION_HOSTILE,alienType,alienRule->getArmor(),2,gameplay?4:2,0));
     const std::string pistol=underwater?"STR_SONIC_PISTOL":"STR_PLASMA_PISTOL";
     const std::string clip=underwater?"STR_PISTOL_POWER_CLIP":"STR_PLASMA_PISTOL_CLIP";
@@ -165,6 +178,14 @@ bool start(Game *game)
     std::unique_ptr<SavedBattleGame> tactical(new SavedBattleGame());
     tactical->load(battle,mod,save.get());tactical->loadMapResources(mod);
     require(tactical->getUnits()->size()==3 && tactical->getNodes()->size()==1);
+    if (equippedVehicle)
+    {
+        BattleUnit *vehicleUnit=(*tactical->getUnits())[1];
+        BattleItem *gun=vehicleUnit->getItem("STR_RIGHT_HAND");
+        require(gun && gun->getRules()==mod->getItem(tankType,true) && gun->getAmmoItem());
+        require(gun->getAmmoItem()->getAmmoQuantity()==gun->getAmmoItem()->getRules()->getClipSize() &&
+            vehicleUnit->getTurretType()==gun->getRules()->getTurretType());
+    }
     BattleUnit *target=(*tactical->getUnits())[0],*alien=(*tactical->getUnits())[2];
     require(tactical->getTurn()==1 && tactical->getSide()==FACTION_PLAYER && target->getStatus()==STATUS_STANDING && target->getMorale()==(gameplay?100:0));
     // Setup assertions only, completed before the controller accepts a command.
