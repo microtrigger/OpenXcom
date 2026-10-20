@@ -1,31 +1,187 @@
 # Experimental semantic MCP control
 
-**v21d** — Latest tested snapshot: TFTD Stores return route passed. UFO Stores quantity was verified, but the full UFO route remains partial because return-to-Geoscape was unavailable. Full interface coverage is unfinished.
+This fork lets an MCP-capable agent observe and operate OpenXcom through a bounded
+interface to the game's **displayed UI**, rather than unrestricted memory access
+or a stream of mouse coordinates. It supports UFO Defense and Terror from the
+Deep with separately supplied original game data.
 
-## Build and use
+**Status: experimental v21d.** TFTD Stores return route passed the latest live
+check. UFO Stores quantity was verified, but its full return route is partial:
+return-to-Geoscape was not offered. Full interface coverage is unfinished.
+`wip/named-button-v21e` and `wip/research-v22` preserve unfinished work; they are not
+releases. Build the native game and use the Python adapter from the **same branch**.
 
-Requires CMake, a C++ compiler, SDL 1.2, SDL_image, SDL_mixer, SDL_gfx and yaml-cpp development libraries. Supply original UFO/TFTD game data separately.
+## What the agent gets
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_PACKAGE=OFF \
-  -DEXPERIMENTAL_AGENT_CONTROL=ON \
-  -DOPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS=ON
-cmake --build build -j2
-python3 tools/mcp-observer/launch_presentation.py --agent-control -- /path/to/openxcom [game arguments]
+| Tool | Purpose |
+| --- | --- |
+| `read_ui_state` | Fresh bounded UI presentation: visible text/numbers, screen state, offered action IDs, revision and one-use action authority. |
+| `execute_ui_action` | Dispatch one currently offered semantic action with fresh authority and a unique command ID. This changes the game. |
+| `read_ui_action_result` | Read the receipt for that command without replaying it. |
+| `read_public_events` | Page retained public presentation/message/effect/audio events using a separate cursor; gaps are explicit. |
+
+Implemented surfaces include campaign setup and menus, Geoscape time controls,
+base selection and management, research/manufacturing and purchase/equipment
+controls, tactical camera/selection/actions, and inventory. Availability depends
+on the screen and snapshot: **the current offered-action list is authoritative**,
+not this summary. Visible rows and grid handles are local to the current view.
+
+The interface does not reveal hidden units, hidden world state, damage or the
+cause of a sound/effect. A camera grid is not a legal-movement map; missing events
+are not proof that nothing happened. Public event order is not synchronized video.
+Normal game rules, costs, time units and reaction fire still apply.
+
+## Architecture and prerequisites
+
+```text
+Agent / MCP client
+    <-> JSON-RPC over stdin/stdout
+Python launch_presentation.py + adapter.py
+    <-> inherited anonymous local sockets
+Matching experimental OpenXcom executable + original game data
 ```
 
-Use matching game and adapter versions. The feature is default-off; do not enable test fixtures for normal play.
+The launcher starts the game itself and connects it to the adapter. It does not
+attach to an arbitrary already-running game. There is **no HTTP/SSE endpoint,
+network port or OAuth service** in this adapter.
 
-- `read_ui_state`: displayed state and offered actions.
-- `execute_ui_action`: perform an offered action with fresh authority and a unique command ID.
-- `read_ui_action_result`: inspect its receipt.
-- `read_public_events`: read public presentation/audio events.
+- Use a POSIX environment supporting `AF_UNIX`, `SOCK_SEQPACKET` and inherited
+  file descriptors. Linux is the reference path below. This control profile is
+  not a native Windows build. On Windows, a Linux/WSL environment would need the
+  agent, Python and Linux game together plus working GUI/audio; that setup is not
+  established by simply pointing at a Windows `openxcom.exe`.
+- Python 3 (standard library only for the adapter), CMake, a C++11 compiler,
+  SDL **1.2**, SDL_image, SDL_mixer, SDL_gfx and yaml-cpp development libraries.
+- A working graphical session and legal UFO/TFTD assets. The repository does not
+  supply the original game's resources. Keep saves/configuration in a separate
+  test user directory when experimenting with agent control.
+- The agent's executor must be able to launch Python and the game and access the
+  display/audio session and chosen data/user directories. Installing this config
+  in a local client does not connect a hosted web chat to that local process.
 
-Read the resulting state after acting; dispatch does not prove success. Do not automatically retry an unknown outcome.
+## Build and check the game
 
-## Coverage and limits
+From the checkout root, use a fresh build directory so old experimental flags do
+not leak into this profile:
 
-Coverage varies by snapshot and visible screen; use the offered-action catalog. Work spans menus, Geoscape/base management, tactical actions and inventory. Full UFO/TFTD coverage is unfinished. Normal game rules apply; hidden units, damage and event causality are not exposed. Missing text remains unknown.
+```sh
+cmake -S . -B build-agent -DCMAKE_BUILD_TYPE=Release -DBUILD_PACKAGE=OFF \
+  -DEXPERIMENTAL_AGENT_CONTROL=ON \
+  -DOPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS=ON
+cmake --build build-agent -j2
+python3 tools/mcp-observer/launch_presentation.py --help
+```
+
+On Linux the executable is `build-agent/bin/openxcom`. First launch that binary
+normally to verify your data and display setup. Game arguments such as
+`-data /absolute/path/to/data` and `-user /absolute/path/to/test-user` can be passed
+through the launcher after the executable. Use your actual data layout and an
+existing writable test user directory; do not copy commercial assets into Git.
+
+Do not enable acceptance-test fixtures for normal play. The semantic profile
+cannot be combined with the supervised-stance or independent mixed-audio build
+profiles. Public audio history in `read_public_events` is a separate mechanism.
+
+## Connect to your agent (Codex example)
+
+The MCP client must start **the launcher**, not `adapter.py` alone, to get live
+semantic tools. Replace every `/absolute/...` placeholder with your Linux paths.
+The following registers a local stdio server; it does not alter game code:
+
+```sh
+codex mcp add openxcom -- python3 -B \
+  /absolute/path/to/OpenXcom/tools/mcp-observer/launch_presentation.py \
+  --agent-control -- /absolute/path/to/OpenXcom/build-agent/bin/openxcom \
+  -data /absolute/path/to/data -user /absolute/path/to/test-user
+codex mcp list
+```
+
+Alternatively, add this entry to your Codex `config.toml` (do not register it twice):
+
+```toml
+[mcp_servers.openxcom]
+command = "python3"
+args = [
+  "-B", "/absolute/path/to/OpenXcom/tools/mcp-observer/launch_presentation.py",
+  "--agent-control", "--", "/absolute/path/to/OpenXcom/build-agent/bin/openxcom",
+  "-data", "/absolute/path/to/data", "-user", "/absolute/path/to/test-user"
+]
+cwd = "/absolute/path/to/OpenXcom"
+startup_timeout_sec = 30
+tool_timeout_sec = 60
+```
+
+Use an absolute Python executable if the client has a different `PATH`. Preserve
+any existing client settings. Follow your client's normal permission prompts;
+this guide does not require disabling approval or sandbox checks. See the
+[official Codex MCP configuration guide](https://developers.openai.com/codex/mcp/)
+for config location and client-version details.
+
+Restart/reload the client connection. In Codex CLI, `/mcp` shows active servers.
+Ask the agent to list the OpenXcom tools and call `read_ui_state` **before taking
+any action**. A successful MCP handshake/tool list alone does not prove that the
+native game channel is ready. The game must reach a supported displayed screen.
+
+Other stdio MCP clients can use the same executable and argument array in their
+own server configuration. This adapter negotiates MCP protocol `2025-11-25`;
+check client compatibility. No API key is needed by this local adapter (your
+agent/model service may have its own authentication).
+
+### Suggested first instruction to the agent
+
+> Use OpenXcom's MCP tools. First read the displayed UI and describe the current
+> screen and offered actions. Do not start a campaign or change the game until I
+> ask. For each approved action, obtain fresh state, dispatch once, inspect the
+> receipt and read the resulting UI. Stop if the outcome is unknown.
+
+### Correct action loop
+
+1. Call `read_ui_state`. Use its actual `epoch`, `revision`, `capability`, offered
+   action ID and visible local handles; do not invent or reuse stale values.
+2. Call `execute_ui_action` with `command_id` (a new 32-character lowercase hex
+   ID), those authority fields, `action` and its schema-correct `args`. Consult
+   the live tool schema; different actions have different arguments.
+3. Inspect the receipt/observation. If needed, query `read_ui_action_result` with
+   the **same** command ID; this reads status and does not replay the action.
+4. Read fresh UI before the next command. `dispatched` means the handler ran, not
+   that the desired gameplay result occurred. Verify the visible postcondition.
+
+After `outcome_unknown`, transport failure or an untrustworthy receipt, stop and
+reconcile with the human; do not retry with a new ID. Exact duplicates are receipt
+queries, not a general retry strategy. For events, use the epoch from UI state and
+`after`/`limit` (`1..16`); follow `next_cursor` and handle `gap` explicitly.
+
+## Observation versus control
+
+- `--agent-control` explicitly enables direct semantic actions. It does **not**
+  require a per-action confirmation inside the game's local UI. Client approvals
+  and the user's task boundaries still apply.
+- For a read-only client policy, allow only `read_ui_state`,
+  `read_ui_action_result` and `read_public_events`; exclude `execute_ui_action`.
+  The underlying game is still built/launched with agent control, so this is a
+  client-side restriction, not a different read-only native build.
+- `adapter.py` alone exposes historical `read_last_hud`/`read_last_cursor`, not
+  current action authority. Historical observations cannot substitute for fresh UI.
+- The separate `--supervised-stance` family is an older local-human-confirmation
+  pilot, with its own build flags. It cannot be mixed with `--agent-control`.
+
+## Troubleshooting and shutdown
+
+- **Only historical tools appear:** the client launched `adapter.py`, or omitted
+  `--agent-control`; fix the command and reconnect.
+- **`unavailable` / launch failure:** check matching native/adapter versions,
+  build flags, game data, display session and supported screen. The launcher
+  deliberately suppresses game stdout/stderr; diagnose startup by running the
+  game normally outside MCP, not by putting logs on the protocol stream.
+- **An expected action is absent:** do not guess it. This can be an unsupported
+  screen/coverage gap (including the known UFO return route), not a failed click.
+- **Stale authority / invalid arguments:** read UI again only when no action has
+  an unknown outcome; use exact live schema and offered handles.
+- **Restarting the client opens another game:** each launcher starts a new game.
+  Closing MCP stdin/ending the connection does not terminate the game. Close the
+  old game normally before explicitly starting another session.
+
+## Development checks and remaining limits
 
 ```sh
 (cd tools/mcp-observer && python3 -B -m unittest discover -v)
@@ -33,6 +189,8 @@ Coverage varies by snapshot and visible screen; use the offered-action catalog. 
 sh tests/agent-control/run-portable-smoke.sh
 ```
 
-Adapter and asset-free smoke tests do not replace full native/live-game acceptance. Historical fixtures may require matching protocol versions or generated includes; a portable run-all native suite is unfinished. WIP branches are not releases. The MCP-versus-screen/input benchmark has not run.
-
-This series reconstructs saved development snapshots; it does not reproduce their original commit history.
+Adapter and asset-free smoke tests do not replace full native/live-game acceptance.
+Historical fixtures may need matching protocol versions or generated includes;
+a portable run-all native suite is unfinished. The MCP-versus-screen/input
+benchmark has not run. This series reconstructs saved development snapshots;
+it does not reproduce their original commit history.
