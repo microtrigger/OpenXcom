@@ -20,10 +20,10 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/12", "inventory schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/12\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/13", "inventory schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/13\",\"mode\":\"agent-control\"",
         "inventory envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/12", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/13", r) && r.kind == 'H', "exact handshake");
     check(!parseAgentRequest("H openxcom-agent-control/10", r), "v10 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/6", r), "v6 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/11", r), "prior hand/ground-only schema rejected");
@@ -36,7 +36,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/12\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/13\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -88,8 +88,8 @@ int main()
     }
     for (const char *button : {"e0", "e9"}) check(parseAgentRequest(prefix+"0 center_enemy "+button,r), "enemy control syntax");
     for (const char *button : {"e10", "e01", "g0"}) check(!parseAgentRequest(prefix+"0 center_enemy "+button,r), "invalid enemy control");
-    for (const char *row : {"a0", "a5"}) check(parseAgentRequest(prefix+"0 choose_fire_mode "+row,r), "fire row syntax");
-    for (const char *row : {"a6", "a01", "snapshot"}) check(!parseAgentRequest(prefix+"0 choose_fire_mode "+row,r), "invalid fire row");
+    for (const char *row : {"a0", "a5"}) check(parseAgentRequest(prefix+"0 choose_weapon_action "+row,r), "fire row syntax");
+    for (const char *row : {"a6", "a01", "snapshot"}) check(!parseAgentRequest(prefix+"0 choose_weapon_action "+row,r), "invalid fire row");
     for (const char *hand : {"left", "right"}) check(parseAgentRequest(prefix+"0 open_hand_action_menu "+hand,r), "hand syntax");
     check(!parseAgentRequest(prefix+"0 open_hand_action_menu weapon42",r), "no item identity");
     for (const char *action : {"open_inventory", "cancel_inventory_hold", "unload_inventory",
@@ -122,6 +122,23 @@ int main()
     check(!parseAgentRequest(prefix+"00 inventory_activate v0",r), "inventory revision remains canonical");
     check(!parseAgentRequest(prefix+"9007199254740992 inventory_activate v0",r),
         "inventory revision remains JSON-safe");
+    check(!parseAgentRequest("H openxcom-agent-control/12",r), "old body-only schema rejected");
+    check(!agentActionId("choose_fire_mode") && !parseAgentRequest(prefix+"0 choose_fire_mode a0",r), "old fire-only action removed");
+    check(std::string(agentArgumentKind("choose_weapon_action"))=="weapon_action", "neutral weapon row kind");
+    check(std::string(agentArgumentKind("choose_grenade_timer"))=="grenade_timer", "timer row kind");
+    for (unsigned i=0;i<24;++i) {
+        const std::string slot="t"+std::to_string(i);
+        check(parseAgentRequest(prefix+"0 choose_grenade_timer "+slot,r) && r.choice==slot, "all canonical timer slots");
+    }
+    for(const char *slot:{"t24","t01","t-1","T0","0","a0","t","t0 extra","t0 "," t0"})
+        check(!parseAgentRequest(prefix+"0 choose_grenade_timer "+slot,r), "noncanonical or unbounded timer rejected");
+    check(parseAgentRequest(prefix+"0 cancel_grenade_timer",r), "ordinary timer cancel no args");
+    check(!parseAgentRequest(prefix+"0 cancel_grenade_timer t0",r), "timer cancel rejects spoofed value");
+    AgentLedger timerLedger;
+    const std::string timerPacket=prefix+"0 choose_grenade_timer t0";
+    check(timerLedger.begin(token(3),timerPacket)==AgentLedger::Fresh,"timer reserves shared identity");
+    check(timerLedger.begin(token(3),timerPacket)==AgentLedger::Duplicate,"timer duplicate never repeats");
+    check(timerLedger.begin(token(3),prefix+"0 choose_grenade_timer t1")==AgentLedger::Conflict,"changed timer conflicts");
     const std::string inventoryRequest = prefix+"0 inventory_activate v0";
     AgentLedger inventoryLedger;
     check(inventoryLedger.begin(token(3),inventoryRequest) == AgentLedger::Fresh, "inventory identity fresh");

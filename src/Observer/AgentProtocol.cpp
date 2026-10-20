@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/12"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/13"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/12\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/13\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -38,7 +38,7 @@ bool agentActionId(const std::string &value)
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "scroll_visible_list" ||
         value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn" || value == "acknowledge_message" || value == "map_primary" || value == "map_secondary" ||
         value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
-        value == "choose_fire_mode" || value == "cancel_weapon_action" || value == "close_debriefing" ||
+        value == "choose_weapon_action" || value == "choose_grenade_timer" || value == "cancel_grenade_timer" || value == "cancel_weapon_action" || value == "close_debriefing" ||
         value == "open_inventory" || value == "inventory_hover" || value == "inventory_activate" ||
         value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page";
 }
@@ -47,7 +47,8 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "map_primary" || action == "map_secondary") return "grid_cell";
     if (action == "center_enemy") return "enemy_button";
     if (action == "open_hand_action_menu") return "hand";
-    if (action == "choose_fire_mode") return "fire_mode";
+    if (action == "choose_weapon_action") return "weapon_action";
+    if (action == "choose_grenade_timer") return "grenade_timer";
     if (action == "inventory_hover" || action == "inventory_activate") return "inventory_target";
     if (action == "open_new_battle_choice") return "choice_control";
     if (action == "choose_visible_row") return "visible_row";
@@ -142,10 +143,10 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         if (request.choice != "mission" && request.choice != "craft" && request.choice != "terrain" &&
             request.choice != "difficulty" && request.choice != "alien_race") return false;
     }
-    else if (kind == "grid_cell" || kind == "enemy_button" || kind == "fire_mode")
+    else if (kind == "grid_cell" || kind == "enemy_button" || kind == "weapon_action" || kind == "grenade_timer")
     {
-        const char prefix = kind == "grid_cell" ? 'g' : (kind == "enemy_button" ? 'e' : 'a');
-        const unsigned maximum = kind == "grid_cell" ? 127 : (kind == "enemy_button" ? 9 : 5);
+        const char prefix = kind == "grid_cell" ? 'g' : (kind == "enemy_button" ? 'e' : (kind == "grenade_timer" ? 't' : 'a'));
+        const unsigned maximum = kind == "grid_cell" ? 127 : (kind == "enemy_button" ? 9 : (kind == "grenade_timer" ? 23 : 5));
         std::uint64_t index;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != prefix ||
             !decimal(parts[6].substr(1), maximum, index)) return false;

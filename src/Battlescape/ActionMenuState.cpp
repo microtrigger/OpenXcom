@@ -360,15 +360,18 @@ bool ActionMenuState::agentUiState(Observer::AgentUiState &out) const
         popupVisible = true;
         Observer::agentIncludeWidget(out, _actionMenu[i]);
         const BattleActionType type = _actionMenu[i]->getAction();
-        if (type != BA_SNAPSHOT && type != BA_AIMEDSHOT && type != BA_AUTOSHOT) continue;
+        if (type != BA_SNAPSHOT && type != BA_AIMEDSHOT && type != BA_AUTOSHOT &&
+            type != BA_PRIME && type != BA_THROW) continue;
         if (!out.rows.empty()) out.visible += ",";
         out.visible += "{\"handle\":\"a" + std::to_string(out.rows.size()) + "\",\"label\":" +
             Observer::agentJsonString(label) + ",\"accuracy\":" + accuracy + ",\"time_units\":" + timeUnits + "}";
         out.rows.push_back(i);
+        out.widgets.push_back(std::make_pair(_actionMenu[i], static_cast<std::uint64_t>(type)));
+        out.context.push_back(static_cast<std::uint64_t>(_actionMenu[i]->getTUs()));
         if (first.empty()) first = label;
     }
     out.visible += "]}";
-    if (!first.empty()) out.actions.push_back(Observer::AgentUiAction("choose_fire_mode", first, "visible_text", "fire_mode"));
+    if (!first.empty()) out.actions.push_back(Observer::AgentUiAction("choose_weapon_action", first, "visible_text", "weapon_action"));
     if (popupVisible) out.actions.push_back(Observer::AgentUiAction("cancel_weapon_action", "Close action menu", "visible_control_semantics"));
     out.actor = _action->actor; out.save = _game->getSavedGame()->getSavedBattle();
     out.widgets.push_back(std::make_pair(_action->weapon, 0));
@@ -381,7 +384,7 @@ bool ActionMenuState::agentDispatch(const Observer::AgentRequest &request)
     Observer::AgentUiState shown;
     if (!agentUiState(shown) || !shown.offers(request.action)) return false;
     if (request.action == "cancel_weapon_action") { closeMenu(); return true; }
-    if (request.action != "choose_fire_mode" || request.choice.size() < 2) return false;
+    if (request.action != "choose_weapon_action" || request.choice.size() < 2) return false;
     const unsigned row = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
     if (row >= shown.rows.size()) return false;
     activateItem(static_cast<int>(shown.rows[row])); return true;

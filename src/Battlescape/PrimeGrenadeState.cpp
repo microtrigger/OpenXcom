@@ -130,8 +130,7 @@ void PrimeGrenadeState::handle(Action *action)
 	State::handle(action);
 	if (action->getDetails()->type == SDL_MOUSEBUTTONDOWN && action->getDetails()->button.button == SDL_BUTTON_RIGHT)
 	{
-		if (!_inInventoryView) _action->value = -1;
-		_game->popState();
+		cancelTimer();
 	}
 }
 
@@ -146,8 +145,7 @@ void PrimeGrenadeState::btnClick(Action *action)
 
 	if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
 	{
-		if (!_inInventoryView) _action->value = btnID;
-		_game->popState();
+		cancelTimer();
 		return;
 	}
 
@@ -160,13 +158,88 @@ void PrimeGrenadeState::btnClick(Action *action)
 		}
 	}
 
-	if (btnID != -1)
-	{
-		if (_inInventoryView) _grenadeInInventory->setFuseTimer(0 + btnID);
-		else _action->value = btnID;
-		_game->popState();
-		if (!_inInventoryView) _game->popState();
-	}
+	if (btnID != -1) selectTimer(btnID);
+}
+
+void PrimeGrenadeState::cancelTimer()
+{
+	if (!_inInventoryView) _action->value = -1;
+	_game->popState();
+}
+
+void PrimeGrenadeState::selectTimer(int timer)
+{
+	if (timer < 0 || timer >= 24) return;
+	if (_inInventoryView) _grenadeInInventory->setFuseTimer(timer);
+	else _action->value = timer;
+	_game->popState();
+	if (!_inInventoryView) _game->popState();
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Savegame/BattleUnit.h"
+namespace OpenXcom {
+bool PrimeGrenadeState::agentUiState(Observer::AgentUiState &out) const
+{
+    // The inventory/prebattle timer has different ordinary effects and is not
+    // part of this tactical provider. No fuse or eligibility enters the DTO.
+    if (_inInventoryView || !_action || _modal ||
+        !_game->isState(const_cast<PrimeGrenadeState *>(this))) return false;
+    out = Observer::AgentUiState(); out.screen = "prime_grenade";
+    const std::string title = Observer::agentWidgetUncovered(_title, _surfaces)
+        ? Observer::agentTextJson(_title) : "null";
+    if (title != "null") Observer::agentIncludeWidget(out, _title);
+    out.visible = "{\"title\":" + title + ",\"timers\":[";
+    std::string first;
+    for (unsigned i = 0; i < 24; ++i)
+    {
+        // The number is intentionally painted over its own button. All other
+        // later layers must leave the complete control and number uncovered.
+        std::vector<Surface *> withoutNumber;
+        for (Surface *surface : _surfaces) if (surface != _number[i]) withoutNumber.push_back(surface);
+        if (!Observer::agentWidgetUncovered(_button[i], withoutNumber) ||
+            !Observer::agentWidgetUncovered(_number[i], _surfaces)) continue;
+        const std::string label = Observer::agentTextJson(_number[i]);
+        SDL_Rect ink;
+        if (label == "null" || _number[i]->getText().empty() || !_number[i]->agentPaintedBounds(ink) ||
+            ink.x < _button[i]->getX() || ink.y < _button[i]->getY() ||
+            ink.x + ink.w > _button[i]->getX() + _button[i]->getWidth() ||
+            ink.y + ink.h > _button[i]->getY() + _button[i]->getHeight()) continue;
+        const std::size_t oldSize = out.regions.size();
+        Observer::agentIncludeWidget(out, _button[i]);
+        if (!Observer::agentRegionsDisjoint(out)) { out.regions.resize(oldSize); continue; }
+        if (!out.rows.empty()) out.visible += ",";
+        out.visible += "{\"handle\":\"t" + std::to_string(out.rows.size()) + "\",\"label\":" + label + "}";
+        out.rows.push_back(i);
+        if (first.empty()) first = _number[i]->getText();
+    }
+    out.visible += "]}";
+    if (!first.empty()) out.actions.push_back(Observer::AgentUiAction("choose_grenade_timer", first, "visible_text", "grenade_timer"));
+    if (out.regions.empty()) return false;
+    out.actions.push_back(Observer::AgentUiAction("cancel_grenade_timer", "Cancel timer", "visible_control_semantics"));
+    out.actor = _action->actor; out.save = _game->getSavedGame()->getSavedBattle();
+    out.widgets.push_back(std::make_pair(_action, 0));
+    out.widgets.push_back(std::make_pair(_action->weapon, 0));
+    out.context.push_back(static_cast<std::uint64_t>(_action->type));
+    out.context.push_back(static_cast<std::uint64_t>(_action->value));
+    out.context.push_back(static_cast<std::uint64_t>(_action->TU));
+    out.context.push_back(_action->targeting ? 1 : 0);
+    if (_action->actor) { out.actorRevision = _action->actor->stanceControlRevision();
+        out.context.push_back(_action->actor->turnControlPoseRevision()); }
+    return true;
+}
+bool PrimeGrenadeState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState shown;
+    if (!agentUiState(shown) || !shown.offers(request.action)) return false;
+    if (request.action == "cancel_grenade_timer") { cancelTimer(); return true; }
+    if (request.action != "choose_grenade_timer" || request.choice.size() < 2 || request.choice[0] != 't') return false;
+    const unsigned timer = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
+    if (timer >= shown.rows.size()) return false;
+    selectTimer(static_cast<int>(shown.rows[timer])); return true;
+}
+}
+#endif

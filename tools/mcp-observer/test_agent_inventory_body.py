@@ -24,13 +24,13 @@ class BodyValidationTests(unittest.TestCase):
         return a.validate_state(inventory(visible), CHALLENGE, EPOCH)
 
     def test_version_and_unchanged_authority_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/12')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (45, 23, 4))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/13')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (47, 24, 4))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertEqual(a.MAX_PACKET, 49152)
         self.assertEqual(a.MAX_REQUEST, 512)
         self.assertEqual(a.CAPABILITY_TTL, 120)
-        self.assertNotIn('choose_weapon_action', a.ACTIONS)
+        self.assertNotIn('choose_fire_mode', a.ACTIONS)
 
     def test_three_areas_in_state_result_and_retained_event(self):
         visible = body_projection()
@@ -78,7 +78,7 @@ class BodyValidationTests(unittest.TestCase):
         native=InventoryFixture(transform=lambda operation,value: dict(value,schema='openxcom-agent-control/11') if operation=='H' else value)
         self.addCleanup(native.close)
         with self.assertRaises(Unavailable):native.client.observe()
-        self.assertEqual(native.requests,[b'H openxcom-agent-control/12'])
+        self.assertEqual(native.requests,[b'H openxcom-agent-control/13'])
         self.assertEqual(native.client.state,'CLOSED')
 
 

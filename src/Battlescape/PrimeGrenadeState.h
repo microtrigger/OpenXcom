@@ -45,6 +45,9 @@ private:
 	Frame *_frame;
 	InteractiveSurface *_button[24];
 	Surface *_bg;
+	/// Shared ordinary timer and cancellation paths.
+	void selectTimer(int timer);
+	void cancelTimer();
 public:
 	/// Creates the Prime Grenade state.
 	PrimeGrenadeState(BattleAction *action, bool inInventoryView, BattleItem *grenadeInInventory);
@@ -54,6 +57,10 @@ public:
 	void handle(Action *action);
 	/// Handler for clicking a button.
 	void btnClick(Action *action);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 };
 
 }

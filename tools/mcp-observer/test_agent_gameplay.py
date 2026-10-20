@@ -14,16 +14,16 @@ from test_agent_reports import message
 
 NEW_KINDS = {'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
              'center_selected_unit': 'none', 'center_enemy': 'enemy_button',
-             'open_hand_action_menu': 'hand', 'choose_fire_mode': 'fire_mode',
+             'open_hand_action_menu': 'hand', 'choose_weapon_action': 'weapon_action',
              'cancel_weapon_action': 'none'}
 
 
 class GameplayValidationTests(unittest.TestCase):
     def test_closed_counts_kinds_and_state_action_matrix(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/12')
-        self.assertEqual(len(a.ACTIONS), 45); self.assertEqual(len(a.STATE_ACTIONS), 23)
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/13')
+        self.assertEqual(len(a.ACTIONS), 47); self.assertEqual(len(a.STATE_ACTIONS), 24)
         self.assertEqual({key: a.ARGUMENT_KINDS[key] for key in NEW_KINDS}, NEW_KINDS)
-        self.assertEqual(a.STATE_ACTIONS['weapon_action_menu'], {'choose_fire_mode', 'cancel_weapon_action'})
+        self.assertEqual(a.STATE_ACTIONS['weapon_action_menu'], {'choose_weapon_action', 'cancel_weapon_action'})
         self.assertEqual(a.STATE_ACTIONS['battlescape_warning'], frozenset())
         self.assertNotIn('cancel_weapon_action', a.STATE_ACTIONS['battlescape'])
         for screen in ('battlescape', 'weapon_action_menu', 'battlescape_warning'):
@@ -33,7 +33,7 @@ class GameplayValidationTests(unittest.TestCase):
         cases = [('map_primary', {'cell': 'g127'}, ' g127'), ('map_secondary', {'cell': 'g0'}, ' g0'),
                  ('center_enemy', {'button': 'e9'}, ' e9'), ('center_selected_unit', {}, ''),
                  ('open_hand_action_menu', {'hand': 'right'}, ' right'),
-                 ('choose_fire_mode', {'row': 'a5'}, ' a5'), ('cancel_weapon_action', {}, '')]
+                 ('choose_weapon_action', {'row': 'a5'}, ' a5'), ('cancel_weapon_action', {}, '')]
         for action, args, suffix in cases:
             obj = arguments(action=action, args=args)
             self.assertEqual(a.canonical_action_request(obj),
@@ -46,7 +46,7 @@ class GameplayValidationTests(unittest.TestCase):
         for action, key, bad_values in [('map_primary', 'cell', ('g128', 'g-1', 'g00', 'r0', 'G0', 0, True, None)),
                 ('map_secondary', 'cell', ('e0', 'g1 ', 'g0\n')),
                 ('center_enemy', 'button', ('e10', 'e00', 'g0', 1, True)),
-                ('choose_fire_mode', 'row', ('a6', 'a00', 'r0', 0, False)),
+                ('choose_weapon_action', 'row', ('a6', 'a00', 'r0', 0, False)),
                 ('open_hand_action_menu', 'hand', ('LEFT', 'primary', '', 0, True))]:
             for value in bad_values:
                 with self.subTest(action=action, value=value), self.assertRaises(Unavailable):
@@ -107,7 +107,7 @@ class GameplayValidationTests(unittest.TestCase):
     def test_weapon_descriptor_is_first_actual_row_text_with_no_peer_defined_kind(self):
         for key, value in [('label', 'Generic fire'), ('label_source', 'visible_control_semantics'), ('argument_kind', 'point')]:
             obj = state(screen='weapon_action_menu')
-            next(item for item in obj['actions'] if item['id'] == 'choose_fire_mode')[key] = value
+            next(item for item in obj['actions'] if item['id'] == 'choose_weapon_action')[key] = value
             with self.subTest(key=key), self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
         obj = state(screen='weapon_action_menu'); obj['actions'][0]['id'] = 'map_primary'
         with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
@@ -132,7 +132,7 @@ class GameplayClientTests(unittest.TestCase):
         for screen, action, bad_args in [('battlescape', 'map_primary', {'cell': 'g127'}),
                 ('battlescape', 'map_secondary', {'cell': 'g127'}),
                 ('battlescape', 'center_enemy', {'button': 'e9'}),
-                ('weapon_action_menu', 'choose_fire_mode', {'row': 'a5'})]:
+                ('weapon_action_menu', 'choose_weapon_action', {'row': 'a5'})]:
             native = self.fixture(screen=screen); observed = native.client.observe(); count = len(native.requests)
             with self.subTest(action=action), self.assertRaises(Unavailable):
                 native.client.execute(**arguments(observed, action=action, args=bad_args))
@@ -142,7 +142,7 @@ class GameplayClientTests(unittest.TestCase):
     def test_mutating_returned_dto_cannot_add_handle_authority(self):
         for screen, action, field, entry, bad_args in [
                 ('battlescape', 'center_enemy', 'enemy_buttons', dict(handle='e1', number=2), {'button': 'e1'}),
-                ('weapon_action_menu', 'choose_fire_mode', 'rows', dict(handle='a2', label='Fake', accuracy=None, time_units=None), {'row': 'a2'})]:
+                ('weapon_action_menu', 'choose_weapon_action', 'rows', dict(handle='a2', label='Fake', accuracy=None, time_units=None), {'row': 'a2'})]:
             native = self.fixture(screen=screen); observed = native.client.observe(); observed['visible'][field].append(entry)
             count = len(native.requests)
             with self.assertRaises(Unavailable): native.client.execute(**arguments(observed, action=action, args=bad_args))
@@ -177,19 +177,19 @@ class GameplayClientTests(unittest.TestCase):
         self.assertEqual(len(native.requests), count)
         native.screen = 'weapon_action_menu'; menu = native.client.observe()
         self.assertEqual(native.client.grid_cells, frozenset()); self.assertEqual(native.client.enemy_buttons, frozenset())
-        self.assertEqual(native.client.hands, frozenset()); self.assertEqual(native.client.fire_modes, {'a0', 'a1'})
+        self.assertEqual(native.client.hands, frozenset()); self.assertEqual(native.client.weapon_actions, {'a0', 'a1'})
         with self.assertRaises(Unavailable): native.client.execute(**arguments(menu, action='map_primary'))
         native.screen = 'battlescape_warning'; native.client.observe()
-        self.assertEqual(native.client.fire_modes, frozenset()); self.assertIsNone(native.client.capability)
+        self.assertEqual(native.client.weapon_actions, frozenset()); self.assertIsNone(native.client.capability)
 
     def test_all_new_actions_canonical_dispatch_and_duplicate_lookup_only(self):
         for index, (action, _) in enumerate(NEW_KINDS.items()):
-            screen = 'weapon_action_menu' if action in ('choose_fire_mode', 'cancel_weapon_action') else 'battlescape'
+            screen = 'weapon_action_menu' if action in ('choose_weapon_action', 'cancel_weapon_action') else 'battlescape'
             native = self.fixture(screen=screen); observed = native.client.observe()
             args = arguments(observed, action=action, command_id=f'{index+1:032x}')
             receipt = native.client.execute(**args)
             self.assertEqual(native.requests[-1], a.canonical_action_request(args))
-            self.assertEqual(native.client.grid_cells, frozenset()); self.assertEqual(native.client.fire_modes, frozenset())
+            self.assertEqual(native.client.grid_cells, frozenset()); self.assertEqual(native.client.weapon_actions, frozenset())
             fresh = native.client.observe(); self.assertEqual(native.client.execute(**args), receipt)
             self.assertEqual(native.requests[-1], ('S ' + args['command_id']).encode())
             self.assertEqual(native.client.capability, fresh['capability'])
@@ -198,8 +198,8 @@ class GameplayClientTests(unittest.TestCase):
     def test_changed_tactical_args_conflict_without_replay(self):
         for action, changed in [('map_primary', {'cell':'g1'}), ('map_secondary', {'cell':'g1'}),
                 ('center_enemy', {'button':'e1'}), ('open_hand_action_menu', {'hand':'right'}),
-                ('choose_fire_mode', {'row':'a1'})]:
-            screen = 'weapon_action_menu' if action == 'choose_fire_mode' else 'battlescape'
+                ('choose_weapon_action', {'row':'a1'})]:
+            screen = 'weapon_action_menu' if action == 'choose_weapon_action' else 'battlescape'
             native = self.fixture(screen=screen); args = arguments(native.client.observe(), action=action)
             native.client.execute(**args); count = len(native.requests)
             with self.subTest(action=action), self.assertRaises(Unavailable): native.client.execute(**dict(args, args=changed))
@@ -207,10 +207,10 @@ class GameplayClientTests(unittest.TestCase):
 
     def test_ordinary_weapon_flow_warning_is_observation_not_success_or_retry(self):
         transitions = {('battlescape','open_hand_action_menu'):'weapon_action_menu',
-                       ('weapon_action_menu','choose_fire_mode'):'battlescape',
+                       ('weapon_action_menu','choose_weapon_action'):'battlescape',
                        ('battlescape','map_primary'):'battlescape_warning'}
         native = self.fixture(transitions=transitions); server = adapter.Server(agent_control=native.client)
-        for action in ('open_hand_action_menu', 'choose_fire_mode', 'map_primary'):
+        for action in ('open_hand_action_menu', 'choose_weapon_action', 'map_primary'):
             observed = call(server, 'read_ui_state')['result']['structuredContent']
             receipt = call(server, 'execute_ui_action', arguments(observed, action=action,
                            command_id=f'{len(native.results)+1:032x}'))['result']
@@ -226,7 +226,7 @@ class GameplayClientTests(unittest.TestCase):
 
     def test_lost_map_or_fire_mode_receipt_is_terminal_no_action_or_event_replay(self):
         for action, screen in [('map_primary','battlescape'), ('map_secondary','battlescape'),
-                               ('choose_fire_mode','weapon_action_menu')]:
+                               ('choose_weapon_action','weapon_action_menu')]:
             native = self.fixture(screen=screen, transform=lambda op,value:None if op=='E' else value)
             args = arguments(native.client.observe(), action=action)
             with self.subTest(action=action), self.assertRaises(a.ActionOutcomeUnknown): native.client.execute(**args)
