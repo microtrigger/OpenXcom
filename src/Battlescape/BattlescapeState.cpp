@@ -2855,6 +2855,11 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     if (stance)
         out.actions.push_back(Observer::AgentUiAction(_agentShownKneeled ? "stand" : "kneel",
             _agentShownKneeled ? "Stand" : "Kneel", "visible_control_semantics"));
+    if (Observer::agentWidgetUncovered(_btnInventory, _surfaces))
+    {
+        out.actions.push_back(Observer::AgentUiAction("open_inventory", "Inventory", "visible_control_semantics"));
+        Observer::agentIncludeWidget(out, _btnInventory);
+    }
     if (Observer::agentWidgetUncovered(_btnHelp, _surfaces))
     {
         out.actions.push_back(Observer::AgentUiAction("open_pause_menu", "Options", "visible_control_semantics"));
@@ -2920,6 +2925,7 @@ bool BattlescapeState::agentDispatch(const std::string &action)
     else if (action == "previous_soldier") btnPrevSoldierClick(0);
     else if ((action == "kneel" && !_agentShownKneeled) || (action == "stand" && _agentShownKneeled)) btnKneelClick(0);
     else if (action == "open_pause_menu") btnHelpClick(0);
+    else if (action == "open_inventory") btnInventoryClick(0);
     else if (action == "end_turn") btnEndTurnClick(0);
     else return false;
     return true;

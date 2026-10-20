@@ -41,6 +41,10 @@
 #endif
 #include <algorithm>
 #include "Inventory.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentInventoryPaint.h"
+#include "WarningMessage.h"
+#endif
 #include "../Engine/Game.h"
 #include "../Engine/FileMap.h"
 #include "../Mod/Mod.h"
@@ -777,25 +781,134 @@ void InventoryState::saveEquipmentLayout()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 bool InventoryState::agentUiState(Observer::AgentUiState &out) const
 {
-	if (_modal || !Observer::agentWidgetVisible(_btnOk)) return false;
-	out = Observer::AgentUiState();
-	out.screen = "inventory";
-	// This is the visible icon control's meaning, not an unpainted tooltip.
-	out.visible = "{\"close_label\":\"Close inventory\"}";
-	out.actions.push_back(Observer::AgentUiAction("close_inventory", "Close inventory", "visible_control_semantics"));
-	out.save = _battleGame;
-	Observer::agentIncludeWidget(out, _btnOk);
-    return true;
+    using namespace Observer;
+    if (_modal || !_game->isState(const_cast<InventoryState *>(this)) || !agentPaintHealthy() || !_inv->agentProjectionReady()) return false;
+    out = AgentUiState(); out.screen = "inventory"; out.save = _battleGame;
+    // The inventory is the final composite in this explicit state. Other states
+    // and unrecognized appended layers do not inherit this admission.
+    if (_surfaces.empty() || _surfaces.back() != _inv) return false;
+    std::vector<Surface *> preceding(_surfaces.begin(), _surfaces.end() - 1);
+    const auto include = [&](const AgentUiRect &r) -> bool {
+        if (!agentInventoryInside(r)) return false;
+        out.regions.push_back(r);
+        if (!agentRegionsDisjoint(out)) { out.regions.pop_back(); return false; }
+        return true;
+    };
+    const auto text = [&](const Text *widget) -> std::string {
+        const std::string value = agentTextJson(widget);
+        if (value == "null" || !agentWidgetUncovered(widget, preceding)) return "null";
+        SDL_Rect ink;
+        if (!widget->agentPaintedBounds(ink)) return value == "\"\"" ? value : "null";
+        AgentUiRect r = {ink.x, ink.y, ink.w, ink.h};
+        if (!agentInventoryClear(_inv, r) || !include(r)) return "null";
+        return value;
+    };
+    const auto button = [&](const Surface *widget, const char *id, const char *label) {
+        // Stock Ground arrow allocates one transparent column past x=320.
+        // Admit only its actual complete ink, not that padded allocation.
+        AgentUiRect r;
+        if (!agentInventoryInk(widget, r) || !agentRegionsUncovered({r}, widget, preceding)) return;
+        if (agentInventoryClear(_inv, r) && include(r))
+            out.actions.push_back(AgentUiAction(id,label,"visible_control_semantics"));
+    };
+    button(_btnOk, "close_inventory", "Close inventory");
+    std::string name="null", tus="null", weight="null", item="null", ammo="null", warning="null", held="null", targets="[]";
+    if (_tu)
+    {
+        name = text(_txtName); tus = text(_txtTus); weight = text(_txtWeight);
+        item = text(_txtItem); ammo = text(_txtAmmo);
+        const std::string message = _inv->_warning->agentMessage();
+        if (!message.empty())
+        {
+            const AgentUiRect r = {_inv->_warning->getX(),_inv->_warning->getY(),_inv->_warning->getWidth(),_inv->_warning->getHeight()};
+            if (include(r)) { warning = agentJsonString(message); out.displayedMessage = message; }
+        }
+        AgentUiRect heldInk;
+        if (_inv->_agentHeldPresented && agentInventoryInk(_inv->_selection, heldInk) && _inv->agentOverlayClear(heldInk, false) && include(heldInk))
+        {
+            held = "{\"status\":\"presented\"," + agentInventoryRectJson(heldInk) + "}";
+            out.actions.push_back(AgentUiAction("cancel_inventory_hold","Return held item","visible_control_semantics"));
+        }
+        button(_btnUnload, "unload_inventory", "Unload weapon");
+        button(_btnGround, "next_inventory_ground_page", "Next ground page");
+        std::vector<AgentUiRect> includedLabels;
+        targets = "[";
+        for (const Inventory::AgentTarget &target : _inv->_agentTargets)
+        {
+            if (out.points.size() == 64) break;
+            const AgentUiRect &r = target.rect;
+            if (!_inv->agentGridVisible(target) || !_inv->agentOverlayClear(r) || !include(r)) continue;
+            std::string label = target.label;
+            if (label != "null")
+            {
+                if (!agentInventoryClear(_inv->_items, target.labelInk) || !_inv->agentOverlayClear(target.labelInk)) label = "null";
+                else if (std::find(includedLabels.begin(), includedLabels.end(), target.labelInk) == includedLabels.end())
+                {
+                    if (include(target.labelInk)) includedLabels.push_back(target.labelInk); else label = "null";
+                }
+            }
+            if (!out.points.empty()) targets += ",";
+            const int x = r.x + r.width/2, y = r.y + r.height/2;
+            targets += "{\"handle\":\"v" + std::to_string(out.points.size()) + "\",\"area\":" + agentJsonString(target.area) +
+                ",\"label\":" + label + "," + agentInventoryRectJson(r) + ",\"point\":{\"x\":" + std::to_string(x) +
+                ",\"y\":" + std::to_string(y) + "},\"item\":\"" + (_inv->agentItemsVisible(r) ? "presented" : "unknown") + "\"}";
+            out.points.push_back(std::make_pair(x,y));
+        }
+        targets += "]";
+        if (!out.points.empty())
+        {
+            out.actions.push_back(AgentUiAction("inventory_hover","Inspect inventory target","visible_control_semantics","inventory_target"));
+            out.actions.push_back(AgentUiAction("inventory_activate","Activate inventory target","visible_control_semantics","inventory_target"));
+        }
+    }
+    out.visible = "{\"close_label\":\"Close inventory\",\"selected_name\":"+name+",\"time_units\":"+tus+
+        ",\"weight\":"+weight+",\"item_name\":"+item+",\"ammo\":"+ammo+",\"warning\":"+warning+
+        ",\"held\":"+held+",\"targets\":"+targets+"}";
+    // Identity/generations only prevent stale dispatch. They never reach DTOs.
+    out.actor = _inv->_selUnit;
+    out.actorRevision = _inv->_selUnit ? _inv->_selUnit->stanceControlRevision() : 0;
+    out.selectionRevision = _battleGame->stanceControlRevision();
+    out.widgets.push_back(std::make_pair(_inv, _inv->_agentInventoryRevision));
+    out.widgets.push_back(std::make_pair(_inv->_selItem, 0));
+    return !out.regions.empty();
 }
-
+bool InventoryState::agentBindingCurrent(const Observer::AgentUiState &binding) const
+{
+    return binding.save == _battleGame && binding.actor == _inv->_selUnit &&
+        _inv->_selUnit == _battleGame->getSelectedUnit() &&
+        binding.selectionRevision == _battleGame->stanceControlRevision() &&
+        binding.actorRevision == (_inv->_selUnit ? _inv->_selUnit->stanceControlRevision() : 0);
+}
+bool InventoryState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState shown;
+    if (!agentUiState(shown) || !shown.offers(request.action)) return false;
+    if (request.action == "inventory_hover" || request.action == "inventory_activate")
+    {
+        const unsigned n = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
+        if (n >= shown.points.size()) return false;
+        const int x = shown.points[n].first, y = shown.points[n].second;
+        if (_inv->movePointer(x,y)) invMouseOver(nullptr);
+        if (request.action == "inventory_activate" && _inv->activateButton(SDL_BUTTON_LEFT,x,y,false)) invClick(nullptr);
+        return true;
+    }
+    if (request.action == "cancel_inventory_hold")
+    {
+        // Only the ordinary held return branch: never prime, close or right-click fallback.
+        if (_inv->returnHeldItem()) invClick(nullptr);
+        return true;
+    }
+    return agentDispatch(request.action);
+}
 bool InventoryState::agentDispatch(const std::string &action)
 {
-	Observer::AgentUiState current;
-	if (action != "close_inventory" || !agentUiState(current)) return false;
-	// A held item may make this a no-op, just as for the human OK control.
-	// Do not inspect or expose that hidden eligibility before dispatch.
-	btnOkClick(nullptr);
-	return true;
+    Observer::AgentUiState shown;
+    if (!agentUiState(shown) || !shown.offers(action)) return false;
+    if (action == "close_inventory") btnOkClick(nullptr);
+    else if (action == "unload_inventory") btnUnloadClick(nullptr);
+    else if (action == "next_inventory_ground_page") btnGroundClick(nullptr);
+    else return false;
+    return true;
 }
 #endif
 

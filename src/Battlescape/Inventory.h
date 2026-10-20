@@ -21,6 +21,9 @@
 #include <map>
 #include <cstdint>
 #include <string>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -55,6 +58,25 @@ class Inventory : public InteractiveSurface
     friend struct InventoryGroundGateAccess;
 #endif
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    friend class InventoryState;
+    struct AgentTarget {
+        Observer::AgentUiRect rect;
+        std::string area, label = "null";
+        Observer::AgentUiRect labelInk = {0,0,0,0};
+        std::vector<std::pair<int, unsigned> > labelPixels;
+    };
+    std::vector<AgentTarget> _agentTargets;
+    std::vector<unsigned char> _agentShownItemInk, _agentShownGridInk;
+    std::uint64_t _agentInventoryRevision = 0, _agentShownRevision = 0;
+    bool _agentFrameReady = false, _agentGridReady = false, _agentGridUnambiguous = false, _agentHeldPresented = false;
+    bool agentProjectionReady() const;
+    bool agentOverlayClear(const Observer::AgentUiRect &region, bool selection = true) const;
+    bool agentItemsVisible(const Observer::AgentUiRect &region) const;
+    bool agentGridVisible(const AgentTarget &target) const;
+    void agentCaptureTarget(int x, int y, int width, int height, const std::string &area);
+    void agentCaptureItems(const Surface *destination);
+#endif
 #if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     friend class InventoryState;
     std::uint64_t _heldSelectionRevision = 0;
@@ -77,6 +99,11 @@ private:
 	NumberText *_stackNumber;
 	Timer *_animTimer;
 	int _depth;
+    // Shared ordinary input primitives. Physical handlers retain their callback
+    // tail; the explicit semantic state calls that same tail once without SDL.
+    bool movePointer(int localX, int localY);
+    bool activateButton(Uint8 button, int localX, int localY, bool control);
+    bool returnHeldItem();
 	/// Moves an item to a specified slot.
 	void moveItem(BattleItem *item, RuleInventory *slot, int x, int y);
 	/// Gets the slot in the specified position.

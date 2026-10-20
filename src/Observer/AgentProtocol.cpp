@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/10"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/11"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/10\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/11\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -38,7 +38,9 @@ bool agentActionId(const std::string &value)
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "scroll_visible_list" ||
         value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn" || value == "acknowledge_message" || value == "map_primary" || value == "map_secondary" ||
         value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
-        value == "choose_fire_mode" || value == "cancel_weapon_action" || value == "close_debriefing";
+        value == "choose_fire_mode" || value == "cancel_weapon_action" || value == "close_debriefing" ||
+        value == "open_inventory" || value == "inventory_hover" || value == "inventory_activate" ||
+        value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page";
 }
 const char *agentArgumentKind(const std::string &action)
 {
@@ -46,6 +48,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "center_enemy") return "enemy_button";
     if (action == "open_hand_action_menu") return "hand";
     if (action == "choose_fire_mode") return "fire_mode";
+    if (action == "inventory_hover" || action == "inventory_activate") return "inventory_target";
     if (action == "open_new_battle_choice") return "choice_control";
     if (action == "choose_visible_row") return "visible_row";
     if (action == "scroll_visible_list") return "scroll_direction";
@@ -151,6 +154,13 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     else if (kind == "hand")
     {
         if (parts.size() != 7 || (parts[6] != "left" && parts[6] != "right")) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "inventory_target")
+    {
+        std::uint64_t target;
+        if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'v' ||
+            !decimal(parts[6].substr(1), 63, target)) return false;
         request.choice = parts[6];
     }
     else if (kind == "visible_row")

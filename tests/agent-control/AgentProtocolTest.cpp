@@ -20,7 +20,11 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(parseAgentRequest("H openxcom-agent-control/10", r) && r.kind == 'H', "exact handshake");
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/11", "inventory schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/11\",\"mode\":\"agent-control\"",
+        "inventory envelope schema matches handshake");
+    check(parseAgentRequest("H openxcom-agent-control/11", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/10", r), "prior inventory-free schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/8", r), "v8 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/7", r), "v7 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/5", r), "v5 mismatch rejected");
@@ -30,7 +34,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/10\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/11\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -44,7 +48,8 @@ int main()
         "new_battle", "start_battle", "continue_briefing", "close_inventory",
         "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",
         "resume_game", "cancel_menu", "dismiss_error", "start_new_game", "confirm_base_name",
-        "close_dropdown", "open_funding", "close_funding", "end_turn", "acknowledge_message", "close_debriefing"};
+        "close_dropdown", "open_funding", "close_funding", "end_turn", "acknowledge_message", "close_debriefing",
+        "open_inventory", "cancel_inventory_hold", "unload_inventory", "next_inventory_ground_page"};
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
@@ -85,6 +90,49 @@ int main()
     for (const char *row : {"a6", "a01", "snapshot"}) check(!parseAgentRequest(prefix+"0 choose_fire_mode "+row,r), "invalid fire row");
     for (const char *hand : {"left", "right"}) check(parseAgentRequest(prefix+"0 open_hand_action_menu "+hand,r), "hand syntax");
     check(!parseAgentRequest(prefix+"0 open_hand_action_menu weapon42",r), "no item identity");
+    for (const char *action : {"open_inventory", "cancel_inventory_hold", "unload_inventory",
+        "next_inventory_ground_page", "close_inventory"})
+    {
+        check(agentActionId(action) && std::string(agentArgumentKind(action)) == "none",
+            "inventory control has no argument");
+        check(!parseAgentRequest(prefix+"0 "+action+" v0",r), "inventory control rejects target argument");
+        check(!parseAgentRequest(prefix+"0 "+action+" 1",r), "inventory control rejects extra argument");
+    }
+    for (const char *action : {"inventory_hover", "inventory_activate"})
+    {
+        check(agentActionId(action) && std::string(agentArgumentKind(action)) == "inventory_target",
+            "inventory target argument kind");
+        for (unsigned i = 0; i < 64; ++i)
+        {
+            const std::string target = "v" + std::to_string(i);
+            check(parseAgentRequest(prefix+"9007199254740991 "+action+" "+target,r) && r.kind == 'E' &&
+                r.action == action && r.choice == target && r.revision == 9007199254740991ULL &&
+                r.id == token(3) && r.epoch == token(4) && r.capability == token(5),
+                "all bounded local inventory targets preserve request identity");
+        }
+        check(!parseAgentRequest(prefix+"0 "+action,r), "inventory target argument required");
+        for (const char *target : {"v64", "v127", "v18446744073709551616", "v00", "v01", "v063",
+            "v-1", "v+1", "v1.0", "v1e0", "v0x1", "v", "V0", "0", "g0", "e0", "a0", "r0",
+            "weapon42", "STR_RIFLE", "v0 v1", "v0 extra", " v0", "v0 ", "v0\t", "v0\n", "v0\r"})
+            check(!parseAgentRequest(prefix+"0 "+action+" "+target,r),
+                "noncanonical unbounded or nonlocal inventory target rejected");
+    }
+    check(!parseAgentRequest(prefix+"00 inventory_activate v0",r), "inventory revision remains canonical");
+    check(!parseAgentRequest(prefix+"9007199254740992 inventory_activate v0",r),
+        "inventory revision remains JSON-safe");
+    const std::string inventoryRequest = prefix+"0 inventory_activate v0";
+    AgentLedger inventoryLedger;
+    check(inventoryLedger.begin(token(3),inventoryRequest) == AgentLedger::Fresh, "inventory identity fresh");
+    inventoryLedger.find(token(3))->dispatched = true;
+    inventoryLedger.find(token(3))->response = "inventory receipt";
+    check(inventoryLedger.begin(token(3),inventoryRequest) == AgentLedger::Duplicate,
+        "inventory same ID never redispatched");
+    check(inventoryLedger.begin(token(3),prefix+"0 inventory_activate v1") == AgentLedger::Conflict,
+        "inventory changed target conflicts");
+    check(inventoryLedger.begin(token(3),prefix+"0 inventory_hover v0") == AgentLedger::Conflict,
+        "inventory changed action conflicts");
+    check(inventoryLedger.find(token(3))->dispatched &&
+        inventoryLedger.find(token(3))->response == "inventory receipt", "inventory conflicts preserve receipt");
     check(!parseAgentRequest("H openxcom-agent-control/6",r), "old6 rejected");
     check(!parseAgentRequest(prefix+"0 close_debriefing yes",r), "debrief action has no argument");
     check(!parseAgentRequest(prefix+"0 show_debrief_stats",r), "stats control unsupported");

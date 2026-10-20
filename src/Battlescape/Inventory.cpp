@@ -56,6 +56,9 @@
 #include "../Savegame/Tile.h"
 #include "PrimeGrenadeState.h"
 #include "../Engine/Screen.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentInventoryPaint.h"
+#endif
 
 namespace OpenXcom
 {
@@ -134,6 +137,9 @@ void Inventory::setTuMode(bool tu)
  */
 void Inventory::setSelectedUnit(BattleUnit *unit)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentInventoryRevision;
+#endif
 	_selUnit = unit;
 	_groundOffset = 999;
 	arrangeGround();
@@ -153,6 +159,9 @@ void Inventory::draw()
  */
 void Inventory::drawGrid()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentGridReady = false; _agentGridUnambiguous = true; _agentTargets.clear(); _agentFrameReady = false;
+#endif
 	_grid->clear();
 	Text text = Text(80, 9, 0, 0);
 	text.setPalette(_grid->getPalette());
@@ -167,6 +176,25 @@ void Inventory::drawGrid()
 
 	for (std::map<std::string, RuleInventory*>::iterator i = _game->getMod()->getInventories()->begin(); i != _game->getMod()->getInventories()->end(); ++i)
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        const bool admitted = ((i->first == "STR_RIGHT_HAND" && i->second->getX() == 0) ||
+            (i->first == "STR_LEFT_HAND" && i->second->getX() == 128)) &&
+            i->second->getType() == INV_HAND && i->second->getY() == 63;
+        const bool ground = i->first == "STR_GROUND" && i->second->getType() == INV_GROUND &&
+            i->second->getX() == 0 && i->second->getY() == 152;
+        const auto blocks = [&](int x, int y, int w, int h) {
+            if ((x < 32 && x + w > 0 && y < 111 && y + h > 63) ||
+                (x < 160 && x + w > 128 && y < 111 && y + h > 63) ||
+                (x < 320 && x + w > 0 && y < 200 && y + h > 152)) _agentGridUnambiguous = false;
+        };
+        if (!admitted && !ground)
+        {
+            if (i->second->getType() == INV_HAND) blocks(i->second->getX(), i->second->getY(), 32, 48);
+            else if (i->second->getType() == INV_GROUND) blocks(i->second->getX(), i->second->getY(), 320-i->second->getX(), 200-i->second->getY());
+            else for (const RuleSlot &slot : *i->second->getSlots())
+                blocks(i->second->getX()+16*slot.x, i->second->getY()+16*slot.y, 16, 16);
+        }
+#endif
 		// Draw grid
 		if (i->second->getType() == INV_SLOT)
 		{
@@ -187,6 +215,12 @@ void Inventory::drawGrid()
 		}
 		else if (i->second->getType() == INV_HAND)
 		{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (i->first == "STR_RIGHT_HAND" || i->first == "STR_LEFT_HAND")
+                agentCaptureTarget(i->second->getX(), i->second->getY(),
+                    RuleInventory::HAND_W * RuleInventory::SLOT_W,
+                    RuleInventory::HAND_H * RuleInventory::SLOT_H, "hand");
+#endif
 			SDL_Rect r;
 			r.x = i->second->getX();
 			r.y = i->second->getY();
@@ -205,6 +239,10 @@ void Inventory::drawGrid()
 			{
 				for (int y = i->second->getY(); y <= 200; y += RuleInventory::SLOT_H)
 				{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    if (i->first == "STR_GROUND" && x + RuleInventory::SLOT_W < getWidth() && y + RuleInventory::SLOT_H < getHeight())
+                        agentCaptureTarget(x, y, RuleInventory::SLOT_W, RuleInventory::SLOT_H, "ground");
+#endif
 					SDL_Rect r;
 					r.x = x;
 					r.y = y;
@@ -225,7 +263,29 @@ void Inventory::drawGrid()
 		text.setY(i->second->getY() - text.getFont()->getHeight() - text.getFont()->getSpacing());
 		text.setText(_game->getLanguage()->getString(i->second->getId()));
 		text.blit(_grid);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        const std::string label = Observer::agentTextJson(&text);
+        SDL_Rect ink;
+        if (label != "null" && text.agentPaintedBounds(ink))
+            for (AgentTarget &target : _agentTargets)
+                if ((target.area == "hand" && target.rect.x == i->second->getX() && target.rect.y == i->second->getY()) ||
+                    (target.area == "ground" && i->first == "STR_GROUND"))
+                {
+                    target.label = label; target.labelInk = {ink.x, ink.y, ink.w, ink.h};
+                    for (int y = 0; y < text.getHeight(); ++y) for (int x = 0; x < text.getWidth(); ++x)
+                        if (Observer::agentInventoryPixel(&text, x, y))
+                            target.labelPixels.push_back(std::make_pair((y + text.getY()) * 320 + x + text.getX(), Observer::agentInventoryPixel(&text, x, y)));
+                }
+#endif
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        for (AgentTarget &target : _agentTargets)
+        for (const auto &pixel : target.labelPixels)
+            if (pixel.first < 0 || pixel.first >= 320 * 200 ||
+                Observer::agentInventoryPixel(_grid, pixel.first % 320, pixel.first / 320) != pixel.second)
+            { target.label = "null"; break; }
+    _agentGridReady = _agentGridUnambiguous && Observer::agentPaintHealthy() && Observer::agentInventoryLayer(_grid);
+#endif
 }
 
 /**
@@ -233,6 +293,9 @@ void Inventory::drawGrid()
  */
 void Inventory::drawItems()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentFrameReady = false;
+#endif
 	_items->clear();
 	_grenadeIndicators.clear();
 	Uint8 color = _game->getMod()->getInterface("inventory")->getElement("numStack")->color;
@@ -314,6 +377,9 @@ void Inventory::drawItems()
  */
 void Inventory::moveItem(BattleItem *item, RuleInventory *slot, int x, int y)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentInventoryRevision;
+#endif
 	// Make items vanish (eg. ammo in weapons)
 	if (slot == 0)
 	{
@@ -425,6 +491,9 @@ BattleItem *Inventory::getSelectedItem() const
  */
 void Inventory::setSelectedItem(BattleItem *item)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentInventoryRevision;
+#endif
 #if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     BattleItem *previous = _selItem;
 #endif
@@ -485,7 +554,16 @@ void Inventory::blit(Surface *surface)
 	_items->blit(this);
 	_selection->blit(this);
 	_warning->blit(this);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentCaptureItems(surface);
+#endif
 	Surface::blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentFrameReady = Observer::agentPaintHealthy() && Observer::agentInventoryLayer(this) &&
+        Observer::agentInventoryLayer(_grid) && Observer::agentInventoryLayer(_items) &&
+        Observer::agentInventoryLayer(_selection);
+    _agentShownRevision = _agentInventoryRevision;
+#endif
 }
 
 /**
@@ -583,13 +661,25 @@ void Inventory::mouseOver(Action *action, State *state)
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
     InventoryUnloadControlGate::inventoryMouseOverEntered(this, action, state);
 #endif
-	_selection->setX((int)floor(action->getAbsoluteXMouse()) - _selection->getWidth()/2 - getX());
-	_selection->setY((int)floor(action->getAbsoluteYMouse()) - _selection->getHeight()/2 - getY());
-	if (_selUnit == 0)
-		return;
+	if (movePointer((int)floor(action->getAbsoluteXMouse()) - getX(),
+        (int)floor(action->getAbsoluteYMouse()) - getY()))
+        InteractiveSurface::mouseOver(action, state);
+}
 
-	int x = (int)floor(action->getAbsoluteXMouse()) - getX(),
-		y = (int)floor(action->getAbsoluteYMouse()) - getY();
+// Common normal pointer path. Semantic targets supply the same local coordinates;
+// this never fabricates SDL input or changes the physical pointer.
+bool Inventory::movePointer(int localX, int localY)
+{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentInventoryRevision;
+#endif
+	_selection->setX(localX - _selection->getWidth()/2);
+	_selection->setY(localY - _selection->getHeight()/2);
+	if (_selUnit == 0)
+		return false;
+
+	int x = localX,
+		y = localY;
 	RuleInventory *slot = getSlotInPosition(&x, &y);
 	if (slot != 0)
 	{
@@ -605,9 +695,9 @@ void Inventory::mouseOver(Action *action, State *state)
 		setMouseOverItem(0);
 	}
 
-	_selection->setX((int)floor(action->getAbsoluteXMouse()) - _selection->getWidth()/2 - getX());
-	_selection->setY((int)floor(action->getAbsoluteYMouse()) - _selection->getHeight()/2 - getY());
-	InteractiveSurface::mouseOver(action, state);
+	_selection->setX(localX - _selection->getWidth()/2);
+	_selection->setY(localY - _selection->getHeight()/2);
+	return true;
 }
 
 /**
@@ -626,15 +716,28 @@ void Inventory::mouseClick(Action *action, State *state)
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
     InventoryUnloadControlGate::inventoryClickEntered(this, action, state);
 #endif
-	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
+	if (activateButton(action->getDetails()->button.button,
+        (int)floor(action->getAbsoluteXMouse()) - getX(),
+        (int)floor(action->getAbsoluteYMouse()) - getY(), (SDL_GetModState() & KMOD_CTRL) != 0))
+        InteractiveSurface::mouseClick(action, state);
+}
+
+// The existing primary/secondary behavior lives here unchanged. Agent dispatch
+// calls only primary; its explicit cancel uses the held-only return branch.
+bool Inventory::activateButton(Uint8 button, int localX, int localY, bool control)
+{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentInventoryRevision;
+#endif
+	if (button == SDL_BUTTON_LEFT)
 	{
 		if (_selUnit == 0)
-			return;
+			return false;
 		// Pickup item
 		if (_selItem == 0)
 		{
-			int x = (int)floor(action->getAbsoluteXMouse()) - getX(),
-				y = (int)floor(action->getAbsoluteYMouse()) - getY();
+			int x = localX,
+				y = localY;
 			RuleInventory *slot = getSlotInPosition(&x, &y);
 			if (slot != 0)
 			{
@@ -645,7 +748,7 @@ void Inventory::mouseClick(Action *action, State *state)
 				BattleItem *item = _selUnit->getItem(slot, x, y);
 				if (item != 0 && !item->getRules()->isFixed())
 				{
-					if ((SDL_GetModState() & KMOD_CTRL))
+					if (control)
 					{
 						RuleInventory *newSlot = _game->getMod()->getInventory("STR_GROUND", true);
 						std::string warning = "STR_NOT_ENOUGH_SPACE";
@@ -827,8 +930,8 @@ void Inventory::mouseClick(Action *action, State *state)
 			else
 			{
 				// try again, using the position of the mouse cursor, not the item (slightly more intuitive for stacking)
-				x = (int)floor(action->getAbsoluteXMouse()) - getX();
-				y = (int)floor(action->getAbsoluteYMouse()) - getY();
+				x = localX;
+				y = localY;
 				slot = getSlotInPosition(&x, &y);
 				if (slot != 0 && slot->getType() == INV_GROUND)
 				{
@@ -852,7 +955,7 @@ void Inventory::mouseClick(Action *action, State *state)
 			}
 		}
 	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+	else if (button == SDL_BUTTON_RIGHT)
 	{
 		if (_selItem == 0)
 		{
@@ -860,8 +963,8 @@ void Inventory::mouseClick(Action *action, State *state)
 			{
 				if (!_tu)
 				{
-					int x = (int)floor(action->getAbsoluteXMouse()) - getX(),
-						y = (int)floor(action->getAbsoluteYMouse()) - getY();
+					int x = localX,
+						y = localY;
 					RuleInventory *slot = getSlotInPosition(&x, &y);
 					if (slot != 0)
 					{
@@ -904,15 +1007,19 @@ void Inventory::mouseClick(Action *action, State *state)
 		}
 		else
 		{
-			if (_selItem->getSlot()->getType() == INV_GROUND)
-			{
-				_stackLevel[_selItem->getSlotX()][_selItem->getSlotY()] += 1;
-			}
-			// Return item to original position
-			setSelectedItem(0);
+			returnHeldItem();
 		}
 	}
-	InteractiveSurface::mouseClick(action, state);
+	return true;
+}
+
+bool Inventory::returnHeldItem()
+{
+    if (!_selItem) return false;
+    if (_selItem->getSlot()->getType() == INV_GROUND)
+        _stackLevel[_selItem->getSlotX()][_selItem->getSlotY()] += 1;
+    setSelectedItem(0);
+    return true;
 }
 
 /**
@@ -974,6 +1081,9 @@ bool Inventory::unload()
  */
 void Inventory::arrangeGround(bool alterOffset)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentInventoryRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_CLOSE_CONTROL_GATE
     InventoryCloseControlGate::inventoryGroundArranged(this);
 #endif
@@ -1173,3 +1283,92 @@ void Inventory::drawPrimers()
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+void Inventory::agentCaptureTarget(int x, int y, int width, int height, const std::string &area)
+{
+    // Initial scope is the ordinary stock two-hand/current-ground layout.
+    // Names select compiled supported controls here, never enter a DTO.
+    if (_agentTargets.size() >= 64 || x < 0 || y < 0 || width <= 0 || height <= 0 ||
+        x + width > getWidth() || y + height > getHeight()) return;
+    if (area == "hand" && !((x == 0 || x == 128) && y == 63 && width == 32 && height == 48)) return;
+    if (area == "ground" && (y < 152 || (y - 152) % 16 || x % 16 || width != 16 || height != 16)) return;
+    AgentTarget target; target.rect = {x,y,width,height}; target.area = area;
+    _agentTargets.push_back(target);
+}
+bool Inventory::agentProjectionReady() const
+{
+    return _agentFrameReady && _agentGridReady && _agentShownRevision == _agentInventoryRevision &&
+        getX() == 0 && getY() == 0 && getWidth() == 320 && getHeight() == 200 &&
+        Observer::agentInventoryLayer(this) && Observer::agentInventoryLayer(_grid) &&
+        Observer::agentInventoryLayer(_items) && Observer::agentInventoryLayer(_selection) &&
+        _grid->getX() == 0 && _grid->getY() == 0 && _items->getX() == 0 && _items->getY() == 0;
+}
+bool Inventory::agentOverlayClear(const Observer::AgentUiRect &r, bool selection) const
+{
+    return Observer::agentInventoryInside(r) &&
+        (!selection || Observer::agentInventoryClear(_selection, r)) &&
+        Observer::agentInventoryClear(_warning, r);
+}
+void Inventory::agentCaptureItems(const Surface *destination)
+{
+    _agentHeldPresented = false;
+    _agentShownItemInk.assign(320 * 200, 0);
+    _agentShownGridInk.assign(320 * 200, 0);
+    if (!Observer::agentInventoryLayer(this) || !Observer::agentInventoryLayer(_grid) ||
+        !Observer::agentInventoryLayer(_items) || !Observer::agentInventoryLayer(_selection) ||
+        !Observer::agentInventoryLayer(destination) || getX() || getY() || getWidth() != 320 || getHeight() != 200 ||
+        destination->getWidth() < 320 || destination->getHeight() < 200) return;
+    const auto color = [](const Surface *surface, unsigned index) -> unsigned {
+        const SDL_Color &c = surface->getSurface()->format->palette->colors[index];
+        return (unsigned(c.r) << 16) | (unsigned(c.g) << 8) | unsigned(c.b);
+    };
+    Observer::AgentUiRect heldInk;
+    if (Observer::agentInventoryInk(_selection, heldInk) && heldInk.x >= 0 && heldInk.y >= 0 &&
+        heldInk.x + heldInk.width <= 320 && heldInk.y + heldInk.height <= 200 && agentOverlayClear(heldInk, false))
+        for (int y = heldInk.y; y < heldInk.y + heldInk.height; ++y)
+            for (int x = heldInk.x; x < heldInk.x + heldInk.width; ++x)
+            {
+                const unsigned held = Observer::agentInventoryPixel(_selection, x-_selection->getX(), y-_selection->getY());
+                if (!held) continue;
+                const unsigned item = Observer::agentInventoryPixel(_items,x,y), grid = Observer::agentInventoryPixel(_grid,x,y);
+                const unsigned under = item ? color(_items,item) : grid ? color(_grid,grid) : color(destination,Observer::agentInventoryPixel(destination,x,y));
+                if (color(_selection,held) != under && color(this,Observer::agentInventoryPixel(this,x,y)) == color(_selection,held)) _agentHeldPresented = true;
+            }
+    for (int y = 0; y < 200; ++y) for (int x = 0; x < 320; ++x)
+    {
+        const Observer::AgentUiRect point = {x,y,1,1};
+        if (!agentOverlayClear(point)) continue;
+        const unsigned item = Observer::agentInventoryPixel(_items, x, y);
+        const unsigned grid = Observer::agentInventoryPixel(_grid, x, y);
+        const unsigned background = color(destination, Observer::agentInventoryPixel(destination, x, y));
+        if (item && color(this,Observer::agentInventoryPixel(this,x,y)) == color(_items,item) && color(_items, item) != (grid ? color(_grid, grid) : background))
+            _agentShownItemInk[y * 320 + x] = 1;
+        else if (!item && grid && color(this,Observer::agentInventoryPixel(this,x,y)) == color(_grid,grid) && color(_grid, grid) != background)
+            _agentShownGridInk[y * 320 + x] = 1;
+    }
+}
+bool Inventory::agentItemsVisible(const Observer::AgentUiRect &r) const
+{
+    if (_agentShownItemInk.size() != 320 * 200 || r.x < 0 || r.y < 0 || r.x + r.width > 320 || r.y + r.height > 200) return false;
+    for (int y = r.y; y < r.y + r.height; ++y) for (int x = r.x; x < r.x + r.width; ++x)
+        if (_agentShownItemInk[y * 320 + x]) return true;
+    return false;
+}
+bool Inventory::agentGridVisible(const AgentTarget &target) const
+{
+    if (_agentShownGridInk.size() != 320 * 200) return false;
+    const Observer::AgentUiRect &r = target.rect;
+    const int right = r.x + r.width - (target.area == "hand" ? 1 : 0);
+    const int bottom = r.y + r.height - (target.area == "hand" ? 1 : 0);
+    if (right >= 320 || bottom >= 200) return false;
+    bool top = false, down = false, left = false, edge = false;
+    for (int x = r.x; x <= right; ++x)
+    { top |= _agentShownGridInk[r.y * 320 + x] != 0; down |= _agentShownGridInk[bottom * 320 + x] != 0; }
+    for (int y = r.y; y <= bottom; ++y)
+    { left |= _agentShownGridInk[y * 320 + r.x] != 0; edge |= _agentShownGridInk[y * 320 + right] != 0; }
+    return top && down && left && edge;
+}
+}
+#endif

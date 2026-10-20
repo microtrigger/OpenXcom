@@ -115,10 +115,12 @@ public:
 	/// Cleans up the Inventory state.
 	~InventoryState();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	/// Describes only the currently rendered ordinary close control.
+	/// Projects the bounded, actually painted inventory controls.
 	bool agentUiState(Observer::AgentUiState &out) const override;
 	/// Invokes the ordinary handler, retaining its normal refusal behavior.
 	bool agentDispatch(const std::string &action) override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+    bool agentBindingCurrent(const Observer::AgentUiState &binding) const override;
 #endif
 	/// Updates all soldier info.
 	void init();

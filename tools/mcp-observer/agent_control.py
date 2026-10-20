@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/10'
+SCHEMA = 'openxcom-agent-control/11'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -45,7 +45,8 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'open_funding', 'close_funding', 'end_turn', 'acknowledge_message',
            'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy',
            'open_hand_action_menu', 'choose_fire_mode', 'cancel_weapon_action',
-           'close_debriefing')
+           'close_debriefing', 'open_inventory', 'inventory_hover', 'inventory_activate',
+           'cancel_inventory_hold', 'unload_inventory', 'next_inventory_ground_page')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -54,18 +55,20 @@ GRID_HANDLES = tuple(f'g{index}' for index in range(128))
 ENEMY_BUTTON_HANDLES = tuple(f'e{index}' for index in range(10))
 FIRE_MODE_HANDLES = tuple(f'a{index}' for index in range(6))
 HANDS = ('left', 'right')
+INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(64))
+INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
 ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',
                       replace_base_name='text', place_base_site='point',
                       open_new_battle_choice='choice_control', choose_visible_row='visible_row',
                       scroll_visible_list='scroll_direction', map_primary='grid_cell', map_secondary='grid_cell',
-                      center_enemy='enemy_button', open_hand_action_menu='hand', choose_fire_mode='fire_mode')
+                      center_enemy='enemy_button', open_hand_action_menu='hand', choose_fire_mode='fire_mode',
+                      inventory_hover='inventory_target', inventory_activate='inventory_target')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
     'new_battle': ('mission', 'craft', 'terrain', 'difficulty', 'alien_race'),
     'briefing': ('title', 'target', 'craft', 'briefing'),
-    'inventory': ('close_label',),
     'base_name': ('title', 'name'),
     'options_shell': ('category', 'tooltip'),
     'pause_menu': ('title',),
@@ -79,14 +82,15 @@ STATE_FIELDS = {
 STATE_ACTIONS = {
     'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'open_pause_menu', 'end_turn',
                               'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy',
-                              'open_hand_action_menu')),
+                              'open_hand_action_menu', 'open_inventory')),
     'next_turn': frozenset(('continue_next_turn',)),
     'main_menu': frozenset(('new_battle', 'open_new_game', 'open_options', 'open_load_game')),
     'new_battle': frozenset(('start_battle', 'cancel_menu', 'open_new_battle_choice')),
     'new_battle_dropdown': frozenset(('choose_visible_row', 'scroll_visible_list', 'close_dropdown')),
     'funding': frozenset(('scroll_visible_list', 'close_funding')),
     'briefing': frozenset(('continue_briefing',)),
-    'inventory': frozenset(('close_inventory',)),
+    'inventory': frozenset(('close_inventory', 'inventory_hover', 'inventory_activate',
+                              'cancel_inventory_hold', 'unload_inventory', 'next_inventory_ground_page')),
     'new_game': frozenset(('cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game')),
     'base_name': frozenset(('replace_base_name', 'confirm_base_name')),
     'build_base': frozenset(('place_base_site',)),
@@ -350,6 +354,37 @@ def validate_weapon_action_menu(visible, actions):
     require('choose_fire_mode' not in actions or bool(rows))
 
 
+def validate_inventory(visible, actions):
+    exact(visible, 'close_label ' + ' '.join(INVENTORY_TEXT_FIELDS) + ' held targets')
+    require(visible['close_label'] == 'Close inventory')
+    def text(value):
+        visible_text(value, nullable=True)
+        require(value is None or len(value.encode('utf-8')) <= 1024)
+    for field in INVENTORY_TEXT_FIELDS: text(visible[field])
+    def rectangle(value):
+        integer(value['x'], 0, 639); integer(value['y'], 0, 399)
+        integer(value['width'], 1, 640 - value['x'])
+        integer(value['height'], 1, 400 - value['y'])
+    held = visible['held']
+    if held is not None:
+        exact(held, 'status x y width height')
+        require(held['status'] == 'presented')
+        rectangle(held)
+    targets = visible['targets']
+    require(type(targets) is list and len(targets) <= len(INVENTORY_TARGET_HANDLES))
+    for index, target in enumerate(targets):
+        exact(target, 'handle area label x y width height point item')
+        require(target['handle'] == INVENTORY_TARGET_HANDLES[index])
+        require(type(target['area']) is str and target['area'] in ('hand', 'ground'))
+        text(target['label']); rectangle(target)
+        exact(target['point'], 'x y')
+        integer(target['point']['x'], target['x'], target['x'] + target['width'] - 1)
+        integer(target['point']['y'], target['y'], target['y'] + target['height'] - 1)
+        require(type(target['item']) is str and target['item'] in ('presented', 'unknown'))
+    require(not {'inventory_hover', 'inventory_activate'}.intersection(actions) or bool(targets))
+    require('cancel_inventory_hold' not in actions or held is not None)
+
+
 def validate_visible(screen, visible, seen):
     require(type(screen) is str and screen in STATE_ACTIONS)
     if screen == 'battlescape':
@@ -362,6 +397,8 @@ def validate_visible(screen, visible, seen):
                 (type(visible['kneel_indicator']) is str and visible['kneel_indicator'] in ('standing', 'kneeling')))
         validate_tactical(visible['tactical'])
         validate_battlescape_controls(visible, seen)
+    elif screen == 'inventory':
+        validate_inventory(visible, seen)
     elif screen == 'weapon_action_menu':
         validate_weapon_action_menu(visible, seen)
     elif screen == 'debriefing':
@@ -563,6 +600,7 @@ def validate_action_arguments(arguments):
             'enemy_button': ('button', ENEMY_BUTTON_HANDLES),
             'hand': ('hand', HANDS),
             'fire_mode': ('row', FIRE_MODE_HANDLES),
+            'inventory_target': ('target', INVENTORY_TARGET_HANDLES),
         }[kind]
         exact(args, field)
         require(type(args[field]) is str and args[field] in values)
@@ -582,9 +620,9 @@ def canonical_action_request(arguments):
         suffix = ' ' + (args['text'].encode('utf-8').hex() or '-')
     elif kind == 'point':
         suffix = f' {args["x"]} {args["y"]}'
-    elif kind in ('choice_control', 'visible_row', 'scroll_direction', 'grid_cell', 'enemy_button', 'hand', 'fire_mode'):
+    elif kind in ('choice_control', 'visible_row', 'scroll_direction', 'grid_cell', 'enemy_button', 'hand', 'fire_mode', 'inventory_target'):
         suffix = ' ' + args[{'choice_control': 'control', 'visible_row': 'row', 'scroll_direction': 'direction',
-                                 'grid_cell': 'cell', 'enemy_button': 'button', 'hand': 'hand', 'fire_mode': 'row'}[kind]]
+                                 'grid_cell': 'cell', 'enemy_button': 'button', 'hand': 'hand', 'fire_mode': 'row', 'inventory_target': 'target'}[kind]]
     request = ('E {command_id} {epoch} {capability} {revision} {action}'.format(**arguments) + suffix).encode('ascii')
     require(len(request) <= MAX_REQUEST)
     return request
@@ -608,6 +646,7 @@ def definitions():
         'enemy_button': arg_schema({'button': {'type': 'string', 'enum': list(ENEMY_BUTTON_HANDLES)}}),
         'hand': arg_schema({'hand': {'type': 'string', 'enum': list(HANDS)}}),
         'fire_mode': arg_schema({'row': {'type': 'string', 'enum': list(FIRE_MODE_HANDLES)}}),
+        'inventory_target': arg_schema({'target': {'type': 'string', 'enum': list(INVENTORY_TARGET_HANDLES)}}),
     }
     execute_schema = {
         'type': 'object', 'properties': {
@@ -619,11 +658,11 @@ def definitions():
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /10: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered fire-mode rows; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /11: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered fire-mode rows; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Inventory exposes only two painted hands and the current painted ground page through local vN targets, actual shown text and held-sprite evidence; unknown item/held projection never asserts emptiness or eligibility. Standalone hover obtains ordinary rendered inspection text. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, enemy-button, hand and fire-mode handles must come from the same fresh grant. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. Funding rows cannot be selected. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, enemy-button, hand and fire-mode handles must come from the same fresh grant. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. Funding rows cannot be selected. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
@@ -663,6 +702,7 @@ class AgentControlClient:
         self.enemy_buttons = frozenset()
         self.hands = frozenset()
         self.fire_modes = frozenset()
+        self.inventory_targets = frozenset()
         self.capability_deadline = 0.0
         self.event_sequence = 0
         self.audio_history = None
@@ -687,6 +727,7 @@ class AgentControlClient:
         self.enemy_buttons = frozenset()
         self.hands = frozenset()
         self.fire_modes = frozenset()
+        self.inventory_targets = frozenset()
         self.public_event_records = {}
         if channel is not None:
             channel.close()
@@ -746,6 +787,7 @@ class AgentControlClient:
                 self.enemy_buttons = frozenset()
                 self.hands = frozenset()
                 self.fire_modes = frozenset()
+                self.inventory_targets = frozenset()
                 obj = validate_state(parse(self.exchange(('R ' + challenge).encode('ascii'))), challenge, self.epoch)
                 require(obj['revision'] >= (self.revision if self.revision is not None else 0)
                         and obj['event_sequence'] >= self.event_sequence)
@@ -771,6 +813,8 @@ class AgentControlClient:
                     self.grid_cells = frozenset(cell['handle'] for cell in obj['visible']['tactical']['grid'])
                     self.enemy_buttons = frozenset(button['handle'] for button in obj['visible']['enemy_buttons'])
                     self.hands = frozenset(hand['hand'] for hand in obj['visible']['hands'])
+                elif obj['state'] == 'inventory':
+                    self.inventory_targets = frozenset(target['handle'] for target in obj['visible']['targets'])
                 elif obj['state'] == 'weapon_action_menu':
                     self.fire_modes = frozenset(row['handle'] for row in obj['visible']['rows'])
                 self.capability_deadline = time.monotonic() + CAPABILITY_TTL
@@ -840,6 +884,8 @@ class AgentControlClient:
                 require(args['hand'] in self.hands)
             elif action == 'choose_fire_mode':
                 require(args['row'] in self.fire_modes)
+            elif action in ('inventory_hover', 'inventory_activate'):
+                require(args['target'] in self.inventory_targets)
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
                 raise Unavailable('Unavailable')
@@ -856,6 +902,7 @@ class AgentControlClient:
             self.enemy_buttons = frozenset()
             self.hands = frozenset()
             self.fire_modes = frozenset()
+            self.inventory_targets = frozenset()
             self.state = 'PENDING'
             self.commands[command_id] = {'request': request, 'result': None}
             attempted = False

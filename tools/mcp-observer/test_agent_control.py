@@ -34,9 +34,12 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     visible.update(hands=[dict(hand='left',ammo=6),dict(hand='right',ammo=None)],
                    enemy_buttons=[dict(handle='e0',number=1)],focus_target='g0')
     ids = ['next_soldier', 'previous_soldier', 'kneel', 'open_pause_menu', 'end_turn',
-           'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy', 'open_hand_action_menu']
+           'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy', 'open_hand_action_menu', 'open_inventory']
     if screen in a.STATE_FIELDS:
         visible = {key: key.title() for key in a.STATE_FIELDS[screen]}; ids = sorted(a.STATE_ACTIONS[screen])
+    elif screen == 'inventory':
+        visible = dict(close_label='Close inventory', **dict.fromkeys(a.INVENTORY_TEXT_FIELDS), held=None, targets=[])
+        ids = ['close_inventory']
     elif screen == 'weapon_action_menu':
         visible = dict(rows=[dict(handle='a0',label='Snap Shot',accuracy='60%',time_units='12'),
                              dict(handle='a1',label='Aimed Shot',accuracy=None,time_units=None)])
@@ -87,7 +90,8 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'open_new_battle_choice': {'control': 'mission'}, 'choose_visible_row': {'row': 'r0'},
                 'scroll_visible_list': {'direction': 'down'}, 'map_primary': {'cell':'g0'},
                 'map_secondary': {'cell':'g0'}, 'center_enemy': {'button':'e0'},
-                'open_hand_action_menu': {'hand':'left'}, 'choose_fire_mode': {'row':'a0'}}.get(action, {})
+                'open_hand_action_menu': {'hand':'left'}, 'choose_fire_mode': {'row':'a0'}, 'inventory_hover': {'target':'v0'},
+                'inventory_activate': {'target':'v0'}}.get(action, {})
     return {**{k: obj[k] for k in ('epoch', 'capability', 'revision')}, 'command_id': command_id, 'action': action, 'args': args}
 
 
@@ -285,7 +289,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 39); self.assertEqual(len(a.STATE_ACTIONS), 23)
+        self.assertEqual(len(a.ACTIONS), 45); self.assertEqual(len(a.STATE_ACTIONS), 23)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -332,13 +336,14 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 39)
+        self.assertEqual(len(a.ACTIONS), 45)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
             'open_new_battle_choice': 'choice_control', 'choose_visible_row': 'visible_row',
             'scroll_visible_list': 'scroll_direction', 'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
-            'center_enemy': 'enemy_button', 'open_hand_action_menu': 'hand', 'choose_fire_mode': 'fire_mode'})
+            'center_enemy': 'enemy_button', 'open_hand_action_menu': 'hand', 'choose_fire_mode': 'fire_mode',
+            'inventory_hover': 'inventory_target', 'inventory_activate': 'inventory_target'})
         for screen in a.STATE_ACTIONS:
             obj = state(screen=screen)
             for descriptor in obj['actions']:
@@ -498,7 +503,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/10')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/11')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -512,7 +517,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/10']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/11']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1131,7 +1136,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.10.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.11.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -1228,9 +1233,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/10',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/10'
-send(dict(schema='openxcom-agent-control/10',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/11',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/11'
+send(dict(schema='openxcom-agent-control/11',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1275,9 +1280,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/10',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/10'
-send(dict(schema='openxcom-agent-control/10',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/11',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/11'
+send(dict(schema='openxcom-agent-control/11',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1308,9 +1313,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/10', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/11', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/10'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/11'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),
