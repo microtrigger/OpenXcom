@@ -3,7 +3,10 @@
 // Owning Game/actor identities and normal action bodies are recorded shims;
 // the separate routing fixture executes those normal bodies verbatim.
 #include "../../src/Observer/AgentInventoryPaint.h"
+#include "../../src/Observer/AgentInventoryBody.h"
 #include "../../src/Engine/Options.h"
+#include "../../src/Mod/RuleInventory.h"
+#include "../../src/Mod/RuleInterface.h"
 #include "../../src/Engine/Font.h"
 #include "../../src/Engine/Language.h"
 #include "../../src/Engine/Logger.h"
@@ -13,13 +16,17 @@
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <cstdlib>
+#include <memory>
 using namespace OpenXcom; using namespace OpenXcom::Observer;
 static unsigned checks=0;static void check(bool b,const char*m){++checks;if(!b){std::cerr<<"FAIL "<<m<<'\n';std::exit(1);}}
 namespace InventoryHarness {
 using namespace OpenXcom;
 struct Unit {std::uint64_t revision=0;std::uint64_t stanceControlRevision()const{return revision;}};
 struct Saved {Unit*selected=nullptr;std::uint64_t revision=0;std::uint64_t stanceControlRevision()const{return revision;}Unit*getSelectedUnit(){return selected;}};
-struct Game {const void*top=nullptr;bool isState(const void*s)const{return top==s;}};
+struct Mod {std::map<std::string,RuleInventory*> invs;Font*big=nullptr,*small=nullptr;RuleInterface*interface=nullptr;
+ std::map<std::string,RuleInventory*>*getInventories(){return &invs;}
+ Font*getFont(const std::string&id){return id=="FONT_BIG"?big:small;}RuleInterface*getInterface(const std::string&){return interface;}};
+struct Game {const void*top=nullptr;Mod*mod=nullptr;Language*language=nullptr;bool isState(const void*s)const{return top==s;}Mod*getMod(){return mod;}Language*getLanguage(){return language;}};
 class Inventory : public Surface {
 public:
  struct AgentTarget {AgentUiRect rect;std::string area,label="null";AgentUiRect labelInk={0,0,0,0};std::vector<std::pair<int,unsigned>>labelPixels;};
@@ -28,6 +35,7 @@ public:
  std::vector<AgentTarget>_agentTargets;std::vector<unsigned char>_agentShownItemInk,_agentShownGridInk;
  std::uint64_t _agentInventoryRevision=0,_agentShownRevision=0;
  bool _agentFrameReady=false,_agentGridReady=false,_agentGridUnambiguous=false,_agentHeldPresented=false;
+ Game*_game=nullptr;void drawGrid();
  Unit*_selUnit=nullptr;const void*_selItem=nullptr;std::vector<std::string>calls;
  Inventory():Surface(320,200){warning.setVisible(false);}
  bool agentProjectionReady()const;bool agentOverlayClear(const AgentUiRect&,bool=true)const;
@@ -39,6 +47,7 @@ public:
  void compose(Surface*canvas){clear();grid.blit(this);items.blit(this);selection.blit(this);warning.blit(this);agentCaptureItems(canvas);Surface::blit(canvas);_agentFrameReady=Observer::agentPaintHealthy();_agentShownRevision=_agentInventoryRevision;}
 };
 #include "AgentInventoryPaintMethods.generated.inc"
+#include "AgentInventoryDrawGrid.generated.inc"
 class InventoryState {
 public:
  Game*_game;Inventory*_inv;Saved*_battleGame;Surface*_modal=nullptr;
@@ -57,16 +66,16 @@ int main(int argc,char**argv){
  check(SDL_Init(0)==0&&!SDL_GetVideoSurface(),"no display initialization");Options::baseXResolution=320;Options::baseYResolution=200;
  Font big,small;for(const auto&f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}Language language;
  Surface canvas(320,200),background(320,200),ok(35,22,237,1),unload(32,25,288,32),page(32,15,289,137);
- Text name(180,17,40,6),tus(80,9,8,24),weight(80,9,8,33),item(160,9,128,140),ammo(66,24,254,64);
+ Text name(210,17,28,6),tus(40,9,245,24),weight(70,9,245,24),item(160,9,128,140),ammo(66,24,254,64);
  for(Text*t:{&name,&tus,&weight,&item,&ammo}){t->initText(&big,&small,&language);t->setColor(40);}
- name.setBig();name.setText("MCP Test");tus.setText("TUs> 60");weight.setText("Weight> 20");item.setText("Rifle");ammo.setText("Rounds> 20");
+ weight.setVisible(false);name.setBig();name.setText("MCP Test");tus.setText("TUs> 60");weight.setText("Weight> 20");item.setText("Rifle");ammo.setText("Rounds> 20");
  InventoryHarness::Inventory inv;inv.warning.initText(&big,&small,&language);inv.warning.setColor(16);inv.warning.setTextColor(40);
  SDL_Color colors[256];for(int i=0;i<256;++i)colors[i]={Uint8(i),Uint8(i),Uint8(i),0};
  for(Surface*s:{&canvas,&background,&ok,&unload,&page,static_cast<Surface*>(&inv),&inv.grid,&inv.items,&inv.selection,static_cast<Surface*>(&inv.warning),static_cast<Surface*>(&name),static_cast<Surface*>(&tus),static_cast<Surface*>(&weight),static_cast<Surface*>(&item),static_cast<Surface*>(&ammo)})s->setPalette(colors);
  check(SDL_SetColorKey(canvas.getSurface(),0,0)==0,"actual Screen logical destination has no color key");
  background.clear(1);ok.clear(30);unload.clear(30);page.clear(30);for(int y=0;y<15;++y)page.setPixel(31,y,0);
  inv.agentCaptureTarget(0,63,32,48,"hand");inv.agentCaptureTarget(128,63,32,48,"hand");inv.agentCaptureTarget(0,152,16,16,"ground");
- auto grids=[&](){inv.grid.clear();for(const auto&t:inv._agentTargets){auto&r=t.rect;SDL_Rect q={Sint16(r.x),Sint16(r.y),Uint16(r.width+(t.area=="ground")),Uint16(r.height+(t.area=="ground"))};inv.grid.drawRect(&q,20);++q.x;++q.y;q.w-=2;q.h-=2;inv.grid.drawRect(&q,0);}inv._agentGridReady=true;};grids();inv.items.setPixel(10,75,30);
+ auto grids=[&](){inv.grid.clear();for(const auto&t:inv._agentTargets){auto&r=t.rect;SDL_Rect q={Sint16(r.x),Sint16(r.y),Uint16(r.width+(t.area!="hand")),Uint16(r.height+(t.area!="hand"))};inv.grid.drawRect(&q,20);++q.x;++q.y;q.w-=2;q.h-=2;inv.grid.drawRect(&q,0);}inv._agentGridReady=true;};grids();inv.items.setPixel(10,75,30);
  InventoryHarness::Game game;InventoryHarness::Saved saved;InventoryHarness::Unit unit,other;saved.selected=&unit;inv._selUnit=&unit;
  InventoryHarness::InventoryState state;state._game=&game;state._inv=&inv;state._battleGame=&saved;game.top=&state;
  state._btnOk=&ok;state._btnUnload=&unload;state._btnGround=&page;state._txtName=&name;state._txtTus=&tus;state._txtWeight=&weight;state._txtItem=&item;state._txtAmmo=&ammo;
@@ -128,6 +137,39 @@ int main(int argc,char**argv){
   AgentRequest activate;activate.action="inventory_activate";activate.choice=handPoint(16);inv.calls.clear();
   check(state.agentDispatch(activate)&&inv.calls==std::vector<std::string>({"hover","hover-callback","primary","click-callback"}),"fresh real weapon target consumes once before semantic held move can obscure it");
   std::cout<<"private offscreen "<<gameName<<" weapon/magazine presentation path PASS\n";
+ }
+ // Real drawGrid body + actual RuleInventory YAML and widgets, never item/model queries.
+ inv.items.clear();inv.selection.clear();inv.warning.setVisible(false);weight.setText("");
+ InventoryHarness::Mod mod;RuleInterface interface("inventory");
+ interface.load(YAML::Load("elements: [{id: textSlots, color: 40}, {id: grid, color: 20}]"));
+ mod.big=&big;mod.small=&small;mod.interface=&interface;game.mod=&mod;game.language=&language;inv._game=&game;
+ for(const std::string master:{"xcom1","xcom2"}) {
+  language.loadFile(std::string(argv[2])+"/bin/standard/"+master+"/Language/en-US.yml");
+  std::vector<std::unique_ptr<RuleInventory>> rules;
+  for(const auto&n:YAML::LoadFile(std::string(argv[2])+"/bin/standard/"+master+"/inventories.rul")["invs"]){
+   rules.emplace_back(new RuleInventory(n["id"].as<std::string>()));rules.back()->load(n,0);mod.invs[rules.back()->getId()]=rules.back().get();}
+  inv.drawGrid();draw();
+  check(inv._agentTargets.size()==63,"real stock draw captures exactly 63 bounded candidates");
+  unsigned body=0;for(const auto&t:inv._agentTargets)if(t.area=="body")++body;
+  check(body==23&&inv._agentGridReady,"both games have 23 supported body cells and unambiguous grid");
+  check(state.agentUiState(ui)&&ui.visible.find("\"area\":\"body\"")!=std::string::npos&&ui.points.size()<=63,"actual body grid publishes admitted local geometry");
+  check(agentRegionsDisjoint(ui),"adjacent shared borders do not produce overlapping target interiors");
+  check(ui.visible.find("\"label\":\"BACK PACK\"")!=std::string::npos,"group label is the actual rendered stock translation");
+  const auto bodyFresh=ui;draw();check(state.agentUiState(ui)&&bodyFresh.sameBinding(ui),"body idle paint keeps grant binding");
+  inv._agentInventoryRevision+=2;draw();check(state.agentUiState(ui)&&!bodyFresh.sameBinding(ui)&&bodyFresh.payload()==ui.payload(),"body context ABA rejected without leaking a generation");
+  const auto count=inv._agentTargets.size();inv.agentCaptureTarget(8,8,16,16,"body");inv.agentCaptureTarget(192,37,17,16,"body");inv.agentCaptureTarget(192,37,16,16,"unknown");check(inv._agentTargets.size()==count,"unsupported body geometry and kind cannot create controls");
+  auto*back=mod.invs["STR_BACK_PACK"];auto slots=*back->getSlots();back->getSlots()->push_back(slots[0]);inv.drawGrid();draw();check(!inv._agentGridReady&&!state.agentUiState(ui),"duplicate body cell invalidates malformed layout");*back->getSlots()=slots;
+  RuleInventory custom("CUSTOM");custom.load(YAML::Load("x: 192\ny: 37\nslots: [[0,0]]"),0);mod.invs["CUSTOM"]=&custom;inv.drawGrid();draw();check(!inv._agentGridReady&&!state.agentUiState(ui),"unknown overlapping body control blocks presentation");mod.invs.erase("CUSTOM");
+  inv.drawGrid();draw();check(state.agentUiState(ui),"restored ordinary body layout recovers freshly");
+  // A real stock 1x1 magazine has a visible body contribution without assuming fit.
+  const bool tftd=master=="xcom2";YAML::Node mag;for(const auto&n:YAML::LoadFile(std::string(argv[2])+"/bin/standard/"+master+"/items.rul")["items"])if(n["type"].as<std::string>()==(tftd?"STR_GAUSS_RIFLE_CLIP":"STR_RIFLE_CLIP"))mag=YAML::Clone(n);
+  SurfaceSet sprites(32,48);sprites.loadPck(std::string(argv[1])+(tftd?"/TFTD":"/UFO")+"/UNITS/BIGOBS.PCK",std::string(argv[1])+(tftd?"/TFTD":"/UFO")+"/UNITS/BIGOBS.TAB");sprites.setPalette(colors);
+  Surface*icon=sprites.getFrame(mag["bigSprite"].as<int>());check(icon,"real body item sprite exists");icon->setX(192);icon->setY(37);icon->blit(&inv.items);draw();
+  check(state.agentUiState(ui)&&inv.agentItemsVisible({192,37,16,16}),"actual stock magazine contributes painted ink inside body cell");
+  check(std::find(ui.points.begin(),ui.points.end(),std::make_pair(200,45))!=ui.points.end(),"actual occupied magazine body target remains inspectable and activatable");
+  inv.selection.setPixel(0,0,60);inv.selection.setX(192);inv.selection.setY(37);draw();check(state.agentUiState(ui)&&ui.offers("cancel_inventory_hold"),"held sprite over body offers ordinary return");
+  bool covered=false;for(const auto&p:ui.points)if(p.first==200&&p.second==45)covered=true;check(!covered,"held ink blocks covered body target");
+  inv.selection.clear();inv.items.clear();mod.invs.clear();
  }
  check(agentPaintHealthy()&&!SDL_GetVideoSurface()&&!SDL_WasInit(SDL_INIT_VIDEO),"offscreen rendering healthy without game/window");std::cout<<"AgentInventoryProviderTest PASS "<<checks<<" checks\n";
 }

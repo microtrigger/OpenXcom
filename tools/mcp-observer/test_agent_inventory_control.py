@@ -45,7 +45,7 @@ class InventoryValidationTests(unittest.TestCase):
         with self.assertRaises(Unavailable):self.valid(obj)
 
     def test_closed_counts_state_action_matrix_and_prebattle_close_only(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/11')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/12')
         self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(45,23,4))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW},NEW)
         self.assertIn('open_inventory',a.STATE_ACTIONS['battlescape'])
@@ -120,7 +120,7 @@ class InventoryValidationTests(unittest.TestCase):
                 with self.assertRaises(Unavailable):a.validate_action_arguments(arguments(action=action,args={'target':bad}))
 
     def test_all_earlier_wire_versions_rejected(self):
-        for version in range(1,11):
+        for version in range(1,12):
             schema=f'openxcom-agent-control/{version}'
             with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=schema,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
             obj=inventory();obj['schema']=schema;self.invalid(obj)

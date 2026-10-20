@@ -20,11 +20,13 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/11", "inventory schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/11\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/12", "inventory schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/12\",\"mode\":\"agent-control\"",
         "inventory envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/11", r) && r.kind == 'H', "exact handshake");
-    check(!parseAgentRequest("H openxcom-agent-control/10", r), "prior inventory-free schema rejected");
+    check(parseAgentRequest("H openxcom-agent-control/12", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/10", r), "v10 mismatch rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/6", r), "v6 mismatch rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/11", r), "prior hand/ground-only schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/8", r), "v8 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/7", r), "v7 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/5", r), "v5 mismatch rejected");
@@ -34,7 +36,7 @@ int main()
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/11\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/12\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";

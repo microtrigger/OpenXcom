@@ -2,6 +2,7 @@
 // Real offscreen Surface/SDL layers; verbatim Inventory projection methods.
 // Owning Inventory/Game, rules and input dispatch are explicit test shims.
 #include "../../src/Observer/AgentInventoryPaint.h"
+#include "../../src/Observer/AgentInventoryBody.h"
 #include "../../src/Engine/Options.h"
 #include <iostream>
 #include <cstdlib>
@@ -37,7 +38,7 @@ int main(){
  check(inv._agentTargets.size()==3,"bounded stock controls");
  inv.agentCaptureTarget(1,63,32,48,"hand");inv.agentCaptureTarget(0,151,16,16,"ground");inv.agentCaptureTarget(400,152,16,16,"ground");
  check(inv._agentTargets.size()==3,"unsupported geometry cannot create targets");
- auto border=[&](const Inventory::AgentTarget&t){const auto&r=t.rect;SDL_Rect q={Sint16(r.x),Sint16(r.y),Uint16(r.width+(t.area=="ground")),Uint16(r.height+(t.area=="ground"))};inv.grid.drawRect(&q,20);++q.x;++q.y;q.w-=2;q.h-=2;inv.grid.drawRect(&q,0);};
+ auto border=[&](const Inventory::AgentTarget&t){const auto&r=t.rect;SDL_Rect q={Sint16(r.x),Sint16(r.y),Uint16(r.width+(t.area!="hand")),Uint16(r.height+(t.area!="hand"))};inv.grid.drawRect(&q,20);++q.x;++q.y;q.w-=2;q.h-=2;inv.grid.drawRect(&q,0);};
  for(const auto&t:inv._agentTargets)border(t);
  inv._agentGridReady=true;
  auto paint=[&](){inv.clear();inv.grid.blit(&inv);inv.items.blit(&inv);inv.selection.blit(&inv);inv.warning.blit(&inv);inv.agentCaptureItems(&background);inv.blit(&background);inv._agentFrameReady=agentPaintHealthy();inv._agentShownRevision=inv._agentInventoryRevision;};
@@ -85,6 +86,23 @@ int main(){
  inv.setX(1);check(!inv.agentProjectionReady(),"unsupported shifted viewport refuses");inv.setX(0);
  Surface cover(10,10,8,8);cover.setPalette(colors);AgentUiRect region={0,0,20,20};check(agentInventoryClear(&cover,region),"transparent actual layer does not obscure text");cover.setPixel(0,0,7);check(!agentInventoryClear(&cover,region),"actual later opaque ink obscures underlying field");cover.setVisible(false);check(agentInventoryClear(&cover,region),"hidden later layer contributes nothing");
  check(!agentInventoryInside({-1,0,1,1})&&!agentInventoryInside({319,199,2,2})&&agentInventoryInside({319,199,1,1}),"actual viewport boundaries");
+ // Full body/ground candidate domain uses the same ordinary paint witnesses.
+ inv._agentTargets.clear();inv.agentCaptureTarget(0,63,32,48,"hand");inv.agentCaptureTarget(128,63,32,48,"hand");
+ for(int y=152;y+16<200;y+=16)for(int x=0;x+16<320;x+=16)inv.agentCaptureTarget(x,y,16,16,"ground");
+ unsigned bodyCount=0;for(int y=0;y<200;++y)for(int x=0;x<320;++x)if(agentInventoryBodyRect(x,y,16,16)){++bodyCount;inv.agentCaptureTarget(x,y,16,16,"body");}
+ check(bodyCount==23&&inv._agentTargets.size()==63,"complete stock body + hands + admitted ground bound is 63");
+ inv.items.clear();inv.selection.clear();inv.grid.clear();for(const auto&t:inv._agentTargets)border(t);background.clear(1);paint();
+ for(const auto&t:inv._agentTargets)check(inv.agentGridVisible(t),"all stock shared-edge cells retain contrasting four-edge witness");
+ const auto body=inv._agentTargets.back();
+ inv.items.setPixel(body.rect.x+4,body.rect.y+4,30);background.clear(1);paint();check(inv.agentItemsVisible(body.rect)&&inv.agentGridVisible(body),"body item ink does not hide intact grid authority");
+ for(int x=body.rect.x;x<=body.rect.x+16;++x){inv.items.setPixel(x,body.rect.y,30);}
+ background.clear(1);paint();check(!inv.agentGridVisible(body),"fully covered body border refuses target");
+ inv.items.clear();inv.selection.setPixel(0,0,40);inv.selection.setX(body.rect.x);inv.selection.setY(body.rect.y);background.clear(1);paint();check(!inv.agentOverlayClear(body.rect),"held ink over body target is an actual occluder");inv.selection.clear();
+ auto bodyClip=inv.grid.getSurface()->clip_rect;--inv.grid.getSurface()->clip_rect.h;check(!inv.agentProjectionReady(),"partially clipped body grid cannot authorize controls");inv.grid.getSurface()->clip_rect=bodyClip;
+ struct Slot{int x,y;};std::vector<Slot> belt={{0,0},{1,0},{2,0},{3,0},{0,1},{3,1}};
+ check(agentInventoryBodyLayout("STR_BELT",192,104,belt),"stock sparse belt shape admitted");std::reverse(belt.begin(),belt.end());check(agentInventoryBodyLayout("STR_BELT",192,104,belt),"normal draw-order variation does not change cell identity");
+ check(!agentInventoryBodyLayout("STR_BELT",191,104,belt)&&!agentInventoryBodyLayout("CUSTOM",192,104,belt),"shifted or unknown body layout refused");belt[0]=belt[1];check(!agentInventoryBodyLayout("STR_BELT",192,104,belt),"duplicate slot cannot replace a missing cell");belt.pop_back();check(!agentInventoryBodyLayout("STR_BELT",192,104,belt),"partial stock shape is unsupported");
+ check(agentInventoryBodyIntersects(200,40,1,1)&&!agentInventoryBodyIntersects(240,37,1,1),"unknown interior overlap rejected while adjacent exterior is clear");
  check(agentPaintHealthy()&&!SDL_GetVideoSurface()&&!SDL_WasInit(SDL_INIT_VIDEO),"no GUI or failed paint in offscreen fixture");
  std::cout<<"AgentInventoryPaintTest PASS "<<checks<<" checks\n";
 }

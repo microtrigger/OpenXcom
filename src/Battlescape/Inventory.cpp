@@ -58,6 +58,7 @@
 #include "../Engine/Screen.h"
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "../Observer/AgentInventoryPaint.h"
+#include "../Observer/AgentInventoryBody.h"
 #endif
 
 namespace OpenXcom
@@ -177,6 +178,9 @@ void Inventory::drawGrid()
 	for (std::map<std::string, RuleInventory*>::iterator i = _game->getMod()->getInventories()->begin(); i != _game->getMod()->getInventories()->end(); ++i)
 	{
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        const std::size_t targetBegin = _agentTargets.size();
+        const bool body = i->second->getType() == INV_SLOT && Observer::agentInventoryBodyLayout(
+            i->first, i->second->getX(), i->second->getY(), *i->second->getSlots());
         const bool admitted = ((i->first == "STR_RIGHT_HAND" && i->second->getX() == 0) ||
             (i->first == "STR_LEFT_HAND" && i->second->getX() == 128)) &&
             i->second->getType() == INV_HAND && i->second->getY() == 63;
@@ -185,9 +189,10 @@ void Inventory::drawGrid()
         const auto blocks = [&](int x, int y, int w, int h) {
             if ((x < 32 && x + w > 0 && y < 111 && y + h > 63) ||
                 (x < 160 && x + w > 128 && y < 111 && y + h > 63) ||
-                (x < 320 && x + w > 0 && y < 200 && y + h > 152)) _agentGridUnambiguous = false;
+                (x < 320 && x + w > 0 && y < 200 && y + h > 152) ||
+                Observer::agentInventoryBodyIntersects(x,y,w,h)) _agentGridUnambiguous = false;
         };
-        if (!admitted && !ground)
+        if (!admitted && !ground && !body)
         {
             if (i->second->getType() == INV_HAND) blocks(i->second->getX(), i->second->getY(), 32, 48);
             else if (i->second->getType() == INV_GROUND) blocks(i->second->getX(), i->second->getY(), 320-i->second->getX(), 200-i->second->getY());
@@ -200,6 +205,10 @@ void Inventory::drawGrid()
 		{
 			for (std::vector<RuleSlot>::iterator j = i->second->getSlots()->begin(); j != i->second->getSlots()->end(); ++j)
 			{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                if (body) agentCaptureTarget(i->second->getX() + RuleInventory::SLOT_W * j->x,
+                    i->second->getY() + RuleInventory::SLOT_H * j->y, 16, 16, "body");
+#endif
 				SDL_Rect r;
 				r.x = i->second->getX() + RuleInventory::SLOT_W * j->x;
 				r.y = i->second->getY() + RuleInventory::SLOT_H * j->y;
@@ -267,10 +276,9 @@ void Inventory::drawGrid()
         const std::string label = Observer::agentInventoryTextJson(&text);
         SDL_Rect ink;
         if (label != "null" && text.agentPaintedBounds(ink))
-            for (AgentTarget &target : _agentTargets)
-                if ((target.area == "hand" && target.rect.x == i->second->getX() && target.rect.y == i->second->getY()) ||
-                    (target.area == "ground" && i->first == "STR_GROUND"))
+            for (std::size_t targetIndex = targetBegin; targetIndex < _agentTargets.size(); ++targetIndex)
                 {
+                    AgentTarget &target = _agentTargets[targetIndex];
                     target.label = label; target.labelInk = {ink.x, ink.y, ink.w, ink.h};
                     for (int y = 0; y < text.getHeight(); ++y) for (int x = 0; x < text.getWidth(); ++x)
                         if (Observer::agentInventoryPixel(&text, x, y))
@@ -1288,12 +1296,14 @@ void Inventory::drawPrimers()
 namespace OpenXcom {
 void Inventory::agentCaptureTarget(int x, int y, int width, int height, const std::string &area)
 {
-    // Initial scope is the ordinary stock two-hand/current-ground layout.
+    // Compiled ordinary stock hand, body-cell and current-ground geometry.
     // Names select compiled supported controls here, never enter a DTO.
     if (_agentTargets.size() >= 64 || x < 0 || y < 0 || width <= 0 || height <= 0 ||
         x + width > getWidth() || y + height > getHeight()) return;
     if (area == "hand" && !((x == 0 || x == 128) && y == 63 && width == 32 && height == 48)) return;
     if (area == "ground" && (y < 152 || (y - 152) % 16 || x % 16 || width != 16 || height != 16)) return;
+    if (area == "body" && !Observer::agentInventoryBodyRect(x,y,width,height)) return;
+    if (area != "body" && area != "hand" && area != "ground") return;
     AgentTarget target; target.rect = {x,y,width,height}; target.area = area;
     _agentTargets.push_back(target);
 }

@@ -2,6 +2,7 @@
 // Artificial isolated setup only. Never called by MCP or after setup completes.
 #include "AgentReportFixture.h"
 #include "AgentVehicleFixture.h"
+#include "AgentInventoryFixture.h"
 #include "../../src/Engine/Game.h"
 #include "../../src/Engine/Options.h"
 #include "../../src/Engine/Screen.h"
@@ -32,6 +33,7 @@
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
 bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false, missionContext = false;
+bool inventoryBody = false, inventoryPaging = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -53,10 +55,13 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
+        inventoryPaging=std::string(argv[i+1])=="inventory-paging-v1";
+        inventoryBody=inventoryPaging || std::string(argv[i+1])=="inventory-body-v1";
         missionContext=std::string(argv[i+1])=="gameplay-mission-v1";
+        missionContext=missionContext || inventoryBody;
         equippedVehicle=missionContext || std::string(argv[i+1])=="gameplay-vehicle-v1";
         armored=equippedVehicle || std::string(argv[i+1])=="gameplay-armored-v1";
         gameplay=armored || std::string(argv[i+1])=="gameplay-v1";
@@ -188,6 +193,31 @@ bool start(Game *game)
         magazine["ammoqty"]=mod->getItem(rounds,true)->getClipSize();
         YAML::Node empty;empty["type"]=gun;empty["id"]=22;empty["owner"]=1;empty["inventoryslot"]="STR_LEFT_HAND";
         battle["items"].push_back(loaded);battle["items"].push_back(magazine);battle["items"].push_back(empty);
+    }
+    if (inventoryBody)
+    {
+        const InventoryStockTypes types=inventoryStockTypes(underwater);
+        RuleItem *rifle=mod->getItem(types.rifle,true);
+        RuleItem *rifleClip=mod->getItem(types.rifleClip,true);
+        RuleItem *pistolClip=mod->getItem(types.pistolClip,true);
+        RuleItem *grenade=mod->getItem(types.grenade,true);
+        require(rifleClip->getBattleType()==BT_AMMO && pistolClip->getBattleType()==BT_AMMO &&
+            rifleClip->getClipSize()>0 && pistolClip->getClipSize()>0 && grenade->getBattleType()==BT_GRENADE);
+        for (RuleItem *small : {rifleClip,pistolClip,grenade})
+            require(small->getInventoryWidth()==1 && small->getInventoryHeight()==1);
+        const std::vector<std::string> &compatible=*rifle->getCompatibleAmmo();
+        require(std::find(compatible.begin(),compatible.end(),types.rifleClip)!=compatible.end() &&
+            std::find(compatible.begin(),compatible.end(),types.pistolClip)==compatible.end());
+        if (inventoryPaging)
+        {
+            RuleItem *gun=mod->getItem(types.pagingGun,true), *ammo=mod->getItem(types.pagingAmmo,true);
+            require(!gun->isFixed() && gun->getBattleType()==BT_FIREARM &&
+                gun->getInventoryWidth()==2 && gun->getInventoryHeight()==3 &&
+                ammo->getBattleType()==BT_AMMO && ammo->getClipSize()>=10);
+            const std::vector<std::string> &gunAmmo=*gun->getCompatibleAmmo();
+            require(std::find(gunAmmo.begin(),gunAmmo.end(),types.pagingAmmo)!=gunAmmo.end());
+        }
+        appendInventoryStock(battle,underwater,inventoryPaging,rifleClip->getClipSize(),pistolClip->getClipSize());
     }
     std::unique_ptr<SavedBattleGame> tactical(new SavedBattleGame());
     tactical->load(battle,mod,save.get());tactical->loadMapResources(mod);
