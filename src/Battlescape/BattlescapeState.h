@@ -62,6 +62,7 @@ private:
     BattleUnit *_agentShownActor = 0;
     bool _agentShownKneeled = false;
     std::uint64_t _agentUiRevision = 0;
+    bool _agentEnemyPainted[10] = {};
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     friend class Observer::StanceController;
@@ -144,6 +145,7 @@ public:
     bool agentUiState(Observer::AgentUiState &out) const override;
     bool agentBindingCurrent(const Observer::AgentUiState &binding) const override;
     bool agentDispatch(const std::string &action) override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	void blit();
@@ -167,6 +169,9 @@ public:
 	void mapPress(Action *action);
 	/// Handler for clicking the map.
 	void mapClick(Action *action);
+	bool cancelMapAction(Uint8 button);
+	void activateMapButton(Uint8 button);
+	void centerVisibleUnit(std::size_t index);
 	/// Handler for entering with mouse to the map surface.
 	void mapIn(Action *action);
 	/// Handler for clicking the Unit Up button.

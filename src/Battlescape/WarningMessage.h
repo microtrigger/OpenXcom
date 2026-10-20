@@ -40,6 +40,9 @@ private:
 	Timer *_timer;
 	Uint8 _color, _fade;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::string agentMessage() const;
+#endif
 #if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_RIGHT_CLICK) || defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY_UNLOAD)
     // Presentation-only refusal; no warning text, reason or timer inspection.
     bool inventoryClickOccluding() const { return _visible && !_hidden; }

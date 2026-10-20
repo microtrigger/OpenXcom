@@ -68,6 +68,7 @@ struct AgentMapSnapshot
     // It is not a semantic map field and must not be serialized.
     AgentCameraRect messageRegion;
     std::vector<AgentCameraGridTarget> grid;
+    AgentCameraPoint focus = {0, 0}; // viewport-only ordinary centering activation point
 };
 
 // Branch selection alone is not a public mode witness. The state provider must
@@ -130,6 +131,11 @@ inline AgentMapSnapshot cameraMapSnapshot(const CameraProjectionMath &projection
     AgentMapSnapshot snapshot;
     snapshot.x = x; snapshot.y = y; snapshot.width = width; snapshot.height = height;
     snapshot.hiddenMovement = hiddenMovement;
+    // centerOnPosition aligns the tile's projected origin with the viewport
+    // center. This activation offset is the same selector arithmetic; no actor
+    // anchor, world coordinate or map validity enters this public geometry.
+    snapshot.focus = {width / 2 + projection.spriteWidth / 2,
+        height / 2 + projection.spriteWidth - projection.spriteHeight / 4};
     // Whole-map Hidden Movement suppression is independent of message legibility.
     if (hiddenMovement) snapshot.hiddenMovementLabel = paintedMessage;
     else snapshot.grid = cameraViewportGrid(projection, width, height, snapshot.gridTruncated);

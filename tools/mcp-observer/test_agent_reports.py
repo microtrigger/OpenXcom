@@ -17,9 +17,9 @@ def message(text='Jane\nis under alien control', report='alien_control', seq=1):
 
 class DisplayedReportValidationTests(unittest.TestCase):
     def test_exact_compiled_protocol_actions_states_and_tool_count(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/6')
-        self.assertEqual(len(a.ACTIONS), 31)
-        self.assertEqual(len(a.STATE_ACTIONS), 20)
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/7')
+        self.assertEqual(len(a.ACTIONS), 38)
+        self.assertEqual(len(a.STATE_ACTIONS), 22)
         self.assertEqual(len(a.definitions()), 4)
         self.assertEqual(a.ARGUMENT_KINDS['acknowledge_message'], 'none')
         self.assertEqual(a.STATE_ACTIONS['infobox'], frozenset())
@@ -110,9 +110,9 @@ class DisplayedReportValidationTests(unittest.TestCase):
         with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
 
     def test_earlier_schema_rejected_in_every_response_envelope(self):
-        for version in range(1, 6):
+        for version in range(1, 7):
             old = f'openxcom-agent-control/{version}'
-            hello = dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output')
+            hello = dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')
             with self.subTest(version=version), self.assertRaises(Unavailable): a.validate_hello(dump(hello))
             with self.assertRaises(Unavailable): a.validate_ready(dump(dict(schema=old, mode=a.MODE, status='ready')))
             obj = state(screen='infobox'); obj['schema'] = old

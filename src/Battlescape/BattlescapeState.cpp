@@ -877,19 +877,21 @@ void BattlescapeState::mapClick(Action *action)
 		if (_isMouseScrolled) return;
 	}
 
-	// right-click aborts walking state
-	if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
-	{
-		if (_battleGame->cancelCurrentAction())
-		{
-			return;
-		}
-	}
-
-	// don't handle mouseclicks over the buttons (it overlaps with map surface)
+	const Uint8 button = action->getDetails()->button.button;
+	// Physical routing only: preserve cancellation before the HUD hover test.
+	if (cancelMapAction(button)) return;
 	if (_mouseOverIcons) return;
+	activateMapButton(button);
+}
 
+bool BattlescapeState::cancelMapAction(Uint8 button)
+{
+	// Ordinary right-click cancellation is shared by both input routes.
+	return button == SDL_BUTTON_RIGHT && _battleGame->cancelCurrentAction();
+}
 
+void BattlescapeState::activateMapButton(Uint8 button)
+{
 	// don't accept leftclicks if there is no cursor or there is an action busy
 	if (_map->getCursorType() == CT_NONE || _battleGame->isBusy()) return;
 
@@ -905,7 +907,7 @@ void BattlescapeState::mapClick(Action *action)
 
 	if (_save->getTile(pos) != 0) // don't allow to click into void
 	{
-		if ((action->getDetails()->button.button == SDL_BUTTON_RIGHT || (action->getDetails()->button.button == SDL_BUTTON_LEFT && (SDL_GetModState() & KMOD_ALT) != 0)) && playableUnitSelected())
+		if ((button == SDL_BUTTON_RIGHT || (button == SDL_BUTTON_LEFT && (SDL_GetModState() & KMOD_ALT) != 0)) && playableUnitSelected())
 		{
 			_battleGame->secondaryAction(pos);
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
@@ -915,7 +917,7 @@ void BattlescapeState::mapClick(Action *action)
             MapLeftClickControlGate::rightClicked(this);
 #endif
 		}
-		else if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
+		else if (button == SDL_BUTTON_LEFT)
 		{
 			_battleGame->primaryAction(pos);
 #ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
@@ -1321,10 +1323,16 @@ void BattlescapeState::btnVisibleUnitClick(Action *action)
 
 	if (btnID != -1)
 	{
-		_map->getCamera()->centerOnPosition(_visibleUnit[btnID]->getPosition());
+		centerVisibleUnit(static_cast<std::size_t>(btnID));
 	}
 
 	action->getDetails()->type = SDL_NOEVENT; // consume the event
+}
+
+void BattlescapeState::centerVisibleUnit(std::size_t index)
+{
+    if (index < VISIBLE_MAX && _visibleUnit[index])
+        _map->getCamera()->centerOnPosition(_visibleUnit[index]->getPosition());
 }
 
 /**
@@ -1582,6 +1590,9 @@ void BattlescapeState::blinkVisibleUnitButtons()
 		{
 			_btnVisibleUnit[i]->drawRect(0, 0, 15, 12, 15);
 			_btnVisibleUnit[i]->drawRect(1, 1, 13, 10, color);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            _agentEnemyPainted[i] = true;
+#endif
 		}
 	}
 
@@ -2684,9 +2695,9 @@ namespace OpenXcom {
 namespace {
 // This lattice is read-only camera geometry. It is not a visible-tile,
 // passability, discovery, enemy or target-eligibility claim.
-std::string agentTacticalJson(const Map *map, const Game *game, const std::vector<Surface *> &paintOrder)
+std::string agentTacticalJson(const Map *map, const Game *game, const std::vector<Surface *> &paintOrder, Observer::AgentUiState &ui, std::string &focus)
 {
-    AgentMapSnapshot view;
+    AgentMapSnapshot view; focus = "null";
     const std::string unavailable = "{\"mode\":\"unavailable\",\"viewport\":null,\"message\":null,\"view_level\":null,\"grid\":[],\"fragment_status\":\"unavailable\",\"fragments\":[],\"truncated\":false}";
     if (!map || !map->agentMapSnapshot(view) || view.x < 0 || view.x > 4095 || view.y < 0 || view.y > 4095 ||
         view.width <= 0 || view.width > 640 || view.height <= 0 || view.height > 400) return unavailable;
@@ -2717,6 +2728,8 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
             }
             item += "],\"target\":{\"x\":" + std::to_string(cell.target.x) + ",\"y\":" + std::to_string(cell.target.y) + "}}";
             if (count == 128 || grid.size() + item.size() > 23500) { truncated = true; break; }
+            if (cell.target == view.focus) focus = Observer::agentJsonString("g" + std::to_string(count));
+            ui.points.push_back(std::make_pair(view.x + cell.target.x, view.y + cell.target.y));
             if (count++) grid += ",";
             grid += item;
         }
@@ -2733,7 +2746,16 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
 }
 bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
 {
-    if (_modal || _warning->getVisible() || !_game->isState(const_cast<BattlescapeState *>(this)) ||
+    if (_warning->getVisible())
+    {
+        if (_modal || !_game->isState(const_cast<BattlescapeState *>(this)) ||
+            !Observer::agentWidgetUncovered(_warning, _surfaces)) return false;
+        out = Observer::AgentUiState(); out.screen = "battlescape_warning";
+        out.displayedMessage = _warning->agentMessage();
+        out.visible = "{\"message\":" + (out.displayedMessage.empty() ? std::string("null") : Observer::agentJsonString(out.displayedMessage)) + "}";
+        Observer::agentIncludeWidget(out, _warning); return true;
+    }
+    if (_modal || !_game->isState(const_cast<BattlescapeState *>(this)) ||
         !Observer::agentWidgetVisible(_icons)) return false;
     out = Observer::AgentUiState(); out.screen = "battlescape";
     const bool selected = Observer::agentWidgetVisible(_numTimeUnits) && _numTimeUnits->agentValueFullyVisible() &&
@@ -2747,12 +2769,67 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         ",\"health\":" + (selected ? std::to_string(_numHealth->getValue()) : "null") +
         ",\"morale\":" + (selected ? std::to_string(_numMorale->getValue()) : "null") +
         ",\"kneel_indicator\":" + (stance ? Observer::agentJsonString(_agentShownKneeled ? "kneeling" : "standing") : "null") + "}";
-    // Tactical observations carry no map-action authority in this version.
-    // Bind existing controls to the same HUD and private generations as /4.
-    out.controlVisible = out.visible;
+    // Only admitted camera-grid points carry map-action authority.
+    // Keep unrelated tactical animation outside the control binding.
+    std::string focus;
+    const std::string tactical = agentTacticalJson(_map, _game, _surfaces, out, focus);
     out.visible.pop_back();
-    const std::string tactical = agentTacticalJson(_map, _game, _surfaces);
-    out.visible += ",\"tactical\":" + tactical + "}";
+    out.visible += ",\"hands\":[";
+    InteractiveSurface *hands[] = {_btnLeftHandItem, _btnRightHandItem};
+    NumberText *ammo[] = {_numAmmoLeft, _numAmmoRight};
+    unsigned handCount = 0;
+    for (unsigned i = 0; i < 2; ++i)
+    {
+        if (!Observer::agentWidgetVisible(hands[i])) continue;
+        const std::vector<Observer::AgentUiRect> region = {{hands[i]->getX(), hands[i]->getY(), hands[i]->getWidth(), hands[i]->getHeight()}};
+        if (!Observer::agentRegionsUncovered(region, ammo[i], _surfaces)) continue;
+        SDL_Rect ammoInk;
+        const bool shownAmmo = ammo[i]->agentPaintedBounds(ammoInk) &&
+            ammoInk.x >= region[0].x && ammoInk.y >= region[0].y &&
+            ammoInk.x + ammoInk.w <= region[0].x + region[0].width &&
+            ammoInk.y + ammoInk.h <= region[0].y + region[0].height;
+        if (handCount++) out.visible += ",";
+        out.visible += std::string("{\"hand\":\"") + (i ? "right" : "left") + "\",\"ammo\":" +
+            (shownAmmo ? std::to_string(ammo[i]->getValue()) : "null") + "}";
+        out.regions.insert(out.regions.end(), region.begin(), region.end());
+    }
+    out.visible += "],\"enemy_buttons\":[";
+    for (unsigned i = 0; i < VISIBLE_MAX; ++i)
+    {
+        SDL_Rect numberInk;
+        if (!_agentEnemyPainted[i] || !Observer::agentWidgetVisible(_btnVisibleUnit[i]) ||
+            !_numVisibleUnit[i]->agentPaintedBounds(numberInk) ||
+            !Observer::agentRegionVisible({numberInk.x, numberInk.y, numberInk.w, numberInk.h})) continue;
+        const std::vector<Observer::AgentUiRect> region = {{_btnVisibleUnit[i]->getX(), _btnVisibleUnit[i]->getY(), _btnVisibleUnit[i]->getWidth(), _btnVisibleUnit[i]->getHeight()}};
+        if (numberInk.x < region[0].x || numberInk.y < region[0].y ||
+            numberInk.x + numberInk.w > region[0].x + region[0].width ||
+            numberInk.y + numberInk.h > region[0].y + region[0].height ||
+            !Observer::agentRegionsUncovered(region, _numVisibleUnit[i], _surfaces)) continue;
+        if (!out.rows.empty()) out.visible += ",";
+        out.visible += "{\"handle\":\"e" + std::to_string(out.rows.size()) + "\",\"number\":" + std::to_string(_numVisibleUnit[i]->getValue()) + "}";
+        out.rows.push_back(i); out.widgets.push_back(std::make_pair(_visibleUnit[i], 0));
+        out.regions.insert(out.regions.end(), region.begin(), region.end());
+    }
+    out.visible += "],\"focus_target\":" + focus + "}";
+    out.controlVisible = out.visible;
+    out.visible.pop_back(); out.visible += ",\"tactical\":" + tactical + "}";
+    // Geometry and ordinary input context bind targets; animation/audio do not.
+    out.widgets.push_back(std::make_pair(_map->getCamera(), _map->getCamera()->agentViewRevision()));
+    const BattleAction *current = _battleGame->getCurrentAction();
+    out.widgets.push_back(std::make_pair(current->weapon, 0));
+    out.context = {static_cast<std::uint64_t>(current->type), current->targeting ? 1ULL : 0ULL,
+        static_cast<std::uint64_t>(_map->getCursorType()), _battleGame->isBusy() ? 1ULL : 0ULL};
+    if (handCount) out.actions.push_back(Observer::AgentUiAction("open_hand_action_menu", "Activate hand control", "visible_control_semantics", "hand"));
+    if (!out.rows.empty()) out.actions.push_back(Observer::AgentUiAction("center_enemy", "Center on enemy button", "visible_control_semantics", "enemy_button"));
+    if (Observer::agentWidgetUncovered(_btnCenter, _surfaces))
+    { out.actions.push_back(Observer::AgentUiAction("center_selected_unit", "Center selected unit", "visible_control_semantics"));
+      Observer::agentIncludeWidget(out, _btnCenter); }
+    if (!out.points.empty() && !_battleGame->isBusy() && _map->getCursorType() != CT_NONE &&
+        !_isMouseScrolling && !_isMouseScrolled)
+    {
+        out.actions.push_back(Observer::AgentUiAction("map_primary", "Primary map activation", "visible_control_semantics", "grid_cell"));
+        out.actions.push_back(Observer::AgentUiAction("map_secondary", "Secondary map activation", "visible_control_semantics", "grid_cell"));
+    }
     // Game clears the composite before painting this top full-screen state.
     // Require a post-overlay public map witness too; unavailable/hidden views
     // never prove that an earlier displayed report disappeared.
@@ -2782,6 +2859,7 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     BattleUnit *currentActor = _save->getSelectedUnit();
     out.actor = currentActor; out.save = _save;
     out.actorRevision = currentActor ? currentActor->stanceControlRevision() : 0;
+    out.context.push_back(currentActor ? currentActor->turnControlPoseRevision() : 0);
     out.selectionRevision = _save->stanceControlRevision();
     out.uiRevision = _agentUiRevision;
     const Surface *regions[] = {_txtName, _numTimeUnits, _numEnergy, _numHealth, _numMorale, _btnNextSoldier, _btnKneel};
@@ -2797,6 +2875,37 @@ bool BattlescapeState::agentBindingCurrent(const Observer::AgentUiState &binding
         (!actor || actor->isKneeled() == _agentShownKneeled) &&
         binding.selectionRevision == _save->stanceControlRevision() &&
         binding.actorRevision == (actor ? actor->stanceControlRevision() : 0);
+}
+bool BattlescapeState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState shown;
+    if (!agentUiState(shown) || !shown.offers(request.action)) return false;
+    if (request.action == "map_primary" || request.action == "map_secondary")
+    {
+        const unsigned cell = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
+        if (cell >= shown.points.size()) return false;
+        _map->setSelectorPosition(shown.points[cell].first, shown.points[cell].second);
+        const Uint8 button = request.action == "map_primary" ? SDL_BUTTON_LEFT : SDL_BUTTON_RIGHT;
+        // The fresh admitted target already proves viewport routing. The parked
+        // human pointer's HUD hover latch is not authority for this target.
+        if (!cancelMapAction(button)) activateMapButton(button);
+        return true;
+    }
+    if (request.action == "center_enemy")
+    {
+        const unsigned index = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
+        if (index >= shown.rows.size()) return false;
+        centerVisibleUnit(shown.rows[index]); return true;
+    }
+    if (request.action == "center_selected_unit") { btnCenterClick(nullptr); return true; }
+    if (request.action == "open_hand_action_menu")
+    {
+        const std::string field = std::string("\"hand\":\"") + request.choice + "\"";
+        if (shown.visible.find(field) == std::string::npos) return false;
+        if (request.choice == "left") btnLeftHandItemClick(nullptr); else btnRightHandItemClick(nullptr);
+        return true;
+    }
+    return agentDispatch(request.action);
 }
 bool BattlescapeState::agentDispatch(const std::string &action)
 {

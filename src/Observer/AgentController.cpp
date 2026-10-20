@@ -18,6 +18,7 @@
 #include <sys/un.h>
 #include <cstddef>
 #include <unistd.h>
+#include <poll.h>
 
 namespace OpenXcom { namespace Observer {
 namespace {
@@ -72,7 +73,7 @@ AgentController::AgentController(Game *game) : _game(game)
     _fixtureHelloSent = true;
 #endif
     sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
-        ",\"ledger_capacity\":64,\"audio_history\":\"mixed_output\"}");
+        ",\"ledger_capacity\":256,\"audio_history\":\"mixed_output\"}");
 }
 AgentController::~AgentController() { close(); }
 void AgentController::close()
@@ -80,6 +81,7 @@ void AgentController::close()
     if (_fd >= 0) ::close(_fd);
     _fd = -1; _ready = false; _capability.clear(); _readChallenge.clear();
     _boundTop = _frameTop = 0;
+    _queued.clear(); _pendingId.clear();
 }
 bool AgentController::sendPacket(const std::string &packet)
 {
@@ -189,13 +191,15 @@ void AgentController::poll()
     {
         _fixtureHelloSent = true;
         if (!sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
-            ",\"ledger_capacity\":64,\"audio_history\":\"mixed_output\"}")) return;
+            ",\"ledger_capacity\":256,\"audio_history\":\"mixed_output\"}")) return;
     }
 #endif
     drainAudioEvents();
     if (_fd < 0) return;
     if (!diagnosticProfileQualified() || !agentPaintHealthy()) { close(); return; }
     if (!focused()) invalidate(false);
+    if (_queued.active() && (_queued.expired(now()) || !_queued.generationMatches(_generation))) rejectQueued();
+    if (_fd < 0) return;
     if (!_readChallenge.empty() && now() - _readTime > 1000)
     { _readChallenge.clear(); invalidate(); unavailable(); }
     if (!_pendingId.empty() && now() - _dispatchTime > 8000)
@@ -228,26 +232,71 @@ void AgentController::poll()
     if (request.kind == 'V') { eventPage(request); return; }
     if (request.kind == 'R')
     {
-        if (!_pendingId.empty() || !_readChallenge.empty()) { invalidate(); unavailable(); return; }
+        if (_queued.active() || !_pendingId.empty() || !_readChallenge.empty()) { invalidate(); unavailable(); return; }
         invalidate(); _readChallenge = request.challenge; _readTime = now(); return;
     }
     if (request.kind != 'E') { invalidate(); unavailable(); return; }
     const AgentLedger::Admission admission = _ledger.begin(request.id, packet);
     if (admission == AgentLedger::Duplicate) { receipt(request.id); return; }
     if (admission != AgentLedger::Fresh) { invalidate(); sendPacket(resultPacket(request.id, "unavailable")); return; }
-    AgentUiState current;
-    const bool valid = _pendingId.empty() && _readChallenge.empty() && request.epoch == _epoch &&
-        !_capability.empty() && request.capability == _capability && request.revision == _revision &&
-        now() - _contextTime <= 120000 && _boundTop == _game->agentTopState() && sample(current) &&
-        _boundDisplayRevision == _game->getScreen()->agentDisplayRevision() &&
-        _binding.sameBinding(current) && _boundTop->agentBindingCurrent(_binding) && current.offers(request.action);
+    // Authenticate and consume the original grant now, without treating a
+    // queued redraw between ordinary frames as a fresh visible projection.
+    const std::uint64_t received = now(), grantTime = _contextTime, display = _boundDisplayRevision;
+    const AgentUiState binding = _binding;
     State *target = _boundTop;
-    invalidate(); // Consume before invoking any normal handler or callback.
-    if (!valid)
+    const bool valid = !_queued.active() && _pendingId.empty() && _readChallenge.empty() &&
+        request.epoch == _epoch && !_capability.empty() && request.capability == _capability &&
+        request.revision == _revision && received >= grantTime && received - grantTime <= 120000 &&
+        target && target == _game->agentTopState() && focused() &&
+        display == _game->getScreen()->agentDisplayRevision() && binding.offers(request.action);
+    invalidate(); // One-use consumption occurs before queueing, never on replay.
+    if (!valid || !_queued.stage(request, binding, target, _generation, display, grantTime, received))
     {
-        _ledger.find(request.id)->response = resultPacket(request.id, "unavailable"); receipt(request.id); return;
+        _ledger.find(request.id)->response = resultPacket(request.id, "unavailable"); receipt(request.id);
     }
+}
+void AgentController::rejectQueued()
+{
+    if (!_queued.active()) return;
+    const std::string id = _queued.request().id;
+    _queued.clear(); // Terminal before any response or reentrant callback.
+    _ledger.find(id)->response = resultPacket(id, "unavailable"); receipt(id);
+}
+bool AgentController::transportAlive() const
+{
+    if (_fd < 0) return false;
+    pollfd descriptor = {_fd, POLLIN, 0};
+    if (::poll(&descriptor, 1, 0) < 0 || (descriptor.revents & (POLLHUP | POLLERR | POLLNVAL))) return false;
+    char byte;
+    const ssize_t result = recv(_fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
+    return result > 0 || (result < 0 && (errno == EAGAIN || errno == EWOULDBLOCK));
+}
+bool AgentController::queuedInputClear() const
+{
+    // Capture pending physical input without consuming it or synthesizing an
+    // event. The ordinary event loop still owns its eventual handling.
+    SDL_PumpEvents();
+    SDL_Event event;
+    const Uint32 mask = SDL_KEYDOWNMASK | SDL_KEYUPMASK | SDL_MOUSEBUTTONDOWNMASK |
+        SDL_MOUSEBUTTONUPMASK | SDL_MOUSEMOTIONMASK | SDL_ACTIVEEVENTMASK |
+        SDL_VIDEORESIZEMASK | SDL_VIDEOEXPOSEMASK | SDL_QUITMASK;
+    return SDL_PeepEvents(&event, 1, SDL_PEEKEVENT, mask) == 0;
+}
+void AgentController::dispatchQueued(const AgentUiState &shown)
+{
+    if (!_queued.active()) return;
+    if (!queuedInputClear() || !focused()) { invalidate(false); rejectQueued(); return; }
+    if (!transportAlive()) { close(); return; }
+    State *target = _game->agentTopState();
+    const bool valid = diagnosticProfileQualified() && agentPaintHealthy() &&
+        _game->getScreen()->agentPresentationReady() &&
+        _queued.matchesFrame(now(), _generation, _game->getScreen()->agentDisplayRevision(), target, shown) &&
+        target->agentBindingCurrent(_queued.binding());
+    if (!valid) { rejectQueued(); return; }
+    const AgentRequest request = _queued.request();
+    _queued.clear(); // No replay or reentrant frame can dispatch this again.
     _pendingId = request.id; _dispatchTime = now();
+    _dispatchPresentation = _presentationSerial; _dispatchInProgress = true;
     _ledger.find(request.id)->dispatched = true;
     try
     {
@@ -256,29 +305,29 @@ void AgentController::poll()
             _pendingId.clear();
             _ledger.find(request.id)->response = resultPacket(request.id, "unavailable"); receipt(request.id);
         }
-        // A normal synchronous map generator can take time. The observation
-        // deadline starts after that handler returns; the adapter separately
-        // bounds the entire exchange and never retries an uncertain command.
-        _dispatchTime = now();
+        // Existing post-handler observation deadline; queue time is separate.
+        _dispatchTime = now(); _dispatchInProgress = false;
     }
     catch (...)
     {
-        _pendingId.clear();
+        _dispatchInProgress = false; _pendingId.clear();
         _ledger.find(request.id)->response = resultPacket(request.id, "unknown_after_dispatch"); receipt(request.id);
         throw;
     }
 }
+
 void AgentController::beginFrame()
 {
     _frameTop = _game->agentTopState(); _frameGeneration = _generation;
 }
 void AgentController::presented()
 {
-    if (_fd < 0 || !_ready) return;
+    if (_fd < 0 || !_ready || _dispatchInProgress) return;
     if (!agentPaintHealthy()) { close(); return; }
     AgentUiState ui;
     if (_frameTop != _game->agentTopState() || _frameGeneration != _generation || !sample(ui))
-    { invalidate(); return; }
+    { invalidate(); rejectQueued(); return; }
+    if (++_presentationSerial == 0) { close(); return; }
     const std::string publicState = ui.payload();
     if (publicState != _lastPublic)
     {
@@ -295,7 +344,12 @@ void AgentController::presented()
     // Only the explicitly admitted map provider proves report absence.
     // Unsupported, covered, incomplete and other state types remain unknown.
     if (!_publicEvents.displayedMessage(ui.displayedMessage, ui.displayedMessageAbsent)) { close(); return; }
-    if (!_pendingId.empty())
+    if (_queued.active())
+    {
+        dispatchQueued(ui);
+        return; // This pre-action frame can never be an outcome or fresh grant.
+    }
+    if (!_pendingId.empty() && _presentationSerial > _dispatchPresentation)
     {
         const std::string id = _pendingId; _pendingId.clear();
         if (++_eventSequence >= 9007199254740992ULL) { close(); return; }

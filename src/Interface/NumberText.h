@@ -44,6 +44,13 @@ private:
 	Uint8 _color;
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentPaintedBounds(SDL_Rect &rect) const
+    {
+        if (!agentValueFullyVisible() || _color == 255) return false;
+        rect.x = getX(); rect.y = getY();
+        rect.w = 4 * (std::to_string(_value).size() - 1) + (_bordered ? 5 : 3);
+        rect.h = _bordered ? 7 : 5; return true;
+    }
     bool agentValueFullyVisible() const
     {
         const std::size_t digits = std::to_string(_value).size();

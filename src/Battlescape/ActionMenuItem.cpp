@@ -22,6 +22,9 @@
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
 #include "../Mod/RuleInterface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -139,6 +142,11 @@ void ActionMenuItem::draw()
 	_txtDescription->blit(this);
 	_txtAcc->blit(this);
 	_txtTU->blit(this);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	// This legacy composite does not call Surface::draw. Mark its unchanged
+	// ordinary paint complete only after all child blits remain healthy.
+	if (Observer::agentPaintHealthy()) _redraw = false;
+#endif
 }
 
 /**
@@ -170,3 +178,20 @@ void ActionMenuItem::mouseOut(Action *action, State *state)
 
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+namespace OpenXcom {
+bool ActionMenuItem::agentRow(std::string &label, std::string &accuracy, std::string &timeUnits) const
+{
+    if (!Observer::agentWidgetVisible(this)) return false;
+    const std::vector<Surface *> children = {_frame, _txtDescription, _txtAcc, _txtTU};
+    if (Observer::agentCompositeTextJson(_txtDescription, getWidth(), getHeight(), children) == "null" ||
+        _txtDescription->getText().empty()) return false;
+    label = _txtDescription->getText();
+    accuracy = Observer::agentCompositeTextJson(_txtAcc, getWidth(), getHeight(), children);
+    timeUnits = Observer::agentCompositeTextJson(_txtTU, getWidth(), getHeight(), children);
+    return true;
+}
+}
+#endif

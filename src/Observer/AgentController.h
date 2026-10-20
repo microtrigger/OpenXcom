@@ -2,6 +2,7 @@
 #pragma once
 #include "AgentUi.h"
 #include "AgentPublicEvents.h"
+#include "AgentFrameCommand.h"
 #include <SDL.h>
 namespace OpenXcom {
 class Game; class State;
@@ -15,6 +16,9 @@ class AgentController {
 #endif
     std::string _epoch, _capability, _readChallenge, _pendingId;
     AgentLedger _ledger;
+    AgentFrameCommand _queued;
+    bool _dispatchInProgress = false;
+    std::uint64_t _presentationSerial = 0, _dispatchPresentation = 0;
     AgentPublicEvents _publicEvents;
     State *_boundTop = 0, *_frameTop = 0;
     AgentUiState _binding;
@@ -31,6 +35,10 @@ class AgentController {
     void receipt(const std::string &id);
     void eventPage(const AgentRequest &request);
     void drainAudioEvents();
+    void rejectQueued();
+    bool transportAlive() const;
+    bool queuedInputClear() const;
+    void dispatchQueued(const AgentUiState &shown);
 public:
     explicit AgentController(Game *game);
     ~AgentController();

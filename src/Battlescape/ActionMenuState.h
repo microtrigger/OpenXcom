@@ -36,7 +36,13 @@ private:
 	ActionMenuItem *_actionMenu[6];
 	/// Adds a new menu item for an action.
 	void addItem(BattleActionType ba, const std::string &name, int *id);
+	void activateItem(int index);
+	void closeMenu();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Action Menu state.
 	ActionMenuState(BattleAction *action, int x, int y);
 	/// Cleans up the Action Menu state.

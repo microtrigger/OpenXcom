@@ -43,6 +43,9 @@ private:
 	Frame *_frame;
 	Text *_txtDescription, *_txtAcc, *_txtTU;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentRow(std::string &label, std::string &accuracy, std::string &timeUnits) const;
+#endif
 	/// Creates a new ActionMenuItem.
 	ActionMenuItem(int id, Game *game, int x, int y);
 	/// Cleans up the ActionMenuItem.

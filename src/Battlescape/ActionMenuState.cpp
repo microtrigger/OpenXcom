@@ -174,14 +174,14 @@ void ActionMenuState::handle(Action *action)
 	State::handle(action);
 	if (action->getDetails()->type == SDL_MOUSEBUTTONDOWN && action->getDetails()->button.button == SDL_BUTTON_RIGHT)
 	{
-		_game->popState();
+		closeMenu();
 	}
 	else if (action->getDetails()->type == SDL_KEYDOWN &&
 		(action->getDetails()->key.keysym.sym == Options::keyCancel ||
 		action->getDetails()->key.keysym.sym == Options::keyBattleUseLeftHand ||
 		action->getDetails()->key.keysym.sym == Options::keyBattleUseRightHand))
 	{
-		_game->popState();
+		closeMenu();
 	}
 }
 
@@ -189,22 +189,19 @@ void ActionMenuState::handle(Action *action)
  * Executes the action corresponding to this action menu item.
  * @param action Pointer to an action.
  */
+void ActionMenuState::closeMenu() { _game->popState(); }
+
 void ActionMenuState::btnActionMenuItemClick(Action *action)
 {
-	_game->getSavedGame()->getSavedBattle()->getPathfinding()->removePreview();
+    for (unsigned i = 0; i < 6; ++i)
+        if (action->getSender() == _actionMenu[i]) { activateItem(static_cast<int>(i)); return; }
+}
 
-	int btnID = -1;
-	RuleItem *weapon = _action->weapon->getRules();
-	std::string weaponUsable = _game->getSavedGame()->getSavedBattle()->getItemUsable(_action->weapon);
-
-	// got to find out which button was pressed
-	for (size_t i = 0; i < sizeof(_actionMenu)/sizeof(_actionMenu[0]) && btnID == -1; ++i)
-	{
-		if (action->getSender() == _actionMenu[i])
-		{
-			btnID = i;
-		}
-	}
+void ActionMenuState::activateItem(int btnID)
+{
+    _game->getSavedGame()->getSavedBattle()->getPathfinding()->removePreview();
+    RuleItem *weapon = _action->weapon->getRules();
+    std::string weaponUsable = _game->getSavedGame()->getSavedBattle()->getItemUsable(_action->weapon);
 
 	if (btnID != -1)
 	{
@@ -344,3 +341,50 @@ void ActionMenuState::resize(int &dX, int &dY)
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+namespace OpenXcom {
+bool ActionMenuState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal || !_game->isState(const_cast<ActionMenuState *>(this))) return false;
+    out = Observer::AgentUiState(); out.screen = "weapon_action_menu";
+    out.visible = "{\"rows\":[";
+    std::string first;
+    bool popupVisible = false;
+    for (unsigned i = 0; i < 6; ++i)
+    {
+        std::string label, accuracy, timeUnits;
+        if (!Observer::agentWidgetUncovered(_actionMenu[i], _surfaces) ||
+            !_actionMenu[i]->agentRow(label, accuracy, timeUnits)) continue;
+        popupVisible = true;
+        Observer::agentIncludeWidget(out, _actionMenu[i]);
+        const BattleActionType type = _actionMenu[i]->getAction();
+        if (type != BA_SNAPSHOT && type != BA_AIMEDSHOT && type != BA_AUTOSHOT) continue;
+        if (!out.rows.empty()) out.visible += ",";
+        out.visible += "{\"handle\":\"a" + std::to_string(out.rows.size()) + "\",\"label\":" +
+            Observer::agentJsonString(label) + ",\"accuracy\":" + accuracy + ",\"time_units\":" + timeUnits + "}";
+        out.rows.push_back(i);
+        if (first.empty()) first = label;
+    }
+    out.visible += "]}";
+    if (!first.empty()) out.actions.push_back(Observer::AgentUiAction("choose_fire_mode", first, "visible_text", "fire_mode"));
+    if (popupVisible) out.actions.push_back(Observer::AgentUiAction("cancel_weapon_action", "Close action menu", "visible_control_semantics"));
+    out.actor = _action->actor; out.save = _game->getSavedGame()->getSavedBattle();
+    out.widgets.push_back(std::make_pair(_action->weapon, 0));
+    if (_action->actor) { out.actorRevision = _action->actor->stanceControlRevision();
+        out.context.push_back(_action->actor->turnControlPoseRevision()); }
+    return popupVisible;
+}
+bool ActionMenuState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState shown;
+    if (!agentUiState(shown) || !shown.offers(request.action)) return false;
+    if (request.action == "cancel_weapon_action") { closeMenu(); return true; }
+    if (request.action != "choose_fire_mode" || request.choice.size() < 2) return false;
+    const unsigned row = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
+    if (row >= shown.rows.size()) return false;
+    activateItem(static_cast<int>(shown.rows[row])); return true;
+}
+}
+#endif

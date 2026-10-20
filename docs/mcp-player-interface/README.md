@@ -1,6 +1,6 @@
 # Experimental semantic MCP control
 
-**v6** — Experimental implementation; partial coverage, not a complete interface.
+**v7** — Experimental implementation; partial coverage, not a complete interface.
 
 ## Build and use
 

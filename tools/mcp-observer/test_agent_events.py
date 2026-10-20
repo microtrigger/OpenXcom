@@ -275,7 +275,7 @@ class EventClientTests(unittest.TestCase):
 
     def test_v4_peer_rejected_before_request_and_audio_hello_strict(self):
         for field,value in (('schema','openxcom-agent-control/4'),('audio_history','guessed')):
-            hello=dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=64,audio_history='mixed_output');hello[field]=value
+            hello=dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output');hello[field]=value
             native=self.fixture(hello=hello)
             with self.assertRaises(Unavailable):native.client.observe()
             self.assertEqual(native.requests,[])
@@ -314,13 +314,13 @@ class EventClientTests(unittest.TestCase):
 
     def test_end_turn_shares_non_evicting_ledger(self):
         native=self.fixture()
-        for index in range(64):
+        for index in range(a.MAX_COMMANDS):
             observed=native.client.observe()
             native.client.execute(**arguments(observed,command_id=f'{index+100:032x}',action='end_turn'))
         observed=native.client.observe();count=len(native.requests)
         with self.assertRaises(Unavailable):
             native.client.execute(**arguments(observed,command_id='e'*32,action='end_turn'))
-        self.assertEqual(len(native.requests),count);self.assertEqual(len(native.client.commands),64)
+        self.assertEqual(len(native.requests),count);self.assertEqual(len(native.client.commands),a.MAX_COMMANDS)
 
     def test_real_stdio_event_read_then_end_turn_and_terminal_duplicate(self):
         observed=state();events=page([presentation()]);receipt=result(observation=state(None,None,2,2,'next_turn'))
@@ -329,7 +329,7 @@ class EventClientTests(unittest.TestCase):
 import json,os,socket
 channel=socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(value):channel.send(json.dumps(value,separators=(',',':')).encode())
-send(dict(schema=SCHEMA,mode='agent-control',epoch=EPOCH,ledger_capacity=64,audio_history='mixed_output'))
+send(dict(schema=SCHEMA,mode='agent-control',epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output'))
 assert channel.recv(512)==('H '+SCHEMA).encode();send(dict(schema=SCHEMA,mode='agent-control',status='ready'))
 request=channel.recv(512).decode().split();assert request[0]=='R'
 OBSERVED['challenge']=request[1];send(OBSERVED)

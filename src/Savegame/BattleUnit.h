@@ -66,7 +66,7 @@ class BattleUnit
 private:
 #if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t _stanceControlRevision = 0;
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t _turnControlPoseRevision = 0;
 #endif
 #endif
@@ -145,7 +145,7 @@ private:
 public:
 #if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t stanceControlRevision() const { return _stanceControlRevision; }
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t turnControlPoseRevision() const { return _turnControlPoseRevision; }
 #endif
 #endif

@@ -17,7 +17,7 @@ def body(relative, method):
     # Strip comments and literals for balanced-brace scanning only.
     clean = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
                    lambda m: ' ' * len(m.group()), text, flags=re.S)
-    start = re.search(re.escape(method) + r'\s*\(', clean).start()
+    start = re.search(re.escape(method) + (r'\s*\(' if '(' not in method else ''), clean).start()
     left = clean.index('{', start)
     depth = 1
     for right in range(left + 1, len(clean)):
@@ -100,7 +100,7 @@ class MenuArchitectureTest(unittest.TestCase):
         self.assertIn('_game->popState();', code)
 
     def test_pause_uses_normal_help_handler(self):
-        code = body('Battlescape/BattlescapeState.cpp', 'BattlescapeState::agentDispatch')
+        code = body('Battlescape/BattlescapeState.cpp', 'BattlescapeState::agentDispatch(const std::string &action)')
         self.assertIn('action == "open_pause_menu") btnHelpClick(0)', code)
         normal = body('Battlescape/BattlescapeState.cpp', 'BattlescapeState::btnHelpClick')
         self.assertIn('allowButtons(true)', normal)
@@ -108,7 +108,7 @@ class MenuArchitectureTest(unittest.TestCase):
 
     def test_version_five_is_explicit(self):
         code = read('Observer/AgentProtocol.cpp')
-        self.assertIn('openxcom-agent-control/6', code)
+        self.assertIn('openxcom-agent-control/7', code)
         self.assertNotIn('openxcom-agent-control/2', code)
         self.assertNotIn('openxcom-agent-control/1', code)
         self.assertIn('packet == std::string("H ") + agentProtocolSchema()', code)

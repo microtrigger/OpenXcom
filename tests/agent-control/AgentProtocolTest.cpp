@@ -20,14 +20,14 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(parseAgentRequest("H openxcom-agent-control/6", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/7", r) && r.kind == 'H', "exact handshake");
     check(!parseAgentRequest("H openxcom-agent-control/5", r), "v5 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/4", r), "v4 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/2", r), "v2 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/3", r), "v3 mismatch rejected");
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/6\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/7\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
@@ -72,6 +72,17 @@ int main()
         check(parseAgentRequest(prefix+"0 scroll_visible_list "+direction,r) && r.choice==direction, "one step direction");
     for (const char *direction : {"top", "bottom", "up 2", ""})
         check(!parseAgentRequest(prefix+"0 scroll_visible_list "+direction,r), "unbounded scroll rejected");
+    for (const char *action : {"map_primary", "map_secondary"}) {
+        for (const char *cell : {"g0", "g9", "g127"}) check(parseAgentRequest(prefix+"0 "+action+" "+cell,r), "listed grid syntax");
+        for (const char *cell : {"g128", "g01", "g-1", "r0"}) check(!parseAgentRequest(prefix+"0 "+action+" "+cell,r), "invalid grid syntax");
+    }
+    for (const char *button : {"e0", "e9"}) check(parseAgentRequest(prefix+"0 center_enemy "+button,r), "enemy control syntax");
+    for (const char *button : {"e10", "e01", "g0"}) check(!parseAgentRequest(prefix+"0 center_enemy "+button,r), "invalid enemy control");
+    for (const char *row : {"a0", "a5"}) check(parseAgentRequest(prefix+"0 choose_fire_mode "+row,r), "fire row syntax");
+    for (const char *row : {"a6", "a01", "snapshot"}) check(!parseAgentRequest(prefix+"0 choose_fire_mode "+row,r), "invalid fire row");
+    for (const char *hand : {"left", "right"}) check(parseAgentRequest(prefix+"0 open_hand_action_menu "+hand,r), "hand syntax");
+    check(!parseAgentRequest(prefix+"0 open_hand_action_menu weapon42",r), "no item identity");
+    check(!parseAgentRequest("H openxcom-agent-control/6",r), "old6 rejected");
     AgentLedger typed;
     const std::string first=prefix+"0 replace_base_name 41";
     check(typed.begin(token(3),first)==AgentLedger::Fresh, "typed identity fresh");
@@ -103,13 +114,16 @@ int main()
     check(ledger.begin(token(1), "request") == AgentLedger::Duplicate, "same ID never redispatched");
     check(ledger.begin(token(1), "changed") == AgentLedger::Conflict, "same ID payload conflict");
     check(ledger.find(token(1))->response == "receipt", "conflict preserves original receipt");
-    for (unsigned i = 2; i <= 64; ++i)
+    for (unsigned i = 2; i <= 256; ++i)
         check(ledger.begin(token(i), "different") == AgentLedger::Fresh, "ledger capacity admitted");
-    check(ledger.size() == 64, "exact ledger capacity");
-    check(ledger.begin(token(65), "overflow") == AgentLedger::Full, "65th command rejected");
-    check(ledger.size() == 64 && !ledger.find(token(65)), "full ledger never evicts");
+    check(ledger.size() == 256, "exact ledger capacity");
+    check(ledger.begin(token(257), "overflow") == AgentLedger::Full, "257th command rejected");
+    check(ledger.size() == 256 && !ledger.find(token(257)), "full ledger never evicts");
     check(ledger.begin(token(1), "request") == AgentLedger::Duplicate &&
         ledger.find(token(1))->response == "receipt", "old command deduplicates after saturation");
+    ledger.find(token(256))->response = "last receipt";
+    check(ledger.begin(token(256), "different") == AgentLedger::Duplicate && ledger.find(token(256))->response == "last receipt", "last command retained at saturation");
+    check(ledger.begin(token(256), "changed") == AgentLedger::Conflict && ledger.find(token(256))->response == "last receipt", "full-ledger last conflict preserves receipt");
     check(!ledger.find(token(999)), "unknown receipt has no entry");
     std::cout << "AgentProtocolTest PASS " << checks << " checks\n";
 }

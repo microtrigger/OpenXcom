@@ -145,3 +145,14 @@ void WarningMessage::draw()
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+namespace OpenXcom {
+std::string WarningMessage::agentMessage() const
+{
+    if (!Observer::agentWidgetVisible(this) || Observer::agentTextJson(_text) == "null") return std::string();
+    return _text->getText();
+}
+}
+#endif

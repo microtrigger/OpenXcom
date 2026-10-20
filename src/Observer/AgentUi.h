@@ -33,6 +33,8 @@ struct AgentUiState {
     // Widget pointers and generations bind local row/control slots, never serialized.
     std::vector<std::pair<const void *, std::uint64_t> > widgets;
     std::vector<std::size_t> rows;
+    std::vector<std::pair<int, int> > points;
+    std::vector<std::uint64_t> context; // private gameplay freshness only
     std::uint64_t actorRevision = 0, selectionRevision = 0, uiRevision = 0;
     std::string payload() const;
     std::string authorityPayload() const;
@@ -60,5 +62,6 @@ bool agentRegionsDisjoint(const AgentUiState &ui);
 int agentObservePaint(int result);
 bool agentPaintHealthy();
 std::string agentTextJson(const Text *widget);
+std::string agentCompositeTextJson(const Text *text, int width, int height, const std::vector<Surface *> &paintOrder);
 std::string agentButtonLabel(const TextButton *widget);
 } }

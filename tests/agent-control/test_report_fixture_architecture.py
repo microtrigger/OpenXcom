@@ -18,7 +18,7 @@ class ReportFixtureArchitecture(unittest.TestCase):
   c=body('Observer/AgentController.cpp','AgentController::poll(')
   self.assertLess(c.index('AgentReportFixture::waiting()'),c.index('recvmsg('))
  def test_turn_one_morale_path_is_ordinary(self):
-  f=(ROOT/'tests/agent-report-fixture/AgentReportFixture.cpp').read_text();self.assertIn('battle["turn"]=1',f);self.assertIn('victim["morale"]=0',f)
+  f=(ROOT/'tests/agent-report-fixture/AgentReportFixture.cpp').read_text();self.assertIn('battle["turn"]=1',f);self.assertIn('victim["morale"]=gameplay?100:0',f)
   g=(ROOT/'src/Battlescape/BattlescapeGame.cpp').read_text();self.assertIn('_playerPanicHandled(true)',g)
   init=body('Battlescape/BattlescapeGame.cpp','BattlescapeGame::init(');self.assertIn('_save->getTurn() > 1',init)
   end=body('Savegame/SavedBattleGame.cpp','SavedBattleGame::endTurn(');self.assertIn('if ((*i)->getFaction() == _side)',end)

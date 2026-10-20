@@ -6,7 +6,7 @@ from test_strategy_widget_architecture import body
 ROOT=pathlib.Path(__file__).resolve().parents[2]/'src'
 class TacticalEventsArchitectureTest(unittest.TestCase):
     def test_end_turn_only_normal_handler(self):
-        d=body('Battlescape/BattlescapeState.cpp','BattlescapeState::agentDispatch(')
+        d=body('Battlescape/BattlescapeState.cpp','BattlescapeState::agentDispatch(const std::string &action)')
         self.assertIn('action == "end_turn") btnEndTurnClick(0)',d)
         self.assertNotIn('requestEndTurn',d)
         normal=body('Battlescape/BattlescapeState.cpp','BattlescapeState::btnEndTurnClick(')
@@ -34,7 +34,7 @@ class TacticalEventsArchitectureTest(unittest.TestCase):
     def test_tactical_projection_not_control_authority(self):
         p=body('Battlescape/BattlescapeState.cpp','BattlescapeState::agentUiState(')
         self.assertIn('out.controlVisible = out.visible',p)
-        self.assertLess(p.index('out.controlVisible = out.visible'),p.index('agentTacticalJson'))
+        self.assertLess(p.index('out.controlVisible = out.visible'),p.index('out.displayedMessageAbsent')); self.assertIn('out.context =', p)
         b=body('Observer/AgentUi.cpp','AgentUiState::sameBinding(')
         self.assertIn('authorityPayload() == o.authorityPayload()',b)
         for s in ('actor == o.actor','selectionRevision == o.selectionRevision','widgets == o.widgets','regions == o.regions'):
@@ -57,7 +57,7 @@ class TacticalEventsArchitectureTest(unittest.TestCase):
         self.assertIn('Capacity = 256',ring)
     def test_version_and_bounded_messages(self):
         p=(ROOT/'Observer/AgentProtocol.cpp').read_text()
-        self.assertIn('openxcom-agent-control/6',p)
+        self.assertIn('openxcom-agent-control/7',p)
         self.assertIn('parts.size() == 5 && parts[0] == "V"',p)
         self.assertIn('9007199254740991ULL, request.after',p)
         c=(ROOT/'Observer/AgentController.cpp').read_text()

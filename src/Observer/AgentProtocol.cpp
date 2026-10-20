@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/6"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/7"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/6\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/7\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -36,10 +36,16 @@ bool agentActionId(const std::string &value)
         value == "set_ironman" || value == "start_new_game" || value == "place_base_site" ||
         value == "replace_base_name" || value == "confirm_base_name" ||
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "scroll_visible_list" ||
-        value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn" || value == "acknowledge_message";
+        value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn" || value == "acknowledge_message" || value == "map_primary" || value == "map_secondary" ||
+        value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
+        value == "choose_fire_mode" || value == "cancel_weapon_action";
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "map_primary" || action == "map_secondary") return "grid_cell";
+    if (action == "center_enemy") return "enemy_button";
+    if (action == "open_hand_action_menu") return "hand";
+    if (action == "choose_fire_mode") return "fire_mode";
     if (action == "open_new_battle_choice") return "choice_control";
     if (action == "choose_visible_row") return "visible_row";
     if (action == "scroll_visible_list") return "scroll_direction";
@@ -133,6 +139,20 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         if (request.choice != "mission" && request.choice != "craft" && request.choice != "terrain" &&
             request.choice != "difficulty" && request.choice != "alien_race") return false;
     }
+    else if (kind == "grid_cell" || kind == "enemy_button" || kind == "fire_mode")
+    {
+        const char prefix = kind == "grid_cell" ? 'g' : (kind == "enemy_button" ? 'e' : 'a');
+        const unsigned maximum = kind == "grid_cell" ? 127 : (kind == "enemy_button" ? 9 : 5);
+        std::uint64_t index;
+        if (parts.size() != 7 || parts[6].empty() || parts[6][0] != prefix ||
+            !decimal(parts[6].substr(1), maximum, index)) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "hand")
+    {
+        if (parts.size() != 7 || (parts[6] != "left" && parts[6] != "right")) return false;
+        request.choice = parts[6];
+    }
     else if (kind == "visible_row")
     {
         std::uint64_t row;
@@ -178,7 +198,7 @@ AgentLedger::Admission AgentLedger::begin(const std::string &id, const std::stri
 {
     auto found = _entries.find(id);
     if (found != _entries.end()) return found->second.request == request ? Duplicate : Conflict;
-    if (_entries.size() >= 64) return Full;
+    if (_entries.size() >= 256) return Full;
     _entries[id].request = request;
     return Fresh;
 }

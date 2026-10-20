@@ -3,6 +3,7 @@
 #include "../Engine/Surface.h"
 #include "../Engine/Options.h"
 #include "../Interface/Text.h"
+#include "../Interface/NumberText.h"
 #include "../Interface/TextButton.h"
 #include "../Interface/TextList.h"
 #include "../Interface/ComboBox.h"
@@ -32,7 +33,7 @@ bool AgentUiState::sameBinding(const AgentUiState &o) const
 {
     return actor == o.actor && save == o.save && actorRevision == o.actorRevision &&
         selectionRevision == o.selectionRevision && uiRevision == o.uiRevision && widgets == o.widgets &&
-        rows == o.rows && regions == o.regions && authorityPayload() == o.authorityPayload();
+        rows == o.rows && points == o.points && context == o.context && regions == o.regions && authorityPayload() == o.authorityPayload();
 }
 bool AgentUiState::offers(const std::string &id) const
 {
@@ -101,6 +102,15 @@ std::string agentTextJson(const Text *widget)
         widget->getTextHeight() > widget->getHeight() || widget->getText().size() > 1024) return "null";
     return agentJsonString(widget->getText());
 }
+std::string agentCompositeTextJson(const Text *text, int width, int height, const std::vector<Surface *> &paintOrder)
+{
+    if (!agentWidgetUncovered(text, paintOrder)) return "null";
+    const std::string value = agentTextJson(text);
+    SDL_Rect ink;
+    if (value == "null" || (text->agentPaintedBounds(ink) &&
+        (ink.x < 0 || ink.y < 0 || ink.x + ink.w > width || ink.y + ink.h > height))) return "null";
+    return value;
+}
 void agentIncludeWidget(AgentUiState &ui, const Surface *widget)
 {
     if (agentWidgetVisible(widget))
@@ -159,6 +169,11 @@ bool agentRegionsUncovered(const std::vector<AgentUiRect> &regions, const Surfac
                 if (!text->agentPaintedBounds(ink)) continue;
                 cover = {ink.x, ink.y, ink.w, ink.h};
             }
+        }
+        if (const NumberText *number = dynamic_cast<const NumberText *>(later))
+        {
+            SDL_Rect ink;
+            if (number->agentPaintedBounds(ink)) cover = {ink.x, ink.y, ink.w, ink.h};
         }
         for (const AgentUiRect &part : regions)
             if (part.x < cover.x + cover.width && part.x + part.width > cover.x &&
