@@ -39,6 +39,11 @@ struct SortFunctor;
 class CraftSoldiersState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle, *_txtName, *_txtRank, *_txtCraft, *_txtAvailable, *_txtUsed;
@@ -54,6 +59,11 @@ private:
 	/// initializes the display list based on the craft soldier's list
 	void initList();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Craft Soldiers state.
 	CraftSoldiersState(Base *base, size_t craft);
 	/// Cleans up the Craft Soldiers state.
@@ -74,6 +84,10 @@ public:
 	void moveSoldierDown(Action *action, unsigned int row, bool max = false);
 	/// Handler for clicking the Soldiers list.
 	void lstSoldiersClick(Action *action);
+	/// Applies a desired assignment through the ordinary crew rules.
+	void setSoldierAssigned(size_t row, bool assigned);
+	/// Opens the ordinary soldier detail screen.
+	void inspectSoldier(size_t row);
 	/// Handler for pressing-down a mouse-button in the list.
 	void lstSoldiersMousePress(Action *action);
 };

@@ -35,12 +35,22 @@ class Base;
 class CraftsState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle, *_txtBase, *_txtName, *_txtStatus, *_txtWeapon, *_txtCrew, *_txtHwp;
 	TextList *_lstCrafts;
 	Base *_base;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Crafts state.
 	CraftsState(Base *base);
 	/// Cleans up the Crafts state.

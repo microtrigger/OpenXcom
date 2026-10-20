@@ -35,6 +35,11 @@ class Base;
 class CraftArmorState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle, *_txtName, *_txtCraft, *_txtArmor;
@@ -43,6 +48,12 @@ private:
 	Base *_base;
 	size_t _craft;
 public:
+    void openSoldierArmor(size_t row);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Craft Armor state.
 	CraftArmorState(Base *base, size_t craft);
 	/// Cleans up the Craft Armor state.

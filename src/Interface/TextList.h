@@ -56,6 +56,16 @@ struct AgentArrivalRow
 	AgentPurchaseCell cells[3];
 	SDL_Rect bounds;
 };
+// Explicit personnel/equipment opt-in. No model identity is serialized.
+struct AgentOutfittingRow
+{
+	size_t logicalIndex;
+	std::vector<AgentPurchaseCell> cells;
+	std::vector<SDL_Rect> controlInk;
+	SDL_Rect bounds, clickBand;
+	bool selected = false;
+	const Surface *increase = nullptr, *decrease = nullptr;
+};
 struct AgentListRow
 {
 	size_t logicalIndex;
@@ -113,6 +123,10 @@ private:
 	std::vector<AgentPurchaseRow> _agentDrawPurchaseRows, _agentPaintPurchaseRows;
 	std::vector<AgentArrivalRow> _agentDrawArrivalRows, _agentPaintArrivalRows;
 	bool _agentArrivalCells = false;
+	unsigned _agentOutfittingColumns = 0;
+	bool _agentOutfittingEquipment = false, _agentOutfittingCrew = false;
+	std::vector<AgentOutfittingRow> _agentDrawOutfittingRows, _agentPaintOutfittingRows;
+	SDL_Rect _agentOutfittingClip = {};
 	SDL_Rect _agentArrivalClip = {};
 	SDL_Rect _agentPurchaseClip = {};
 	bool _agentCoverageHealthy = false;
@@ -127,6 +141,9 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
+	void agentEnableOutfitting(unsigned columns, bool equipment = false, bool crew = false);
+	bool agentOutfittingRows(std::vector<AgentOutfittingRow> &rows) const;
+	bool agentSelectOutfittingRow(size_t logicalIndex);
 	// Explicitly enabled only by ItemsArrivingState before ordinary painting.
 	void agentEnableArrivalCells();
 	bool agentArrivalRows(std::vector<AgentArrivalRow> &rows) const;

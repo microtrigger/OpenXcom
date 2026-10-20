@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "SoldiersState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
 #include "../Engine/LocalizedText.h"
@@ -104,6 +107,9 @@ SoldiersState::SoldiersState(Base *base) : _base(base)
 
 	_lstSoldiers->setColumns(3, 114, 92, 74);
 	_lstSoldiers->setSelectable(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstSoldiers->agentEnableOutfitting(3);
+#endif
 	_lstSoldiers->setBackground(_window);
 	_lstSoldiers->setMargin(8);
 	_lstSoldiers->onMouseClick((ActionHandler)&SoldiersState::lstSoldiersClick);
@@ -123,6 +129,9 @@ SoldiersState::~SoldiersState()
  */
 void SoldiersState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 	unsigned int row = 0;
 	_lstSoldiers->clearList();
@@ -176,5 +185,42 @@ void SoldiersState::lstSoldiersClick(Action *)
 {
 	_game->pushState(new SoldierInfoState(_base, _lstSoldiers->getSelectedRow()));
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void SoldiersState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool SoldiersState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<SoldiersState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    out=AgentUiState();out.screen="soldiers";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle);
+    const std::string headings="["+view.text(_txtName)+","+view.text(_txtRank)+","+view.text(_txtCraft)+"]";
+    AgentListProjection list;if (!view.list(_lstSoldiers,3,false,list)) return false;
+    for (size_t row:out.rows) { if (row>=_base->getSoldiers()->size()) return false;out.widgets.emplace_back(_base->getSoldiers()->at(row),0); }
+    if (!out.rows.empty()) out.actions.emplace_back("select_soldier","Select soldier","visible_control_semantics","outfitting_row");
+    view.button(_btnOk,"close","close_soldiers");
+    out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool SoldiersState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="close_soldiers") { btnOkClick(nullptr);return true; }
+    if(Observer::agentOutfittingScroll(_lstSoldiers,current,request)) return true;
+    size_t row=0;if(request.action=="select_soldier" && Observer::agentOutfittingRow(current,request,row) && _lstSoldiers->agentSelectOutfittingRow(row)) { lstSoldiersClick(nullptr);return true; }
+    return false;
+}
+#endif
 
 }

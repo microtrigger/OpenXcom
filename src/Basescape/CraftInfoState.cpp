@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "CraftInfoState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include <cmath>
 #include <sstream>
 #include "../Engine/Game.h"
@@ -150,6 +153,9 @@ CraftInfoState::~CraftInfoState()
  */
 void CraftInfoState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 
 	_craft = _base->getCrafts()->at(_craftId);
@@ -395,5 +401,46 @@ void CraftInfoState::edtCraftChange(Action *action)
 		_edtCraft->setText(_craft->getName(_game->getLanguage()));
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void CraftInfoState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool CraftInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<CraftInfoState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    out=AgentUiState();out.screen="craft_info";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    AgentOutfittingView view(_game,_surfaces,out);
+    if (!_craft || _craftId>=_base->getCrafts()->size() || _base->getCrafts()->at(_craftId)!=_craft) return false;out.actor=_craft;
+    const auto name=view.edit(_edtCraft);
+    const auto damage=view.text(_txtDamage);
+    const auto fuel=view.text(_txtFuel);
+    const std::string weapons="[{\"name\":"+view.text(_txtW1Name)+",\"ammo\":"+view.text(_txtW1Ammo)+"},{\"name\":"+view.text(_txtW2Name)+",\"ammo\":"+view.text(_txtW2Ammo)+"}]";
+    view.button(_btnCrew,"crew","open_craft_crew");
+    view.button(_btnEquip,"equipment","open_craft_equipment");
+    view.button(_btnArmor,"armor","open_craft_armor");
+    view.button(_btnOk,"close","close_craft_info");
+    out.visible="{\"name\":"+name+",\"damage\":"+damage+",\"fuel\":"+fuel+",\"weapons\":"+weapons+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool CraftInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="open_craft_crew") { btnCrewClick(nullptr);return true; }
+    if(request.action=="open_craft_equipment") { btnEquipClick(nullptr);return true; }
+    if(request.action=="open_craft_armor") { btnArmorClick(nullptr);return true; }
+    if(request.action=="close_craft_info") { btnOkClick(nullptr);return true; }
+    return false;
+}
+#endif
 
 }

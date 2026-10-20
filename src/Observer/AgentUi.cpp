@@ -203,6 +203,114 @@ bool agentProjectArrivalList(const TextList *list, const Surface *owner, const s
         ",\"down\":" + (projection.down ? "true" : "false") + "}";
     return true;
 }
+bool agentProjectOutfittingList(const TextList *list, const std::vector<Surface *> &paintOrder,
+    unsigned columns, bool equipment, AgentUiState &ui, AgentListProjection &projection,
+    const std::function<bool(const AgentUiState &)> &allowed)
+{
+    projection = AgentListProjection();
+    std::vector<AgentOutfittingRow> rows;
+    if (!list || !list->agentOutfittingRows(rows)) return false;
+    ui.widgets.emplace_back(list, list->agentListRevision());
+    const size_t baseRegions = ui.regions.size();
+    std::vector<AgentUiRect> local;
+    size_t work = 0;
+    bool healthy = true;
+    const auto include = [&](const std::vector<AgentUiRect> &parts, const Surface *owner) -> bool {
+        if (parts.empty() || !agentRegionsUncovered(parts, owner, paintOrder)) return false;
+        AgentUiState candidate; candidate.regions = parts;
+        if (allowed && !allowed(candidate)) return false;
+        std::vector<AgentUiRect> united = local;
+        for (const AgentUiRect &r : parts)
+        {
+            if (!agentRegionVisible(r)) return false;
+            for (int y = r.y; y < r.y+r.height; ++y)
+            {
+                if (++work > 2*1024*1024 || united.size() >= 16384) { healthy = false; return false; }
+                united.push_back({r.x,y,r.width,1});
+            }
+        }
+        std::sort(united.begin(), united.end(), [](const AgentUiRect &a,const AgentUiRect &b) {
+            return a.y != b.y ? a.y < b.y : a.x < b.x;
+        });
+        std::vector<AgentUiRect> merged;
+        for (const AgentUiRect &r : united)
+        {
+            if (++work > 2*1024*1024) { healthy = false; return false; }
+            if (!merged.empty() && merged.back().y == r.y && merged.back().x+merged.back().width >= r.x)
+                merged.back().width = std::max(merged.back().x+merged.back().width,r.x+r.width)-merged.back().x;
+            else merged.push_back(r);
+        }
+        AgentUiState test;
+        test.regions.assign(ui.regions.begin(),ui.regions.begin()+baseRegions);
+        test.regions.insert(test.regions.end(),merged.begin(),merged.end());
+        if (!agentRegionsDisjoint(test)) return false;
+        local.swap(merged); ui.regions.swap(test.regions); return true;
+    };
+    unsigned count = 0;
+    int lastBottom = -1;
+    projection.rows = "[";
+    for (const AgentOutfittingRow &row : rows)
+    {
+        if (count == 32) break;
+        if (row.cells.size() != columns || row.bounds.y < lastBottom) return false;
+        lastBottom = row.bounds.y+row.bounds.h;
+        const auto oldLocal = local;
+        const auto oldRegions = ui.regions;
+        bool increase = false, decrease = false;
+        const auto arrow = [&](const Surface *part) {
+            if (!part) return false;
+            AgentUiState mark; agentIncludeWidget(mark,part);
+            return include(mark.regions,part);
+        };
+        if (equipment)
+        {
+            increase = arrow(row.increase); decrease = arrow(row.decrease);
+            if (!increase && !decrease) { local=oldLocal;ui.regions=oldRegions;continue; }
+        }
+        else if (!include({{row.clickBand.x,row.clickBand.y,row.clickBand.w,row.clickBand.h}},list)) continue;
+        std::string cells = "[";
+        for (unsigned c=0;c<columns;++c)
+        {
+            if (c) cells += ",";
+            const AgentPurchaseCell &cell=row.cells[c];
+            std::vector<AgentUiRect> ink;
+            for (const SDL_Rect &r:cell.regions) ink.push_back({r.x,r.y,r.w,r.h});
+            const bool known=cell.known && cell.text.size()<=1024 && (ink.empty() || include(ink,list));
+            if (!healthy) return false;
+            cells += known ? agentJsonString(cell.text) : "null";
+        }
+        cells += "]";
+        bool selected=row.selected;
+        if (selected)
+        {
+            const std::vector<AgentUiRect> band={{row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h}};
+            AgentUiState mark;mark.regions=band;
+            selected=agentRegionsUncovered(band,list,paintOrder) && (!allowed || allowed(mark));
+        }
+        if (count) projection.rows += ",";
+        projection.rows += "{\"handle\":\"r"+std::to_string(count++)+"\",\"cells\":"+cells+
+            ",\"selected\":"+(selected?"true":"false");
+        if (equipment)
+        {
+            projection.rows += ",\"controls\":[";
+            if (increase) projection.rows += "\"increase\"";
+            if (decrease) projection.rows += increase?",\"decrease\"":"\"decrease\"";
+            projection.rows += "]";
+            ui.context.push_back((increase?1:0)|(decrease?2:0));
+        }
+        projection.rows += "}"; ui.rows.push_back(row.logicalIndex);
+    }
+    projection.rows += "]";
+    const Surface *up=nullptr,*down=nullptr;list->agentScrollControls(up,down);
+    const auto arrow=[&](const Surface *part) {
+        if (!part) return false;
+        AgentUiState mark;agentIncludeWidget(mark,part);return include(mark.regions,part);
+    };
+    projection.up=arrow(up);projection.down=arrow(down);
+    projection.scroll=std::string("{\"up\":")+(projection.up?"true":"false")+",\"down\":"+(projection.down?"true":"false")+"}";
+    return healthy;
+}
+
 bool agentWidgetVisible(const Surface *widget)
 {
     return widget && widget->agentContextVisible() && widget->getX() >= 0 && widget->getY() >= 0 &&

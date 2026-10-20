@@ -90,6 +90,21 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             visible = dict(title='UFO-1', detected_label='Detected', hyperwave_label=None,
                            details_status='unavailable', buttons=buttons)
         ids = sorted(a.STATE_ACTIONS[screen])
+    elif screen in a.OUTFITTING_FIELDS:
+        visible = {key: None for key in a.OUTFITTING_FIELDS[screen].split()}
+        visible['buttons'] = [dict(id=key,label=key.title()) for key in a.OUTFITTING_BUTTONS[screen]]
+        if screen in a.OUTFITTING_LISTS:
+            headings, columns = a.OUTFITTING_LISTS[screen]
+            visible.update(title='Outfitting',headings=['Heading']*headings,
+                rows=[dict(handle='r0',cells=['Shown']+[None]*(columns-1),selected=False)],scroll=dict(up=True,down=True))
+            if screen == 'craft_equipment': visible['rows'][0]['controls']=['increase','decrease']
+        elif screen == 'soldier_info':
+            visible.update(name='MCP Healthy',rank='Rookie',missions='Missions>0',kills='Kills>0',
+                           stats=[dict(label='Time Units',value='60')])
+        else:
+            visible.update(name='MCP Transport',damage='Damage>0%',fuel='Fuel>100%',
+                           weapons=[dict(name=None,ammo=None),dict(name=None,ammo=None)])
+        ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.PROJECT_BUTTONS:
         buttons=[dict(id=key,label=key.title()) for key in a.PROJECT_BUTTONS[screen]]
         if screen in a.PROJECT_LISTS:
@@ -131,6 +146,10 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     if not ids:
         capability = None
     def action_label(action):
+        if screen in a.OUTFITTING_FIELDS:
+            if action in a.OUTFITTING_SEMANTIC_LABELS: return a.OUTFITTING_SEMANTIC_LABELS[action]
+            if action == 'scroll_visible_list': return 'Scroll visible list'
+            return next(button['label'] for button in visible['buttons'] if button['id'] == a.OUTFITTING_BUTTON_ACTIONS[screen][action])
         if screen in a.COMPLETION_BUTTONS:
             if action == 'scroll_visible_list': return 'Scroll visible list'
             return next(button['label'] for button in visible['buttons'] if button['id'] == a.COMPLETION_BUTTON_ACTIONS[screen][action])
@@ -173,7 +192,11 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'set_production_sell': {'enabled':True},
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_purchase': {'direction':'down','amount':'step'},
-                'position_purchase_list': {'target':'t0'}}.get(action, {})
+                'position_purchase_list': {'target':'t0'},
+                'select_soldier': {'row':'r0'}, 'select_craft': {'row':'r0'},
+                'open_craft_soldier_info': {'row':'r0'}, 'select_craft_armor_soldier': {'row':'r0'},
+                'select_soldier_armor': {'row':'r0'}, 'set_craft_soldier': {'row':'r0','assigned':True},
+                'change_craft_equipment': {'row':'r0','operation':'adjust','value':1}}.get(action, {})
     return {**{k: obj[k] for k in ('epoch', 'capability', 'revision')}, 'command_id': command_id, 'action': action, 'args': args}
 
 
@@ -239,8 +262,8 @@ class NativeFixture:
                     assert int(revision) == self.revision and action in [i['id'] for i in self.latest['actions']]
                     assert ident not in self.results, 'Native action unexpectedly replayed'
                     kind = a.ARGUMENT_KINDS[action]
-                    expected_count = 6 if kind == 'none' else 8 if kind in ('point', 'purchase_scroll') else 7
-                    if kind in ('production_quantity','purchase_quantity'):
+                    expected_count = 6 if kind == 'none' else 8 if kind in ('point', 'purchase_scroll', 'crew_assignment') else 7
+                    if kind in ('production_quantity','purchase_quantity','equipment_quantity'):
                         expected_count = 9 if command[7] in ('adjust','set') else 8
                     assert len(command) == expected_count
                     if action == 'select_difficulty': self.difficulty = command[6]
@@ -373,7 +396,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 96); self.assertEqual(len(a.STATE_ACTIONS), 41)
+        self.assertEqual(len(a.ACTIONS), 119); self.assertEqual(len(a.STATE_ACTIONS), 49)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -420,7 +443,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 96)
+        self.assertEqual(len(a.ACTIONS), 119)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
@@ -433,7 +456,11 @@ class TypedValidationTests(unittest.TestCase):
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
-            'change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position'})
+            'change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
+            'select_soldier':'outfitting_row','select_craft':'outfitting_row',
+            'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
+            'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
+            'change_craft_equipment':'equipment_quantity'})
         for screen in a.STATE_ACTIONS:
             obj = state(screen=screen)
             for descriptor in obj['actions']:
@@ -594,7 +621,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/23')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/24')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -608,7 +635,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/23']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/24']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1227,7 +1254,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.23.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.24.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -1324,9 +1351,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/23',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/23'
-send(dict(schema='openxcom-agent-control/23',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/24',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/24'
+send(dict(schema='openxcom-agent-control/24',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1371,9 +1398,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/23',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/23'
-send(dict(schema='openxcom-agent-control/23',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/24',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/24'
+send(dict(schema='openxcom-agent-control/24',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1404,9 +1431,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/23', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/24', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/23'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/24'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

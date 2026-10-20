@@ -37,6 +37,11 @@ class Craft;
 class CraftInfoState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 	Base *_base;
 	size_t _craftId;
 	Craft *_craft;
@@ -50,6 +55,11 @@ private:
 	/// Formats an amount of time.
 	std::string formatTime(int time);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Craft Info state.
 	CraftInfoState(Base *base, size_t craftId);
 	/// Cleans up the Craft Info state.

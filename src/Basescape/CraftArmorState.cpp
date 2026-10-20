@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "CraftArmorState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
 #include "../Engine/LocalizedText.h"
@@ -88,6 +91,9 @@ CraftArmorState::CraftArmorState(Base *base, size_t craft) : _base(base), _craft
 
 	_lstSoldiers->setColumns(3, 114, 69, 101);
 	_lstSoldiers->setSelectable(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstSoldiers->agentEnableOutfitting(3);
+#endif
 	_lstSoldiers->setBackground(_window);
 	_lstSoldiers->setMargin(8);
 	_lstSoldiers->setScrolling(true, 0);
@@ -131,6 +137,9 @@ CraftArmorState::~CraftArmorState()
  */
 void CraftArmorState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 	int row = 0;
 	for (std::vector<Soldier*>::iterator i = _base->getSoldiers()->begin(); i != _base->getSoldiers()->end(); ++i)
@@ -160,7 +169,7 @@ void CraftArmorState::lstSoldiersClick(Action *action)
 	{
 		if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 		{
-			_game->pushState(new SoldierArmorState(_base, _lstSoldiers->getSelectedRow()));
+			openSoldierArmor(_lstSoldiers->getSelectedRow());
 		}
 		else if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
 		{
@@ -195,5 +204,49 @@ void CraftArmorState::lstSoldiersClick(Action *action)
 		}
 	}
 }
+
+void CraftArmorState::openSoldierArmor(size_t row)
+{
+    Soldier *soldier=_base->getSoldiers()->at(row);
+    if (!(soldier->getCraft() && soldier->getCraft()->getStatus()=="STR_OUT"))
+        _game->pushState(new SoldierArmorState(_base,row));
+}
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void CraftArmorState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool CraftArmorState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<CraftArmorState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    out=AgentUiState();out.screen="craft_armor";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle);
+    const std::string headings="["+view.text(_txtName)+","+view.text(_txtCraft)+","+view.text(_txtArmor)+"]";
+    AgentListProjection list;if (!view.list(_lstSoldiers,3,false,list)) return false;
+    for (size_t row:out.rows) { if (row>=_base->getSoldiers()->size()) return false;out.widgets.emplace_back(_base->getSoldiers()->at(row),0); }
+    if (!out.rows.empty()) out.actions.emplace_back("select_craft_armor_soldier","Select soldier armor","visible_control_semantics","outfitting_row");
+    view.button(_btnOk,"close","close_craft_armor");
+    out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool CraftArmorState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="close_craft_armor") { btnOkClick(nullptr);return true; }
+    if(Observer::agentOutfittingScroll(_lstSoldiers,current,request)) return true;
+    size_t row=0;if(request.action=="select_craft_armor_soldier" && Observer::agentOutfittingRow(current,request,row) && _lstSoldiers->agentSelectOutfittingRow(row)) { openSoldierArmor(row);return true; }
+    return false;
+}
+#endif
 
 }

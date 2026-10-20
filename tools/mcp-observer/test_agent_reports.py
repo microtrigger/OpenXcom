@@ -17,9 +17,9 @@ def message(text='Jane\nis under alien control', report='alien_control', seq=1):
 
 class DisplayedReportValidationTests(unittest.TestCase):
     def test_exact_compiled_protocol_actions_states_and_tool_count(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/23')
-        self.assertEqual(len(a.ACTIONS), 96)
-        self.assertEqual(len(a.STATE_ACTIONS), 41)
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/24')
+        self.assertEqual(len(a.ACTIONS), 119)
+        self.assertEqual(len(a.STATE_ACTIONS), 49)
         self.assertEqual(len(a.definitions()), 4)
         self.assertEqual(a.ARGUMENT_KINDS['acknowledge_message'], 'none')
         self.assertEqual(a.STATE_ACTIONS['infobox'], frozenset())

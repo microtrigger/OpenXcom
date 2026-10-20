@@ -17,6 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "CraftEquipmentState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
+#include "../Savegame/CraftOutfittingCommand.h"
 #include <climits>
 #include <sstream>
 #include <algorithm>
@@ -125,6 +129,9 @@ CraftEquipmentState::CraftEquipmentState(Base *base, size_t craft) : _sel(0), _c
 	_lstEquipment->setArrowColumn(203, ARROW_HORIZONTAL);
 	_lstEquipment->setColumns(3, 156, 83, 41);
 	_lstEquipment->setSelectable(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_lstEquipment->agentEnableOutfitting(3, true, false);
+#endif
 	_lstEquipment->setBackground(_window);
 	_lstEquipment->setMargin(8);
 	_lstEquipment->onLeftArrowPress((ActionHandler)&CraftEquipmentState::lstEquipmentLeftArrowPress);
@@ -215,6 +222,9 @@ CraftEquipmentState::~CraftEquipmentState()
  */
 void CraftEquipmentState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 
 	_game->getSavedGame()->setBattleGame(0);
@@ -416,75 +426,7 @@ void CraftEquipmentState::moveLeft()
  */
 void CraftEquipmentState::moveLeftByValue(int change)
 {
-	Craft *c = _base->getCrafts()->at(_craft);
-	RuleItem *item = _game->getMod()->getItem(_items[_sel], true);
-	int cQty = 0;
-	if (item->isFixed()) cQty = c->getVehicleCount(_items[_sel]);
-	else cQty = c->getItems()->getItem(_items[_sel]);
-	if (change <= 0 || cQty <= 0) return;
-	change = std::min(cQty, change);
-	// Convert vehicle to item
-	if (item->isFixed())
-	{
-		if (!item->getCompatibleAmmo()->empty())
-		{
-			// Calculate how much ammo needs to be added to the base.
-			RuleItem *ammo = _game->getMod()->getItem(item->getCompatibleAmmo()->front(), true);
-			int ammoPerVehicle;
-			if (ammo->getClipSize() > 0 && item->getClipSize() > 0)
-			{
-				ammoPerVehicle = item->getClipSize() / ammo->getClipSize();
-			}
-			else
-			{
-				ammoPerVehicle = ammo->getClipSize();
-			}
-			// Put the vehicles and their ammo back as separate items.
-			if (_game->getSavedGame()->getMonthsPassed() != -1)
-			{
-				_base->getStorageItems()->addItem(_items[_sel], change);
-				_base->getStorageItems()->addItem(ammo->getType(), ammoPerVehicle * change);
-			}
-			// now delete the vehicles from the craft.
-			for (std::vector<Vehicle*>::iterator i = c->getVehicles()->begin(); i != c->getVehicles()->end() && change > 0; )
-			{
-				if ((*i)->getRules() == item)
-				{
-					delete (*i);
-					i = c->getVehicles()->erase(i);
-					--change;
-				}
-				else ++i;
-			}
-		}
-		else
-		{
-			if (_game->getSavedGame()->getMonthsPassed() != -1)
-			{
-				_base->getStorageItems()->addItem(_items[_sel], change);
-			}
-			for (std::vector<Vehicle*>::iterator i = c->getVehicles()->begin(); i != c->getVehicles()->end() && change > 0; )
-			{
-				if ((*i)->getRules() == item)
-				{
-					delete (*i);
-					i = c->getVehicles()->erase(i);
-					--change;
-				}
-				else ++i;
-			}
-		}
-	}
-	else
-	{
-		c->getItems()->removeItem(_items[_sel], change);
-		_totalItems -= change;
-		if (_game->getSavedGame()->getMonthsPassed() > -1)
-		{
-			_base->getStorageItems()->addItem(_items[_sel], change);
-		}
-	}
-	updateQuantity();
+    if (change > 0) changeEquipmentQuantity(_sel, QuantityOperation::Adjust, -change);
 }
 
 /**
@@ -503,101 +445,31 @@ void CraftEquipmentState::moveRight()
  */
 void CraftEquipmentState::moveRightByValue(int change)
 {
-	Craft *c = _base->getCrafts()->at(_craft);
-	RuleItem *item = _game->getMod()->getItem(_items[_sel], true);
-	int bqty = _base->getStorageItems()->getItem(_items[_sel]);
-	if (_game->getSavedGame()->getMonthsPassed() == -1)
-	{
-		if (change == INT_MAX)
-		{
-			change = 10;
-		}
-		bqty = change;
-	}
-	if (0 >= change || 0 >= bqty) return;
-	change = std::min(bqty, change);
-	// Do we need to convert item to vehicle?
-	if (item->isFixed())
-	{
-		int size = 4;
-		if (_game->getMod()->getUnit(item->getType()))
-		{
-			size = _game->getMod()->getArmor(_game->getMod()->getUnit(item->getType())->getArmor(), true)->getSize();
-			size *= size;
-		}
-		// Check if there's enough room
-		int room = std::min(c->getRules()->getVehicles() - c->getNumVehicles(), c->getSpaceAvailable() / size);
-		if (room > 0)
-		{
-			change = std::min(room, change);
-			if (!item->getCompatibleAmmo()->empty())
-			{
-				// And now let's see if we can add the total number of vehicles.
-				RuleItem *ammo = _game->getMod()->getItem(item->getCompatibleAmmo()->front(), true);
-				int ammoPerVehicle, clipSize;
-				if (ammo->getClipSize() > 0 && item->getClipSize() > 0)
-				{
-					clipSize = item->getClipSize();
-					ammoPerVehicle = clipSize / ammo->getClipSize();
-				}
-				else
-				{
-					clipSize = ammo->getClipSize();
-					ammoPerVehicle = clipSize;
-				}
+    if (change > 0) changeEquipmentQuantity(_sel, QuantityOperation::Adjust, change);
+}
 
-				int baseQty = _base->getStorageItems()->getItem(ammo->getType()) / ammoPerVehicle;
-				if (_game->getSavedGame()->getMonthsPassed() == -1)
-					baseQty = change;
-				int canBeAdded = std::min(change, baseQty);
-				if (canBeAdded > 0)
-				{
-					for (int i = 0; i < canBeAdded; ++i)
-					{
-						if (_game->getSavedGame()->getMonthsPassed() != -1)
-						{
-							_base->getStorageItems()->removeItem(ammo->getType(), ammoPerVehicle);
-							_base->getStorageItems()->removeItem(_items[_sel]);
-						}
-						c->getVehicles()->push_back(new Vehicle(item, clipSize, size));
-					}
-				}
-				else
-				{
-					// So we haven't managed to increase the count of vehicles because of the ammo
-					_timerRight->stop();
-					LocalizedText msg(tr("STR_NOT_ENOUGH_AMMO_TO_ARM_HWP").arg(ammoPerVehicle).arg(tr(ammo->getType())));
-					_game->pushState(new ErrorMessageState(msg, _palette, _game->getMod()->getInterface("craftEquipment")->getElement("errorMessage")->color, "BACK04.SCR", _game->getMod()->getInterface("craftEquipment")->getElement("errorPalette")->color));
-				}
-			}
-			else
-				for (int i = 0; i < change; ++i)
-				{
-					c->getVehicles()->push_back(new Vehicle(item, item->getClipSize(), size));
-					if (_game->getSavedGame()->getMonthsPassed() != -1)
-					{
-						_base->getStorageItems()->removeItem(_items[_sel]);
-					}
-				}
-		}
-	}
-	else
-	{
-		if (c->getRules()->getMaxItems() > 0 && _totalItems + change > c->getRules()->getMaxItems())
-		{
-			_timerRight->stop();
-			LocalizedText msg(tr("STR_NO_MORE_EQUIPMENT_ALLOWED", c->getRules()->getMaxItems()));
-			_game->pushState(new ErrorMessageState(msg, _palette, _game->getMod()->getInterface("craftEquipment")->getElement("errorMessage")->color, "BACK04.SCR", _game->getMod()->getInterface("craftEquipment")->getElement("errorPalette")->color));
-			change = c->getRules()->getMaxItems() - _totalItems;
-		}
-		c->getItems()->addItem(_items[_sel],change);
-		_totalItems += change;
-		if (_game->getSavedGame()->getMonthsPassed() > -1)
-		{
-			_base->getStorageItems()->removeItem(_items[_sel],change);
-		}
-	}
-	updateQuantity();
+/**
+ * Applies an immediate ordinary transfer intent, shared by the GUI and semantic
+ * adapter. The warning sink preserves the original popup-before-partial-load
+ * sequencing; OK remains only a close operation.
+ */
+void CraftEquipmentState::changeEquipmentQuantity(size_t row, QuantityOperation operation, int value)
+{
+    if (row >= _items.size()) return;
+    _sel = row;
+    Craft *craft = _base->getCrafts()->at(_craft);
+    const CraftEquipmentWarningSink warning = [this](CraftEquipmentWarning kind, int amount, const std::string &ammo) {
+        _timerRight->stop();
+        LocalizedText message = kind == CraftEquipmentWarning::MaxItems
+            ? tr("STR_NO_MORE_EQUIPMENT_ALLOWED", amount)
+            : tr("STR_NOT_ENOUGH_AMMO_TO_ARM_HWP").arg(amount).arg(tr(ammo));
+        _game->pushState(new ErrorMessageState(message, _palette,
+            _game->getMod()->getInterface("craftEquipment")->getElement("errorMessage")->color,
+            "BACK04.SCR", _game->getMod()->getInterface("craftEquipment")->getElement("errorPalette")->color));
+    };
+    if (CraftOutfittingCommand::quantity(*_base, *craft, *_game->getMod(), *_game->getSavedGame(),
+            _items[row], _totalItems, operation, value, warning))
+        updateQuantity();
 }
 
 /**
@@ -631,5 +503,58 @@ void CraftEquipmentState::btnInventoryClick(Action *)
 		_game->pushState(new InventoryState(false, 0));
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void CraftEquipmentState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool CraftEquipmentState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<CraftEquipmentState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    if (_craft>=_base->getCrafts()->size()) return false;
+    out=AgentUiState();out.screen="craft_equipment";out.actor=_base->getCrafts()->at(_craft);out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    out.widgets.emplace_back(_base,0);
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle),available=view.text(_txtAvailable),used=view.text(_txtUsed);
+    const auto crew=view.text(_txtCrew);
+    const std::string headings="["+view.text(_txtItem)+","+view.text(_txtStores)+"]";
+    AgentListProjection list;if(!view.list(_lstEquipment,3,true,list))return false;
+    for(size_t row:out.rows){if(row>=_items.size())return false;out.widgets.emplace_back(&_items[row],0);}
+    if(!out.rows.empty())out.actions.emplace_back("change_craft_equipment","Change craft equipment","visible_control_semantics","equipment_quantity");
+    view.button(_btnOk,"close","close_craft_equipment");
+    out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"available\":"+available+",\"used\":"+used+",\"crew\":"+crew+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+
+    return view.finish();
+}
+bool CraftEquipmentState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="close_craft_equipment"){btnOkClick(nullptr);return true;}
+    if(Observer::agentOutfittingScroll(_lstEquipment,current,request))return true;
+    size_t row=0,slot=0;
+    if(request.action=="change_craft_equipment" && Observer::agentOutfittingRow(current,request,row,&slot) && slot+2<current.context.size()) {
+        const unsigned mask=current.context[slot];
+        QuantityOperation operation;
+        if(request.operation=="adjust") {if(!(mask&(request.value>0?1:2)))return false;operation=QuantityOperation::Adjust;}
+        else if(request.operation=="set") {if(mask!=3)return false;operation=QuantityOperation::Set;}
+        else if(request.operation=="max") {if(!(mask&1))return false;operation=QuantityOperation::Maximum;}
+        else if(request.operation=="clear") {if(!(mask&2))return false;operation=QuantityOperation::Clear;}
+        else return false;
+        if(!_lstEquipment->agentSelectOutfittingRow(row))return false;
+        changeEquipmentQuantity(row,operation,request.value);return true;
+    }
+
+    return false;
+}
+#endif
 
 }

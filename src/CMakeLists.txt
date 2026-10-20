@@ -307,6 +307,7 @@ set ( savegame_src
   Savegame/Production.cpp
   Savegame/ProductionCommands.cpp
   Savegame/PurchaseCommands.cpp
+  Savegame/CraftOutfittingCommand.cpp
   Savegame/Region.cpp
   Savegame/ResearchProject.cpp
   Savegame/SaveConverter.cpp

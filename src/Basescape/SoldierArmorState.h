@@ -37,6 +37,11 @@ class Armor;
 class SoldierArmorState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 	Base *_base;
 	size_t _soldier;
 
@@ -46,6 +51,11 @@ private:
 	TextList *_lstArmor;
 	std::vector<Armor*> _armors;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Soldier Armor state.
 	SoldierArmorState(Base *base, size_t soldier);
 	/// Cleans up the Soldier Armor state.

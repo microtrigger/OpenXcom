@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "SoldierInfoState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include "SoldierDiaryOverviewState.h"
 #include <algorithm>
 #include <sstream>
@@ -318,6 +321,9 @@ SoldierInfoState::~SoldierInfoState()
  */
 void SoldierInfoState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 	if (_list->empty())
 	{
@@ -606,5 +612,68 @@ void SoldierInfoState::btnDiaryClick(Action *)
 {
 	_game->pushState(new SoldierDiaryOverviewState(_base, _soldierId, this));
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void SoldierInfoState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<SoldierInfoState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    out=AgentUiState();out.screen="soldier_info";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    AgentOutfittingView view(_game,_surfaces,out);
+    if (!_soldier || !_list || _soldierId>=_list->size() || _list->at(_soldierId)!=_soldier) return false;
+    out.actor=_soldier;out.widgets.emplace_back(_list,_agentUiRevision);
+    const auto name=view.edit(_edtSoldier);
+    const auto rank=view.text(_txtRank);
+    const auto missions=view.text(_txtMissions);
+    const auto kills=view.text(_txtKills);
+    const auto craft=view.text(_txtCraft);
+    const auto recovery=view.text(_txtRecovery);
+    const auto training=view.text(_txtPsionic);
+    std::string stats="[";
+    const auto stat=[&](const Text *label,const Text *number) {
+        if (!label->getVisible() && !number->getVisible()) return;
+        const auto shownLabel=view.text(label),shownValue=view.text(number);
+        if(shownLabel=="null" && shownValue=="null")return;
+        if(stats.size()>1)stats+=",";stats+="{\"label\":"+shownLabel+",\"value\":"+shownValue+"}";
+    };
+    stat(_txtTimeUnits,_numTimeUnits);
+    stat(_txtStamina,_numStamina);
+    stat(_txtHealth,_numHealth);
+    stat(_txtBravery,_numBravery);
+    stat(_txtReactions,_numReactions);
+    stat(_txtFiring,_numFiring);
+    stat(_txtThrowing,_numThrowing);
+    stat(_txtMelee,_numMelee);
+    stat(_txtStrength,_numStrength);
+    stat(_txtPsiStrength,_numPsiStrength);
+    stat(_txtPsiSkill,_numPsiSkill);
+    view.button(_btnPrev,"previous","previous_personnel");
+    view.button(_btnNext,"next","next_personnel");
+    view.button(_btnArmor,"armor","open_soldier_armor");
+    view.button(_btnOk,"close","close_soldier_info");
+    out.visible="{\"name\":"+name+",\"rank\":"+rank+",\"missions\":"+missions+",\"kills\":"+kills+",\"craft\":"+craft+",\"recovery\":"+recovery+",\"training\":"+training+",\"stats\":"+stats+"],\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool SoldierInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="previous_personnel") { btnPrevClick(nullptr);return true; }
+    if(request.action=="next_personnel") { btnNextClick(nullptr);return true; }
+    if(request.action=="open_soldier_armor") { btnArmorClick(nullptr);return true; }
+    if(request.action=="close_soldier_info") { btnOkClick(nullptr);return true; }
+    return false;
+}
+#endif
 
 }

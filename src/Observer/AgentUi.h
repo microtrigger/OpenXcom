@@ -65,6 +65,9 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
 bool agentProjectArrivalList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     AgentUiState &ui, AgentListProjection &projection,
     const std::function<bool(const AgentUiState &)> &regionAllowed);
+bool agentProjectOutfittingList(const TextList *list, const std::vector<Surface *> &paintOrder,
+    unsigned columns, bool equipment, AgentUiState &ui, AgentListProjection &projection,
+    const std::function<bool(const AgentUiState &)> &regionAllowed);
 bool agentWidgetVisible(const Surface *widget);
 // Conservative check against later-painted surfaces in this explicit state.
 // The paint order/geometry is used only for visibility, never serialized.

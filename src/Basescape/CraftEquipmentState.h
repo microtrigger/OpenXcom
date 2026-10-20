@@ -18,6 +18,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#include "../Savegame/QuantityCommand.h"
 #include <vector>
 #include <string>
 
@@ -38,6 +39,11 @@ class Base;
 class CraftEquipmentState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 	TextButton *_btnOk, *_btnClear, *_btnInventory;
 	Window *_window;
 	Text *_txtTitle, *_txtItem, *_txtStores, *_txtAvailable, *_txtUsed, *_txtCrew;
@@ -51,6 +57,11 @@ private:
 	/// Updates quantities of item.
 	void updateQuantity();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Craft Equipment state.
 	CraftEquipmentState(Base *base, size_t craft);
 	/// Cleans up the Craft Equipment state.
@@ -83,6 +94,8 @@ public:
 	void moveRight();
 	/// Moves the given number of items to the craft.
 	void moveRightByValue(int change);
+	/// Applies a desired immediate equipment quantity through ordinary rules.
+	void changeEquipmentQuantity(size_t row, QuantityOperation operation, int value = 0);
 	/// Empties the contents of the craft, moving all of the items back to the base.
 	void btnClearClick(Action *action);
 	/// Handler for clicking the Inventory button.

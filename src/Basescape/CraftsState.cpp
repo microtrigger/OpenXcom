@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "CraftsState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -98,6 +101,9 @@ CraftsState::CraftsState(Base *base) : _base(base)
 	_txtHwp->setText(tr("STR_HWPS"));
 	_lstCrafts->setColumns(5, 94, 68, 44, 46, 28);
 	_lstCrafts->setSelectable(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstCrafts->agentEnableOutfitting(5);
+#endif
 	_lstCrafts->setBackground(_window);
 	_lstCrafts->setMargin(8);
 	_lstCrafts->onMouseClick((ActionHandler)&CraftsState::lstCraftsClick);
@@ -117,6 +123,9 @@ CraftsState::~CraftsState()
  */
 void CraftsState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 	_lstCrafts->clearList();
 	for (std::vector<Craft*>::iterator i = _base->getCrafts()->begin(); i != _base->getCrafts()->end(); ++i)
@@ -155,5 +164,43 @@ void CraftsState::lstCraftsClick(Action *)
 		_game->pushState(new CraftInfoState(_base, _lstCrafts->getSelectedRow()));
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void CraftsState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool CraftsState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<CraftsState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    out=AgentUiState();out.screen="crafts";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle);
+    const auto base=view.text(_txtBase);
+    const std::string headings="["+view.text(_txtName)+","+view.text(_txtStatus)+","+view.text(_txtWeapon)+","+view.text(_txtCrew)+","+view.text(_txtHwp)+"]";
+    AgentListProjection list;if (!view.list(_lstCrafts,5,false,list)) return false;
+    for (size_t row:out.rows) { if (row>=_base->getCrafts()->size()) return false;out.widgets.emplace_back(_base->getCrafts()->at(row),0); }
+    if (!out.rows.empty()) out.actions.emplace_back("select_craft","Select craft","visible_control_semantics","outfitting_row");
+    view.button(_btnOk,"close","close_crafts");
+    out.visible="{\"title\":"+title+",\"base\":"+base+",\"headings\":"+headings+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool CraftsState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="close_crafts") { btnOkClick(nullptr);return true; }
+    if(Observer::agentOutfittingScroll(_lstCrafts,current,request)) return true;
+    size_t row=0;if(request.action=="select_craft" && Observer::agentOutfittingRow(current,request,row) && _lstCrafts->agentSelectOutfittingRow(row)) { lstCraftsClick(nullptr);return true; }
+    return false;
+}
+#endif
 
 }

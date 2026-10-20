@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/23"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/24"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/23\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/24\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -59,10 +59,36 @@ bool agentActionId(const std::string &value)
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
         value == "dismiss_production_complete" || value == "open_production_destination" ||
-        value == "dismiss_ufo_contact";
+        value == "dismiss_ufo_contact" ||
+        value == "open_soldiers" ||
+        value == "select_soldier" ||
+        value == "close_soldiers" ||
+        value == "previous_personnel" ||
+        value == "next_personnel" ||
+        value == "open_soldier_armor" ||
+        value == "close_soldier_info" ||
+        value == "open_crafts" ||
+        value == "select_craft" ||
+        value == "close_crafts" ||
+        value == "open_craft_crew" ||
+        value == "open_craft_equipment" ||
+        value == "open_craft_armor" ||
+        value == "close_craft_info" ||
+        value == "set_craft_soldier" ||
+        value == "open_craft_soldier_info" ||
+        value == "close_craft_crew" ||
+        value == "change_craft_equipment" ||
+        value == "close_craft_equipment" ||
+        value == "select_craft_armor_soldier" ||
+        value == "close_craft_armor" ||
+        value == "select_soldier_armor" ||
+        value == "cancel_soldier_armor";
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "set_craft_soldier") return "crew_assignment";
+    if (action == "change_craft_equipment") return "equipment_quantity";
+    if (action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_purchase_quantity") return "purchase_quantity";
     if (action == "set_production_sell") return "boolean_value";
@@ -159,7 +185,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
     const std::string kind = agentArgumentKind(request.action);
     if (kind == "none") { if (parts.size() != 6) return false; }
-    else if (kind == "production_quantity" || kind == "purchase_quantity")
+    else if (kind == "production_quantity" || kind == "purchase_quantity" || kind == "equipment_quantity")
     {
         if (parts.size()!=8 && parts.size()!=9) return false;
         if (kind=="production_quantity") { if (parts[6]!="engineers" && parts[6]!="units") return false; request.control=parts[6]; }
@@ -176,6 +202,13 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
             request.value=negative?-static_cast<int>(value):static_cast<int>(value);
         }
         else return false;
+    }
+    else if (kind == "crew_assignment")
+    {
+        std::uint64_t row;
+        if (parts.size()!=8 || parts[6].size()<2 || parts[6][0]!='r' || !decimal(parts[6].substr(1),31,row) ||
+            (parts[7]!="true" && parts[7]!="false")) return false;
+        request.choice=parts[6];request.desired=parts[7]=="true";
     }
     else if (kind == "boolean_value")
     {
@@ -251,7 +284,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
             parts[6] != "up" && parts[6] != "down")) return false;
         request.choice = parts[6];
     }
-    else if (kind == "visible_row" || kind == "project_row")
+    else if (kind == "visible_row" || kind == "project_row" || kind == "outfitting_row")
     {
         std::uint64_t row;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'r' ||

@@ -17,6 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "CraftSoldiersState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
+#include "../Savegame/CraftOutfittingCommand.h"
 #include <algorithm>
 #include <functional>
 #include <climits>
@@ -204,6 +208,9 @@ CraftSoldiersState::CraftSoldiersState(Base *base, size_t craft)
 	_lstSoldiers->setArrowColumn(192, ARROW_VERTICAL);
 	_lstSoldiers->setColumns(3, 106, 102, 72);
 	_lstSoldiers->setSelectable(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_lstSoldiers->agentEnableOutfitting(3, false, true);
+#endif
 	_lstSoldiers->setBackground(_window);
 	_lstSoldiers->setMargin(8);
 	_lstSoldiers->onLeftArrowClick((ActionHandler)&CraftSoldiersState::lstItemsLeftArrowClick);
@@ -313,6 +320,9 @@ void CraftSoldiersState::initList()
  */
 void CraftSoldiersState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 	State::init();
 	initList();
 }
@@ -428,41 +438,47 @@ void CraftSoldiersState::moveSoldierDown(Action *action, unsigned int row, bool 
  */
 void CraftSoldiersState::lstSoldiersClick(Action *action)
 {
-	double mx = action->getAbsoluteXMouse();
-	if (mx >= _lstSoldiers->getArrowsLeftEdge() && mx < _lstSoldiers->getArrowsRightEdge())
-	{
-		return;
-	}
-	int row = _lstSoldiers->getSelectedRow();
-	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
-	{
-		Craft *c = _base->getCrafts()->at(_craft);
-		Soldier *s = _base->getSoldiers()->at(_lstSoldiers->getSelectedRow());
-		Uint8 color = _lstSoldiers->getColor();
-		if (s->getCraft() == c)
-		{
-			s->setCraft(0);
-			_lstSoldiers->setCellText(row, 2, tr("STR_NONE_UC"));
-		}
-		else if (s->getCraft() && s->getCraft()->getStatus() == "STR_OUT")
-		{
-			color = _otherCraftColor;
-		}
-		else if (c->getSpaceAvailable() > 0 && s->getWoundRecovery() == 0)
-		{
-			s->setCraft(c);
-			_lstSoldiers->setCellText(row, 2, c->getName(_game->getLanguage()));
-			color = _lstSoldiers->getSecondaryColor();
-		}
-		_lstSoldiers->setRowColor(row, color);
+    double mx = action->getAbsoluteXMouse();
+    if (mx >= _lstSoldiers->getArrowsLeftEdge() && mx < _lstSoldiers->getArrowsRightEdge()) return;
+    const size_t row = _lstSoldiers->getSelectedRow();
+    if (row >= _base->getSoldiers()->size()) return;
+    if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
+    {
+        Craft *craft = _base->getCrafts()->at(_craft);
+        setSoldierAssigned(row, _base->getSoldiers()->at(row)->getCraft() != craft);
+    }
+    else if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+        inspectSoldier(row);
+}
 
-		_txtAvailable->setText(tr("STR_SPACE_AVAILABLE").arg(c->getSpaceAvailable()));
-		_txtUsed->setText(tr("STR_SPACE_USED").arg(c->getSpaceUsed()));
-	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
-	{
-		_game->pushState(new SoldierInfoState(_base, row));
-	}
+/** Applies a desired assignment without changing the GUI's ordinary toggle. */
+void CraftSoldiersState::setSoldierAssigned(size_t row, bool assigned)
+{
+    if (row >= _base->getSoldiers()->size()) return;
+    Craft *craft = _base->getCrafts()->at(_craft);
+    Soldier *soldier = _base->getSoldiers()->at(row);
+    const CraftCrewChange result = CraftOutfittingCommand::setAssigned(*craft, *soldier, assigned);
+    if (result == CraftCrewChange::Unchanged) return;
+    Uint8 color = _lstSoldiers->getColor();
+    if (result == CraftCrewChange::Removed)
+        _lstSoldiers->setCellText(row, 2, tr("STR_NONE_UC"));
+    else if (result == CraftCrewChange::OtherCraftAway)
+        color = _otherCraftColor;
+    else if (result == CraftCrewChange::Assigned)
+    {
+        _lstSoldiers->setCellText(row, 2, craft->getName(_game->getLanguage()));
+        color = _lstSoldiers->getSecondaryColor();
+    }
+    _lstSoldiers->setRowColor(row, color);
+    _txtAvailable->setText(tr("STR_SPACE_AVAILABLE").arg(craft->getSpaceAvailable()));
+    _txtUsed->setText(tr("STR_SPACE_USED").arg(craft->getSpaceUsed()));
+}
+
+/** Opens the same detail state as the ordinary secondary row click. */
+void CraftSoldiersState::inspectSoldier(size_t row)
+{
+    if (row < _base->getSoldiers()->size())
+        _game->pushState(new SoldierInfoState(_base, row));
 }
 
 /**
@@ -494,5 +510,54 @@ void CraftSoldiersState::lstSoldiersMousePress(Action *action)
 		}
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void CraftSoldiersState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool CraftSoldiersState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<CraftSoldiersState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    if (_craft>=_base->getCrafts()->size()) return false;
+    out=AgentUiState();out.screen="craft_soldiers";out.actor=_base->getCrafts()->at(_craft);out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    out.widgets.emplace_back(_base,0);
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle),available=view.text(_txtAvailable),used=view.text(_txtUsed);
+    const std::string headings="["+view.text(_txtName)+","+view.text(_txtRank)+","+view.text(_txtCraft)+"]";
+    AgentListProjection list;if(!view.list(_lstSoldiers,3,false,list))return false;
+    for(size_t row:out.rows){if(row>=_base->getSoldiers()->size())return false;out.widgets.emplace_back(_base->getSoldiers()->at(row),0);}
+    if(!out.rows.empty()) {
+        out.actions.emplace_back("set_craft_soldier","Set craft assignment","visible_control_semantics","crew_assignment");
+        out.actions.emplace_back("open_craft_soldier_info","Inspect soldier","visible_control_semantics","outfitting_row");
+    }
+    view.button(_btnOk,"close","close_craft_crew");
+    out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"available\":"+available+",\"used\":"+used+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+
+    return view.finish();
+}
+bool CraftSoldiersState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="close_craft_crew"){btnOkClick(nullptr);return true;}
+    if(Observer::agentOutfittingScroll(_lstSoldiers,current,request))return true;
+    size_t row=0;
+    if((request.action=="set_craft_soldier" || request.action=="open_craft_soldier_info") &&
+        Observer::agentOutfittingRow(current,request,row) && _lstSoldiers->agentSelectOutfittingRow(row)) {
+        if(request.action=="set_craft_soldier")setSoldierAssigned(row,request.desired);else inspectSoldier(row);
+        return true;
+    }
+
+    return false;
+}
+#endif
 
 }
