@@ -64,6 +64,7 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Read-only projection of the currently rendered strategic HUD.
 	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const std::string &action) override;
 #endif
 	/// Handle keypresses.
 	void handle(Action *action);

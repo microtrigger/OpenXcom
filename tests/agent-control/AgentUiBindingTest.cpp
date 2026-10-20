@@ -61,6 +61,15 @@ int main()
     check(!original.sameBinding(other), "visible text change invalidates");
     other = original; other.actions.clear();
     check(!original.sameBinding(other) && !other.offers("kneel"), "hidden control not offered");
+    other = original; other.widgets.push_back(std::make_pair(&actorA, 1234));
+    check(!original.sameBinding(other) && original.payload() == other.payload(), "list widget bindings private");
+    AgentUiState listGrant = other;
+    ++other.widgets[0].second;
+    check(!listGrant.sameBinding(other) && listGrant.payload() == other.payload(), "list scroll/content ABA invalidates");
+    other = listGrant; other.rows.push_back(123);
+    check(!listGrant.sameBinding(other) && listGrant.payload() == other.payload(), "local slot row identity private");
+    listGrant = other; other.rows[0] = 124;
+    check(!listGrant.sameBinding(other), "same label replacement row invalidates slot");
     const std::string payload = original.payload();
     check(payload.find("900123") == std::string::npos && payload.find("900456") == std::string::npos &&
         payload.find("900789") == std::string::npos && payload.find("actor") == std::string::npos &&

@@ -111,6 +111,11 @@ int main()
     check(edit.agentInputRevision() > beforeAba, "editor ABA retains distinct binding");
     edit.blink(); edit.blit(&canvas);
     check(edit.agentEditable(), "normal caret off phase does not flicker capability");
+    check(edit.agentReplaceText("AAAA"), "prepare caret overlap fixture");
+    key(edit, SDLK_LEFT, 0); edit.blit(&canvas);
+    check(!edit.agentRenderedText(rendered), "actual painted middle caret occludes text");
+    edit.blink(); edit.blit(&canvas);
+    check(edit.agentRenderedText(rendered) && rendered == "AAAA", "blink-off middle caret paints no occluder");
     edit.setFocus(false, false); edit.blit(&canvas);
     check(!edit.agentEditable() && !edit.agentReplaceText("Beta"), "unfocused editor cannot be changed");
     edit.setFocus(true, false); edit.blit(&canvas); edit.setVisible(false);
@@ -122,8 +127,10 @@ int main()
     TextEdit narrow(nullptr, big.getCharSize('A').w, 16, 0, 0);
     narrow.initText(&big, &small, &language); narrow.setBig(); narrow.setFocus(true, false); narrow.blit(&canvas);
     check(narrow.agentEditable(), "narrow empty editor fits caret");
-    check(!narrow.agentReplaceText("A") && narrow.getText().empty(), "terminal caret clipping rejects with rollback");
-    check(narrow.agentEditable(), "rollback restores complete caret");
+    check(narrow.agentReplaceText("A") && narrow.getText() == "A", "native-accepted full text permits clipped terminal caret");
+    check(narrow.agentEditable(), "clipped caret does not remove edit capability");
+    SDL_Rect caret;
+    if (narrow.agentCaretBounds(caret)) check(caret.x >= narrow.getX() && caret.x + caret.w <= narrow.getX() + narrow.getWidth(), "caret occlusion uses only clipped painted footprint");
     check(Observer::agentPaintHealthy(), "all off-screen constituent blits succeeded");
     check(SDL_GetVideoSurface() == nullptr && !(SDL_WasInit(SDL_INIT_VIDEO)), "no GUI was initialized");
     std::cout << "AgentWidgetInputTest PASS " << checks << " checks\n";

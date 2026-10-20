@@ -29,6 +29,7 @@
 #include "../Interface/Window.h"
 #include "../Interface/Text.h"
 #include "../Interface/ComboBox.h"
+#include "../Interface/TextList.h"
 #include "../Interface/Slider.h"
 #include "../Interface/Frame.h"
 #include "../Savegame/SavedBattleGame.h"
@@ -241,55 +242,144 @@ NewBattleState::~NewBattleState()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace
 {
-std::string agentComboLabelJson(const ComboBox *combo)
-{
-	if (!Observer::agentWidgetVisible(combo)) return "null";
-	const std::string label = combo->agentLabel();
-	return label.empty() ? "null" : Observer::agentJsonString(label);
-}
+const char *agentNewBattleControls[] = {"mission", "craft", "terrain", "difficulty", "alien_race"};
 }
 
 bool NewBattleState::agentUiState(Observer::AgentUiState &out) const
 {
-	if (_modal || !Observer::agentWidgetVisible(_btnOk)) return false;
-	const std::string label = Observer::agentButtonLabel(_btnOk);
-	if (label.empty()) return false;
-	out = Observer::AgentUiState();
-	out.screen = "new_battle";
-	out.visible = "{\"mission\":" + agentComboLabelJson(_cbxMission) +
-		",\"craft\":" + agentComboLabelJson(_cbxCraft) +
-		",\"terrain\":" + agentComboLabelJson(_cbxTerrain) +
-		",\"difficulty\":" + agentComboLabelJson(_cbxDifficulty) +
-		",\"alien_race\":" + agentComboLabelJson(_cbxAlienRace) + "}";
-	out.actions.push_back(Observer::AgentUiAction("start_battle", label, "visible_text"));
-    if (Observer::agentWidgetUncovered(_btnCancel, _surfaces))
-    {
-        const std::string cancelLabel = Observer::agentButtonLabel(_btnCancel);
-        if (!cancelLabel.empty())
+    ComboBox *combos[] = {_cbxMission, _cbxCraft, _cbxTerrain, _cbxDifficulty, _cbxAlienRace};
+    Text *labels[] = {_txtMission, _txtCraft, _txtTerrain, _txtDifficulty, _txtAlienRace};
+    int active = -1;
+    for (unsigned i = 0; i < 5; ++i)
+        if (combos[i]->agentPopupOpen())
         {
-            out.actions.push_back(Observer::AgentUiAction("cancel_menu", cancelLabel, "visible_text"));
+            if (active != -1) return false;
+            active = i;
+        }
+    if (_modal && (active == -1 || _modal != combos[active])) return false;
+    if (active != -1 && _modal != combos[active]) return false;
+    const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
+    out = Observer::AgentUiState();
+    out.save = _game->getSavedGame(); // private only, never serialized
+    for (ComboBox *combo : combos)
+    {
+        out.widgets.push_back(std::make_pair(combo, combo->agentComboRevision()));
+        out.widgets.push_back(std::make_pair(combo->agentList(), combo->agentList()->agentListRevision()));
+    }
+    if (active != -1)
+    {
+        ComboBox *combo = combos[active];
+        if (!combo->agentToggleUncovered(painted)) return false;
+        out.screen = "new_battle_dropdown";
+        Observer::agentIncludeWidget(out, combo); // the visible toggle closes the popup
+        std::string label = "null";
+        if (Observer::agentWidgetUncovered(labels[active], painted))
+        {
+            label = Observer::agentTextJson(labels[active]);
+            if (label != "null") Observer::agentIncludeWidget(out, labels[active]);
+        }
+        Observer::AgentListProjection list;
+        if (!Observer::agentProjectList(combo->agentList(), combo->agentList(), painted, 1, true, out, list)) return false;
+        out.visible = "{\"control\":" + Observer::agentJsonString(agentNewBattleControls[active]) +
+            ",\"label\":" + label + ",\"rows\":" + list.rows + ",\"scroll\":" + list.scroll + "}";
+        if (!out.rows.empty())
+            out.actions.push_back(Observer::AgentUiAction("choose_visible_row", "Choose visible row", "visible_control_semantics", "visible_row"));
+        if (list.up || list.down)
+            out.actions.push_back(Observer::AgentUiAction("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction"));
+        out.actions.push_back(Observer::AgentUiAction("close_dropdown", "Close choices", "visible_control_semantics"));
+        return true;
+    }
+    out.screen = "new_battle";
+    out.visible = "{";
+    bool canOpen = false;
+    for (unsigned i = 0; i < 5; ++i)
+    {
+        std::string value = "null";
+        if (combos[i]->agentToggleUncovered(painted))
+        {
+            const std::string label = combos[i]->agentLabel();
+            if (!label.empty())
+            {
+                value = Observer::agentJsonString(label);
+                Observer::agentIncludeWidget(out, combos[i]);
+                canOpen = true;
+            }
+        }
+        if (i) out.visible += ",";
+        out.visible += Observer::agentJsonString(agentNewBattleControls[i]) + ":" + value;
+    }
+    out.visible += "}";
+    if (canOpen)
+        out.actions.push_back(Observer::AgentUiAction("open_new_battle_choice", "Open choices", "visible_control_semantics", "choice_control"));
+    if (Observer::agentWidgetUncovered(_btnOk, painted))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnOk);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("start_battle", label, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnOk);
+        }
+    }
+    if (Observer::agentWidgetUncovered(_btnCancel, painted))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnCancel);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("cancel_menu", label, "visible_text"));
             Observer::agentIncludeWidget(out, _btnCancel);
         }
     }
-	out.save = _game->getSavedGame();
-	Observer::agentIncludeWidget(out, _btnOk);
-    Observer::agentIncludeWidget(out, _cbxMission);
-    Observer::agentIncludeWidget(out, _cbxCraft);
-    Observer::agentIncludeWidget(out, _cbxTerrain);
-    Observer::agentIncludeWidget(out, _cbxDifficulty);
-    Observer::agentIncludeWidget(out, _cbxAlienRace);
     return true;
 }
 
 bool NewBattleState::agentDispatch(const std::string &action)
 {
-	Observer::AgentUiState current;
+    Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(action)) return false;
     if (action == "start_battle") btnOkClick(nullptr);
     // Preserve ordinary preset persistence and temporary-save cleanup.
     else if (action == "cancel_menu") btnCancelClick(nullptr);
     else return false;
-	return true;
+    return true;
+}
+
+bool NewBattleState::agentDispatch(const Observer::AgentRequest &request)
+{
+    const std::string &action = request.action;
+    if (action == "start_battle" || action == "cancel_menu") return agentDispatch(action);
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(action)) return false;
+    ComboBox *combos[] = {_cbxMission, _cbxCraft, _cbxTerrain, _cbxDifficulty, _cbxAlienRace};
+    const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
+    if (action == "open_new_battle_choice")
+    {
+        for (unsigned i = 0; i < 5; ++i)
+            if (request.choice == agentNewBattleControls[i] &&
+                combos[i]->agentToggleUncovered(painted) && !combos[i]->agentLabel().empty())
+                return combos[i]->agentOpen();
+        return false;
+    }
+    ComboBox *active = nullptr;
+    for (ComboBox *combo : combos) if (_modal == combo && combo->agentPopupOpen()) active = combo;
+    if (!active) return false;
+    if (action == "close_dropdown") return active->agentClose(nullptr, this);
+    if (action == "choose_visible_row")
+    {
+        // Parser restricts canonical r0..r31. This map belongs to the exact
+        // current draw and is privately bound by AgentController::sameBinding.
+        const unsigned slot = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
+        if (slot >= current.rows.size()) return false;
+        return active->agentChooseVisibleRow(current.rows[slot], nullptr, this);
+    }
+    if (action == "scroll_visible_list")
+    {
+        Observer::AgentUiState projection;
+        Observer::AgentListProjection list;
+        if (!Observer::agentProjectList(active->agentList(), active->agentList(), Observer::agentFlattenPaintOrder(_surfaces), 1, true, projection, list)) return false;
+        if (request.choice == "up" && list.up) { active->agentList()->scrollUp(false, false); return true; }
+        if (request.choice == "down" && list.down) { active->agentList()->scrollDown(false, false); return true; }
+    }
+    return false;
 }
 #endif
 

@@ -20,6 +20,9 @@
 #include "../Engine/InteractiveSurface.h"
 #include <vector>
 #include <string>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#endif
 
 namespace OpenXcom
 {
@@ -55,6 +58,10 @@ private:
 	bool _toggled;
 	bool _popupAboveButton;
 
+	void flushChange(Action *action, State *state);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentComboRevision = 0;
+#endif
 	void drawArrow();
 	void setDropdown(int options);
 public:
@@ -90,6 +97,15 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Gets only the currently rendered closed-combo label, never its options.
 	std::string agentLabel() const;
+	TextList *agentList() const { return _list; }
+	bool agentPopupOpen() const;
+	bool agentToggleUncovered(const std::vector<Surface *> &paintOrder) const;
+	std::uint64_t agentUiRevision() const;
+	std::uint64_t agentComboRevision() const { return _agentComboRevision; }
+	void agentPaintOrder(std::vector<Surface *> &out) const;
+	bool agentOpen();
+	bool agentClose(Action *action, State *state);
+	bool agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state);
 #endif
 	/// Sets the selected option in the list.
 	void setSelected(size_t sel);

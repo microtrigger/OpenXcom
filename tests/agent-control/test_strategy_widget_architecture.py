@@ -89,7 +89,10 @@ class StrategyWidgetArchitectureTest(unittest.TestCase):
         self.assertIn('agentRegionsDisjoint(out)', projection)
         self.assertIn('if (_modal) return false', projection)
         self.assertIn('if (!_dogfights.empty()) return false', projection)
-        for forbidden in ('getSavedGame', '_timeSpeed', 'getTime(', 'getFunds(', 'tr(', 'actions.push_back', 'AgentUiAction('):
+        self.assertIn('AgentUiAction("open_funding", label, "visible_text")', projection)
+        dispatch = body('Geoscape/GeoscapeState.cpp', 'GeoscapeState::agentDispatch(')
+        self.assertIn('btnFundingClick(nullptr)', dispatch)
+        for forbidden in ('getSavedGame', '_timeSpeed', 'getTime(', 'getFunds(', 'tr('):
             self.assertNotIn(forbidden, projection)
 
 

@@ -28,14 +28,14 @@ int main(){
  for(const std::string candidate:{"MCP Draft","MCP UFO Test","MCP TFTD Test","MCP Test"}){
   TextEdit edit(nullptr,127,16,59,94);edit.initText(&big,&small,&language);edit.setBig();edit.setFocus(true,false);edit.blit(&canvas);
   check(edit.agentReplaceText("MCP Draft"),"prepare previous name");
-  key(edit,SDLK_LEFT);key(edit,SDLK_LEFT);key(edit,SDLK_LEFT);edit.blit(&canvas);
+  key(edit,SDLK_LEFT);key(edit,SDLK_LEFT);key(edit,SDLK_LEFT);edit.blink();edit.blit(&canvas);
   std::string previousRendered;check(edit.agentRenderedText(previousRendered),"baseline complete rendered name");
   const std::string previous=edit.getText();const auto revision=edit.agentInputRevision();
   int width=0;for(UCode ch:Unicode::convUtf8ToUtf32(candidate))width+=big.getCharSize(ch).w;
   Text probe(320,20);probe.initText(&big,&small,&language);probe.setBig();probe.setText(candidate);probe.blit(&canvas);SDL_Rect glyph={};const bool hasGlyph=probe.agentPaintedBounds(glyph);
   const bool accepted=edit.agentReplaceText(candidate);std::string rendered;const bool full=edit.agentRenderedText(rendered);
   std::cout<<"candidate="<<candidate<<" width="<<width<<" textWidth="<<probe.getTextWidth()<<" ink="<<hasGlyph<<':'<<glyph.x<<','<<glyph.y<<','<<glyph.w<<','<<glyph.h<<" field=127x16 accepted="<<accepted<<" name="<<edit.getText()<<" rendered="<<(full?rendered:"<unavailable>")<<" revisionBefore="<<revision<<" revisionAfter="<<edit.agentInputRevision();
-  check(accepted==(candidate!="MCP TFTD Test"),"expected stock-font candidate boundary");
+  check(accepted,"all four stock-font candidates fit native text boundary");
   if(accepted){check(edit.getText()==candidate && full && rendered==candidate,"accepted full name");std::cout<<"\n";}
   else{
    check(edit.getText()==previous && full && rendered==previousRendered,"rejection preserves full previous model/rendered text");
@@ -46,17 +46,30 @@ int main(){
    std::cout<<" preservedText=true preservedRevision=true caretProbe="<<edit.getText()<<" preservedCaret=true\n";
   }
  }
+ // Actual rejection remains atomic at a middle insertion point. Paint the
+ // caret's ordinary off phase so the text is not occluded before replacement.
+ TextEdit rollback(nullptr,127,16,59,94);rollback.initText(&big,&small,&language);rollback.setBig();rollback.setFocus(true,false);rollback.blit(&canvas);
+ check(rollback.agentReplaceText("MCP Draft"),"prepare middle-caret rollback fixture");
+ key(rollback,SDLK_LEFT);key(rollback,SDLK_LEFT);key(rollback,SDLK_LEFT);rollback.blink();rollback.blit(&canvas);
+ const auto rollbackRevision=rollback.agentInputRevision();std::string rollbackRendered;
+ check(rollback.agentRenderedText(rollbackRendered) && rollbackRendered=="MCP Draft","ordinary blink-off leaves midpoint text complete");
+ check(!rollback.agentReplaceText(std::string(128,'W')) && rollback.getText()=="MCP Draft","true text overflow rejects with complete previous name");
+ check(!rollback.agentReplaceText("A\xF0\x9F\x8C\x8C") && rollback.getText()=="MCP Draft","missing glyph rejects with complete previous name");
+ check(rollback.agentInputRevision()==rollbackRevision && rollback.agentRenderedText(rollbackRendered) && rollbackRendered=="MCP Draft","rejections preserve private revision and previous painted text");
+ key(rollback,SDLK_EXCLAIM,'!');rollback.blit(&canvas);
+ check(rollback.getText()=="MCP Dr!aft","rejections preserve original middle insertion position");
  // Ordinary keyboard input has only the shared character/text-width
- // constraints; complete end-caret visibility is an additional agent guard.
+ // constraints; semantic replacement now accepts the same complete text.
  TextEdit ordinary(nullptr,127,16,59,94);ordinary.initText(&big,&small,&language);ordinary.setBig();ordinary.setFocus(true,false);ordinary.blit(&canvas);
  const std::string ordinaryCandidate="MCP TFTD Test";
  for(unsigned char ch:ordinaryCandidate)key(ordinary,static_cast<SDLKey>(std::tolower(ch)),ch);
  ordinary.blit(&canvas);
  check(ordinary.getText()==ordinaryCandidate,"ordinary keyboard accepts the complete 126px name");
  std::string ordinaryRendered;const bool ordinaryFull=ordinary.agentRenderedText(ordinaryRendered);
- check(!ordinaryFull && !ordinary.agentEditable(),"additional complete-caret agent guard rejects ordinary accepted editor state");
+ check(ordinaryFull && ordinaryRendered == ordinaryCandidate && ordinary.agentEditable(),"semantic editor accepts ordinary native full-text state despite clipped caret");
+ SDL_Rect clippedCaret={}; if(ordinary.agentCaretBounds(clippedCaret))check(clippedCaret.x>=59 && clippedCaret.x+clippedCaret.w<=186,"caret occlusion stays inside editor footprint");
  check(126+caretInk.x+caretInk.w>127,"ordinary accepted end caret extends beyond the editor");
- std::cout<<"ordinaryKeyboard candidate="<<ordinaryCandidate<<" name="<<ordinary.getText()<<" width=126 nativeAccepted=true endCaretRight="<<(126+caretInk.x+caretInk.w)<<" fieldRight=127 caretClipped=true agentRenderedText="<<ordinaryFull<<" agentEditable="<<ordinary.agentEditable()<<" classification=additional_agent_complete_caret_visibility_guard_not_native_input_refusal\n";
+ std::cout<<"ordinaryKeyboard candidate="<<ordinaryCandidate<<" name="<<ordinary.getText()<<" width=126 nativeAccepted=true endCaretRight="<<(126+caretInk.x+caretInk.w)<<" fieldRight=127 caretClipped=true agentRenderedText="<<ordinaryFull<<" agentEditable="<<ordinary.agentEditable()<<" classification=native_and_semantic_input_equivalence\n";
  check(!SDL_GetVideoSurface() && !SDL_WasInit(SDL_INIT_VIDEO),"no GUI initialized");
  std::cout<<"AgentBaseNameWidthTest PASS "<<checks<<" checks\n";
 }

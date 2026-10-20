@@ -43,6 +43,10 @@ public:
 	FundingState();
 	/// Cleans up the Funding state.
 	~FundingState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
 };

@@ -465,13 +465,23 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 		if (!Observer::agentWidgetUncovered(buttons[i], _surfaces)) continue;
 		const std::string label = Observer::agentButtonLabel(buttons[i]);
 		if (label.empty() || !includeDisjoint(buttons[i])) continue;
+        if (buttons[i] == _btnFunding)
+            out.actions.push_back(Observer::AgentUiAction("open_funding", label, "visible_text"));
 		if (count++) out.visible += ",";
 		out.visible += "{\"id\":" + Observer::agentJsonString(ids[i]) +
 			",\"label\":" + Observer::agentJsonString(label) + "}";
 	}
 	out.visible += "]}";
-	// Deliberately no actions: this HUD never grants a command capability.
+	// Only the painted Funding navigation button is admitted in this slice.
 	return true;
+}
+
+bool GeoscapeState::agentDispatch(const std::string &action)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(action)) return false;
+    if (action == "open_funding") { btnFundingClick(nullptr); return true; }
+    return false;
 }
 #endif
 

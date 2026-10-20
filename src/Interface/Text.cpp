@@ -100,6 +100,10 @@ void Text::initText(Font *big, Font *small, Language *lang)
  */
 void Text::setText(const std::string &text)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Any explicit replacement removes the old TextList provenance marker.
+    _agentListRange = _agentListComplete = false;
+#endif
 	_text = text;
 	_font = _fontOrig;
 	processText();
@@ -485,6 +489,10 @@ void Text::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentHasGlyph = _agentTextClipped = false;
+    _agentListShown.clear(); _agentListHasGlyph = false; _agentListInk = SDL_Rect();
+    _agentListComplete = _agentListRange && !_wrap && !_scroll && _lineWidth.size() == 1 &&
+        _agentListStart <= _processedText.size() && _agentListLength <= _processedText.size() - _agentListStart &&
+        _processedText == Unicode::convUtf8ToUtf32(_text);
 #endif
 	Surface::draw();
 	if (_text.empty() || _font == 0)
@@ -557,9 +565,18 @@ void Text::draw()
 	// Draw each letter one by one
 	for (UString::const_iterator c = s.begin(); c != s.end(); ++c)
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        const size_t position = c - s.begin();
+        const bool listContent = _agentListRange && position >= _agentListStart &&
+            position - _agentListStart < _agentListLength;
+        if (listContent) _agentListShown.push_back(*c);
+#endif
 		if (Unicode::isSpace(*c) || *c == '\t')
 		{
 			x += dir * font->getCharSize(*c).w;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (listContent && (x < 0 || x > getWidth())) _agentListComplete = false;
+#endif
 		}
 		else if (Unicode::isLinebreak(*c))
 		{
@@ -583,7 +600,11 @@ void Text::draw()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
             // Font::getChar substitutes '?' for a missing glyph. Never expose
             // the underlying original codepoint as if the player saw it.
-            if (!font->agentHasGlyph(*c)) _agentTextClipped = true;
+            if (!font->agentHasGlyph(*c))
+            {
+                _agentTextClipped = true;
+                if (listContent) _agentListComplete = false;
+            }
 #endif
 			chr->setX(x);
 			chr->setY(y);
@@ -593,11 +614,36 @@ void Text::draw()
             // the original missing codepoint remains incomplete/unavailable.
             SDL_Rect ink;
             const UCode painted = font->agentHasGlyph(*c) ? *c : '?';
-            if (!font->agentGlyphInk(painted, ink)) _agentTextClipped = true;
+            if (!font->agentGlyphInk(painted, ink))
+            {
+                _agentTextClipped = true;
+                if (listContent) _agentListComplete = false;
+            }
             else
             {
                 const int inkX=x+ink.x, inkY=y+ink.y;
-                if (inkX < 0 || inkY < 0 || inkX+ink.w > getWidth() || inkY+ink.h > getHeight()) _agentTextClipped=true;
+                if (inkX < 0 || inkY < 0 || inkX+ink.w > getWidth() || inkY+ink.h > getHeight())
+                {
+                    _agentTextClipped=true;
+                    if (listContent) _agentListComplete=false;
+                }
+                if (listContent)
+                {
+                    if (!_agentListHasGlyph)
+                    {
+                        _agentListInk.x=inkX; _agentListInk.y=inkY;
+                        _agentListInk.w=ink.w; _agentListInk.h=ink.h;
+                    }
+                    else
+                    {
+                        const int right=std::max(_agentListInk.x+_agentListInk.w,inkX+ink.w);
+                        const int bottom=std::max(_agentListInk.y+_agentListInk.h,inkY+ink.h);
+                        _agentListInk.x=std::min((int)_agentListInk.x,inkX);
+                        _agentListInk.y=std::min((int)_agentListInk.y,inkY);
+                        _agentListInk.w=right-_agentListInk.x; _agentListInk.h=bottom-_agentListInk.y;
+                    }
+                    _agentListHasGlyph=true;
+                }
                 const int left=std::max(0,inkX), top=std::max(0,inkY);
                 const int right=std::min(getWidth(),inkX+ink.w), bottom=std::min(getHeight(),inkY+ink.h);
                 if (left < right && top < bottom)
@@ -617,6 +663,22 @@ void Text::draw()
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void Text::agentMarkListContent(size_t start, size_t length)
+{
+    _agentListRange=true; _agentListComplete=false;
+    _agentListStart=start; _agentListLength=length;
+    _redraw=true;
+}
+
+bool Text::agentListContent(std::string &text, SDL_Rect &ink, bool &hasInk) const
+{
+    if (!_agentListRange || !_agentListComplete || !agentContextVisible() || _scroll || _wrap ||
+        _agentListShown.size() != _agentListLength) return false;
+    text=Unicode::convUtf32ToUtf8(_agentListShown);
+    ink=_agentListInk; ink.x+=getX(); ink.y+=getY(); hasInk=_agentListHasGlyph;
+    return true;
+}
+
 bool Text::agentPaintedBounds(SDL_Rect &rect) const
 {
     if (!_agentHasGlyph || !agentContextVisible()) return false;

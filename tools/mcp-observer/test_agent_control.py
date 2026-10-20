@@ -41,7 +41,19 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     elif screen == 'geoscape':
         visible = {field: field.title() for field in a.GEOSCAPE_FIELDS}
         visible['buttons'] = [dict(id=value, label=value.title()) for value in a.GEOSCAPE_BUTTONS]
-        ids, capability = [], None
+        ids = ['open_funding']
+    elif screen == 'new_battle_dropdown':
+        visible = dict(control='mission', label='Mission',
+                       rows=[dict(handle='r0', cells=['Ground assault'], selected=False),
+                             dict(handle='r1', cells=['Base defense'], selected=True)],
+                       scroll=dict(up=True, down=True))
+        ids = sorted(a.STATE_ACTIONS[screen])
+    elif screen == 'funding':
+        visible = dict(title='International Relations', headings=['Country', 'Funding', 'Change'],
+                       rows=[dict(handle='r0', cells=['Nation', '$1,000', '+$10'], selected=False),
+                             dict(handle='r1', cells=['TOTAL', '$1,000', ''], selected=False)],
+                       scroll=dict(up=True, down=True))
+        ids = sorted(a.STATE_ACTIONS[screen])
     elif screen == 'unsupported':
         visible, ids, capability = {}, [], None
     return dict(schema=a.SCHEMA, mode=a.MODE, type='state', challenge=challenge, epoch=EPOCH,
@@ -55,7 +67,9 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
     obj = state() if obj is None else obj
     if args is None:
         args = {'select_difficulty': {'value': 'beginner'}, 'set_ironman': {'value': False},
-                'replace_base_name': {'text': 'Alpha'}, 'place_base_site': {'x': 64, 'y': 80}}.get(action, {})
+                'replace_base_name': {'text': 'Alpha'}, 'place_base_site': {'x': 64, 'y': 80},
+                'open_new_battle_choice': {'control': 'mission'}, 'choose_visible_row': {'row': 'r0'},
+                'scroll_visible_list': {'direction': 'down'}}.get(action, {})
     return {**{k: obj[k] for k in ('epoch', 'capability', 'revision')}, 'command_id': command_id, 'action': action, 'args': args}
 
 
@@ -79,6 +93,7 @@ class NativeFixture:
         self.transitions = transitions or {}
         self.revision, self.sequence, self.counter = 1, 0, 10
         self.difficulty, self.ironman, self.base_name = 'beginner', False, ''
+        self.control = 'mission'
         self.latest = None
         self.hello = hello or dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
         self.thread = threading.Thread(target=self.run); self.thread.start()
@@ -89,6 +104,9 @@ class NativeFixture:
             obj['visible']['ironman'] = self.ironman
             for choice in obj['visible']['difficulty']:
                 choice['selected'] = choice['value'] == self.difficulty
+        if self.screen == 'new_battle_dropdown':
+            obj['visible']['control'] = self.control
+            obj['visible']['label'] = self.control.title()
         if self.screen == 'base_name':
             obj['visible']['name'] = self.base_name
             if not self.base_name:
@@ -118,6 +136,7 @@ class NativeFixture:
                     assert len(command) == expected_count
                     if action == 'select_difficulty': self.difficulty = command[6]
                     elif action == 'set_ironman': self.ironman = command[6] == '1'
+                    elif action == 'open_new_battle_choice': self.control = command[6]
                     elif action == 'replace_base_name': self.base_name = '' if command[6] == '-' else bytes.fromhex(command[6]).decode('utf-8')
                     self.revision += 1; self.sequence += 1
                     self.screen = self.transitions.get((self.screen, action), self.screen)
@@ -157,7 +176,10 @@ class ValidationTests(unittest.TestCase):
     def test_all_supported_shapes_and_nullable_visible_text(self):
         for screen in a.STATE_ACTIONS:
             obj = state(screen=screen)
-            if screen in a.STATE_FIELDS: obj['visible'] = dict.fromkeys(a.STATE_FIELDS[screen])
+            if screen in a.STATE_FIELDS:
+                obj['visible'] = dict.fromkeys(a.STATE_FIELDS[screen])
+                if screen == 'new_battle':
+                    obj['actions'] = [item for item in obj['actions'] if item['id'] != 'open_new_battle_choice']
             a.validate_state(obj, CHALLENGE, EPOCH)
         obj = state(); obj['visible'] = dict.fromkeys(obj['visible']); a.validate_state(obj, CHALLENGE, EPOCH)
 
@@ -205,8 +227,8 @@ class ValidationTests(unittest.TestCase):
         for name in obj['visible']: obj['visible'][name] = '\U0001f600' * 1000
         with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
 
-    def test_protocol_v1_and_v2_hello_ready_state_and_result_are_rejected(self):
-        for schema in ('openxcom-agent-control/1', 'openxcom-agent-control/2'):
+    def test_protocol_v1_v2_v3_hello_ready_state_and_result_are_rejected(self):
+        for schema in ('openxcom-agent-control/1', 'openxcom-agent-control/2', 'openxcom-agent-control/3'):
             with self.subTest(schema=schema):
                 hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
                 with self.assertRaises(Unavailable): a.validate_hello(dump(hello))
@@ -220,13 +242,13 @@ class ValidationTests(unittest.TestCase):
     def test_exact_menu_state_action_matrix(self):
         expected = {
             'main_menu': {'new_battle', 'open_new_game', 'open_options', 'open_load_game'},
-            'new_battle': {'start_battle', 'cancel_menu'},
+            'new_battle': {'start_battle', 'cancel_menu', 'open_new_battle_choice'},
             'new_game': {'cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game'}, 'options_shell': {'cancel_menu'},
             'pause_menu': {'open_load_game', 'open_save_game', 'open_options', 'resume_game'},
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 23); self.assertEqual(len(a.STATE_ACTIONS), 16)
+        self.assertEqual(len(a.ACTIONS), 29); self.assertEqual(len(a.STATE_ACTIONS), 18)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -273,10 +295,12 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 23)
+        self.assertEqual(len(a.ACTIONS), 29)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
-            'replace_base_name': 'text', 'place_base_site': 'point'})
+            'replace_base_name': 'text', 'place_base_site': 'point',
+            'open_new_battle_choice': 'choice_control', 'choose_visible_row': 'visible_row',
+            'scroll_visible_list': 'scroll_direction'})
         for screen in a.STATE_ACTIONS:
             obj = state(screen=screen)
             for descriptor in obj['actions']:
@@ -387,13 +411,13 @@ class TypedValidationTests(unittest.TestCase):
             changed = copy.deepcopy(obj); changed['visible'][field] = 1
             with self.subTest(field=field), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
 
-    def test_geoscape_read_only_visible_labels_no_hidden_model(self):
+    def test_geoscape_funding_only_visible_labels_no_hidden_model(self):
         obj = state(screen='geoscape'); a.validate_state(obj, CHALLENGE, EPOCH)
-        self.assertEqual(obj['actions'], []); self.assertIsNone(obj['capability'])
+        self.assertEqual([item['id'] for item in obj['actions']], ['open_funding'])
         cases = []
         for key, value in (('hour', 3), ('seconds_elapsed', 99), ('ufos', []), ('bases', []), ('time_paused', True)):
             changed = copy.deepcopy(obj); changed['visible'][key] = value; cases.append(changed)
-        changed = copy.deepcopy(obj); changed['capability'] = CAPABILITY; cases.append(changed)
+        changed = copy.deepcopy(obj); changed['visible']['buttons'] = []; cases.append(changed)
         changed = copy.deepcopy(obj); changed['visible']['buttons'][0]['id'] = 'launch_mission'; cases.append(changed)
         changed = copy.deepcopy(obj); changed['visible']['buttons'][0]['enabled'] = True; cases.append(changed)
         changed = copy.deepcopy(obj); changed['visible']['buttons'].append(changed['visible']['buttons'][0]); cases.append(changed)
@@ -401,6 +425,7 @@ class TypedValidationTests(unittest.TestCase):
         for changed in cases:
             with self.subTest(changed=changed), self.assertRaises(Unavailable): a.validate_state(changed, CHALLENGE, EPOCH)
         obj['visible'] = dict.fromkeys(a.GEOSCAPE_FIELDS); obj['visible']['buttons'] = []
+        obj.update(actions=[], capability=None)
         a.validate_state(obj, CHALLENGE, EPOCH)
 
     def test_action_specific_schema_is_closed_and_requires_args(self):
@@ -435,7 +460,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/3')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/4')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -449,7 +474,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/3']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/4']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -728,7 +753,7 @@ class TypedClientTests(unittest.TestCase):
         with self.assertRaises(Unavailable): names.client.execute(**arguments(fresh, action='confirm_base_name'))
         self.assertEqual(len(names.requests), count); self.assertNotIn('confirm_base_name', [x['id'] for x in fresh['actions']])
 
-    def test_typed_start_site_name_confirm_flow_to_read_only_geoscape(self):
+    def test_typed_start_site_name_confirm_flow_to_funding_only_geoscape(self):
         native = self.fixture(screen='new_game', transitions={('new_game', 'start_new_game'): 'build_base',
             ('build_base', 'place_base_site'): 'base_name', ('base_name', 'confirm_base_name'): 'geoscape'})
         sequence = [('select_difficulty', {'value': 'veteran'}, 'new_game'),
@@ -738,7 +763,7 @@ class TypedClientTests(unittest.TestCase):
         for index, (action, args, destination) in enumerate(sequence):
             receipt = native.client.execute(**arguments(native.client.observe(), command_id=f'{index:032x}', action=action, args=args))
             self.assertEqual(receipt['observation']['state'], destination)
-        final = native.client.observe(); self.assertEqual(final['actions'], []); self.assertIsNone(final['capability'])
+        final = native.client.observe(); self.assertEqual([item['id'] for item in final['actions']], ['open_funding'])
         count = len(native.requests)
         with self.assertRaises(Unavailable): native.client.execute(**arguments(action='open_pause_menu'))
         self.assertEqual(len(native.requests), count)
@@ -778,7 +803,280 @@ class TypedClientTests(unittest.TestCase):
         native = self.fixture(screen='geoscape'); server = adapter.Server(agent_control=native.client)
         output = call(server, 'read_ui_state')['result']
         self.assertEqual([item['type'] for item in output['content']], ['text'])
-        self.assertEqual(output['structuredContent']['actions'], [])
+        self.assertEqual([item['id'] for item in output['structuredContent']['actions']], ['open_funding'])
+
+
+class ListValidationTests(unittest.TestCase):
+    def test_closed_list_action_matrix_kinds_and_sources(self):
+        expected = {
+            'new_battle': {'start_battle', 'cancel_menu', 'open_new_battle_choice'},
+            'new_battle_dropdown': {'choose_visible_row', 'scroll_visible_list', 'close_dropdown'},
+            'funding': {'scroll_visible_list', 'close_funding'}, 'geoscape': {'open_funding'},
+        }
+        for screen, actions in expected.items():
+            self.assertEqual(a.STATE_ACTIONS[screen], actions)
+            obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
+            for action in set(a.ACTIONS) - actions:
+                bad = copy.deepcopy(obj)
+                bad['actions'] = [dict(id=action, label='Visible', label_source=a.label_source(screen, action),
+                                       argument_kind=a.ARGUMENT_KINDS[action])]
+                with self.subTest(screen=screen, action=action), self.assertRaises(Unavailable):
+                    a.validate_state(bad, CHALLENGE, EPOCH)
+        self.assertEqual(a.label_source('funding', 'close_funding'), 'visible_text')
+        self.assertEqual(a.label_source('geoscape', 'open_funding'), 'visible_text')
+        for screen, action in (('new_battle', 'open_new_battle_choice'), ('new_battle_dropdown', 'choose_visible_row'),
+                               ('new_battle_dropdown', 'close_dropdown'), ('funding', 'scroll_visible_list')):
+            self.assertEqual(a.label_source(screen, action), 'visible_control_semantics')
+
+    def test_closed_argument_enums_reject_indices_coercion_and_extra_keys(self):
+        cases = {
+            'open_new_battle_choice': ({}, {'control': 'soldier'}, {'control': 0}, {'control': True},
+                                       {'control': 'Mission'}, {'control': 'mission', 'id': 4}),
+            'choose_visible_row': ({}, {'row': 0}, {'row': True}, {'row': '0'}, {'row': 'r-1'}, {'row': 'r32'},
+                                   {'row': 'r00'}, {'row': 'r01'}, {'row': 'r0\n'}, {'row': 'r0', 'control': 'craft'},
+                                   {'row': 'r0', 'absolute_index': 0}, {'row': 'STR_PRIVATE_RULE'}),
+            'scroll_visible_list': ({}, {'direction': 'page_down'}, {'direction': 'Down'}, {'direction': 1},
+                                      {'direction': 'down', 'count': 2}, {'direction': 'down', 'list_id': 'private'}),
+            'close_dropdown': ({'control': 'mission'}, {'row': 'r0'}),
+            'open_funding': ({'country': 'hidden'},), 'close_funding': ({'confirm': True},),
+        }
+        for action, values in cases.items():
+            for value in values:
+                with self.subTest(action=action, value=value), self.assertRaises(Unavailable):
+                    a.validate_action_arguments(arguments(action=action, args=value))
+        for action, field, values in (('open_new_battle_choice', 'control', a.CHOICE_CONTROLS),
+                                       ('choose_visible_row', 'row', a.ROW_HANDLES),
+                                       ('scroll_visible_list', 'direction', a.SCROLL_DIRECTIONS)):
+            for value in values:
+                wire = a.canonical_action_request(arguments(action=action, args={field: value}))
+                self.assertEqual(wire, f'E {COMMAND} {EPOCH} {CAPABILITY} 1 {action} {value}'.encode())
+
+    def test_rows_are_bounded_sequential_local_handles_not_model_indices(self):
+        for screen in ('new_battle_dropdown', 'funding'):
+            obj = state(screen=screen)
+            for count in (0, 1, 32):
+                good = copy.deepcopy(obj)
+                good['visible']['rows'] = [dict(handle=f'r{i}', cells=['Row'] * (3 if screen == 'funding' else 1), selected=False) for i in range(count)]
+                if not count:
+                    good['actions'] = [x for x in good['actions'] if x['id'] != 'choose_visible_row']
+                a.validate_state(good, CHALLENGE, EPOCH)
+            cases = []
+            for key, value in (('handle', 'r31'), ('handle', 0), ('handle', 'r00'), ('selected', 1),
+                               ('absolute_index', 5), ('rule_id', 'STR_HIDDEN'), ('offscreen', False)):
+                bad = copy.deepcopy(obj); bad['visible']['rows'][0][key] = value; cases.append(bad)
+            bad = copy.deepcopy(obj); bad['visible']['rows'][1]['handle'] = 'r0'; cases.append(bad)
+            bad = copy.deepcopy(obj); bad['visible']['rows'].reverse(); cases.append(bad)
+            bad = copy.deepcopy(obj); bad['visible']['rows'] *= 17; cases.append(bad)
+            for value in ({}, None, 'rows'):
+                bad = copy.deepcopy(obj); bad['visible']['rows'] = value; cases.append(bad)
+            for bad in cases:
+                with self.subTest(screen=screen, bad=bad), self.assertRaises(Unavailable): a.validate_state(bad, CHALLENGE, EPOCH)
+
+    def test_exact_dropdown_projection_and_hover_only_selection(self):
+        obj = state(screen='new_battle_dropdown'); cases = []
+        for key, value in (('control', 'hidden_control'), ('control', 0), ('label', 3), ('total_rows', 400),
+                           ('selected_index', 200), ('scroll_offset', 99), ('list_id', 'model')):
+            bad = copy.deepcopy(obj); bad['visible'][key] = value; cases.append(bad)
+        for cells in ([], ['one', 'two'], [''], [None], [1], 'text'):
+            bad = copy.deepcopy(obj); bad['visible']['rows'][0]['cells'] = cells; cases.append(bad)
+        bad = copy.deepcopy(obj); bad['visible']['rows'][0]['selected'] = True; cases.append(bad)
+        bad = copy.deepcopy(obj); bad['visible']['rows'] = []; cases.append(bad)
+        for bad in cases:
+            with self.subTest(bad=bad), self.assertRaises(Unavailable): a.validate_state(bad, CHALLENGE, EPOCH)
+        obj['visible']['label'] = None
+        for row in obj['visible']['rows']: row['selected'] = False
+        a.validate_state(obj, CHALLENGE, EPOCH)
+        # Equal visible labels are allowed. They do not establish row identity.
+        obj['visible']['rows'][1]['cells'] = obj['visible']['rows'][0]['cells'][:]
+        a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_exact_funding_projection_empty_cells_and_no_row_selection(self):
+        obj = state(screen='funding'); cases = []
+        for key, value in (('headings', []), ('headings', [None] * 4), ('headings', [None, 1, None]),
+                           ('title', 1), ('total_rows', 32), ('country_ids', ['PRIVATE']), ('funds_raw', 123)):
+            bad = copy.deepcopy(obj); bad['visible'][key] = value; cases.append(bad)
+        for cells in ([], ['one'], ['one', 'two', 'three', 'four'], ['one', None, 'three']):
+            bad = copy.deepcopy(obj); bad['visible']['rows'][0]['cells'] = cells; cases.append(bad)
+        bad = copy.deepcopy(obj); bad['visible']['rows'][0]['selected'] = True; cases.append(bad)
+        for bad in cases:
+            with self.subTest(bad=bad), self.assertRaises(Unavailable): a.validate_state(bad, CHALLENGE, EPOCH)
+        obj['visible'].update(title=None, headings=[None, None, None])
+        obj['visible']['rows'][0]['cells'] = ['', '', '']
+        a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_scroll_flags_are_strict_visible_controls_not_hidden_eligibility(self):
+        for screen in ('new_battle_dropdown', 'funding'):
+            obj = state(screen=screen)
+            for scroll in ({}, {'up': True}, {'up': 1, 'down': False}, {'up': True, 'down': 'false'},
+                           {'up': True, 'down': False, 'can_scroll_more': False}, {'up': False, 'down': False}):
+                bad = copy.deepcopy(obj); bad['visible']['scroll'] = scroll
+                with self.subTest(screen=screen, scroll=scroll), self.assertRaises(Unavailable): a.validate_state(bad, CHALLENGE, EPOCH)
+            obj['visible']['scroll'] = dict(up=False, down=False)
+            obj['actions'] = [x for x in obj['actions'] if x['id'] != 'scroll_visible_list']
+            a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_missing_new_battle_controls_and_funding_button_cannot_authorize(self):
+        obj = state(screen='new_battle'); obj['visible'] = dict.fromkeys(a.CHOICE_CONTROLS)
+        with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+        obj['actions'] = [x for x in obj['actions'] if x['id'] != 'open_new_battle_choice']
+        a.validate_state(obj, CHALLENGE, EPOCH)
+        obj = state(screen='geoscape'); obj['visible']['buttons'] = [x for x in obj['visible']['buttons'] if x['id'] != 'funding']
+        with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+        obj.update(actions=[], capability=None); a.validate_state(obj, CHALLENGE, EPOCH)
+
+    def test_text_heavy_list_envelope_retains_tighter_escape_bound(self):
+        for screen in ('new_battle_dropdown', 'funding'):
+            obj = state(screen=screen)
+            obj['visible']['rows'] = [dict(handle=f'r{i}', cells=['\U0001f600' * 1000] * (3 if screen == 'funding' else 1), selected=False) for i in range(32)]
+            with self.subTest(screen=screen), self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
+
+
+class ListClientTests(unittest.TestCase):
+    def fixture(self, **kwargs):
+        native = NativeFixture(**kwargs); self.addCleanup(native.close); return native
+
+    def test_v3_peer_closes_before_any_request(self):
+        native = self.fixture(hello=dict(schema='openxcom-agent-control/3', mode=a.MODE, epoch=EPOCH, ledger_capacity=64))
+        with self.assertRaises(Unavailable): native.client.observe()
+        self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
+
+    def test_only_fresh_visible_new_battle_control_opens(self):
+        def hide(op, obj):
+            if op == 'R': obj['visible']['craft'] = None
+            return obj
+        native = self.fixture(screen='new_battle', transform=hide)
+        obj = native.client.observe(); count = len(native.requests)
+        obj['visible']['craft'] = 'Forged visible craft'
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(obj, action='open_new_battle_choice', args={'control': 'craft'}))
+        self.assertEqual(len(native.requests), count); self.assertEqual(native.client.commands, {})
+        native.client.execute(**arguments(obj, action='open_new_battle_choice', args={'control': 'mission'}))
+
+    def test_forged_and_offscreen_rows_cannot_expand_cached_grant(self):
+        native = self.fixture(screen='new_battle_dropdown'); obj = native.client.observe(); count = len(native.requests)
+        obj['visible']['rows'].append(dict(handle='r2', cells=['Forged'], selected=False))
+        for row in ('r2', 'r31'):
+            with self.subTest(row=row), self.assertRaises(Unavailable):
+                native.client.execute(**arguments(obj, action='choose_visible_row', args={'row': row}))
+        self.assertEqual(len(native.requests), count); self.assertEqual(native.client.commands, {})
+        native.client.execute(**arguments(obj, action='choose_visible_row', args={'row': 'r1'}))
+        self.assertTrue(native.requests[-1].endswith(b'choose_visible_row r1'))
+
+    def test_fresh_scroll_direction_required_and_returned_dto_cannot_authorize(self):
+        for screen in ('new_battle_dropdown', 'funding'):
+            with self.subTest(screen=screen):
+                native = self.fixture(screen=screen, transform=lambda op, obj: (obj['visible']['scroll'].update(up=False) or obj) if op == 'R' else obj)
+                obj = native.client.observe(); count = len(native.requests)
+                obj['visible']['scroll']['up'] = True
+                with self.assertRaises(Unavailable): native.client.execute(**arguments(obj, action='scroll_visible_list', args={'direction': 'up'}))
+                self.assertEqual(len(native.requests), count); self.assertEqual(native.client.commands, {})
+                native.client.execute(**arguments(obj, action='scroll_visible_list', args={'direction': 'down'}))
+
+    def test_stale_cross_list_and_same_label_aba_grants_never_send(self):
+        native = self.fixture(screen='new_battle_dropdown'); old = native.client.observe()
+        native.control = 'craft'; native.revision += 1
+        fresh = native.client.observe(); count = len(native.requests)
+        self.assertEqual(old['visible']['rows'], fresh['visible']['rows'])
+        self.assertNotEqual(old['visible']['control'], fresh['visible']['control'])
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(old, action='choose_visible_row'))
+        # Returning to the same named list and same labels does not revive a grant.
+        native.control = 'mission'; native.revision += 1; newest = native.client.observe(); count += 1
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(old, action='choose_visible_row'))
+        self.assertEqual(len(native.requests), count)
+        native.client.execute(**arguments(newest, action='choose_visible_row'))
+
+    def test_funding_rows_are_never_selection_authority(self):
+        native = self.fixture(screen='new_battle_dropdown'); old = native.client.observe()
+        native.screen = 'funding'; native.revision += 1; current = native.client.observe(); count = len(native.requests)
+        self.assertEqual(native.client.visible_rows, frozenset())
+        for obj in (old, current):
+            with self.assertRaises(Unavailable): native.client.execute(**arguments(obj, action='choose_visible_row'))
+        self.assertEqual(len(native.requests), count)
+        native.client.execute(**arguments(current, action='close_funding'))
+
+    def test_each_new_typed_kind_has_canonical_duplicate_and_conflict(self):
+        cases = [('new_battle', 'open_new_battle_choice', {'control': 'mission'}, {'control': 'craft'}),
+                 ('new_battle_dropdown', 'choose_visible_row', {'row': 'r0'}, {'row': 'r1'}),
+                 ('funding', 'scroll_visible_list', {'direction': 'down'}, {'direction': 'up'})]
+        for screen, action, values, changed in cases:
+            with self.subTest(action=action):
+                native = self.fixture(screen=screen); request = arguments(native.client.observe(), action=action, args=values)
+                receipt = native.client.execute(**request); fresh = native.client.observe()
+                self.assertEqual(native.client.execute(**request), receipt)
+                self.assertEqual(native.requests[-1], ('S ' + COMMAND).encode())
+                self.assertEqual(native.client.capability, fresh['capability'])
+                count = len(native.requests)
+                with self.assertRaises(Unavailable): native.client.execute(**dict(request, args=changed))
+                self.assertEqual(len(native.requests), count)
+                self.assertEqual(sum(req.startswith(b'E ') for req in native.requests), 1)
+
+    def test_five_dropdown_round_trips_then_funding_are_semantic_only(self):
+        transitions = {('new_battle', 'open_new_battle_choice'): 'new_battle_dropdown',
+                       ('new_battle_dropdown', 'choose_visible_row'): 'new_battle',
+                       ('new_battle_dropdown', 'close_dropdown'): 'new_battle',
+                       ('new_battle', 'cancel_menu'): 'geoscape', ('geoscape', 'open_funding'): 'funding',
+                       ('funding', 'close_funding'): 'geoscape'}
+        native = self.fixture(screen='new_battle', transitions=transitions); number = 0
+        def execute(action, args, destination):
+            nonlocal number
+            number += 1
+            receipt = native.client.execute(**arguments(native.client.observe(), command_id=f'{number:032x}', action=action, args=args))
+            self.assertEqual(receipt['observation']['state'], destination)
+            self.assertIsNone(receipt['observation']['capability'])
+            return receipt
+        for control in a.CHOICE_CONTROLS:
+            opened = execute('open_new_battle_choice', {'control': control}, 'new_battle_dropdown')
+            self.assertEqual(opened['observation']['visible']['control'], control)
+            execute('scroll_visible_list', {'direction': 'down'}, 'new_battle_dropdown')
+            execute('choose_visible_row', {'row': 'r0'}, 'new_battle')
+            execute('open_new_battle_choice', {'control': control}, 'new_battle_dropdown')
+            execute('close_dropdown', {}, 'new_battle')
+        execute('cancel_menu', {}, 'geoscape')
+        opened = execute('open_funding', {}, 'funding')
+        scrolled = execute('scroll_visible_list', {'direction': 'up'}, 'funding')
+        # A visible boundary arrow may dispatch and leave identical visible rows.
+        self.assertEqual(opened['observation']['visible'], scrolled['observation']['visible'])
+        execute('close_funding', {}, 'geoscape')
+        self.assertEqual(sum(req.startswith(b'E ') for req in native.requests), 29)
+
+    def test_all_list_actions_share_existing_non_evicting_ledger(self):
+        native = self.fixture(screen='funding')
+        for index in range(64):
+            if index == 63: native.screen = 'new_battle_dropdown'
+            action = 'choose_visible_row' if index == 63 else 'scroll_visible_list'
+            native.client.execute(**arguments(native.client.observe(), command_id=f'{index:032x}', action=action))
+        self.assertEqual(len(native.client.commands), 64)
+        fresh = native.client.observe(); count = len(native.requests)
+        with self.assertRaises(Unavailable): native.client.execute(**arguments(fresh, action='close_dropdown'))
+        self.assertEqual(len(native.requests), count); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertIn('0' * 32, native.client.commands)
+
+    def test_all_new_actions_have_terminal_uncertainty_without_replay(self):
+        cases = [('new_battle', 'open_new_battle_choice'), ('new_battle_dropdown', 'choose_visible_row'),
+                 ('new_battle_dropdown', 'scroll_visible_list'), ('new_battle_dropdown', 'close_dropdown'),
+                 ('geoscape', 'open_funding'), ('funding', 'close_funding')]
+        for screen, action in cases:
+            with self.subTest(action=action):
+                native = self.fixture(screen=screen, transform=lambda op, obj: dict(obj, schema='openxcom-agent-control/3') if op == 'E' else obj)
+                request = arguments(native.client.observe(), action=action)
+                with self.assertRaises(a.ActionOutcomeUnknown) as error: native.client.execute(**request)
+                self.assertEqual(error.exception.command_id, COMMAND); count = len(native.requests)
+                for operation in (native.client.observe, lambda: native.client.execute(**request), lambda: native.client.read_result(COMMAND)):
+                    with self.assertRaises(Unavailable): operation()
+                self.assertEqual(native.client.state, 'CLOSED'); self.assertEqual(len(native.requests), count)
+                self.assertEqual(sum(req.startswith(b'E ') for req in native.requests), 1)
+
+    def test_all_list_tool_outputs_remain_text_only(self):
+        for screen, action in (('new_battle', 'open_new_battle_choice'), ('new_battle_dropdown', 'choose_visible_row'),
+                              ('new_battle_dropdown', 'close_dropdown'), ('funding', 'scroll_visible_list'),
+                              ('geoscape', 'open_funding'), ('funding', 'close_funding')):
+            with self.subTest(action=action):
+                native = self.fixture(screen=screen); server = adapter.Server(agent_control=native.client)
+                observed = call(server, 'read_ui_state')['result']
+                receipt = call(server, 'execute_ui_action', arguments(observed['structuredContent'], action=action))['result']
+                status = call(server, 'read_ui_action_result', {'command_id': COMMAND})['result']
+                for reply in (observed, receipt, status):
+                    self.assertFalse(reply['isError']); self.assertEqual([item['type'] for item in reply['content']], ['text'])
+                    self.assertEqual(json.loads(reply['content'][0]['text']), reply['structuredContent'])
 
 
 class McpTests(unittest.TestCase):
@@ -795,7 +1093,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.3.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.4.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -892,9 +1190,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/3',mode='agent-control',epoch='1'*32,ledger_capacity=64))
-assert channel.recv(512) == b'H openxcom-agent-control/3'
-send(dict(schema='openxcom-agent-control/3',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/4',mode='agent-control',epoch='1'*32,ledger_capacity=64))
+assert channel.recv(512) == b'H openxcom-agent-control/4'
+send(dict(schema='openxcom-agent-control/4',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -913,6 +1211,56 @@ assert channel.recv(512) == b''
             self.assertEqual([item['type'] for item in reply['result']['content']], ['text'])
         self.assertEqual(replies[-1]['result']['structuredContent']['observation']['state'], 'geoscape')
 
+    def test_real_stdio_launcher_typed_list_flow(self):
+        steps = [('new_battle', 'open_new_battle_choice', {'control': 'mission'}, ' mission', 'new_battle_dropdown'),
+                 ('new_battle_dropdown', 'scroll_visible_list', {'direction': 'down'}, ' down', 'new_battle_dropdown'),
+                 ('new_battle_dropdown', 'choose_visible_row', {'row': 'r1'}, ' r1', 'new_battle'),
+                 ('new_battle', 'open_new_battle_choice', {'control': 'mission'}, ' mission', 'new_battle_dropdown'),
+                 ('new_battle_dropdown', 'close_dropdown', {}, '', 'new_battle'),
+                 ('new_battle', 'cancel_menu', {}, '', 'geoscape'),
+                 ('geoscape', 'open_funding', {}, '', 'funding'),
+                 ('funding', 'scroll_visible_list', {'direction': 'up'}, ' up', 'funding'),
+                 ('funding', 'close_funding', {}, '', 'geoscape')]
+        fixtures, messages = [], [dict(jsonrpc='2.0', id=1, method='initialize', params=dict(
+            protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='list-synthetic', version='1'))),
+            dict(jsonrpc='2.0', method='notifications/initialized')]
+        for index, (screen, action, values, suffix, after) in enumerate(steps):
+            cap, command = f'{index + 30:032x}', f'{index + 60:032x}'
+            observed = state(capability=cap, revision=index + 1, event_sequence=index * 2 + 1, screen=screen)
+            post = state(None, None, revision=index + 2, event_sequence=index * 2 + 2, screen=after)
+            fixtures.append([observed, f'E {command} {EPOCH} {cap} {index + 1} {action}{suffix}',
+                             result(command, event_sequence=index * 2 + 2, observation=post)])
+            values = arguments(observed, command_id=command, action=action, args=values)
+            for name, args in (('read_ui_state', {}), ('execute_ui_action', values), ('execute_ui_action', values)):
+                messages.append(dict(jsonrpc='2.0', id=len(messages), method='tools/call', params=dict(name=name, arguments=args)))
+        child = r'''
+import json, os, socket
+channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
+def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
+send(dict(schema='openxcom-agent-control/4',mode='agent-control',epoch='1'*32,ledger_capacity=64))
+assert channel.recv(512) == b'H openxcom-agent-control/4'
+send(dict(schema='openxcom-agent-control/4',mode='agent-control',status='ready'))
+for observed, wire, receipt in FIXTURES:
+    request = channel.recv(512).decode(); assert request.startswith('R ')
+    observed['challenge'] = request[2:]; send(observed)
+    assert channel.recv(512).decode() == wire; send(receipt)
+    assert channel.recv(512).decode() == 'S ' + receipt['command_id']; send(receipt)
+assert channel.recv(512) == b''
+'''
+        child = 'FIXTURES = ' + repr(fixtures) + '\n' + child
+        completed = subprocess.run([sys.executable, str(Path(__file__).with_name('launch_presentation.py')), '--agent-control',
+            '--', sys.executable, '-c', child], input=b''.join(dump(message) + b'\n' for message in messages), capture_output=True, timeout=8)
+        self.assertEqual(completed.returncode, 0); self.assertEqual(completed.stderr, b'')
+        replies = [json.loads(line) for line in completed.stdout.splitlines()]
+        self.assertEqual(len(replies), 28)
+        for index in range(len(steps)):
+            triple = replies[index * 3 + 1:index * 3 + 4]
+            self.assertEqual(triple[1]['result'], triple[2]['result'])
+            for reply in triple:
+                self.assertFalse(reply['result']['isError'])
+                self.assertEqual([item['type'] for item in reply['result']['content']], ['text'])
+        self.assertEqual(replies[-1]['result']['structuredContent']['observation']['state'], 'geoscape')
+
     def test_real_stdio_launcher_synthetic_peer(self):
         child = r'''
 import json, os, socket, sys
@@ -922,9 +1270,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/3', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/4', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=64))
-assert channel.recv(256) == b'H openxcom-agent-control/3'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/4'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

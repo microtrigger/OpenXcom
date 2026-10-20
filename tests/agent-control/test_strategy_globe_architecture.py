@@ -42,8 +42,10 @@ class GlobeArchitectureTest(unittest.TestCase):
         code=read('Observer/AgentController.cpp')
         self.assertIn('char bytes[512]',code); self.assertIn('MSG_TRUNC | MSG_CTRUNC',code)
         self.assertIn('packet.size() <= 49152',code)
-    def test_geoscape_hud_has_no_actions(self):
+    def test_geoscape_only_adds_visible_funding_navigation(self):
         code=body('Geoscape/GeoscapeState.cpp','GeoscapeState::agentUiState')
-        self.assertNotIn('actions.push_back',code); self.assertNotIn('getSavedGame',code)
+        self.assertEqual(code.count('actions.push_back'), 1)
+        self.assertIn('AgentUiAction("open_funding", label, "visible_text")',code)
+        self.assertNotIn('getSavedGame',code)
 
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/3"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/4"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/3\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/4\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -34,10 +34,15 @@ bool agentActionId(const std::string &value)
         value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||
         value == "cancel_menu" || value == "dismiss_error" || value == "select_difficulty" ||
         value == "set_ironman" || value == "start_new_game" || value == "place_base_site" ||
-        value == "replace_base_name" || value == "confirm_base_name";
+        value == "replace_base_name" || value == "confirm_base_name" ||
+        value == "open_new_battle_choice" || value == "choose_visible_row" || value == "scroll_visible_list" ||
+        value == "close_dropdown" || value == "open_funding" || value == "close_funding";
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "open_new_battle_choice") return "choice_control";
+    if (action == "choose_visible_row") return "visible_row";
+    if (action == "scroll_visible_list") return "scroll_direction";
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
     if (action == "replace_base_name") return "text";
@@ -111,6 +116,25 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         request.choice = parts[6];
         if (request.choice != "beginner" && request.choice != "experienced" && request.choice != "veteran" &&
             request.choice != "genius" && request.choice != "superhuman") return false;
+    }
+    else if (kind == "choice_control")
+    {
+        if (parts.size() != 7) return false;
+        request.choice = parts[6];
+        if (request.choice != "mission" && request.choice != "craft" && request.choice != "terrain" &&
+            request.choice != "difficulty" && request.choice != "alien_race") return false;
+    }
+    else if (kind == "visible_row")
+    {
+        std::uint64_t row;
+        if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'r' ||
+            !decimal(parts[6].substr(1), 31, row)) return false;
+        request.choice = parts[6];
+    }
+    else if (kind == "scroll_direction")
+    {
+        if (parts.size() != 7 || (parts[6] != "up" && parts[6] != "down")) return false;
+        request.choice = parts[6];
     }
     else if (kind == "boolean")
     {

@@ -20,18 +20,20 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(parseAgentRequest("H openxcom-agent-control/3", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/4", r) && r.kind == 'H', "exact handshake");
     check(!parseAgentRequest("H openxcom-agent-control/2", r), "v2 mismatch rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/3", r), "v3 mismatch rejected");
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/3\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/4\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
     const std::string prefix = "E " + token(3) + " " + token(4) + " " + token(5) + " ";
     const char *actions[] = {"next_soldier", "previous_soldier", "kneel", "stand", "continue_next_turn",
         "new_battle", "start_battle", "continue_briefing", "close_inventory",
         "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",
-        "resume_game", "cancel_menu", "dismiss_error", "start_new_game", "confirm_base_name"};
+        "resume_game", "cancel_menu", "dismiss_error", "start_new_game", "confirm_base_name",
+        "close_dropdown", "open_funding", "close_funding"};
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
@@ -50,6 +52,18 @@ int main()
     check(parseAgentRequest(prefix+"0 place_base_site 0 4095",r) && r.x==0 && r.y==4095, "bounded point");
     const char *badPoints[]={"01 0","-1 0","0 4096","0 1.0","0","0 0 0","+1 2"};
     for(const char *point:badPoints) check(!parseAgentRequest(prefix+"0 place_base_site "+point,r), "noncanonical point");
+    for (const char *control : {"mission", "craft", "terrain", "difficulty", "alien_race"})
+        check(parseAgentRequest(prefix+"0 open_new_battle_choice "+control,r) && r.choice==control, "closed combo control");
+    for (const char *control : {"all", "alien_tech", "", "mission 0"})
+        check(!parseAgentRequest(prefix+"0 open_new_battle_choice "+control,r), "unlisted combo control rejected");
+    for (const char *row : {"r0", "r9", "r31"})
+        check(parseAgentRequest(prefix+"0 choose_visible_row "+row,r) && r.choice==row, "canonical local row");
+    for (const char *row : {"r32", "r01", "r-1", "0", "r", "r1 2"})
+        check(!parseAgentRequest(prefix+"0 choose_visible_row "+row,r), "malformed local row rejected");
+    for (const char *direction : {"up", "down"})
+        check(parseAgentRequest(prefix+"0 scroll_visible_list "+direction,r) && r.choice==direction, "one step direction");
+    for (const char *direction : {"top", "bottom", "up 2", ""})
+        check(!parseAgentRequest(prefix+"0 scroll_visible_list "+direction,r), "unbounded scroll rejected");
     AgentLedger typed;
     const std::string first=prefix+"0 replace_base_name 41";
     check(typed.begin(token(3),first)==AgentLedger::Fresh, "typed identity fresh");

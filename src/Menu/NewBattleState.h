@@ -59,6 +59,7 @@ public:
 	bool agentUiState(Observer::AgentUiState &out) const override;
 	/// Invokes the ordinary handler for an exposed startup action.
 	bool agentDispatch(const std::string &action) override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
 #endif
 	/// Resets state.
 	void init();

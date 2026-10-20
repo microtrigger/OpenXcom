@@ -21,9 +21,25 @@
 #include <map>
 #include "../Engine/InteractiveSurface.h"
 #include "Text.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#endif
 
 namespace OpenXcom
 {
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+// A complete painted row. logicalIndex and geometry are private grant bindings,
+// never protocol fields; the owning state allocates its own grant-local rN slots.
+struct AgentListRow
+{
+	size_t logicalIndex;
+	std::vector<std::string> cells;
+	bool selected;
+	std::vector<SDL_Rect> regions;
+	SDL_Rect bounds;
+};
+#endif
 
 enum ArrowOrientation { ARROW_VERTICAL, ARROW_HORIZONTAL };
 
@@ -59,12 +75,28 @@ private:
 	ActionHandler _leftClick, _leftPress, _leftRelease, _rightClick, _rightPress, _rightRelease;
 	int _arrowsLeftEdge, _arrowsRightEdge;
 	ComboBox *_comboBox;
+	/// Shared ordinary hover/activation operations; no synthetic input events.
+	void selectPhysicalRow(size_t row);
+	void activateRow(Action *action, State *state, Uint8 button);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	std::uint64_t _agentListRevision = 0, _agentPaintRevision = UINT64_MAX;
+	std::vector<AgentListRow> _agentDrawRows, _agentPaintRows;
+	std::vector<Surface *> _agentPaintOrder;
+	void agentCaptureRow(size_t logicalIndex, int y);
+#endif
 
 	/// Updates the arrow buttons.
 	void updateArrows();
 	/// Updates the visible rows.
 	void updateVisible();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentRows(std::vector<AgentListRow> &rows) const;
+	std::uint64_t agentListRevision() const { return _agentListRevision; }
+	void agentScrollControls(const Surface *&up, const Surface *&down) const;
+	bool agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state);
+	void agentPaintOrder(std::vector<Surface *> &out) const;
+#endif
 	/// Creates a text list with the specified size and position.
 	TextList(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the text list.

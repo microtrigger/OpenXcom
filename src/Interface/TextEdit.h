@@ -48,7 +48,8 @@ private:
 	ActionHandler _change;
 	State *_state;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	bool _agentCaretFits = false;
+	bool _agentCaretPainted = false;
+	SDL_Rect _agentCaretBounds = {};
 	std::uint64_t _agentInputRevision = 0;
 #endif
 	/// Native insertion shared by physical keyboard and bounded replacement.
@@ -79,9 +80,11 @@ public:
 	/// Gets the text edit's string.
 	std::string getText() const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	/// Reads only the complete currently rendered child text and caret.
+	/// Reads only the complete currently rendered child text.
 	bool agentRenderedText(std::string &text) const;
 	bool agentEditable() const;
+	/// Actual blink-on caret ink, clipped to the editor, in screen coordinates.
+	bool agentCaretBounds(SDL_Rect &bounds) const;
 	/// Atomic replacement through the same native character/width constraints.
 	bool agentReplaceText(const std::string &text);
 	std::uint64_t agentInputRevision() const { return _agentInputRevision; }

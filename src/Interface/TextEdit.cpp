@@ -311,7 +311,7 @@ void TextEdit::blink()
 void TextEdit::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	_agentCaretFits = false;
+	_agentCaretPainted = false;
 #endif
 	Surface::draw();
 	UString newValue = _value;
@@ -363,13 +363,19 @@ void TextEdit::draw()
 			_caret->setY(y);
 			if (_blink) _caret->blit(this);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-			// A blinking caret is allowed to be off. Still validate its native
-			// glyph footprint at the current position, without painting it.
-			else _caret->draw();
 			SDL_Rect ink;
-			_agentCaretFits = _caret->agentContextVisible() && _caret->agentTextComplete() &&
-				_caret->agentPaintedBounds(ink) && ink.x >= 0 && ink.y >= 0 &&
-				ink.x + ink.w <= getWidth() && ink.y + ink.h <= getHeight();
+			if (_blink && _caret->agentPaintedBounds(ink))
+			{
+				const int left = std::max(0, (int)ink.x), top = std::max(0, (int)ink.y);
+				const int right = std::min(getWidth(), ink.x + ink.w);
+				const int bottom = std::min(getHeight(), ink.y + ink.h);
+				if (left < right && top < bottom)
+				{
+					_agentCaretBounds.x = left; _agentCaretBounds.y = top;
+					_agentCaretBounds.w = right - left; _agentCaretBounds.h = bottom - top;
+					_agentCaretPainted = true;
+				}
+			}
 #endif
 		}
 	}
@@ -448,17 +454,31 @@ bool TextEdit::agentRenderedText(std::string &text) const
 		_text->getText().size() > 128 || _text->getTextWidth() > getWidth() ||
 		_text->getTextHeight() > getHeight()) return false;
 	SDL_Rect ink;
-	if (_text->agentPaintedBounds(ink) && (ink.x < 0 || ink.y < 0 ||
-		ink.x + ink.w > getWidth() || ink.y + ink.h > getHeight())) return false;
-	if (_isFocused && Options::keyboardMode == KEYBOARD_ON && !_agentCaretFits) return false;
+	if (_text->agentPaintedBounds(ink))
+	{
+		if (ink.x < 0 || ink.y < 0 || ink.x + ink.w > getWidth() || ink.y + ink.h > getHeight()) return false;
+		// A partially clipped end caret is normal native input. Only its actual
+		// painted intersection can obscure text; blink-off paints no occluder.
+		if (_agentCaretPainted && ink.x < _agentCaretBounds.x + _agentCaretBounds.w &&
+			ink.x + ink.w > _agentCaretBounds.x && ink.y < _agentCaretBounds.y + _agentCaretBounds.h &&
+			ink.y + ink.h > _agentCaretBounds.y) return false;
+	}
 	text = _text->getText();
+	return true;
+}
+
+bool TextEdit::agentCaretBounds(SDL_Rect &bounds) const
+{
+	if (!Observer::agentWidgetVisible(this) || !_agentCaretPainted) return false;
+	bounds = _agentCaretBounds;
+	bounds.x += getX(); bounds.y += getY();
 	return true;
 }
 
 bool TextEdit::agentEditable() const
 {
 	std::string rendered;
-	return _isFocused && Options::keyboardMode == KEYBOARD_ON && _agentCaretFits &&
+	return _isFocused && Options::keyboardMode == KEYBOARD_ON &&
 		agentRenderedText(rendered);
 }
 
@@ -484,9 +504,9 @@ bool TextEdit::agentReplaceText(const std::string &text)
 	_redraw = true;
 	draw();
 	std::string rendered;
-	if (!agentRenderedText(rendered) || rendered != text || !_agentCaretFits)
+	if (!agentRenderedText(rendered) || rendered != text)
 	{
-		// Unsupported glyphs or a clipped terminal caret must not leave a
+		// Unsupported glyphs or incomplete text must not leave a
 		// partial edit or call the state's change handler.
 		_value = previous;
 		_caretPos = previousCaret;

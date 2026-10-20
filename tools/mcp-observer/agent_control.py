@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/3'
+SCHEMA = 'openxcom-agent-control/4'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -37,11 +37,18 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'open_new_game', 'open_options', 'open_load_game', 'open_pause_menu',
            'open_save_game', 'resume_game', 'cancel_menu', 'dismiss_error',
            'select_difficulty', 'set_ironman', 'start_new_game', 'place_base_site',
-           'replace_base_name', 'confirm_base_name')
+           'replace_base_name', 'confirm_base_name', 'open_new_battle_choice',
+           'choose_visible_row', 'scroll_visible_list', 'close_dropdown',
+           'open_funding', 'close_funding')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
+CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
+ROW_HANDLES = tuple(f'r{index}' for index in range(32))
+SCROLL_DIRECTIONS = ('up', 'down')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
 ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',
-                      replace_base_name='text', place_base_site='point')
+                      replace_base_name='text', place_base_site='point',
+                      open_new_battle_choice='choice_control', choose_visible_row='visible_row',
+                      scroll_visible_list='scroll_direction')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
@@ -59,13 +66,15 @@ STATE_ACTIONS = {
     'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'open_pause_menu')),
     'next_turn': frozenset(('continue_next_turn',)),
     'main_menu': frozenset(('new_battle', 'open_new_game', 'open_options', 'open_load_game')),
-    'new_battle': frozenset(('start_battle', 'cancel_menu')),
+    'new_battle': frozenset(('start_battle', 'cancel_menu', 'open_new_battle_choice')),
+    'new_battle_dropdown': frozenset(('choose_visible_row', 'scroll_visible_list', 'close_dropdown')),
+    'funding': frozenset(('scroll_visible_list', 'close_funding')),
     'briefing': frozenset(('continue_briefing',)),
     'inventory': frozenset(('close_inventory',)),
     'new_game': frozenset(('cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game')),
     'base_name': frozenset(('replace_base_name', 'confirm_base_name')),
     'build_base': frozenset(('place_base_site',)),
-    'geoscape': frozenset(),
+    'geoscape': frozenset(('open_funding',)),
     'options_shell': frozenset(('cancel_menu',)),
     'pause_menu': frozenset(('open_load_game', 'open_save_game', 'open_options', 'resume_game')),
     'load_list': frozenset(('cancel_menu',)),
@@ -141,7 +150,8 @@ def validate_ready(raw):
 
 def label_source(screen, action):
     return ('visible_control_semantics' if screen in ('battlescape', 'inventory') or
-            action in ('replace_base_name', 'place_base_site') else 'visible_text')
+            action in ('replace_base_name', 'place_base_site', 'open_new_battle_choice',
+                       'choose_visible_row', 'scroll_visible_list', 'close_dropdown') else 'visible_text')
 
 
 def validate_new_game(visible, actions):
@@ -164,7 +174,7 @@ def validate_new_game(visible, actions):
     require('set_ironman' not in actions or visible['ironman'] is not None)
 
 
-def validate_geoscape(visible):
+def validate_geoscape(visible, actions):
     exact(visible, ' '.join(GEOSCAPE_FIELDS) + ' buttons')
     for field in GEOSCAPE_FIELDS:
         visible_text(visible[field], nullable=True)
@@ -175,6 +185,38 @@ def validate_geoscape(visible):
         require(type(button['id']) is str and button['id'] in GEOSCAPE_BUTTONS and button['id'] not in seen)
         seen.add(button['id'])
         visible_text(button['label']); require(bool(button['label']))
+    require('open_funding' not in actions or 'funding' in seen)
+
+
+def validate_visible_list(visible, actions, *, funding=False):
+    """Only fully rendered, grant-local rows; no backing indices or totals."""
+    exact(visible, 'title headings rows scroll' if funding else 'control label rows scroll')
+    if funding:
+        visible_text(visible['title'], nullable=True)
+        require(type(visible['headings']) is list and len(visible['headings']) == 3)
+        for heading in visible['headings']:
+            visible_text(heading, nullable=True)
+    else:
+        require(type(visible['control']) is str and visible['control'] in CHOICE_CONTROLS)
+        visible_text(visible['label'], nullable=True)
+    rows = visible['rows']
+    require(type(rows) is list and len(rows) <= len(ROW_HANDLES))
+    selected = 0
+    for index, row in enumerate(rows):
+        exact(row, 'handle cells selected')
+        require(row['handle'] == ROW_HANDLES[index])
+        require(type(row['cells']) is list and len(row['cells']) == (3 if funding else 1))
+        for cell in row['cells']:
+            visible_text(cell)
+            require(funding or bool(cell))
+        require(type(row['selected']) is bool)
+        selected += row['selected']
+    require(selected == 0 if funding else selected <= 1)
+    exact(visible['scroll'], 'up down')
+    for value in visible['scroll'].values():
+        require(type(value) is bool)
+    require('choose_visible_row' not in actions or bool(rows))
+    require('scroll_visible_list' not in actions or any(visible['scroll'].values()))
 
 
 def validate_build_base(visible, actions):
@@ -240,13 +282,17 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
     elif obj['state'] == 'new_game':
         validate_new_game(visible, seen)
     elif obj['state'] == 'geoscape':
-        validate_geoscape(visible)
+        validate_geoscape(visible, seen)
+    elif obj['state'] in ('new_battle_dropdown', 'funding'):
+        validate_visible_list(visible, seen, funding=obj['state'] == 'funding')
     elif obj['state'] == 'build_base':
         validate_build_base(visible, seen)
     elif obj['state'] in STATE_FIELDS:
         exact(visible, ' '.join(STATE_FIELDS[obj['state']]))
         for text in visible.values():
             visible_text(text, nullable=True)
+        if obj['state'] == 'new_battle':
+            require('open_new_battle_choice' not in seen or any(value is not None for value in visible.values()))
     else:
         exact(visible, '')
         require(not seen)
@@ -305,10 +351,18 @@ def validate_action_arguments(arguments):
         except UnicodeError:
             raise Unavailable('Unavailable') from None
         require(all(ord(c) >= 32 and not 127 <= ord(c) <= 159 for c in args['text']))
-    else:
+    elif kind == 'point':
         exact(args, 'x y')
         for coordinate in args.values():
             integer(coordinate, 0, 4095)
+    else:
+        field, values = {
+            'choice_control': ('control', CHOICE_CONTROLS),
+            'visible_row': ('row', ROW_HANDLES),
+            'scroll_direction': ('direction', SCROLL_DIRECTIONS),
+        }[kind]
+        exact(args, field)
+        require(type(args[field]) is str and args[field] in values)
 
 
 def canonical_action_request(arguments):
@@ -325,6 +379,8 @@ def canonical_action_request(arguments):
         suffix = ' ' + (args['text'].encode('utf-8').hex() or '-')
     elif kind == 'point':
         suffix = f' {args["x"]} {args["y"]}'
+    elif kind in ('choice_control', 'visible_row', 'scroll_direction'):
+        suffix = ' ' + args[{'choice_control': 'control', 'visible_row': 'row', 'scroll_direction': 'direction'}[kind]]
     request = ('E {command_id} {epoch} {capability} {revision} {action}'.format(**arguments) + suffix).encode('ascii')
     require(len(request) <= MAX_REQUEST)
     return request
@@ -341,6 +397,9 @@ def definitions():
         'text': arg_schema({'text': {'type': 'string', 'maxLength': MAX_NAME_BYTES,
                                      'not': {'pattern': '[\\u0000-\\u001f\\u007f-\\u009f]'}}}),
         'point': arg_schema({key: {'type': 'integer', 'minimum': 0, 'maximum': 4095} for key in ('x', 'y')}),
+        'choice_control': arg_schema({'control': {'type': 'string', 'enum': list(CHOICE_CONTROLS)}}),
+        'visible_row': arg_schema({'row': {'type': 'string', 'enum': list(ROW_HANDLES)}}),
+        'scroll_direction': arg_schema({'direction': {'type': 'string', 'enum': list(SCROLL_DIRECTIONS)}}),
     }
     execute_schema = {
         'type': 'object', 'properties': {
@@ -352,11 +411,11 @@ def definitions():
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /3: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. The first Geoscape observation is read-only. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /4: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Scroll flags describe visible arrows, so boundary no-ops remain possible. Funding rows cannot be selected. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
@@ -383,6 +442,9 @@ class AgentControlClient:
         self.difficulty_values = frozenset()
         self.viewport_bounds = None
         self.viewport_samples = frozenset()
+        self.choice_controls = frozenset()
+        self.visible_rows = frozenset()
+        self.scroll_directions = frozenset()
         self.capability_deadline = 0.0
         self.event_sequence = 0
         self.commands = {}
@@ -396,6 +458,9 @@ class AgentControlClient:
         self.difficulty_values = frozenset()
         self.viewport_bounds = None
         self.viewport_samples = frozenset()
+        self.choice_controls = frozenset()
+        self.visible_rows = frozenset()
+        self.scroll_directions = frozenset()
         if channel is not None:
             channel.close()
 
@@ -445,6 +510,9 @@ class AgentControlClient:
                 self.difficulty_values = frozenset()
                 self.viewport_bounds = None
                 self.viewport_samples = frozenset()
+                self.choice_controls = frozenset()
+                self.visible_rows = frozenset()
+                self.scroll_directions = frozenset()
                 obj = validate_state(parse(self.exchange(('R ' + challenge).encode('ascii'))), challenge, self.epoch)
                 require(obj['revision'] >= (self.revision if self.revision is not None else 0)
                         and obj['event_sequence'] >= self.event_sequence)
@@ -454,6 +522,12 @@ class AgentControlClient:
                 if self.capability is not None:
                     self.last_capability = self.capability
                 self.available_actions = frozenset(action['id'] for action in obj['actions'])
+                if obj['state'] == 'new_battle':
+                    self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
+                if obj['state'] == 'new_battle_dropdown':
+                    self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
+                if obj['state'] in ('new_battle_dropdown', 'funding'):
+                    self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
                 if obj['state'] == 'new_game':
                     self.difficulty_values = frozenset(choice['value'] for choice in obj['visible']['difficulty'])
                 if obj['state'] == 'build_base' and obj['visible']['globe'] is not None:
@@ -485,6 +559,12 @@ class AgentControlClient:
                     and time.monotonic() < self.capability_deadline)
             if action == 'select_difficulty':
                 require(args['value'] in self.difficulty_values)
+            elif action == 'open_new_battle_choice':
+                require(args['control'] in self.choice_controls)
+            elif action == 'choose_visible_row':
+                require(args['row'] in self.visible_rows)
+            elif action == 'scroll_visible_list':
+                require(args['direction'] in self.scroll_directions)
             elif action == 'place_base_site':
                 require(self.viewport_bounds is not None)
                 require(args['x'] < self.viewport_bounds[0] and args['y'] < self.viewport_bounds[1]
@@ -498,6 +578,9 @@ class AgentControlClient:
             self.difficulty_values = frozenset()
             self.viewport_bounds = None
             self.viewport_samples = frozenset()
+            self.choice_controls = frozenset()
+            self.visible_rows = frozenset()
+            self.scroll_directions = frozenset()
             self.state = 'PENDING'
             self.commands[command_id] = {'request': request, 'result': None}
             attempted = False

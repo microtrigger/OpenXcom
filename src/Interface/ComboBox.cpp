@@ -276,6 +276,9 @@ size_t ComboBox::getHoveredListIdx() const
  */
 void ComboBox::setText(const std::string &text)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_button->getText() != text) ++_agentComboRevision;
+#endif
 	_button->setText(text);
 }
 
@@ -286,6 +289,62 @@ std::string ComboBox::agentLabel() const
 	// The arrow is blitted after the button and can cover the label's right end.
 	return _button->agentLabel(BUTTON_WIDTH);
 }
+
+bool ComboBox::agentPopupOpen() const
+{
+	return _window->getVisible() && _list->getVisible();
+}
+
+bool ComboBox::agentToggleUncovered(const std::vector<Surface *> &paintOrder) const
+{
+    // The main toggle is a known button+arrow composite. A modified root size
+    // must not conceal children extending beyond the advertised footprint.
+    if (!Observer::agentWidgetVisible(this) || !Observer::agentWidgetVisible(_button) ||
+        !Observer::agentWidgetVisible(_arrow) || _button->getX() != getX() || _button->getY() != getY() ||
+        _button->getWidth() != getWidth() || _button->getHeight() != getHeight() ||
+        _arrow->getX() < getX() || _arrow->getY() < getY() ||
+        _arrow->getX()+_arrow->getWidth() > getX()+getWidth() ||
+        _arrow->getY()+_arrow->getHeight() > getY()+getHeight()) return false;
+    const std::vector<Observer::AgentUiRect> region = {{getX(), getY(), getWidth(), getHeight()}};
+    return Observer::agentRegionsUncovered(region, _arrow, paintOrder);
+}
+
+std::uint64_t ComboBox::agentUiRevision() const
+{
+	return _agentComboRevision + _list->agentListRevision();
+}
+
+void ComboBox::agentPaintOrder(std::vector<Surface *> &out) const
+{
+	if (!_visible || _hidden) return;
+	out.push_back(const_cast<ComboBox *>(this));
+	out.push_back(_button); out.push_back(_arrow); out.push_back(_window);
+	_list->agentPaintOrder(out);
+}
+
+bool ComboBox::agentOpen()
+{
+	if (agentPopupOpen() || agentLabel().empty()) return false;
+	toggle();
+	return true;
+}
+
+bool ComboBox::agentClose(Action *action, State *state)
+{
+	if (!Observer::agentWidgetVisible(this) || !agentPopupOpen()) return false;
+	toggle();
+	flushChange(action, state);
+	return true;
+}
+
+bool ComboBox::agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state)
+{
+	if (!Observer::agentWidgetVisible(this) || !agentPopupOpen() ||
+		!_list->agentChooseVisibleRow(logicalIndex, action, state)) return false;
+	flushChange(action, state);
+	return true;
+}
+
 #endif
 
 /**
@@ -294,6 +353,9 @@ std::string ComboBox::agentLabel() const
  */
 void ComboBox::setSelected(size_t sel)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_sel != sel) ++_agentComboRevision;
+#endif
 	_sel = sel;
 	if (_sel < _list->getTexts())
 	{
@@ -377,14 +439,16 @@ void ComboBox::handle(Action *action, State *state)
 	{
 		toggle();
 	}
-	if (_toggled)
-	{
-		if (_change)
-		{
-			(state->*_change)(action);
-		}
-		_toggled = false;
-	}
+	flushChange(action, state);
+}
+
+void ComboBox::flushChange(Action *action, State *state)
+{
+	if (!_toggled) return;
+	// Consume before invoking user code so nested handle/flush cannot deliver
+	// the same close twice. Closing without a choice retains normal onChange.
+	_toggled = false;
+	if (_change) (state->*_change)(action);
 }
 
 /**
@@ -405,6 +469,9 @@ void ComboBox::think()
  */
 void ComboBox::toggle(bool first)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentComboRevision;
+#endif
 	_window->setVisible(!_window->getVisible());
 	_list->setVisible(!_list->getVisible());
 	_state->setModal(_window->getVisible() ? this : 0);

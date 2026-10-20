@@ -28,6 +28,10 @@
 #include "ComboBox.h"
 #include "ScrollBar.h"
 #include "../fmath.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Engine/Unicode.h"
+#endif
 
 namespace OpenXcom
 {
@@ -87,6 +91,9 @@ TextList::~TextList()
  */
 void TextList::setX(int x)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (x != getX()) { ++_agentListRevision; _redraw = true; }
+#endif
 	Surface::setX(x);
 	_up->setX(getX() + getWidth() + _scrollPos);
 	_down->setX(getX() + getWidth() + _scrollPos);
@@ -101,6 +108,9 @@ void TextList::setX(int x)
  */
 void TextList::setY(int y)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (y != getY()) { ++_agentListRevision; _redraw = true; }
+#endif
 	Surface::setY(y);
 	_up->setY(getY());
 	_down->setY(getY() + getHeight() - 14);
@@ -152,6 +162,9 @@ void TextList::unpress(State *state)
  */
 void TextList::setCellColor(size_t row, size_t column, Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_texts[row][column]->getColor() != color) ++_agentListRevision;
+#endif
 	_texts[row][column]->setColor(color);
 	_redraw = true;
 }
@@ -163,6 +176,9 @@ void TextList::setCellColor(size_t row, size_t column, Uint8 color)
  */
 void TextList::setRowColor(size_t row, Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	for (const Text *cell : _texts[row]) if (cell->getColor() != color) { ++_agentListRevision; break; }
+#endif
 	for (std::vector<Text*>::iterator i = _texts[row].begin(); i < _texts[row].end(); ++i)
 	{
 		(*i)->setColor(color);
@@ -189,6 +205,9 @@ std::string TextList::getCellText(size_t row, size_t column) const
  */
 void TextList::setCellText(size_t row, size_t column, const std::string &text)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_texts[row][column]->getText() != text) ++_agentListRevision;
+#endif
 	_texts[row][column]->setText(text);
 	_redraw = true;
 }
@@ -268,6 +287,9 @@ size_t TextList::getVisibleRows() const
  */
 void TextList::addRow(int cols, ...)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentListRevision;
+#endif
 	va_list args;
 	int ncols;
 	va_start(args, cols);
@@ -335,6 +357,10 @@ void TextList::addRow(int cols, ...)
 		if (_dot && i < cols - 1)
 		{
 			std::string buf = txt->getText();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			const size_t contentLength = Unicode::convUtf8ToUtf32(buf).size();
+			size_t contentStart = 0;
+#endif
 			unsigned int w = txt->getTextWidth();
 			while (w < _columns[i])
 			{
@@ -347,9 +373,15 @@ void TextList::addRow(int cols, ...)
 				{
 					w += _font->getChar('.')->getCrop()->w + _font->getSpacing();
 					buf.insert(0, 1, '.');
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+					++contentStart;
+#endif
 				}
 			}
 			txt->setText(buf);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			txt->agentMarkListContent(contentStart, contentLength);
+#endif
 		}
 
 		temp.push_back(txt);
@@ -476,6 +508,9 @@ void TextList::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
  */
 void TextList::initText(Font *big, Font *small, Language *lang)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	++_agentListRevision;
+#endif
 	_big = big;
 	_small = small;
 	_font = small;
@@ -496,6 +531,9 @@ void TextList::initText(Font *big, Font *small, Language *lang)
  */
 void TextList::setHeight(int height)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (height != getHeight()) ++_agentListRevision;
+#endif
 	Surface::setHeight(height);
 	setY(getY());
 	int h = std::max(_down->getY() - _up->getY() - _up->getHeight(), 1);
@@ -510,6 +548,9 @@ void TextList::setHeight(int height)
  */
 void TextList::setColor(Uint8 color)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (color != _color) ++_agentListRevision;
+#endif
 	_color = color;
 	_up->setColor(color);
 	_down->setColor(color);
@@ -617,6 +658,9 @@ void TextList::setDot(bool dot)
  */
 void TextList::setSelectable(bool selectable)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (selectable != _selectable) ++_agentListRevision;
+#endif
 	_selectable = selectable;
 }
 
@@ -625,6 +669,9 @@ void TextList::setSelectable(bool selectable)
  */
 void TextList::setBig()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_font != _big) ++_agentListRevision;
+#endif
 	_font = _big;
 
 	delete _selector;
@@ -640,6 +687,9 @@ void TextList::setBig()
  */
 void TextList::setSmall()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_font != _small) ++_agentListRevision;
+#endif
 	_font = _small;
 
 	delete _selector;
@@ -813,6 +863,9 @@ void TextList::onRightArrowRelease(ActionHandler handler)
  */
 void TextList::clearList()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (!_texts.empty()) ++_agentListRevision;
+#endif
 	for (std::vector< std::vector<Text*> >::iterator u = _texts.begin(); u < _texts.end(); ++u)
 	{
 		for (std::vector<Text*>::iterator v = u->begin(); v < u->end(); ++v)
@@ -919,6 +972,9 @@ void TextList::updateVisible()
  */
 void TextList::setScrolling(bool scrolling, int scrollPos)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (scrolling != _scrolling || scrollPos != _scrollPos) ++_agentListRevision;
+#endif
 	_scrolling = scrolling;
 	if (scrollPos != _scrollPos)
 	{
@@ -934,6 +990,9 @@ void TextList::setScrolling(bool scrolling, int scrollPos)
  */
 void TextList::draw()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentDrawRows.clear();
+#endif
 	Surface::draw();
 	int y = 0;
 	if (!_rows.empty())
@@ -951,6 +1010,9 @@ void TextList::draw()
 				(*j)->setY(y);
 				(*j)->blit(this);
 			}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+			agentCaptureRow(i, y);
+#endif
 			if (!_texts[i].empty())
 			{
 				y += _texts[i].front()->getHeight() + _font->getSpacing();
@@ -969,11 +1031,62 @@ void TextList::draw()
  */
 void TextList::blit(Surface *surface)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentPaintOrder.clear();
+	_agentPaintRows.clear();
+	_agentPaintRevision = UINT64_MAX;
+	std::vector<std::pair<int, int> > agentSelectorChanged;
+#endif
 	if (_visible && !_hidden)
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		// Record an actual visible palette-color change against the surface
+		// immediately beneath this selector, before the ordinary selector blit.
+		SDL_Surface *selectorPixels = _selector ? _selector->getSurface() : nullptr;
+		SDL_Surface *targetPixels = surface->getSurface();
+		if (_selector && _selector->agentContextVisible() && selectorPixels->format->BytesPerPixel == 1 &&
+			targetPixels->format->BytesPerPixel == 1 && selectorPixels->format->palette && targetPixels->format->palette &&
+			_selector->getX() >= targetPixels->clip_rect.x && _selector->getY() >= targetPixels->clip_rect.y &&
+			_selector->getX() + _selector->getWidth() <= targetPixels->clip_rect.x + targetPixels->clip_rect.w &&
+			_selector->getY() + _selector->getHeight() <= targetPixels->clip_rect.y + targetPixels->clip_rect.h)
+		{
+			const int selectorLock = Observer::agentObservePaint(SDL_LockSurface(selectorPixels));
+			const int targetLock = Observer::agentObservePaint(SDL_LockSurface(targetPixels));
+			if (selectorLock >= 0 && targetLock >= 0)
+			{
+				const SDL_Rect clip = targetPixels->clip_rect;
+				for (int y = 0; y < _selector->getHeight(); ++y)
+					for (int x = 0; x < _selector->getWidth(); ++x)
+					{
+						const int targetX = _selector->getX() + x, targetY = _selector->getY() + y;
+						const Uint8 pixel = _selector->getPixel(x, y);
+						if (!pixel || targetX < clip.x || targetY < clip.y ||
+							targetX >= clip.x + clip.w || targetY >= clip.y + clip.h ||
+							pixel >= selectorPixels->format->palette->ncolors) continue;
+						const SDL_Color sourceColor = selectorPixels->format->palette->colors[pixel];
+						const Uint32 mapped = SDL_MapRGB(targetPixels->format, sourceColor.r, sourceColor.g, sourceColor.b);
+						const Uint8 beneath = surface->getPixel(targetX, targetY);
+						if (mapped >= static_cast<Uint32>(targetPixels->format->palette->ncolors) ||
+							beneath >= targetPixels->format->palette->ncolors) continue;
+						const SDL_Color after = targetPixels->format->palette->colors[mapped];
+						const SDL_Color before = targetPixels->format->palette->colors[beneath];
+						if (after.r != before.r || after.g != before.g || after.b != before.b)
+							agentSelectorChanged.push_back(std::make_pair(targetX - getX(), targetY - getY()));
+					}
+			}
+			if (targetLock >= 0) SDL_UnlockSurface(targetPixels);
+			if (selectorLock >= 0) SDL_UnlockSurface(selectorPixels);
+		}
+#endif
 		_selector->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		if (_selector->getVisible()) _agentPaintOrder.push_back(_selector);
+#endif
 	}
 	Surface::blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_agentPaintOrder.push_back(this);
+#endif
 	if (_visible && !_hidden)
 	{
 		if (_arrowPos != -1 && !_rows.empty())
@@ -994,6 +1107,10 @@ void TextList::blit(Surface *surface)
 					// only blit arrows that belong to texts that have their first row on-screen
 					_arrowLeft[i]->blit(surface);
 					_arrowRight[i]->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+					_agentPaintOrder.push_back(_arrowLeft[i]);
+					_agentPaintOrder.push_back(_arrowRight[i]);
+#endif
 				}
 
 				if (!_texts[i].empty())
@@ -1009,6 +1126,50 @@ void TextList::blit(Surface *surface)
 		_up->blit(surface);
 		_down->blit(surface);
 		_scrollbar->blit(surface);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+		_agentPaintOrder.push_back(_up); _agentPaintOrder.push_back(_down);
+		_agentPaintOrder.push_back(_scrollbar);
+		_agentPaintRows = _agentDrawRows;
+		const bool selectorVisible = _selector && _selector->agentContextVisible();
+		for (AgentListRow &row : _agentPaintRows)
+		{
+			row.selected = selectorVisible &&
+				_selector->getX() == row.bounds.x && _selector->getY() == row.bounds.y &&
+				_selector->getWidth() == row.bounds.w && _selector->getHeight() == row.bounds.h &&
+				row.bounds.x >= getX() && row.bounds.y >= getY() &&
+				row.bounds.x + row.bounds.w <= getX() + getWidth() &&
+				row.bounds.y + row.bounds.h <= getY() + getHeight();
+			if (row.selected)
+			{
+				// Every nonzero list pixel paints after the selector, including
+				// incomplete/fallback text. Require a changed selector pixel that
+				// survives this exact native text layer's transparent-zero mask.
+				bool survivingChange = false;
+				const int listLock = Observer::agentObservePaint(SDL_LockSurface(getSurface()));
+				if (listLock >= 0)
+				{
+					for (const auto &pixel : agentSelectorChanged)
+						if (getPixel(pixel.first, pixel.second) == 0)
+						{ survivingChange = true; break; }
+					SDL_UnlockSurface(getSurface());
+				}
+				row.selected = survivingChange;
+			}
+			if (row.selected)
+			{
+				SDL_Rect extent = row.bounds;
+				for (const SDL_Rect &ink : row.regions)
+				{
+					const int right = std::max(extent.x + extent.w, ink.x + ink.w);
+					const int bottom = std::max(extent.y + extent.h, ink.y + ink.h);
+					extent.x = std::min(extent.x, ink.x); extent.y = std::min(extent.y, ink.y);
+					extent.w = right - extent.x; extent.h = bottom - extent.y;
+				}
+				row.regions.assign(1, extent);
+			}
+		}
+		_agentPaintRevision = _agentListRevision;
+#endif
 	}
 }
 
@@ -1124,19 +1285,24 @@ void TextList::mouseRelease(Action *action, State *state)
  */
 void TextList::mouseClick(Action *action, State *state)
 {
+	activateRow(action, state, action->getDetails()->button.button);
+}
+
+void TextList::activateRow(Action *action, State *state, Uint8 button)
+{
 	if (_selectable)
 	{
 		if (_selRow < _rows.size())
 		{
-			InteractiveSurface::mouseClick(action, state);
-			if (_comboBox && action->getDetails()->button.button == SDL_BUTTON_LEFT)
+			if (action) InteractiveSurface::mouseClick(action, state);
+			if (_comboBox && button == SDL_BUTTON_LEFT)
 			{
 				_comboBox->setSelected(_selRow);
 				_comboBox->toggle();
 			}
 		}
 	}
-	else
+	else if (action)
 	{
 		InteractiveSurface::mouseClick(action, state);
 	}
@@ -1147,52 +1313,65 @@ void TextList::mouseClick(Action *action, State *state)
  * @param action Pointer to an action.
  * @param state State that the action handlers belong to.
  */
+
+void TextList::selectPhysicalRow(size_t row)
+{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	const bool wasVisible = _selector && _selector->getVisible();
+	const size_t previous = _selRow;
+#endif
+	_selRow = row;
+	if (_selRow < _rows.size())
+	{
+		Text *selText = _texts[_rows[_selRow]].front();
+		int y = getY() + selText->getY();
+		int actualHeight = selText->getHeight() + _font->getSpacing(); //current line height
+		if (y < getY() || y + actualHeight > getY() + getHeight())
+		{
+			actualHeight /= 2;
+		}
+		if (y < getY())
+		{
+			y = getY();
+		}
+		if (_selector->getHeight() != actualHeight)
+		{
+			// resizing doesn't work, but recreating does, so let's do that!
+			delete _selector;
+			_selector = new Surface(getWidth(), actualHeight, getX(), y);
+			_selector->setPalette(getPalette());
+		}
+		_selector->setY(y);
+		_selector->copy(_bg);
+		if (_contrast)
+		{
+			_selector->offsetBlock(-5);
+		}
+		else if (_comboBox)
+		{
+			_selector->offset(+1, Palette::backPos);
+		}
+		else
+		{
+			_selector->offsetBlock(-10);
+		}
+		_selector->setVisible(true);
+	}
+	else
+	{
+		_selector->setVisible(false);
+	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_selRow != previous || (_selector && _selector->getVisible()) != wasVisible) ++_agentListRevision;
+#endif
+}
+
 void TextList::mouseOver(Action *action, State *state)
 {
 	if (_selectable)
 	{
-		int rowHeight = _font->getHeight() + _font->getSpacing(); //theoretical line height
-		_selRow = std::max(0, (int)(_scroll + (int)floor(action->getRelativeYMouse() / (rowHeight * action->getYScale()))));
-		if (_selRow < _rows.size())
-		{
-			Text *selText = _texts[_rows[_selRow]].front();
-			int y = getY() + selText->getY();
-			int actualHeight = selText->getHeight() + _font->getSpacing(); //current line height
-			if (y < getY() || y + actualHeight > getY() + getHeight())
-			{
-				actualHeight /= 2;
-			}
-			if (y < getY())
-			{
-				y = getY();
-			}
-			if (_selector->getHeight() != actualHeight)
-			{
-				// resizing doesn't work, but recreating does, so let's do that!
-				delete _selector;
-				_selector = new Surface(getWidth(), actualHeight, getX(), y);
-				_selector->setPalette(getPalette());
-			}
-			_selector->setY(y);
-			_selector->copy(_bg);
-			if (_contrast)
-			{
-				_selector->offsetBlock(-5);
-			}
-			else if (_comboBox)
-			{
-				_selector->offset(+1, Palette::backPos);
-			}
-			else
-			{
-				_selector->offsetBlock(-10);
-			}
-			_selector->setVisible(true);
-		}
-		else
-		{
-			_selector->setVisible(false);
-		}
+		int rowHeight = _font->getHeight() + _font->getSpacing();
+		selectPhysicalRow(std::max(0, (int)(_scroll + (int)floor(action->getRelativeYMouse() / (rowHeight * action->getYScale())))));
 	}
 
 	InteractiveSurface::mouseOver(action, state);
@@ -1205,6 +1384,9 @@ void TextList::mouseOver(Action *action, State *state)
  */
 void TextList::mouseOut(Action *action, State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_selectable && _selector && _selector->getVisible()) ++_agentListRevision;
+#endif
 	if (_selectable)
 	{
 		_selector->setVisible(false);
@@ -1232,6 +1414,9 @@ void TextList::scrollTo(size_t scroll)
 		return;
 	if (_rows.size() <= _visibleRows)
 		return;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	if (_scroll != Clamp(scroll, (size_t)(0), _rows.size() - _visibleRows)) ++_agentListRevision;
+#endif
 	_scroll = Clamp(scroll, (size_t)(0), _rows.size() - _visibleRows);
 	draw(); // can't just set _redraw here because reasons
 	updateArrows();
@@ -1272,5 +1457,151 @@ void TextList::setFlooding(bool flooding)
 {
 	_flooding = flooding;
 }
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace
+{
+bool agentListOverlap(const SDL_Rect &a, const SDL_Rect &b)
+{
+	return a.x < b.x + b.w && a.x + a.w > b.x &&
+		a.y < b.y + b.h && a.y + a.h > b.y;
+}
+}
+
+void TextList::agentCaptureRow(size_t logicalIndex, int y)
+{
+	// This runs immediately after the ordinary renderer blits each cell. Even
+	// incomplete/later rows retain their clipped ink as occluders, not text.
+	std::vector<SDL_Rect> ink;
+	for (const Text *cell : _texts[logicalIndex])
+	{
+		SDL_Rect rect;
+		if (cell->agentPaintedBounds(rect))
+		{
+			const int left = std::max(0, (int)rect.x), top = std::max(0, (int)rect.y);
+			const int right = std::min(getWidth(), rect.x + rect.w);
+			const int bottom = std::min(getHeight(), rect.y + rect.h);
+			if (left < right && top < bottom)
+			{
+				rect.x = getX() + left; rect.y = getY() + top;
+				rect.w = right - left; rect.h = bottom - top;
+				ink.push_back(rect);
+			}
+		}
+	}
+	_agentDrawRows.erase(std::remove_if(_agentDrawRows.begin(), _agentDrawRows.end(),
+		[&ink](const AgentListRow &prior) {
+			for (const SDL_Rect &a : prior.regions)
+				for (const SDL_Rect &b : ink) if (agentListOverlap(a, b)) return true;
+			return false;
+		}), _agentDrawRows.end());
+	// Native ComboBox activation uses its physical selection index. A row
+	// following a wrapped option cannot safely advertise its logical index.
+	if (_comboBox && static_cast<size_t>(std::find(_rows.begin(), _rows.end(), logicalIndex) - _rows.begin()) != logicalIndex) return;
+	const int lineHeight = _font->getHeight() + _font->getSpacing();
+	if (y < 0 || y + lineHeight > getHeight() || _texts[logicalIndex].empty() ||
+		std::count(_rows.begin(), _rows.end(), logicalIndex) != 1) return;
+	AgentListRow row;
+	row.logicalIndex = logicalIndex; row.selected = false;
+	row.bounds.x = getX(); row.bounds.y = getY() + y;
+	row.bounds.w = getWidth(); row.bounds.h = lineHeight;
+	for (const Text *cell : _texts[logicalIndex])
+	{
+		if (!cell->agentContextVisible() || !cell->getFont() || cell->getNumLines() != 1) return;
+		// Full decorated ink remains an occluder for every earlier column.
+		SDL_Rect decorated;
+		if (cell->agentPaintedBounds(decorated))
+		{
+			decorated.x += getX(); decorated.y += getY();
+			for (const SDL_Rect &previous : row.regions)
+				if (agentListOverlap(previous, decorated)) return;
+		}
+		std::string shownText;
+		SDL_Rect rect = {};
+		bool hasInk = false;
+		if (cell->_agentListRange)
+		{
+			if (!cell->agentListContent(shownText, rect, hasInk)) return;
+		}
+		else
+		{
+			if (!cell->agentTextComplete() || cell->getTextWidth() > cell->getWidth() ||
+				cell->getTextHeight() > cell->getHeight()) return;
+			shownText = cell->getText(); hasInk = cell->agentPaintedBounds(rect);
+		}
+		if (shownText.size() > 1024) return;
+		if (hasInk)
+		{
+			if (rect.x < 0 || rect.y < 0 || rect.x + rect.w > getWidth() || rect.y + rect.h > getHeight()) return;
+			rect.x += getX(); rect.y += getY();
+			for (const SDL_Rect &previous : row.regions)
+				if (agentListOverlap(previous, rect)) return;
+			row.regions.push_back(rect);
+		}
+		// Color flip changes palette selection, not displayed characters.
+		UString shown = Unicode::convUtf8ToUtf32(shownText);
+		shown.erase(std::remove(shown.begin(), shown.end(), Unicode::TOK_COLOR_FLIP), shown.end());
+		row.cells.push_back(Unicode::convUtf32ToUtf8(shown));
+	}
+	row.cells.resize(_columns.size(), std::string());
+	_agentDrawRows.push_back(row);
+}
+
+bool TextList::agentRows(std::vector<AgentListRow> &rows) const
+{
+	rows.clear();
+	if (!Observer::agentWidgetVisible(this) || _agentPaintRevision != _agentListRevision ||
+		!Observer::agentPaintHealthy()) return false;
+	for (const AgentListRow &row : _agentPaintRows)
+	{
+		bool covered = false, later = false;
+		for (const Surface *part : _agentPaintOrder)
+		{
+			if (part == this) { later = true; continue; }
+			if (!later || !part->getVisible()) continue;
+			SDL_Rect cover;
+			cover.x = part->getX(); cover.y = part->getY();
+			cover.w = part->getWidth(); cover.h = part->getHeight();
+			for (const SDL_Rect &region : row.regions)
+				if (agentListOverlap(region, cover)) covered = true;
+		}
+		if (!covered) rows.push_back(row);
+	}
+	return true;
+}
+
+void TextList::agentScrollControls(const Surface *&up, const Surface *&down) const
+{
+	up = down = nullptr;
+	if (!Observer::agentWidgetVisible(this) || _agentPaintRevision != _agentListRevision || !_scrolling) return;
+	// Ordinary UI draws both arrows at a boundary. Preserve those no-op clicks,
+	// but a later child (including overlapping arrows in a tiny list) wins.
+	if (Observer::agentWidgetUncovered(_up, _agentPaintOrder)) up = _up;
+	if (Observer::agentWidgetUncovered(_down, _agentPaintOrder)) down = _down;
+}
+
+void TextList::agentPaintOrder(std::vector<Surface *> &out) const
+{
+	out.insert(out.end(), _agentPaintOrder.begin(), _agentPaintOrder.end());
+}
+
+bool TextList::agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state)
+{
+	// Only the audited combo route is enabled. An arbitrary list callback may
+	// require actual input details; semantic actions cannot fabricate them.
+	if (!_comboBox || !_comboBox->agentPopupOpen() || !_selectable || !_bg || !_click.empty()) return false;
+	std::vector<AgentListRow> rows;
+	if (!agentRows(rows)) return false;
+	for (const AgentListRow &row : rows)
+	{
+		if (row.logicalIndex != logicalIndex) continue;
+		const auto physical = std::find(_rows.begin(), _rows.end(), logicalIndex);
+		if (physical == _rows.end() || static_cast<size_t>(physical - _rows.begin()) != logicalIndex) return false;
+		selectPhysicalRow(physical - _rows.begin());
+		activateRow(action, state, SDL_BUTTON_LEFT);
+		return true;
+	}
+	return false;
+}
+#endif
 
 }

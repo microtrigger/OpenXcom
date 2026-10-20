@@ -43,6 +43,15 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool _agentHasGlyph = false, _agentTextClipped = false;
     int _agentInkX1 = 0, _agentInkY1 = 0, _agentInkX2 = 0, _agentInkY2 = 0;
+    // Only TextList may tag the original content before its own decorative
+    // leaders are inserted. This is not a generic partial-text export API.
+    friend class TextList;
+    bool _agentListRange = false, _agentListComplete = false, _agentListHasGlyph = false;
+    size_t _agentListStart = 0, _agentListLength = 0;
+    UString _agentListShown;
+    SDL_Rect _agentListInk = {};
+    void agentMarkListContent(size_t start, size_t length);
+    bool agentListContent(std::string &text, SDL_Rect &ink, bool &hasInk) const;
 #endif
 	Font *_big, *_small, *_font, *_fontOrig;
 	Language *_lang;

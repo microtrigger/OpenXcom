@@ -125,4 +125,56 @@ void FundingState::btnOkClick(Action *)
 	_game->popState();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool FundingState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal) return false;
+    out = Observer::AgentUiState();
+    out.screen = "funding";
+    const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
+    const auto text = [&](const Text *widget) -> std::string
+    {
+        if (!Observer::agentWidgetUncovered(widget, painted)) return "null";
+        const std::string value = Observer::agentTextJson(widget);
+        if (value != "null") Observer::agentIncludeWidget(out, widget);
+        return value;
+    };
+    const std::string title = text(_txtTitle);
+    const std::string country = text(_txtCountry), funding = text(_txtFunding), change = text(_txtChange);
+    Observer::AgentListProjection list;
+    if (!Observer::agentProjectList(_lstCountries, _lstCountries, painted, 3, false, out, list)) return false;
+    out.visible = "{\"title\":" + title + ",\"headings\":[" + country + "," + funding + "," + change +
+        "],\"rows\":" + list.rows + ",\"scroll\":" + list.scroll + "}";
+    if (list.up || list.down)
+        out.actions.push_back(Observer::AgentUiAction("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction"));
+    if (Observer::agentWidgetUncovered(_btnOk, painted))
+    {
+        const std::string label = Observer::agentButtonLabel(_btnOk);
+        if (!label.empty())
+        {
+            out.actions.push_back(Observer::AgentUiAction("close_funding", label, "visible_text"));
+            Observer::agentIncludeWidget(out, _btnOk);
+        }
+    }
+    return true;
+}
+
+bool FundingState::agentDispatch(const Observer::AgentRequest &request)
+{
+    const std::string &action = request.action;
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(action)) return false;
+    if (action == "close_funding") { btnOkClick(nullptr); return true; }
+    if (action == "scroll_visible_list")
+    {
+        Observer::AgentUiState projection;
+        Observer::AgentListProjection list;
+        if (!Observer::agentProjectList(_lstCountries, _lstCountries, Observer::agentFlattenPaintOrder(_surfaces), 3, false, projection, list)) return false;
+        if (request.choice == "up" && list.up) { _lstCountries->scrollUp(false, false); return true; }
+        if (request.choice == "down" && list.down) { _lstCountries->scrollDown(false, false); return true; }
+    }
+    return false;
+}
+#endif
+
 }
