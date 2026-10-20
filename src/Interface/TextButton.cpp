@@ -168,6 +168,10 @@ void TextButton::setText(const std::string &text)
  * Returns the text of the button label.
  * @return Text string.
  */
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+std::uint64_t TextButton::agentLabelRevision() const { return _text->agentTextRevision(); }
+#endif
+
 std::string TextButton::getText() const
 {
 	return _text->getText();

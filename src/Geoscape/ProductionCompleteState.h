@@ -37,6 +37,12 @@ class GeoscapeState;
 class ProductionCompleteState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Base *_base;
 	GeoscapeState *_state;
 
@@ -49,6 +55,11 @@ public:
 	ProductionCompleteState(Base *base, const std::string &item, GeoscapeState *state, productionProgress_e endType = PROGRESS_COMPLETE);
 	/// Cleans up the Production Complete state.
 	~ProductionCompleteState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
 	/// Handler for clicking the Go To Base button.

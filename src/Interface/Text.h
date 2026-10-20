@@ -20,6 +20,9 @@
 #include "../Engine/InteractiveSurface.h"
 #include <vector>
 #include <string>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#endif
 #include "../Engine/Unicode.h"
 
 namespace OpenXcom
@@ -42,6 +45,15 @@ class Text : public InteractiveSurface
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool _agentHasGlyph = false, _agentTextClipped = false;
+    std::uint64_t _agentTextRevision = 0;
+    // Opt-in only for ErrorMessageState. Captures the typed prefix in its
+    // original draw positions before SMALLLINE; never a second text layout.
+    struct AgentHeadingPixel { Sint16 x, y; Uint8 value; };
+    bool _agentErrorHeading = false, _agentHeadingComplete = false, _agentHeadingHasGlyph = false;
+    std::string _agentHeadingText;
+    SDL_Rect _agentHeadingInk = {};
+    std::vector<AgentHeadingPixel> _agentHeadingPixels;
+    void agentCaptureErrorHeading();
     int _agentInkX1 = 0, _agentInkY1 = 0, _agentInkX2 = 0, _agentInkY2 = 0;
     // Only TextList may tag the original content before its own decorative
     // leaders are inserted. This is not a generic partial-text export API.
@@ -71,6 +83,9 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentTextComplete() const { return !_agentTextClipped && !_scroll; }
+    std::uint64_t agentTextRevision() const { return _agentTextRevision; }
+    void agentEnableErrorHeading() { _agentErrorHeading = true; _redraw = true; }
+    bool agentErrorHeading(std::string &text, SDL_Rect &ink) const;
     bool agentPaintedBounds(SDL_Rect &rect) const;
 #endif
 	/// Creates a new text with the specified size and position.

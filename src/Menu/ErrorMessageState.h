@@ -37,6 +37,12 @@ private:
 	Window *_window;
 	Text *_txtMessage;
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentPaintTextRevisions;
+    std::vector<std::uint64_t> agentPaintTextRevisions() const;
+    bool agentDestinationFull() const;
+#endif
 	void create(const std::string &str, SDL_Color *palette, Uint8 color, const std::string &bg, int bgColor);
 public:
 	/// Creates the Error state.
@@ -44,6 +50,7 @@ public:
 	/// Cleans up the Error state.
 	~ErrorMessageState();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
 	/// Describes the rendered error message and visible dismiss control.
 	bool agentUiState(Observer::AgentUiState &out) const override;
 	/// Invokes the ordinary handler only for a currently offered action.

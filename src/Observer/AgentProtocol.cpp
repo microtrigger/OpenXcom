@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/21"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/22"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/21\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/22\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -56,7 +56,10 @@ bool agentActionId(const std::string &value)
         value == "close_production_list" || value == "change_production_quantity" ||
         value == "set_production_sell" || value == "open_purchase" || value == "change_purchase_quantity" ||
         value == "accept_purchase" || value == "cancel_purchase" || value == "open_purchase_category" ||
-        value == "scroll_purchase" || value == "position_purchase_list";
+        value == "scroll_purchase" || value == "position_purchase_list" ||
+        value == "dismiss_items_arriving" || value == "open_arrival_base" ||
+        value == "dismiss_production_complete" || value == "open_production_destination" ||
+        value == "dismiss_ufo_contact";
 }
 const char *agentArgumentKind(const std::string &action)
 {

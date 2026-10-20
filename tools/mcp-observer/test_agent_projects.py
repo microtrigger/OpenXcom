@@ -51,8 +51,8 @@ def sized_project(size):
 
 class ProjectsContractTests(unittest.TestCase):
     def test_wire_catalog_limits_and_exact_new_kinds(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/21')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(91,38,4))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/22')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(96,41,4))
         self.assertEqual(len(NEW_STATES),7);self.assertEqual(len(NEW_ACTIONS),16)
         typed={'select_research_project':'project_row','select_production_project':'project_row',
                'adjust_scientists':'staff_direction','adjust_engineers':'staff_direction'}
@@ -60,7 +60,7 @@ class ProjectsContractTests(unittest.TestCase):
         self.assertEqual((a.MAX_COMMANDS,a.EVENT_CAPACITY,a.MAX_TEXT_PACKET,a.MAX_PACKET),(256,256,32768,49152))
 
     def test_every_prior_wire_rejected(self):
-        for version in range(1,21):
+        for version in range(1,22):
             obj=state(screen='research');obj['schema']=f'openxcom-agent-control/{version}'
             with self.subTest(version=version),self.assertRaises(Unavailable):checked(obj)
             with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))

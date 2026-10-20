@@ -25,6 +25,9 @@
 #include "../Engine/ShaderDraw.h"
 #include "../Engine/ShaderMove.h"
 #include "../Engine/Action.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -101,6 +104,9 @@ void Text::initText(Font *big, Font *small, Language *lang)
 void Text::setText(const std::string &text)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_text != text) ++_agentTextRevision;
+    _agentHeadingComplete = false;
+    _agentHeadingText.clear(); _agentHeadingPixels.clear();
     // Any explicit replacement removes the old TextList provenance marker.
     _agentListRange = _agentListComplete = false;
 #endif
@@ -489,6 +495,15 @@ void Text::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentHasGlyph = _agentTextClipped = false;
+    _agentHeadingComplete = _agentHeadingHasGlyph = false;
+    _agentHeadingPixels.clear(); _agentHeadingText.clear(); _agentHeadingInk = SDL_Rect();
+    const size_t headingEnd = _text.find(Unicode::TOK_NL_SMALL);
+    if (_agentErrorHeading && !_scroll && headingEnd != std::string::npos && headingEnd > 0 && headingEnd <= 1024)
+    {
+        _agentHeadingText = _text.substr(0, headingEnd);
+        _agentHeadingComplete = true;
+    }
+    bool headingContent = _agentHeadingComplete;
     _agentListShown.clear(); _agentListHasGlyph = false; _agentListInk = SDL_Rect();
     _agentListComplete = _agentListRange && !_wrap && !_scroll && _lineWidth.size() == 1 &&
         _agentListStart <= _processedText.size() && _agentListLength <= _processedText.size() - _agentListStart &&
@@ -585,6 +600,10 @@ void Text::draw()
 			x = getLineX(line);
 			if (*c == Unicode::TOK_NL_SMALL)
 			{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                if (headingContent) agentCaptureErrorHeading();
+                headingContent = false;
+#endif
 				font = _small;
 			}
 		}
@@ -603,6 +622,7 @@ void Text::draw()
             if (!font->agentHasGlyph(*c))
             {
                 _agentTextClipped = true;
+                if (headingContent) _agentHeadingComplete = false;
                 if (listContent) _agentListComplete = false;
             }
 #endif
@@ -617,6 +637,7 @@ void Text::draw()
             if (!font->agentGlyphInk(painted, ink))
             {
                 _agentTextClipped = true;
+                if (headingContent) _agentHeadingComplete = false;
                 if (listContent) _agentListComplete = false;
             }
             else
@@ -625,7 +646,21 @@ void Text::draw()
                 if (inkX < 0 || inkY < 0 || inkX+ink.w > getWidth() || inkY+ink.h > getHeight())
                 {
                     _agentTextClipped=true;
+                    if (headingContent) _agentHeadingComplete=false;
                     if (listContent) _agentListComplete=false;
+                }
+                if (headingContent)
+                {
+                    if (!_agentHeadingHasGlyph) _agentHeadingInk = SDL_Rect{Sint16(inkX), Sint16(inkY), ink.w, ink.h};
+                    else
+                    {
+                        const int right=std::max(int(_agentHeadingInk.x+_agentHeadingInk.w),inkX+ink.w);
+                        const int bottom=std::max(int(_agentHeadingInk.y+_agentHeadingInk.h),inkY+ink.h);
+                        _agentHeadingInk.x=std::min(int(_agentHeadingInk.x),inkX);
+                        _agentHeadingInk.y=std::min(int(_agentHeadingInk.y),inkY);
+                        _agentHeadingInk.w=right-_agentHeadingInk.x; _agentHeadingInk.h=bottom-_agentHeadingInk.y;
+                    }
+                    _agentHeadingHasGlyph=true;
                 }
                 if (listContent)
                 {
@@ -663,6 +698,50 @@ void Text::draw()
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void Text::agentCaptureErrorHeading()
+{
+    if (!_agentHeadingComplete || !_agentHeadingHasGlyph || getWidth() > 640 || getHeight() > 400 ||
+        _agentHeadingInk.x < 0 || _agentHeadingInk.y < 0 || !_agentHeadingInk.w || !_agentHeadingInk.h ||
+        _agentHeadingInk.x+_agentHeadingInk.w > getWidth() || _agentHeadingInk.y+_agentHeadingInk.h > getHeight() ||
+        size_t(_agentHeadingInk.w)*_agentHeadingInk.h > 65536 || !_surface || !_surface->format ||
+        _surface->format->BitsPerPixel != 8 || !(_surface->flags & SDL_SRCCOLORKEY) ||
+        _surface->format->colorkey != 0 || (_surface->flags & SDL_SRCALPHA) ||
+        _surface->clip_rect.x || _surface->clip_rect.y || _surface->clip_rect.w != getWidth() ||
+        _surface->clip_rect.h != getHeight())
+    { _agentHeadingComplete=false; return; }
+    if (Observer::agentObservePaint(SDL_LockSurface(_surface)) < 0)
+    { _agentHeadingComplete=false; return; }
+    // Read only the just-painted typed heading rectangle. Its provenance is
+    // the glyph loop above; this is not a screen text detector/classifier.
+    for (int y=_agentHeadingInk.y; y<_agentHeadingInk.y+_agentHeadingInk.h; ++y)
+        for (int x=_agentHeadingInk.x; x<_agentHeadingInk.x+_agentHeadingInk.w; ++x)
+            if (const Uint8 value=getPixel(x,y))
+            {
+                if (_agentHeadingPixels.size() == 8192) { _agentHeadingComplete=false; break; }
+                _agentHeadingPixels.push_back({Sint16(x),Sint16(y),value});
+            }
+    SDL_UnlockSurface(_surface);
+    if (_agentHeadingPixels.empty()) _agentHeadingComplete=false;
+}
+
+bool Text::agentErrorHeading(std::string &text, SDL_Rect &ink) const
+{
+    if (!_agentErrorHeading || !_agentHeadingComplete || !_agentHeadingHasGlyph || _agentHeadingPixels.empty() ||
+        !agentContextVisible() || !Observer::agentPaintHealthy() || _agentHeadingText.empty() ||
+        _agentHeadingText.size()>1024 || !_surface || !_surface->format || _surface->format->BitsPerPixel!=8 ||
+        !(_surface->flags & SDL_SRCCOLORKEY) || _surface->format->colorkey!=0 || (_surface->flags & SDL_SRCALPHA) ||
+        _surface->clip_rect.x || _surface->clip_rect.y || _surface->clip_rect.w!=getWidth() ||
+        _surface->clip_rect.h!=getHeight()) return false;
+    if (Observer::agentObservePaint(SDL_LockSurface(_surface)) < 0) return false;
+    bool unchanged=true;
+    for (const AgentHeadingPixel &pixel : _agentHeadingPixels)
+        if (getPixel(pixel.x,pixel.y)!=pixel.value) { unchanged=false; break; }
+    SDL_UnlockSurface(_surface);
+    if (!unchanged) return false;
+    text=_agentHeadingText; ink=_agentHeadingInk; ink.x+=getX(); ink.y+=getY();
+    return true;
+}
+
 void Text::agentMarkListContent(size_t start, size_t length)
 {
     _agentListRange=true; _agentListComplete=false;

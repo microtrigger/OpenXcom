@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/21'
+SCHEMA = 'openxcom-agent-control/22'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -58,7 +58,9 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'open_manufacture', 'open_new_production', 'select_production_project', 'start_production',
            'cancel_production_start', 'adjust_engineers', 'accept_production', 'stop_production', 'close_production_list',
            'change_production_quantity', 'set_production_sell', 'open_purchase', 'change_purchase_quantity',
-           'accept_purchase', 'cancel_purchase', 'open_purchase_category', 'scroll_purchase', 'position_purchase_list')
+           'accept_purchase', 'cancel_purchase', 'open_purchase_category', 'scroll_purchase', 'position_purchase_list',
+           'dismiss_items_arriving', 'open_arrival_base', 'dismiss_production_complete',
+           'open_production_destination', 'dismiss_ufo_contact')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -102,6 +104,12 @@ PURCHASE_AMOUNTS = ('step', 'page', 'end')
 QUANTITY_SEMANTIC_LABELS = {'change_production_quantity': 'Change production quantity',
     'change_purchase_quantity': 'Change purchase quantity', 'scroll_purchase': 'Scroll purchase list',
     'position_purchase_list': 'Position purchase list'}
+COMPLETION_BUTTONS = {'items_arriving': ('ok', 'go_to_base'),
+    'production_complete': ('ok', 'destination'), 'ufo_contact': ('intercept', 'center', 'cancel')}
+COMPLETION_BUTTON_ACTIONS = {
+    'items_arriving': {'dismiss_items_arriving': 'ok', 'open_arrival_base': 'go_to_base'},
+    'production_complete': {'dismiss_production_complete': 'ok', 'open_production_destination': 'destination'},
+    'ufo_contact': {'dismiss_ufo_contact': 'cancel'}}
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
@@ -128,7 +136,7 @@ STATE_FIELDS = {
     'pause_menu': ('title',),
     'load_list': ('title', 'name_heading', 'date_heading', 'details'),
     'save_list': ('title', 'name_heading', 'date_heading', 'details'),
-    'error_message': ('message',),
+    'error_message': ('message', 'heading'),
     'infobox': ('message',),
     'infobox_ok': ('message',),
     'battlescape_warning': ('message',),
@@ -165,6 +173,9 @@ STATE_ACTIONS = {
     'purchase': frozenset(('change_purchase_quantity', 'accept_purchase', 'cancel_purchase',
                            'open_purchase_category', 'scroll_purchase', 'position_purchase_list')),
     'purchase_category': frozenset(('choose_visible_row', 'scroll_visible_list', 'close_dropdown')),
+    'items_arriving': frozenset(('dismiss_items_arriving', 'open_arrival_base', 'scroll_visible_list')),
+    'production_complete': frozenset(('dismiss_production_complete', 'open_production_destination')),
+    'ufo_contact': frozenset(('dismiss_ufo_contact',)),
     'options_shell': frozenset(('cancel_menu',)),
     'pause_menu': frozenset(('open_load_game', 'open_save_game', 'open_options', 'resume_game')),
     'load_list': frozenset(('cancel_menu',)),
@@ -455,6 +466,30 @@ def validate_purchase(visible, actions):
     require('position_purchase_list' not in actions or scrollbar is not None)
     require('scroll_purchase' not in actions or any(visible['scroll'].values()))
     for action, button in (('accept_purchase', 'accept'), ('cancel_purchase', 'cancel')):
+        require(action not in actions or button in shown)
+
+
+
+def validate_completion(screen, visible, actions):
+    if screen == 'items_arriving':
+        exact(visible, 'title headings rows scroll buttons')
+        validate_base_table({key: visible[key] for key in ('title', 'headings', 'rows', 'scroll')}, actions)
+    elif screen == 'production_complete':
+        exact(visible, 'message buttons')
+        strategy_text(visible['message'], nullable=True)
+    else:
+        exact(visible, 'title detected_label hyperwave_label details_status buttons')
+        for key in ('title', 'detected_label', 'hyperwave_label'):
+            strategy_text(visible[key], nullable=True)
+        require(visible['details_status'] == 'unavailable')
+    buttons = visible['buttons']
+    require(type(buttons) is list and len(buttons) <= len(COMPLETION_BUTTONS[screen]))
+    ordered_subset([button.get('id') if type(button) is dict else None for button in buttons], COMPLETION_BUTTONS[screen])
+    for button in buttons:
+        exact(button, 'id label')
+        strategy_text(button['label']); require(bool(button['label']))
+    shown = {button['id'] for button in buttons}
+    for action, button in COMPLETION_BUTTON_ACTIONS[screen].items():
         require(action not in actions or button in shown)
 
 
@@ -751,6 +786,8 @@ def validate_visible(screen, visible, seen):
         validate_base_table(visible, seen)
     elif screen == 'purchase':
         validate_purchase(visible, seen)
+    elif screen in COMPLETION_BUTTONS:
+        validate_completion(screen, visible, seen)
     elif screen in ('new_battle_dropdown', 'funding', 'purchase_category'):
         validate_visible_list(visible, seen, funding=screen == 'funding', purchase_category=screen == 'purchase_category')
     elif screen == 'build_base':
@@ -758,6 +795,9 @@ def validate_visible(screen, visible, seen):
     elif screen in STATE_FIELDS:
         exact(visible, ' '.join(STATE_FIELDS[screen]))
         for text in visible.values(): visible_text(text, nullable=True)
+        if screen == 'error_message':
+            strategy_text(visible['heading'], nullable=True)
+            require(visible['heading'] is None or (bool(visible['heading']) and '\x02' not in visible['heading']))
         if screen == 'new_battle':
             require('open_new_battle_choice' not in seen or any(value is not None for value in visible.values()))
     else:
@@ -833,6 +873,13 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
             elif action in ('choose_visible_row', 'scroll_visible_list', 'close_dropdown'):
                 expected = {'choose_visible_row': 'Choose visible row', 'scroll_visible_list': 'Scroll visible list', 'close_dropdown': 'Close choices'}[action]
             if expected is not None: require(descriptor['label'] == expected)
+    if obj['state'] in COMPLETION_BUTTONS:
+        labels = {button['id']: button['label'] for button in obj['visible']['buttons']}
+        for descriptor in obj['actions']:
+            strategy_text(descriptor['label'])
+            expected = ('Scroll visible list' if descriptor['id'] == 'scroll_visible_list' else
+                        labels[COMPLETION_BUTTON_ACTIONS[obj['state']][descriptor['id']]])
+            require(descriptor['label'] == expected)
     # An empty/unsupported catalog never authorizes an action.
     if not seen:
         require(obj['capability'] is None)
@@ -1089,7 +1136,7 @@ def definitions():
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /21: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes shown time-speed controls, Funding, Bases and Pause. Base screens expose painted local selection slots, displayed metrics and read-only Stores/Transfers projections. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered Fire/Prime/Throw rows through choose_weapon_action; the tactical grenade timer exposes only fully shown button labels and fresh local tN handles; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Inventory exposes the two painted hands, shown stock body cells and current painted ground page through local vN targets, actual shown text and held-sprite evidence; unknown item/held projection never asserts emptiness or eligibility. Standalone hover obtains ordinary rendered inspection text. Tactical viewport controls add ordinary view-level, layer-mode, camera pan and vertical-unit commands; layers_indicator1/2 is the painted display mode, never a world level. The minimap exposes its actual level label, bounded draw-derived terrain rectangles and generic unit/item markers with fresh local mN center targets; these reveal no identity, faction, world position, legal destination or item contents. Research and Manufacture expose bounded current/new project lists, actual displayed allocation/details and explicit ordinary accept/cancel/stop controls. New Research rows are in top-to-bottom admitted ordinary click-band order. A null first cell is an admitted row control with unavailable complete text, never a project name; select_research_project has the semantic label Select research project there. Other project tables retain complete string cells. Project labels and grant-local rows reveal no stable identity or hidden recipe; rendered counts remain text, without computed eligibility. Unsupported screens have an empty catalog. Manufacture additionally exposes shown quantity direction controls and Sell state. Purchase exposes bounded nullable displayed cells independently of shown quantity arrows, a category dropdown and local scroll-position targets. Empty or unknown text never establishes item identity, stock or eligibility. No campaign save/load/overwrite, file rows, arbitrary settings or unlisted strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /22: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes shown time-speed controls, Funding, Bases and Pause. Base screens expose painted local selection slots, displayed metrics and read-only Stores/Transfers projections. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered Fire/Prime/Throw rows through choose_weapon_action; the tactical grenade timer exposes only fully shown button labels and fresh local tN handles; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Inventory exposes the two painted hands, shown stock body cells and current painted ground page through local vN targets, actual shown text and held-sprite evidence; unknown item/held projection never asserts emptiness or eligibility. Standalone hover obtains ordinary rendered inspection text. Tactical viewport controls add ordinary view-level, layer-mode, camera pan and vertical-unit commands; layers_indicator1/2 is the painted display mode, never a world level. The minimap exposes its actual level label, bounded draw-derived terrain rectangles and generic unit/item markers with fresh local mN center targets; these reveal no identity, faction, world position, legal destination or item contents. Research and Manufacture expose bounded current/new project lists, actual displayed allocation/details and explicit ordinary accept/cancel/stop controls. New Research rows are in top-to-bottom admitted ordinary click-band order. A null first cell is an admitted row control with unavailable complete text, never a project name; select_research_project has the semantic label Select research project there. Other project tables retain complete string cells. Project labels and grant-local rows reveal no stable identity or hidden recipe; rendered counts remain text, without computed eligibility. Unsupported screens have an empty catalog. Manufacture additionally exposes shown quantity direction controls and Sell state. Purchase exposes bounded nullable displayed cells independently of shown quantity arrows, a category dropdown and local scroll-position targets. Empty or unknown text never establishes item identity, stock or eligibility. Strategic arrivals expose only the painted read-only table and ordinary OK/Go To Base controls. Production completion exposes the shown message and ordinary destination label, without a hidden completion enum. UFO contact exposes nullable shown labels and independently admitted buttons; only Cancel is actionable and the contact detail table stays unavailable. Error messages add an independently proved nullable heading, never reconstruction of a clipped message. No campaign save/load/overwrite, file rows, arbitrary settings or unlisted strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
@@ -1259,7 +1306,7 @@ class AgentControlClient:
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
                 if obj['state'] in ('new_battle_dropdown', 'purchase_category'):
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
-                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'funding', 'base_stores', 'base_transfers', 'manufacture_start') or obj['state'] in PROJECT_LISTS:
+                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving') or obj['state'] in PROJECT_LISTS:
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
                 if obj['state'] == 'geoscape':
                     self.geoscape_speeds = frozenset(speed['handle'] for speed in obj['visible']['speeds'])

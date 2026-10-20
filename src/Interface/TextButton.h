@@ -85,6 +85,7 @@ public:
 	std::string agentLabel(int rightInset = 0) const;
 	/// Reads the pressed appearance captured by the completed ordinary draw.
 	bool agentPressed(bool &pressed) const;
+	std::uint64_t agentLabelRevision() const;
 	std::uint64_t agentSelectionRevision() const { return _agentSelectionRevision; }
 #endif
 	/// Sets the text button's group.

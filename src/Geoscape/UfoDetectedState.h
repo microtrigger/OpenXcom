@@ -35,6 +35,12 @@ class GeoscapeState;
 class UfoDetectedState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Ufo *_ufo;
 	GeoscapeState *_state;
 
@@ -47,6 +53,11 @@ public:
 	UfoDetectedState(Ufo *ufo, GeoscapeState *state, bool detected, bool hyperwave);
 	/// Cleans up the Ufo Detected state.
 	~UfoDetectedState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Handler for clicking the Intercept button.
 	void btnInterceptClick(Action *action);
 	/// Handler for clicking the Centre on UFO button.

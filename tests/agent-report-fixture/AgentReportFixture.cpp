@@ -33,7 +33,7 @@
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
 bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false, missionContext = false;
-bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false;
+bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false, completionCampaign = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -55,10 +55,11 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1" || std::string(argv[i+1])=="completion-medikit-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
-        manufactureCampaign=std::string(argv[i+1])=="manufacture-medikit-v1";
+        completionCampaign=std::string(argv[i+1])=="completion-medikit-v1";
+        manufactureCampaign=completionCampaign || std::string(argv[i+1])=="manufacture-medikit-v1";
         inventoryPaging=std::string(argv[i+1])=="inventory-paging-v1";
         inventoryBody=inventoryPaging || std::string(argv[i+1])=="inventory-body-v1";
         missionContext=std::string(argv[i+1])=="gameplay-mission-v1";
@@ -89,7 +90,7 @@ bool start(Game *game)
         std::unique_ptr<SavedGame> campaign(mod->newSave());
         require(campaign && campaign->getBases()->size()==1 && campaign->getDiscoveredResearch().empty());
         Base *base=campaign->getBases()->front();
-        base->setName("MCP Manufacture");
+        base->setName(completionCampaign ? "MCP19" : "MCP Manufacture");
         // Fixed setup sites only, withheld from the playing controller. Match
         // ordinary first-base placement by keeping home crafts at the base.
         const double longitude=underwater?0.0:0.15, latitude=underwater?0.0:-0.85;
