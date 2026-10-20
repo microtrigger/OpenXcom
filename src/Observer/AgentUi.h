@@ -28,6 +28,8 @@ struct AgentUiState {
     bool displayedMessageAbsent = false;
     // Transient final-frame evidence; excluded from payload and action binding.
     AgentProjectileFact projectileFact = AgentProjectileFact::Unknown;
+    AgentProjectileFact impactFact = AgentProjectileFact::Unknown;
+    AgentProjectileFact collapseFact = AgentProjectileFact::Unknown;
     std::vector<AgentUiAction> actions;
     // Visible projection regions: private geometry binding and overlay checks.
     std::vector<AgentUiRect> regions;

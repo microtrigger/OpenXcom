@@ -12,7 +12,7 @@ from test_agent_events import page, presentation, validate
 
 class DebriefProjectionTests(unittest.TestCase):
     def test_identity_counts_and_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/9')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/10')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (39, 23, 4))
         self.assertEqual(a.STATE_ACTIONS['debriefing'], {'close_debriefing'})
         self.assertEqual(a.ARGUMENT_KINDS['close_debriefing'], 'none')
@@ -85,7 +85,7 @@ class DebriefProjectionTests(unittest.TestCase):
         with self.assertRaises(Unavailable): a.validate_result(dump(obj), COMMAND, EPOCH)
 
     def test_every_prior_identity_rejected(self):
-        for version in range(1, 9):
+        for version in range(1, 10):
             old = f'openxcom-agent-control/{version}'
             with self.subTest(version=version):
                 with self.assertRaises(Unavailable): a.validate_hello(dump(dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')))

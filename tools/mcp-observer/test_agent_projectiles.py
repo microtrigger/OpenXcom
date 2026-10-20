@@ -21,7 +21,7 @@ def projectile(seq=1):
 
 class ProjectileValidationTests(unittest.TestCase):
     def test_exact_protocol_catalog_counts_and_limits_unchanged(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/9')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/10')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (39, 23, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_REQUEST, a.MAX_TEXT_PACKET, a.MAX_PACKET), (512, 32768, 49152))
@@ -88,7 +88,7 @@ class ProjectileValidationTests(unittest.TestCase):
         with self.assertRaises(Unavailable): a.validate_events(raw, CHALLENGE, EPOCH, 0, 16, 'mixed_output')
 
     def test_all_earlier_response_identities_reject(self):
-        for version in range(1, 9):
+        for version in range(1, 10):
             schema = f'openxcom-agent-control/{version}'
             hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')
             with self.subTest(version=version), self.assertRaises(Unavailable): a.validate_hello(dump(hello))

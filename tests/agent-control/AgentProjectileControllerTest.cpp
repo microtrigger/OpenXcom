@@ -23,7 +23,7 @@ static bool has(const std::string&s,const char*x){return s.find(x)!=std::string:
 static std::string token(unsigned n){std::ostringstream o;o<<std::hex<<std::setw(32)<<std::setfill('0')<<n;return o.str();}
 struct Harness {
  int peer=-1;State state;Game game;std::unique_ptr<AgentController> c;std::string epoch,grant,packet,id;
- Harness(){focus=SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS;mods=KMOD_NONE;buttons=0;pendingInput=false;agentTestTime+=10000;int f[2];check(socketpair(AF_UNIX,SOCK_SEQPACKET,0,f)==0,"private socketpair");peer=f[1];setenv("OPENXCOM_AGENT_CONTROL","1",1);setenv("OPENXCOM_AGENT_CONTROL_FD",std::to_string(f[0]).c_str(),1);unsetenv("OPENXCOM_STANCE_FD");game.top=&state;state.ui.screen="debriefing";state.ui.visible="{\"value\":0}";state.ui.points={{16,20}};state.ui.context={1};state.ui.actions.emplace_back("close_debriefing","OK","visible_text","none");c.reset(new AgentController(&game));epoch=field(receive(),"epoch");send("H openxcom-agent-control/9");c->poll();check(has(receive(),"\"ready\""),"ready handshake");read();}
+ Harness(){focus=SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS;mods=KMOD_NONE;buttons=0;pendingInput=false;agentTestTime+=10000;int f[2];check(socketpair(AF_UNIX,SOCK_SEQPACKET,0,f)==0,"private socketpair");peer=f[1];setenv("OPENXCOM_AGENT_CONTROL","1",1);setenv("OPENXCOM_AGENT_CONTROL_FD",std::to_string(f[0]).c_str(),1);unsetenv("OPENXCOM_STANCE_FD");game.top=&state;state.ui.screen="debriefing";state.ui.visible="{\"value\":0}";state.ui.points={{16,20}};state.ui.context={1};state.ui.actions.emplace_back("close_debriefing","OK","visible_text","none");c.reset(new AgentController(&game));epoch=field(receive(),"epoch");send("H openxcom-agent-control/10");c->poll();check(has(receive(),"\"ready\""),"ready handshake");read();}
  ~Harness(){c.reset();if(peer>=0)::close(peer);}
  void send(const std::string&s){check(::send(peer,s.data(),s.size(),0)==ssize_t(s.size()),"whole packet sent");}
  std::string receive(){char b[49152];auto n=recv(peer,b,sizeof(b),MSG_DONTWAIT);if(n<0){check(errno==EAGAIN||errno==EWOULDBLOCK,"nonblocking receive");return "";}return n?std::string(b,n):"EOF";}
@@ -79,6 +79,29 @@ int main(){
  {Harness h;h.queue();h.state.handler=[&](const AgentRequest&){h.state.ui.projectileFact=AgentProjectileFact::Presented;h.c->beginFrame();h.c->presented();};
    h.frame();h.send("V "+token(94)+" "+h.epoch+" 0 16");h.c->poll();check(!has(h.receive(),"projectile_presented"),"reentrant handler frame cannot emit event");
    h.frame();check(has(h.receive(),"dispatched"),"later frame completes handler");h.send("V "+token(95)+" "+h.epoch+" 0 16");h.c->poll();check(has(h.receive(),"projectile_presented"),"later nonreentrant frame emits event");
+ }
+
+ for (int kind=0;kind<2;++kind) {
+  Harness h; auto &fact=kind?h.state.ui.collapseFact:h.state.ui.impactFact;
+  const char *name=kind?"collapse_animation_presented":"impact_effect_presented";
+  const auto binding=h.state.ui;fact=AgentProjectileFact::Presented;
+  check(h.state.ui.sameBinding(binding)&&h.state.ui.payload()==binding.payload(),"new renderer fact has no control authority");
+  h.frame();h.send("V "+token(96)+" "+h.epoch+" 0 16");h.c->poll();auto first=h.receive();check(has(first,name),"new kind retained through real controller");
+  h.queue();h.frame();h.frame();check(has(h.receive(),"dispatched"),"new kinds preserve R-V-E queued grant");
+  h.send("V "+token(97)+" "+h.epoch+" 0 16");h.c->poll();check(field(first,"newest")==field(h.receive(),"newest"),"new kinds dedup unchanged frames");
+ }
+ for (int kind=0;kind<2;++kind) {
+  Harness h;auto &fact=kind?h.state.ui.collapseFact:h.state.ui.impactFact;
+  const char *name=kind?"collapse_animation_presented":"impact_effect_presented";
+  fact=AgentProjectileFact::Presented;h.game.screen.ready=false;h.frame();h.game.screen.ready=true;
+  h.send("V "+token(96)+" "+h.epoch+" 0 16");h.c->poll();check(!has(h.receive(),name),"failed final frame suppresses new kind");
+ }
+ for (int kind=0;kind<2;++kind) {
+  Harness h;auto &fact=kind?h.state.ui.collapseFact:h.state.ui.impactFact;
+  const char *name=kind?"collapse_animation_presented":"impact_effect_presented";
+  h.queue();h.state.handler=[&](const AgentRequest&){fact=AgentProjectileFact::Presented;h.c->beginFrame();h.c->presented();};
+  h.frame();h.send("V "+token(96)+" "+h.epoch+" 0 16");h.c->poll();check(!has(h.receive(),name),"reentrant handler cannot publish new kind");
+  h.frame();check(has(h.receive(),"dispatched"),"new kind result waits for later frame");h.send("V "+token(97)+" "+h.epoch+" 0 16");h.c->poll();check(has(h.receive(),name),"later final frame commits new kind");
  }
  {Harness h;h.queue();agentObservePaint(-1);h.frame();check(!h.state.calls&&!h.c->enabled(),"paint failure prevents deferred dispatch");}
  std::cout<<"AgentProjectileControllerTest PASS "<<checks<<" checks\n";return 0;

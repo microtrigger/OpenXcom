@@ -66,7 +66,7 @@ class Map : public InteractiveSurface
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     AgentMapSnapshot _agentDrawSnapshot;
-    Observer::AgentProjectileWitness _agentProjectileWitness;
+    Observer::AgentProjectileWitness _agentProjectileWitness, _agentImpactWitness, _agentCollapseWitness;
     Observer::AgentProjectileRaster _agentProjectileRaster;
     bool _agentDrawSnapshotReady = false;
     std::uint64_t _agentDrawViewRevision = 0;
@@ -109,7 +109,8 @@ public:
     // presentation and later overlays before exporting this viewport.
     bool agentMapSnapshot(AgentMapSnapshot &out) const;
     Observer::AgentProjectileFact agentProjectileFact(const Screen *screen,
-        const std::function<bool(int, int)> &pixelAdmitted) const;
+        const std::function<bool(int, int)> &pixelAdmitted,
+        Observer::AgentRendererRole role = Observer::AgentRendererRole::Projectile) const;
 #endif
 	/// Creates a new map at the specified position and size.
 	Map(Game* game, int width, int height, int x, int y, int visibleMapHeight);

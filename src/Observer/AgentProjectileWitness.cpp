@@ -94,23 +94,30 @@ AgentProjectileFact AgentProjectileWitness::evaluate(bool admitted,
 }
 bool AgentProjectileRaster::begin(AgentProjectileWitness &witness, void *bytes, int width, int height, int pitch)
 {
-    _witness = &witness; _body = false; _begin = 0; _span = 0;
+    return begin({{&witness, nullptr, nullptr}}, bytes, width, height, pitch);
+}
+bool AgentProjectileRaster::begin(const std::array<AgentProjectileWitness *, 3> &witnesses,
+    void *bytes, int width, int height, int pitch)
+{
+    _witnesses = witnesses; _role = AgentRendererRole::Ordinary; _begin = 0; _span = 0;
     const std::uintptr_t begin = reinterpret_cast<std::uintptr_t>(bytes);
     if (!bytes || width <= 0 || height <= 0 || width > AgentProjectileWitness::MaxWidth ||
         height > AgentProjectileWitness::MaxHeight || pitch < width || pitch > 4096 ||
-        begin > std::numeric_limits<std::uintptr_t>::max() - std::size_t(pitch) * height ||
-        !witness.begin(width, height)) { witness.invalidate(); return false; }
+        begin > std::numeric_limits<std::uintptr_t>::max() - std::size_t(pitch) * height)
+        { unknownWrite(); return false; }
+    for (auto *w : _witnesses)
+        if (w && !w->begin(width, height)) { unknownWrite(); return false; }
     _begin = begin; _span = std::size_t(pitch) * height;
     _width = width; _height = height; _pitch = pitch; return true;
 }
 void AgentProjectileRaster::wrote(const void *address, std::uint8_t before, std::uint8_t after)
 {
-    if (!_witness) return;
     const std::uintptr_t p = reinterpret_cast<std::uintptr_t>(address);
     if (!_begin || p < _begin || p - _begin >= _span) { unknownWrite(); return; }
     const std::size_t offset = p - _begin;
     const int x = offset % _pitch, y = offset / _pitch;
     if (x >= _width || y >= _height) { unknownWrite(); return; }
-    _witness->wrote(x, y, before, after, _body);
+    for (unsigned i = 0; i < _witnesses.size(); ++i)
+        if (_witnesses[i]) _witnesses[i]->wrote(x, y, before, after, int(_role) == int(i));
 }
 } }

@@ -2738,8 +2738,12 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
     // missing/clipped/covered message must not disclose Hidden Movement.
     if (!agentMapModeAdmitted(view, label != "null", count)) return unavailable;
     if (!view.hiddenMovement)
-        ui.projectileFact = map->agentProjectileFact(game->getScreen(),
-            [&](int x, int y) { return clear(x, y, 1, 1); });
+    {
+        const auto admitted = [&](int x, int y) { return clear(x, y, 1, 1); };
+        ui.projectileFact = map->agentProjectileFact(game->getScreen(), admitted);
+        ui.impactFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::Impact);
+        ui.collapseFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::Collapse);
+    }
     return std::string("{\"mode\":\"") + (view.hiddenMovement ? "hidden_movement" : "map") +
         "\",\"viewport\":{\"x\":" + std::to_string(view.x) + ",\"y\":" + std::to_string(view.y) +
         ",\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +

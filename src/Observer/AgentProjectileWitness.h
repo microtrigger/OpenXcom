@@ -51,18 +51,22 @@ private:
 
 // Map-local actual-write adapter. Addresses are checked numerically against a
 // bounded byte layout; no source surface, object identity or draw IDs survive.
+enum class AgentRendererRole { Ordinary = -1, Projectile = 0, Impact = 1, Collapse = 2 };
 class AgentProjectileRaster
 {
-    AgentProjectileWitness *_witness = nullptr;
+    std::array<AgentProjectileWitness *, 3> _witnesses = {{nullptr, nullptr, nullptr}};
     std::uintptr_t _begin = 0;
     std::size_t _span = 0;
     int _width = 0, _height = 0, _pitch = 0;
-    bool _body = false;
+    AgentRendererRole _role = AgentRendererRole::Ordinary;
 public:
     bool begin(AgentProjectileWitness &witness, void *bytes, int width, int height, int pitch);
-    void body(bool value) { _body = value; }
+    bool begin(const std::array<AgentProjectileWitness *, 3> &witnesses,
+        void *bytes, int width, int height, int pitch);
+    void role(AgentRendererRole value) { _role = value; }
+    void body(bool value) { role(value ? AgentRendererRole::Projectile : AgentRendererRole::Ordinary); }
     void wrote(const void *address, std::uint8_t before, std::uint8_t after);
-    void unknownWrite() { if (_witness) _witness->invalidate(); }
+    void unknownWrite() { for (auto *w : _witnesses) if (w) w->invalidate(); }
 };
 
 // Episode presence, not a shot/attack counter. Unknown (including pause or

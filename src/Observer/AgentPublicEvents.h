@@ -24,7 +24,7 @@ public:
 private:
     std::string _epoch, _lastPresentation;
     AgentDisplayedMessages _messages;
-    AgentProjectileEpisodes _projectiles;
+    AgentProjectileEpisodes _projectiles, _impacts, _collapses;
     std::uint64_t _newest = 0;
     std::deque<Record> _records;
     // Conservative canonical-ASCII upper bound without interpreting strings.
@@ -67,6 +67,16 @@ public:
     bool projectile(AgentProjectileFact fact)
     {
         return !_projectiles.observe(fact) || append("\"kind\":\"projectile_presented\",\"semantics\":\"ordinary_renderer_visible_contribution\","
+            "\"source\":null,\"actor\":null,\"faction\":null,\"world_position\":null,\"hit\":null,\"damage\":null");
+    }
+    bool impact(AgentProjectileFact fact)
+    {
+        return !_impacts.observe(fact) || append("\"kind\":\"impact_effect_presented\",\"semantics\":\"ordinary_renderer_visible_contribution\","
+            "\"source\":null,\"actor\":null,\"faction\":null,\"world_position\":null,\"hit\":null,\"damage\":null");
+    }
+    bool collapse(AgentProjectileFact fact)
+    {
+        return !_collapses.observe(fact) || append("\"kind\":\"collapse_animation_presented\",\"semantics\":\"ordinary_renderer_visible_contribution\","
             "\"source\":null,\"actor\":null,\"faction\":null,\"world_position\":null,\"hit\":null,\"damage\":null");
     }
     bool read(const std::string &epoch, std::uint64_t after, unsigned limit, Page &page) const

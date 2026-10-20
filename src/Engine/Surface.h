@@ -50,6 +50,7 @@ protected:
 	std::string _tooltip;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     Observer::AgentProjectileRaster *_agentProjectileRaster = nullptr;
+    bool _agentCollapsePaint = false;
 #endif
 
 	/// Copies raw pixels.
@@ -144,6 +145,11 @@ public:
     bool getVisible() const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     void agentAttachProjectileRaster(Observer::AgentProjectileRaster *raster) { _agentProjectileRaster = raster; }
+    // Private render provenance, never serialized or inferred from live status.
+    bool agentCollapsePaint() const { return _agentCollapsePaint && agentContextVisible(); }
+    void agentMarkCollapsePaint();
+    void agentCopyCollapsePaint(const Surface &source);
+    void agentForgetCollapsePaint() { _agentCollapsePaint = false; }
     virtual bool agentContextVisible() const { return _visible && !_hidden && !_redraw && !_crop.w && !_crop.h; }
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
@@ -171,6 +177,7 @@ public:
 			return;
 		}
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        _agentCollapsePaint = false;
         if (_agentProjectileRaster) _agentProjectileRaster->wrote(getRaw(x, y), *getRaw(x, y), pixel);
 #endif
 		*getRaw(x, y) = pixel;

@@ -241,6 +241,7 @@ template <typename T>
 void Surface::rawCopy(const std::vector<T> &src)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	// Copy whole thing
@@ -315,6 +316,7 @@ void Surface::loadScr(const std::string &filename)
 void Surface::loadImage(const std::string &filename)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	// Destroy current surface (will be replaced)
@@ -504,6 +506,7 @@ void Surface::loadBdy(const std::string &filename)
 void Surface::clear(Uint32 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	if (_surface->flags & SDL_SWSURFACE) memset(_surface->pixels, color, _surface->h*_surface->pitch);
@@ -690,6 +693,7 @@ void Surface::blit(Surface *surface)
 		target.y = getY();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
         // Untagged general SDL compositing onto Map is conservatively unknown.
+        surface->_agentCollapsePaint = false;
         if (surface->_agentProjectileRaster) surface->_agentProjectileRaster->unknownWrite();
 #endif
 		OPENXCOM_AGENT_PAINT(SDL_BlitSurface(_surface, cropper, surface->getSurface(), &target));
@@ -740,6 +744,7 @@ void Surface::copy(Surface *surface)
 void Surface::drawRect(SDL_Rect *rect, Uint8 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	if (rect->w == 0 || rect->h == 0) return;
@@ -758,6 +763,7 @@ void Surface::drawRect(SDL_Rect *rect, Uint8 color)
 void Surface::drawRect(Sint16 x, Sint16 y, Sint16 w, Sint16 h, Uint8 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	if (w == 0 || h == 0) return;
@@ -781,6 +787,7 @@ void Surface::drawRect(Sint16 x, Sint16 y, Sint16 w, Sint16 h, Uint8 color)
 void Surface::drawLine(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	lineColor(_surface, x1, y1, x2, y2, Palette::getRGBA(getPalette(), color));
@@ -796,6 +803,7 @@ void Surface::drawLine(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 color)
 void Surface::drawCircle(Sint16 x, Sint16 y, Sint16 r, Uint8 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	OPENXCOM_AGENT_PAINT(filledCircleColor(_surface, x, y, r, Palette::getRGBA(getPalette(), color)));
@@ -811,6 +819,7 @@ void Surface::drawCircle(Sint16 x, Sint16 y, Sint16 r, Uint8 color)
 void Surface::drawPolygon(Sint16 *x, Sint16 *y, int n, Uint8 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	filledPolygonColor(_surface, x, y, n, Palette::getRGBA(getPalette(), color));
@@ -828,6 +837,7 @@ void Surface::drawPolygon(Sint16 *x, Sint16 *y, int n, Uint8 color)
 void Surface::drawTexturedPolygon(Sint16 *x, Sint16 *y, int n, Surface *texture, int dx, int dy)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	OPENXCOM_AGENT_PAINT(texturedPolygon(_surface, x, y, n, texture->getSurface(), dx, dy));
@@ -843,6 +853,7 @@ void Surface::drawTexturedPolygon(Sint16 *x, Sint16 *y, int n, Surface *texture,
 void Surface::drawString(Sint16 x, Sint16 y, const char *s, Uint8 color)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	stringColor(_surface, x, y, s, Palette::getRGBA(getPalette(), color));
@@ -1036,6 +1047,7 @@ struct StandardShade
 void Surface::blitNShade(Surface *surface, int x, int y, int off, bool half, int newBaseColor)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    surface->_agentCollapsePaint = false;
     AgentShaderRasterScope agentScope(surface->_agentProjectileRaster);
 #endif
 	ShaderMove<Uint8> src(this, x, y);
@@ -1067,6 +1079,7 @@ void Surface::blitNShade(Surface *surface, int x, int y, int off, bool half, int
 void Surface::blitNShade(Surface *surface, int x, int y, int shade, GraphSubset range)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    surface->_agentCollapsePaint = false;
     AgentShaderRasterScope agentScope(surface->_agentProjectileRaster);
 #endif
 	ShaderMove<Uint8> src(this, x, y);
@@ -1083,6 +1096,9 @@ void Surface::blitNShade(Surface *surface, int x, int y, int shade, GraphSubset 
  */
 void Surface::invalidate(bool valid)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (valid) _agentCollapsePaint = false;
+#endif
 	_redraw = valid;
 }
 
@@ -1116,6 +1132,7 @@ void Surface::setTooltip(const std::string &tooltip)
 void Surface::resize(int width, int height)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
 #endif
 	// Set up new surface
@@ -1187,3 +1204,22 @@ bool Surface::isTFTDMode() const
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+void Surface::agentMarkCollapsePaint()
+{
+    _agentCollapsePaint = Observer::agentPaintHealthy() && agentContextVisible();
+}
+void Surface::agentCopyCollapsePaint(const Surface &source)
+{
+    // Called only after the ordinary complete cache copy. No generic copy
+    // propagation: other surfaces/composites must not inherit the role.
+    _agentCollapsePaint = Observer::agentPaintHealthy() && source.agentCollapsePaint() &&
+        source.getX() == 0 && source.getY() == 0 && source.getWidth() == getWidth() &&
+        source.getHeight() == getHeight() && agentContextVisible() &&
+        _surface->clip_rect.x == 0 && _surface->clip_rect.y == 0 &&
+        _surface->clip_rect.w == getWidth() && _surface->clip_rect.h == getHeight();
+}
+}
+#endif

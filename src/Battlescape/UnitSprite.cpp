@@ -305,6 +305,12 @@ void UnitSprite::drawRoutine0()
 		torso = _unitSurface->getFrame(die + _unit->getFallingPhase());
 		torso->setX(offXSprite);
 		drawRecolored(torso);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        // Only these reviewed humanoid routines. Pixels are still proven again
+        // through the ordinary cache, Map masks and successful final output.
+        if (_drawingRoutine == 0 || _drawingRoutine == 10 || _drawingRoutine == 13 || _drawingRoutine == 14)
+            agentMarkCollapsePaint();
+#endif
 		return;
 	}
 	if (_drawingRoutine == 0 || _helmet)

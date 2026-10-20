@@ -49,5 +49,5 @@ class ProjectileArchitecture(unittest.TestCase):
  def test_bounded_default_off(self):
   s=read('src/CMakeLists.txt');part=s.split('if ( EXPERIMENTAL_AGENT_CONTROL )',1)[1].split('endif()',1)[0]
   self.assertIn('AgentProjectileWitness.cpp',part);self.assertIn('AgentProjectileOutput.cpp',part)
- def test_exact_version(self):self.assertIn('openxcom-agent-control/9',read('src/Observer/AgentProtocol.cpp'));self.assertNotIn('openxcom-agent-control/8',read('src/Observer/AgentProtocol.cpp'))
+ def test_exact_version(self):self.assertIn('openxcom-agent-control/10',read('src/Observer/AgentProtocol.cpp'));self.assertNotIn('openxcom-agent-control/9',read('src/Observer/AgentProtocol.cpp'))
 if __name__=='__main__':unittest.main()
