@@ -117,7 +117,14 @@ bool AgentController::sample(AgentUiState &out) const
     if (!top || !focused() || !diagnosticProfileQualified() || !_game->getScreen()->agentPresentationReady()) return false;
     out = AgentUiState();
     // Only the top painted state supplies semantics. No stack/object inventory.
-    if (!top->agentUiState(out) || !agentRegionsDisjoint(out) || !_game->agentOverlayClear(out)) out = AgentUiState();
+    const bool provider = top->agentUiState(out);
+    const bool disjoint = agentRegionsDisjoint(out);
+    const bool overlayClear = _game->agentOverlayClear(out);
+    if (!provider || !disjoint || !overlayClear)
+    {
+        _game->agentRecordAdmissionFailure(provider, disjoint, overlayClear);
+        out = AgentUiState();
+    }
     return true;
 }
 void AgentController::unavailable()

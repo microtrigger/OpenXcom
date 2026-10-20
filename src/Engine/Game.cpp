@@ -67,6 +67,7 @@
 #endif
 #include "../resource.h"
 #include <algorithm>
+#include <cstdlib>
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 #include <cstdlib>
 #endif
@@ -2653,5 +2654,32 @@ bool Game::agentOverlayClear(const Observer::AgentUiState &ui) const
     }
     return true;
 }
+// Owner-only presentation diagnostics. Never enters the public DTO, event ring,
+// action binding, or gameplay decisions. Logger already targets the user profile.
+void Game::agentRecordAdmissionFailure(bool provider, bool disjoint, bool overlayClear) const
+{
+    try
+    {
+    const char *enabled = std::getenv("OPENXCOM_AGENT_ADMISSION_DIAGNOSTICS");
+    if (!enabled || std::string(enabled) != "1" || (provider && disjoint && overlayClear)) return;
+    static unsigned records = 0;
+    static std::string previous;
+    if (records >= 32) return; // Diagnostic limit only; never an admission limit.
+    const auto rectangle = [](const Surface *surface) -> std::string {
+        if (!surface) return "null";
+        return std::string("{\"visible\":") + (surface->getVisible() ? "true" : "false") +
+            ",\"x\":" + std::to_string(surface->getX()) + ",\"y\":" + std::to_string(surface->getY()) +
+            ",\"width\":" + std::to_string(surface->getWidth()) + ",\"height\":" + std::to_string(surface->getHeight()) + "}";
+    };
+    const std::string record = std::string("{\"schema\":\"openxcom-agent-admission-diagnostic/1\",\"provider_returned\":") +
+        (provider ? "true" : "false") + ",\"regions_disjoint\":" + (disjoint ? "true" : "false") +
+        ",\"overlay_clear\":" + (overlayClear ? "true" : "false") + ",\"cursor\":" + rectangle(_cursor) +
+        ",\"fps\":" + rectangle(_fpsCounter) + "}";
+    if (record == previous) return;
+    previous = record; ++records;
+    Log(LOG_INFO) << "AGENT_ADMISSION_DIAGNOSTIC " << record;
+    } catch (...) { /* Diagnostics must never change control admission. */ }
+}
+
 }
 #endif

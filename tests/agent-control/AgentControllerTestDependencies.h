@@ -36,6 +36,7 @@ class Game {
 public: State *top=nullptr;Screen screen;Observer::AgentAudioEvents audio;
  State *agentTopState()const{return top;} Screen *getScreen(){return &screen;}
  bool agentOverlayClear(const Observer::AgentUiState &)const{return true;}
+ void agentRecordAdmissionFailure(bool,bool,bool)const{}
  Observer::AgentAudioEvents &agentAudioEvents(){return audio;}
 };
 }

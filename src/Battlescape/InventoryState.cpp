@@ -790,6 +790,10 @@ bool InventoryState::agentUiState(Observer::AgentUiState &out) const
     std::vector<Surface *> preceding(_surfaces.begin(), _surfaces.end() - 1);
     const auto include = [&](const AgentUiRect &r) -> bool {
         if (!agentInventoryInside(r)) return false;
+        // FPS and cursor paint after this state. Omit only their covered regions;
+        // the controller still checks the complete retained projection again.
+        AgentUiState candidate; candidate.regions.push_back(r);
+        if (!_game->agentOverlayClear(candidate)) return false;
         out.regions.push_back(r);
         if (!agentRegionsDisjoint(out)) { out.regions.pop_back(); return false; }
         return true;

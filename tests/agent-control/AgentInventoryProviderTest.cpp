@@ -26,7 +26,8 @@ struct Saved {Unit*selected=nullptr;std::uint64_t revision=0;std::uint64_t stanc
 struct Mod {std::map<std::string,RuleInventory*> invs;Font*big=nullptr,*small=nullptr;RuleInterface*interface=nullptr;
  std::map<std::string,RuleInventory*>*getInventories(){return &invs;}
  Font*getFont(const std::string&id){return id=="FONT_BIG"?big:small;}RuleInterface*getInterface(const std::string&){return interface;}};
-struct Game {const void*top=nullptr;Mod*mod=nullptr;Language*language=nullptr;bool isState(const void*s)const{return top==s;}Mod*getMod(){return mod;}Language*getLanguage(){return language;}};
+struct Game {Surface*_cursor=nullptr,*_fpsCounter=nullptr;bool agentOverlayClear(const Observer::AgentUiState&)const;const void*top=nullptr;Mod*mod=nullptr;Language*language=nullptr;bool isState(const void*s)const{return top==s;}Mod*getMod(){return mod;}Language*getLanguage(){return language;}};
+#include "AgentGameOverlayMethods.generated.inc"
 class Inventory : public Surface {
 public:
  struct AgentTarget {AgentUiRect rect;std::string area,label="null";AgentUiRect labelInk={0,0,0,0};std::vector<std::pair<int,unsigned>>labelPixels;};

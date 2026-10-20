@@ -216,6 +216,7 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     State *agentTopState() const;
     bool agentOverlayClear(const Observer::AgentUiState &ui) const;
+    void agentRecordAdmissionFailure(bool provider, bool disjoint, bool overlayClear) const;
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     // Bind a pending observation to its admission state, not a previous action.
