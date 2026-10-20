@@ -21,6 +21,9 @@
 #include "../Engine/Options.h"
 #include "Position.h"
 #include <vector>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "CameraProjection.h"
+#endif
 
 namespace OpenXcom
 {
@@ -59,6 +62,12 @@ class Map : public InteractiveSurface
     friend struct InventoryGroundGateAccess;
 #endif
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    AgentMapSnapshot _agentDrawSnapshot;
+    bool _agentDrawSnapshotReady = false;
+    std::uint64_t _agentDrawViewRevision = 0;
+    int _agentDrawSurfaceHeight = 0;
+#endif
 	static const int SCROLL_INTERVAL = 15;
 	static const int BULLET_SPRITES = 35;
 	Timer *_scrollMouseTimer, *_scrollKeyTimer, *_obstacleTimer;
@@ -91,6 +100,11 @@ private:
 	const std::vector<Uint8> *_transparencies;
 	bool _showObstacles;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Draw provenance only. The owning state must additionally qualify final
+    // presentation and later overlays before exporting this viewport.
+    bool agentMapSnapshot(AgentMapSnapshot &out) const;
+#endif
 	/// Creates a new map at the specified position and size.
 	Map(Game* game, int width, int height, int x, int y, int visibleMapHeight);
 	/// Cleans up the map.

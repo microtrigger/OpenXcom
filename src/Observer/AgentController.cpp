@@ -2,6 +2,7 @@
 // Agent control is intentionally a different ABI from supervised proposals.
 #include "AgentController.h"
 #include "DiagnosticProfile.h"
+#include "AgentAudioEvents.h"
 #include "../Engine/Game.h"
 #include "../Engine/Screen.h"
 #include "../Engine/State.h"
@@ -21,6 +22,11 @@ std::uint64_t now()
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+const char *audioStatusName(AgentAudioEvents::Event::State state)
+{
+    return state == AgentAudioEvents::Event::Active ? "active" :
+        state == AgentAudioEvents::Event::Unavailable ? "unavailable" : "pending";
 }
 bool randomToken(std::string &out)
 {
@@ -57,7 +63,9 @@ AgentController::AgentController(Game *game) : _game(game)
     ::close(fd);
     const int flags = fcntl(_fd, F_GETFL);
     if (flags < 0 || fcntl(_fd, F_SETFL, flags | O_NONBLOCK) || !randomToken(_epoch)) { close(); return; }
-    sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) + ",\"ledger_capacity\":64}");
+    if (!_publicEvents.start(_epoch)) { close(); return; }
+    sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
+        ",\"ledger_capacity\":64,\"audio_history\":\"mixed_output\"}");
 }
 AgentController::~AgentController() { close(); }
 void AgentController::close()
@@ -134,8 +142,41 @@ void AgentController::receipt(const std::string &id)
     sendPacket(entry && !entry->response.empty() ? entry->response :
         resultPacket(id, entry ? "pending" : "unknown"));
 }
+void AgentController::eventPage(const AgentRequest &request)
+{
+    AgentPublicEvents::Page page;
+    if (!_publicEvents.read(request.epoch, request.after, request.limit, page)) { unavailable(); return; }
+    std::string packet = agentEnvelope() + ",\"type\":\"events\",\"challenge\":" +
+        agentJsonString(request.challenge) + ",\"epoch\":" + agentJsonString(_epoch) +
+        ",\"audio_history\":\"mixed_output\",\"audio_status\":" +
+        agentJsonString(audioStatusName(_game->agentAudioEvents().status())) + ",\"after\":" + std::to_string(request.after) +
+        ",\"oldest\":" + std::to_string(page.oldest) + ",\"newest\":" + std::to_string(page.newest) +
+        ",\"next_cursor\":" + std::to_string(page.next) + ",\"gap\":" + (page.gap ? "true" : "false") +
+        ",\"events\":[";
+    for (std::size_t i = 0; i < page.events.size(); ++i)
+    { if (i) packet += ","; packet += page.events[i].json; }
+    sendPacket(packet + "]}");
+}
+void AgentController::drainAudioEvents()
+{
+    AgentAudioEvents::Event event;
+    // Independent of R/V request frequency. Audio has no control authority.
+    for (unsigned i = 0; i < 64 && _game->agentAudioEvents().take(event); ++i)
+    {
+        const std::string body = event.kind == AgentAudioEvents::Event::Status ?
+            "\"kind\":\"audio_status\",\"status\":" + agentJsonString(audioStatusName(event.state)) +
+                ",\"partial_window_discarded\":" + (event.partialWindowDiscarded ? "true" : "false") :
+            event.kind == AgentAudioEvents::Event::Gap ?
+                "\"kind\":\"audio_gap\",\"dropped_windows\":" + std::to_string(event.droppedWindows) :
+                std::string("\"kind\":\"audio_output\",\"duration_ms\":100,\"nonzero\":") +
+                    (event.nonzero ? "true" : "false") + ",\"source\":null,\"sound\":null,\"position\":null";
+        if (!_publicEvents.append(body)) { close(); return; }
+    }
+}
 void AgentController::poll()
 {
+    if (_fd < 0) return;
+    drainAudioEvents();
     if (_fd < 0) return;
     if (!diagnosticProfileQualified() || !agentPaintHealthy()) { close(); return; }
     if (!focused()) invalidate(false);
@@ -168,6 +209,7 @@ void AgentController::poll()
         sendPacket(agentEnvelope() + ",\"status\":\"ready\"}"); return;
     }
     if (request.kind == 'S') { receipt(request.id); return; }
+    if (request.kind == 'V') { eventPage(request); return; }
     if (request.kind == 'R')
     {
         if (!_pendingId.empty() || !_readChallenge.empty()) { invalidate(); unavailable(); return; }
@@ -224,11 +266,16 @@ void AgentController::presented()
     const std::string publicState = ui.payload();
     if (publicState != _lastPublic)
     {
-        _lastPublic = publicState; invalidate();
+        _lastPublic = publicState;
         if (++_eventSequence >= 9007199254740992ULL) { close(); return; }
     }
+    const std::string authority = ui.authorityPayload();
+    if (authority != _lastAuthority) { _lastAuthority = authority; invalidate(); }
     else if (!_capability.empty() && (!_binding.sameBinding(ui) ||
         _boundDisplayRevision != _game->getScreen()->agentDisplayRevision())) invalidate(false);
+    // Identical public presentations do not create repeated journal entries.
+    // This runs after successful flip, independent of state/event polling.
+    if (!_publicEvents.presentation(ui.screen, ui.visible)) { close(); return; }
     if (!_pendingId.empty())
     {
         const std::string id = _pendingId; _pendingId.clear();

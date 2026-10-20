@@ -26,6 +26,9 @@ namespace OpenXcom
 class Window;
 class Text;
 class Font;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+struct AgentCameraRect;
+#endif
 
 /**
  * Generic window used to display messages
@@ -37,6 +40,11 @@ private:
 	Window *_window;
 	Text *_text;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Read only after this composite has actually blitted into the map.
+    // An incomplete or clipped rendered label is unavailable, never translated.
+    std::string agentPaintedLabel(int viewportWidth, int viewportHeight, AgentCameraRect &ink) const;
+#endif
 	/// Creates a new Battlescape message with the specified size and position.
 	BattlescapeMessage(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the Battlescape message.

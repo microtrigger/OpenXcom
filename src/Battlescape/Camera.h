@@ -19,6 +19,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Position.h"
+#include "CameraProjection.h"
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
 #include <cstdint>
 #include <vector>
@@ -38,6 +39,10 @@ class Map;
 class Camera
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Local stale-view / ABA binding only. Never serialized.
+    std::uint64_t _agentViewRevision = 0;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     std::uint64_t _turnControlRevision = 0;
 #endif
@@ -52,6 +57,11 @@ private:
 	bool _showAllLayers;
 	Map *_map;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::uint64_t agentViewRevision() const { return _agentViewRevision; }
+    AgentMapSnapshot agentViewportSnapshot(int x, int y, bool hiddenMovement,
+        const std::string &paintedMessage) const;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     std::uint64_t turnControlRevision() const { return _turnControlRevision; }
     bool turnControlIdle() const;
@@ -95,6 +105,8 @@ public:
 	void convertVoxelToScreen(Position voxelPos, Position *screenPos) const;
 	/// Converts screen coordinates to map coordinates.
 	void convertScreenToMap(int screenX, int screenY, int *mapX, int *mapY) const;
+	/// Shared camera transform before the ordinary private map-bound clamp.
+	void convertScreenToMapUnclamped(int screenX, int screenY, int *mapX, int *mapY) const;
 	/// Center map on a position.
 	void centerOnPosition(Position pos, bool redraw = true);
 	/// Gets map's center position.

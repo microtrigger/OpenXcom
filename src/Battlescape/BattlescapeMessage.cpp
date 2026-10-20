@@ -20,9 +20,27 @@
 #include "../Interface/Window.h"
 #include "../Interface/Text.h"
 #include "../Engine/Palette.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "CameraProjection.h"
+#endif
 
 namespace OpenXcom
 {
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+std::string BattlescapeMessage::agentPaintedLabel(int viewportWidth, int viewportHeight, AgentCameraRect &bounds) const
+{
+    bounds = AgentCameraRect();
+    SDL_Rect ink;
+    if (!_text || !_text->agentContextVisible() || !_text->getFont() ||
+        !_text->agentTextComplete() || !_text->agentPaintedBounds(ink) ||
+        _text->getTextWidth() > _text->getWidth() || _text->getTextHeight() > _text->getHeight() ||
+        _text->getText().size() > 1024 || ink.x < 0 || ink.y < 0 ||
+        int(ink.x) + ink.w > viewportWidth || int(ink.y) + ink.h > viewportHeight) return std::string();
+    bounds.x = ink.x; bounds.y = ink.y; bounds.width = ink.w; bounds.height = ink.h;
+    return _text->getText();
+}
+#endif
 
 /**
  * Sets up a blank Battlescape message with the specified size and position.

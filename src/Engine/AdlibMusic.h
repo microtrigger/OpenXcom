@@ -50,7 +50,7 @@ public:
 	void load(const void *data, int size);
 	/// Plays the music.
 	void play(int loop = -1) const;
-#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 	bool isSoftwareMixedAudio() const { return true; }
 #endif
 	/// Adlib music player.

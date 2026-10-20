@@ -1479,6 +1479,7 @@ Game::~Game()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentController.close();
+    _agentAudioEvents.close();
 #endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
     // Destruction is never an implicit join, drain, or quarantine escape.
@@ -1846,6 +1847,7 @@ void Game::run()
         _stanceController.poll();
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        _agentAudioEvents.poll(_agentController.enabled());
         _agentController.poll();
 #endif
         // Process rendering
@@ -2294,6 +2296,9 @@ void Game::loadMods()
 	delete _mod;
 	_mod = new Mod();
 	_mod->loadAll(FileMap::getRulesets());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentAudioEvents.publishCatalogSupported(_mod->isMusicCatalogSoftwareMixed());
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 	// This executes on the loader thread; only an atomic aggregate crosses over.
 #ifdef OPENXCOM_RESPONSIVE_LOADING
@@ -2536,6 +2541,13 @@ void Game::loadEpochLanguages(ResourceEpoch &epoch)
 }
 #endif
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void Game::resetAgentAudioEvents(bool resourceReload)
+{
+    _agentAudioEvents.beforeAudioReset(resourceReload);
+}
+#endif
+
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 void Game::resetMixedAudioObserver(bool resourceReload)
 {
@@ -2553,6 +2565,9 @@ void Game::resetMixedAudioObserver(bool resourceReload)
  */
 void Game::initAudio()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    resetAgentAudioEvents();
+#endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
     invalidateResponsiveAudio(); // before every legacy guard or native call
     assertResponsiveOwnerAccess();

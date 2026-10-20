@@ -22,7 +22,7 @@
 #ifdef OPENXCOM_RESPONSIVE_LOADING
 #include "Game.h"
 #endif
-#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 #include "../Observer/MixedAudioMusicProfile.h"
 #endif
 #include "Exception.h"
@@ -87,7 +87,7 @@ void Music::load(const void *data, int size)
 #endif
 }
 
-#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 bool Music::isSoftwareMixedAudio() const
 {
 #ifndef __NO_MUSIC

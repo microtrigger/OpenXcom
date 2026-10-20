@@ -901,7 +901,7 @@ static void throwModOnErrorHelper(const std::string& modId, const std::string& e
 	throw Exception(errorStream.str());
 }
 
-#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 bool Mod::isMusicCatalogSoftwareMixed() const
 {
 	for (std::map<std::string, Music*>::const_iterator i = _musics.begin(); i != _musics.end(); ++i)

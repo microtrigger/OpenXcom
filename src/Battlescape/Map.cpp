@@ -52,6 +52,9 @@
 #include "../Interface/NumberText.h"
 #include "../Interface/Text.h"
 #include "../fmath.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 
 /*
@@ -69,6 +72,20 @@
 
 namespace OpenXcom
 {
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool Map::agentMapSnapshot(AgentMapSnapshot &out) const
+{
+    out = AgentMapSnapshot();
+    if (!_agentDrawSnapshotReady || !agentContextVisible() || !Observer::agentPaintHealthy() ||
+        !_camera || _agentDrawViewRevision != _camera->agentViewRevision() ||
+        _agentDrawSnapshot.x != getX() || _agentDrawSnapshot.y != getY() ||
+        _agentDrawSnapshot.width != getWidth() || _agentDrawSnapshot.height != _visibleMapHeight ||
+        _agentDrawSurfaceHeight != getHeight()) return false;
+    out = _agentDrawSnapshot;
+    return true;
+}
+#endif
 
 /**
  * Sets up a map with the specified size and position.
@@ -192,6 +209,11 @@ void Map::draw()
 		return;
 	}
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentDrawSnapshotReady = false;
+    bool hiddenMovement = false;
+#endif
+
 	// normally we'd call for a Surface::draw();
 	// but we don't want to clear the background with colour 0, which is transparent (aka black)
 	// we use colour 15 because that actually corresponds to the colour we DO want in all variations of the xcom and tftd palettes.
@@ -230,7 +252,25 @@ void Map::draw()
 	else
 	{
 		_message->blit(this);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        // The exact ordinary branch, not a new model-side visibility predicate.
+        hiddenMovement = true;
+#endif
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    AgentCameraRect messageRegion;
+    _agentDrawSnapshot = _camera->agentViewportSnapshot(getX(), getY(), hiddenMovement,
+        hiddenMovement ? _message->agentPaintedLabel(getWidth(), _visibleMapHeight, messageRegion) : std::string());
+    _agentDrawSnapshot.messageRegion = messageRegion;
+    _agentDrawViewRevision = _camera->agentViewRevision();
+    _agentDrawSurfaceHeight = getHeight();
+    _agentDrawSnapshotReady = Observer::agentPaintHealthy() &&
+        _agentDrawSnapshot.x >= 0 && _agentDrawSnapshot.x <= 4095 &&
+        _agentDrawSnapshot.y >= 0 && _agentDrawSnapshot.y <= 4095 &&
+        _agentDrawSnapshot.width == getWidth() && _agentDrawSnapshot.height == _visibleMapHeight &&
+        _agentDrawSnapshot.width > 0 && _agentDrawSnapshot.width <= 640 &&
+        _agentDrawSnapshot.height > 0 && _agentDrawSnapshot.height <= 400;
+#endif
 }
 
 /**

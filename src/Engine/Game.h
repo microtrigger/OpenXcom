@@ -2,6 +2,7 @@
 #pragma once
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "../Observer/AgentController.h"
+#include "../Observer/AgentAudioEvents.h"
 #endif
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -124,6 +125,7 @@ private:
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     Observer::AgentController _agentController;
+    Observer::AgentAudioEvents _agentAudioEvents;
 #endif
 #if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) && !defined(OPENXCOM_RESPONSIVE_LOADING)
 	Observer::MixedAudioObserver _mixedAudioObserver;
@@ -233,6 +235,10 @@ public:
 	void loadLanguages();
 	/// Sets up the audio.
 	void initAudio();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentAudioEvents &agentAudioEvents() { return _agentAudioEvents; }
+    void resetAgentAudioEvents(bool resourceReload = false);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 	/// Invalidate observation before mixer or resource changes (main thread).
 	void resetMixedAudioObserver(bool resourceReload = false);

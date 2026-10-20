@@ -112,6 +112,9 @@ option ( EXPERIMENTAL_AGENT_CONTROL "Build bounded semantic native agent control
 if ( EXPERIMENTAL_AGENT_CONTROL AND (NOT UNIX OR NOT OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS) )
   message ( FATAL_ERROR "Agent control requires POSIX and OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS" )
 endif()
+if ( EXPERIMENTAL_AGENT_CONTROL AND EXPERIMENTAL_MIXED_AUDIO_OBSERVER )
+  message ( FATAL_ERROR "Agent control and the independent mixed-audio observer require separate postmix-owning builds" )
+endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; supervised pilot, 2026-10-11.
 option ( EXPERIMENTAL_SUPERVISED_STANCE "Build local-confirmation desired-stance pilot" OFF )
 if ( EXPERIMENTAL_SUPERVISED_STANCE AND NOT EXPERIMENTAL_CURSOR_OBSERVER )

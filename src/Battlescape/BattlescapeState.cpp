@@ -2681,6 +2681,56 @@ void BattlescapeState::autosave()
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace OpenXcom {
+namespace {
+// This lattice is read-only camera geometry. It is not a visible-tile,
+// passability, discovery, enemy or target-eligibility claim.
+std::string agentTacticalJson(const Map *map, const Game *game, const std::vector<Surface *> &paintOrder)
+{
+    AgentMapSnapshot view;
+    const std::string unavailable = "{\"mode\":\"unavailable\",\"viewport\":null,\"message\":null,\"view_level\":null,\"grid\":[],\"fragment_status\":\"unavailable\",\"fragments\":[],\"truncated\":false}";
+    if (!map || !map->agentMapSnapshot(view) || view.x < 0 || view.x > 4095 || view.y < 0 || view.y > 4095 ||
+        view.width <= 0 || view.width > 640 || view.height <= 0 || view.height > 400) return unavailable;
+    const auto clear = [&](int x, int y, int width, int height) -> bool
+    {
+        Observer::AgentUiState footprint;
+        footprint.regions.push_back({view.x + x, view.y + y, width, height});
+        return Observer::agentRegionsUncovered(footprint.regions, map, paintOrder) && game->agentOverlayClear(footprint);
+    };
+    std::string label = "null";
+    if (view.hiddenMovement && !view.hiddenMovementLabel.empty() &&
+        clear(view.messageRegion.x, view.messageRegion.y, view.messageRegion.width, view.messageRegion.height))
+        label = Observer::agentJsonString(view.hiddenMovementLabel);
+    std::string grid = "[";
+    unsigned count = 0;
+    bool truncated = view.gridTruncated;
+    if (!view.hiddenMovement)
+        for (const AgentCameraGridTarget &cell : view.grid)
+        {
+            const int left = cell.polygon[3].x, top = cell.polygon[0].y;
+            const int width = cell.polygon[1].x - left + 1, height = cell.polygon[2].y - top + 1;
+            if (!clear(left, top, width, height)) continue;
+            std::string item = "{\"handle\":\"g" + std::to_string(count) + "\",\"polygon\":[";
+            for (unsigned i = 0; i < 4; ++i)
+            {
+                if (i) item += ",";
+                item += "{\"x\":" + std::to_string(cell.polygon[i].x) + ",\"y\":" + std::to_string(cell.polygon[i].y) + "}";
+            }
+            item += "],\"target\":{\"x\":" + std::to_string(cell.target.x) + ",\"y\":" + std::to_string(cell.target.y) + "}}";
+            if (count == 128 || grid.size() + item.size() > 23500) { truncated = true; break; }
+            if (count++) grid += ",";
+            grid += item;
+        }
+    grid += "]";
+    // A private draw branch cannot survive complete public occlusion. A
+    // missing/clipped/covered message must not disclose Hidden Movement.
+    if (!agentMapModeAdmitted(view, label != "null", count)) return unavailable;
+    return std::string("{\"mode\":\"") + (view.hiddenMovement ? "hidden_movement" : "map") +
+        "\",\"viewport\":{\"x\":" + std::to_string(view.x) + ",\"y\":" + std::to_string(view.y) +
+        ",\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +
+        "},\"message\":" + label + ",\"view_level\":null,\"grid\":" + grid +
+        ",\"fragment_status\":\"unavailable\",\"fragments\":[],\"truncated\":" + (truncated ? "true" : "false") + "}";
+}
+}
 bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
 {
     if (_modal || _warning->getVisible() || !_game->isState(const_cast<BattlescapeState *>(this)) ||
@@ -2697,6 +2747,16 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         ",\"health\":" + (selected ? std::to_string(_numHealth->getValue()) : "null") +
         ",\"morale\":" + (selected ? std::to_string(_numMorale->getValue()) : "null") +
         ",\"kneel_indicator\":" + (stance ? Observer::agentJsonString(_agentShownKneeled ? "kneeling" : "standing") : "null") + "}";
+    // Tactical observations carry no map-action authority in this version.
+    // Bind existing controls to the same HUD and private generations as /4.
+    out.controlVisible = out.visible;
+    out.visible.pop_back();
+    out.visible += ",\"tactical\":" + agentTacticalJson(_map, _game, _surfaces) + "}";
+    if (Observer::agentWidgetUncovered(_btnEndTurn, _surfaces))
+    {
+        out.actions.push_back(Observer::AgentUiAction("end_turn", "End turn", "visible_control_semantics"));
+        Observer::agentIncludeWidget(out, _btnEndTurn);
+    }
     if (Observer::agentWidgetVisible(_btnNextSoldier))
     {
         out.actions.push_back(Observer::AgentUiAction("next_soldier", "Next soldier", "visible_control_semantics"));
@@ -2739,6 +2799,7 @@ bool BattlescapeState::agentDispatch(const std::string &action)
     else if (action == "previous_soldier") btnPrevSoldierClick(0);
     else if ((action == "kneel" && !_agentShownKneeled) || (action == "stand" && _agentShownKneeled)) btnKneelClick(0);
     else if (action == "open_pause_menu") btnHelpClick(0);
+    else if (action == "end_turn") btnEndTurnClick(0);
     else return false;
     return true;
 }

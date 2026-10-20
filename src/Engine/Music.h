@@ -42,7 +42,7 @@ public:
 	virtual void load(const std::string &filename);
 	/// Loads music from a chunk of memory.
 	virtual void load(const void *data, int size);
-#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 	/// Static capability of this loaded track, never an active-track query.
 	virtual bool isSoftwareMixedAudio() const;
 #endif

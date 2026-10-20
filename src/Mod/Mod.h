@@ -311,7 +311,7 @@ public:
 
 	/// Loads a list of mods.
 	void loadAll(const std::vector< std::pair< std::string, std::vector<std::string> > > &mods);
-#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 	/// Qualify the entire loaded catalog on its resource-loading thread.
 	bool isMusicCatalogSoftwareMixed() const;
 #ifdef OPENXCOM_RESPONSIVE_LOADING

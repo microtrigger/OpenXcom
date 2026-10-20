@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/4'
+SCHEMA = 'openxcom-agent-control/5'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -30,6 +30,9 @@ MAX_REQUEST = 512
 MAX_NAME_BYTES = 128
 MAX_COMMANDS = 64
 MAX_COUNTER = 2**53 - 1
+EVENT_CAPACITY, MAX_EVENTS = 256, 16
+AUDIO_HISTORY = ('mixed_output', 'unavailable')
+AUDIO_STATUSES = ('pending', 'active', 'unavailable')
 TIMEOUT, ACTION_TIMEOUT, STARTUP_TIMEOUT = 2.0, 31.0, 31.0
 CAPABILITY_TTL = 120.0
 ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_turn',
@@ -39,7 +42,7 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'select_difficulty', 'set_ironman', 'start_new_game', 'place_base_site',
            'replace_base_name', 'confirm_base_name', 'open_new_battle_choice',
            'choose_visible_row', 'scroll_visible_list', 'close_dropdown',
-           'open_funding', 'close_funding')
+           'open_funding', 'close_funding', 'end_turn')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -63,7 +66,7 @@ STATE_FIELDS = {
     'error_message': ('message',),
 }
 STATE_ACTIONS = {
-    'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'open_pause_menu')),
+    'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'open_pause_menu', 'end_turn')),
     'next_turn': frozenset(('continue_next_turn',)),
     'main_menu': frozenset(('new_battle', 'open_new_game', 'open_options', 'open_load_game')),
     'new_battle': frozenset(('start_battle', 'cancel_menu', 'open_new_battle_choice')),
@@ -86,7 +89,7 @@ GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year'
 GEOSCAPE_BUTTONS = ('intercept', 'bases', 'graphs', 'ufopaedia', 'options', 'funding')
 STATUSES = ('pending', 'dispatched', 'unavailable', 'unknown_after_dispatch', 'unknown')
 TERMINAL_STATUSES = ('dispatched', 'unavailable', 'unknown_after_dispatch')
-TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result')
+TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events')
 FAILURES = (OSError, ValueError, UnicodeError, RecursionError, TypeError)
 
 
@@ -134,10 +137,11 @@ def identity(obj):
 
 def validate_hello(raw):
     obj = parse(raw)
-    exact(obj, 'schema mode epoch ledger_capacity')
+    exact(obj, 'schema mode epoch ledger_capacity audio_history')
     identity(obj)
     token(obj['epoch'])
     integer(obj['ledger_capacity'], MAX_COMMANDS, MAX_COMMANDS)
+    require(type(obj['audio_history']) is str and obj['audio_history'] in AUDIO_HISTORY)
     return obj['epoch']
 
 
@@ -243,6 +247,78 @@ def validate_build_base(visible, actions):
     require('place_base_site' not in actions or bool(seen))
 
 
+def validate_tactical(tactical):
+    """Bounded public drawing geometry, never map indices or actor identities."""
+    exact(tactical, 'mode viewport message view_level grid fragment_status fragments truncated')
+    require(type(tactical['mode']) is str and tactical['mode'] in ('map', 'hidden_movement', 'unavailable'))
+    require(type(tactical['fragment_status']) is str and tactical['fragment_status'] in ('presented', 'unavailable'))
+    require(tactical['view_level'] is None and type(tactical['truncated']) is bool)
+    visible_text(tactical['message'], nullable=True)
+    viewport = tactical['viewport']
+    if viewport is not None:
+        exact(viewport, 'x y width height')
+        for axis in ('x', 'y'): integer(viewport[axis], 0, 4095)
+        integer(viewport['width'], 1, 640); integer(viewport['height'], 1, 400)
+    grid, fragments = tactical['grid'], tactical['fragments']
+    require(type(grid) is list and len(grid) <= 128 and type(fragments) is list and len(fragments) <= 128)
+    if tactical['mode'] != 'map':
+        require(not grid and not fragments)
+        if tactical['mode'] == 'unavailable':
+            require(viewport is None and tactical['message'] is None)
+        return
+    require(viewport is not None and tactical['message'] is None)
+    def point(value):
+        exact(value, 'x y')
+        integer(value['x'], 0, viewport['width'] - 1)
+        integer(value['y'], 0, viewport['height'] - 1)
+    for index, cell in enumerate(grid):
+        exact(cell, 'handle polygon target')
+        require(cell['handle'] == f'g{index}' and type(cell['polygon']) is list and len(cell['polygon']) == 4)
+        for vertex in cell['polygon']: point(vertex)
+        point(cell['target'])
+    require(tactical['fragment_status'] != 'unavailable' or not fragments)
+    count = 0
+    for index, fragment in enumerate(fragments):
+        exact(fragment, 'handle kind classification runs')
+        require(fragment['handle'] == f'p{index}' and fragment['kind'] == 'painted_fragment'
+                and fragment['classification'] is None)
+        require(type(fragment['runs']) is list and 0 < len(fragment['runs']) <= 512)
+        count += len(fragment['runs']); require(count <= 512)
+        for run in fragment['runs']:
+            exact(run, 'x y width')
+            integer(run['x'], 0, viewport['width'] - 1)
+            integer(run['y'], 0, viewport['height'] - 1)
+            integer(run['width'], 1, viewport['width'] - run['x'])
+
+
+def validate_visible(screen, visible, seen):
+    require(type(screen) is str and screen in STATE_ACTIONS)
+    if screen == 'battlescape':
+        exact(visible, 'selected_name time_units energy health morale kneel_indicator tactical')
+        visible_text(visible['selected_name'], nullable=True)
+        for name in ('time_units', 'energy', 'health', 'morale'):
+            if visible[name] is not None:
+                integer(visible[name], 0, 2**32 - 1)
+        require(visible['kneel_indicator'] is None or
+                (type(visible['kneel_indicator']) is str and visible['kneel_indicator'] in ('standing', 'kneeling')))
+        validate_tactical(visible['tactical'])
+    elif screen == 'new_game':
+        validate_new_game(visible, seen)
+    elif screen == 'geoscape':
+        validate_geoscape(visible, seen)
+    elif screen in ('new_battle_dropdown', 'funding'):
+        validate_visible_list(visible, seen, funding=screen == 'funding')
+    elif screen == 'build_base':
+        validate_build_base(visible, seen)
+    elif screen in STATE_FIELDS:
+        exact(visible, ' '.join(STATE_FIELDS[screen]))
+        for text in visible.values(): visible_text(text, nullable=True)
+        if screen == 'new_battle':
+            require('open_new_battle_choice' not in seen or any(value is not None for value in visible.values()))
+    else:
+        exact(visible, ''); require(not seen)
+
+
 def validate_state(obj, challenge, epoch, *, post_action=False):
     exact(obj, 'schema mode type challenge epoch revision capability state visible actions event_sequence semantics')
     identity(obj)
@@ -269,33 +345,7 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
         require(action['label_source'] == label_source(obj['state'], action['id']))
         require(action['argument_kind'] == ARGUMENT_KINDS[action['id']])
     require(not {'kneel', 'stand'}.issubset(seen) and seen <= STATE_ACTIONS[obj['state']])
-    visible = obj['visible']
-    if obj['state'] == 'battlescape':
-        exact(visible, 'selected_name time_units energy health morale kneel_indicator')
-        visible_text(visible['selected_name'], nullable=True)
-        for name in ('time_units', 'energy', 'health', 'morale'):
-            if visible[name] is not None:
-                integer(visible[name], 0, 2**32 - 1)
-        require(visible['kneel_indicator'] is None or
-                (type(visible['kneel_indicator']) is str and visible['kneel_indicator'] in ('standing', 'kneeling')))
-        require('continue_next_turn' not in seen)
-    elif obj['state'] == 'new_game':
-        validate_new_game(visible, seen)
-    elif obj['state'] == 'geoscape':
-        validate_geoscape(visible, seen)
-    elif obj['state'] in ('new_battle_dropdown', 'funding'):
-        validate_visible_list(visible, seen, funding=obj['state'] == 'funding')
-    elif obj['state'] == 'build_base':
-        validate_build_base(visible, seen)
-    elif obj['state'] in STATE_FIELDS:
-        exact(visible, ' '.join(STATE_FIELDS[obj['state']]))
-        for text in visible.values():
-            visible_text(text, nullable=True)
-        if obj['state'] == 'new_battle':
-            require('open_new_battle_choice' not in seen or any(value is not None for value in visible.values()))
-    else:
-        exact(visible, '')
-        require(not seen)
+    validate_visible(obj['state'], obj['visible'], seen)
     # An empty/unsupported catalog never authorizes an action.
     if not seen:
         require(obj['capability'] is None)
@@ -324,6 +374,59 @@ def validate_result(raw, command_id, epoch):
     # Text-heavy states retain the tighter limit against escape expansion.
     limit = MAX_PACKET if obj['observation'] is not None and obj['observation']['state'] == 'build_base' else MAX_TEXT_PACKET
     require(len(json.dumps(obj, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= limit)
+    return obj
+
+
+def validate_event_arguments(arguments):
+    exact(arguments, 'epoch after limit')
+    token(arguments['epoch'])
+    integer(arguments['after'], 0, MAX_COUNTER)
+    integer(arguments['limit'], 1, MAX_EVENTS)
+
+
+def validate_events(raw, challenge, epoch, after, limit, audio_history):
+    obj = parse(raw)
+    exact(obj, 'schema mode type challenge epoch audio_history audio_status after oldest newest next_cursor gap events')
+    identity(obj)
+    require(obj['type'] == 'events' and obj['challenge'] == challenge and obj['epoch'] == epoch)
+    token(obj['challenge']); token(obj['epoch'])
+    require(obj['audio_history'] == audio_history and audio_history in AUDIO_HISTORY)
+    require(type(obj['audio_status']) is str and obj['audio_status'] in AUDIO_STATUSES)
+    require(audio_history != 'unavailable' or obj['audio_status'] == 'unavailable')
+    for key in ('after', 'newest', 'next_cursor'): integer(obj[key], 0, MAX_COUNTER)
+    integer(obj['oldest'], 1, MAX_COUNTER)
+    require(obj['after'] == after and after <= obj['newest'])
+    require(obj['oldest'] == max(1, obj['newest'] - EVENT_CAPACITY + 1))
+    require(type(obj['gap']) is bool and obj['gap'] == (after + 1 < obj['oldest']))
+    events = obj['events']
+    require(type(events) is list and len(events) <= limit)
+    expected = max(after + 1, obj['oldest'])
+    require(bool(events) == (expected <= obj['newest']))
+    for event in events:
+        require(type(event) is dict and type(event.get('kind')) is str)
+        integer(event.get('seq'), 1, MAX_COUNTER)
+        require(event['seq'] == expected and expected <= obj['newest']); expected += 1
+        if event['kind'] == 'presentation':
+            exact(event, 'seq kind state visible')
+            validate_visible(event['state'], event['visible'], frozenset())
+        elif event['kind'] == 'audio_output':
+            exact(event, 'seq kind duration_ms nonzero source sound position')
+            require(audio_history == 'mixed_output')
+            integer(event['duration_ms'], 100, 100)
+            require(type(event['nonzero']) is bool and event['source'] is None
+                    and event['sound'] is None and event['position'] is None)
+        elif event['kind'] == 'audio_status':
+            exact(event, 'seq kind status partial_window_discarded')
+            require(audio_history == 'mixed_output' and type(event['status']) is str
+                    and event['status'] in AUDIO_STATUSES and type(event['partial_window_discarded']) is bool)
+            require(event['status'] == 'unavailable' or not event['partial_window_discarded'])
+        else:
+            exact(event, 'seq kind dropped_windows')
+            require(event['kind'] == 'audio_gap' and audio_history == 'mixed_output')
+            integer(event['dropped_windows'], 1, MAX_COUNTER)
+        require(len(json.dumps(event, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= MAX_TEXT_PACKET)
+    require(obj['next_cursor'] == (events[-1]['seq'] if events else after))
+    require(len(json.dumps(obj, ensure_ascii=True, separators=(',', ':')).encode('ascii')) <= MAX_PACKET)
     return obj
 
 
@@ -411,17 +514,23 @@ def definitions():
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
         {'name': 'read_ui_state',
-         'description': 'Explicit agent-control protocol /4: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and event sequence; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
+         'description': 'Explicit agent-control protocol /5: read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments only when available; HiddenMovement is explicit and suppresses geometry. Grid geometry is not known terrain, visibility or legal movement; no screenshot recognition, actor IDs or hidden world state. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes only opening Funding. Unsupported screens have an empty catalog. No campaign save/load/overwrite, file rows, arbitrary settings or general strategy actions are exposed. This replaces any previous one-use capability. After every action, read again before another action; transport uncertainty permanently closes this channel.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Scroll flags describe visible arrows, so boundary no-ops remain possible. Funding rows cannot be selected. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Scroll flags describe visible arrows, so boundary no-ops remain possible. Funding rows cannot be selected. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
          'description': 'Read a known command receipt without replaying it. The separate observation describes visible UI after dispatch; dispatched is not gameplay success. Public event_sequence is not a simulation counter. This tool never reconnects or retries an uncertain action.',
          'inputSchema': {'type': 'object', 'properties': {'command_id': dict(opaque)},
                          'required': ['command_id'], 'additionalProperties': False},
+         'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},
+        {'name': 'read_public_events',
+         'description': 'Read retained public presentation and digital mixed-output history after a cursor, without consuming it or an action grant. First read_ui_state supplies the session epoch. The independent native ring retains256 public events; after is exclusive, limit is1..16, next_cursor advances through returned events and gap explicitly reports expired history. A byte-bounded page may contain fewer than limit. Identical cursor reads may include newer events; retained records are immutable. Presentation events contain only the same bounded visible DTO, no action authority. audio_history is compiled mixed_output capability or unavailable; current audio_status is pending, active, or unavailable. Ordered audio_status events also disclose discarded partial windows on terminal reset/failure. Current status may differ from older paged history. audio_output records an actual100ms digital final-mix window; nonzero does not identify an enemy, shot, source, direction, or physical audibility. Those unknown attribution fields stay null. audio_gap reports lost completed callback windows separately from public-ring gap. Sequence gives order only; completed PCM windows have no shared video clock, and trace receive time is not event occurrence time. Event-to-video synchronization is unproved. A grid or unclassified fragment is not enemy semantics or movement legality. This read does not advance simulation, refresh a stale grant, reconnect, or retry uncertain actions.',
+         'inputSchema': arg_schema({'epoch': dict(opaque),
+             'after': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},
+             'limit': {'type': 'integer', 'minimum': 1, 'maximum': MAX_EVENTS}}),
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}}]
 
 
@@ -447,6 +556,10 @@ class AgentControlClient:
         self.scroll_directions = frozenset()
         self.capability_deadline = 0.0
         self.event_sequence = 0
+        self.audio_history = None
+        self.audio_status = None
+        self.public_event_oldest, self.public_event_newest = 1, 0
+        self.public_event_records = {}
         self.commands = {}
         self.flight = threading.Lock()
 
@@ -461,6 +574,7 @@ class AgentControlClient:
         self.choice_controls = frozenset()
         self.visible_rows = frozenset()
         self.scroll_directions = frozenset()
+        self.public_event_records = {}
         if channel is not None:
             channel.close()
 
@@ -501,7 +615,9 @@ class AgentControlClient:
             require(self.state in ('NEW', 'READY', 'NEED_CONTEXT'))
             try:
                 if self.state == 'NEW':
-                    self.epoch = validate_hello(self.packet(time.monotonic() + self.startup_timeout))
+                    hello = self.packet(time.monotonic() + self.startup_timeout)
+                    self.epoch = validate_hello(hello)
+                    self.audio_history = parse(hello)['audio_history']
                     validate_ready(self.exchange(('H ' + SCHEMA).encode('ascii')))
                 challenge = secrets.token_hex(16)
                 old_capability = self.last_capability
@@ -536,6 +652,30 @@ class AgentControlClient:
                     self.viewport_samples = frozenset((sample['x'], sample['y']) for sample in globe['samples'])
                 self.capability_deadline = time.monotonic() + CAPABILITY_TTL
                 self.state = 'READY' if self.capability is not None else 'NEED_CONTEXT'
+                return obj
+            except FAILURES:
+                self.close()
+                raise Unavailable('Unavailable') from None
+
+    def read_events(self, epoch, after, limit):
+        validate_event_arguments(dict(epoch=epoch, after=after, limit=limit))
+        with self.exclusive():
+            require(self.state in ('READY', 'NEED_CONTEXT') and epoch == self.epoch)
+            try:
+                challenge = secrets.token_hex(16)
+                request = f'V {challenge} {epoch} {after} {limit}'.encode('ascii')
+                obj = validate_events(self.exchange(request), challenge, epoch, after, limit, self.audio_history)
+                require(obj['oldest'] >= self.public_event_oldest and obj['newest'] >= self.public_event_newest)
+                records = {seq: value for seq, value in self.public_event_records.items() if seq >= obj['oldest']}
+                for event in obj['events']:
+                    canonical = json.dumps(event, sort_keys=True, ensure_ascii=True, separators=(',', ':')).encode('ascii')
+                    require(event['seq'] not in records or records[event['seq']] == canonical)
+                    records[event['seq']] = canonical
+                require(len(records) <= EVENT_CAPACITY)
+                self.public_event_records = records
+                self.public_event_oldest, self.public_event_newest = obj['oldest'], obj['newest']
+                self.audio_status = obj['audio_status']
+                # No command-ledger admission, UI revision update or grant refresh/consumption.
                 return obj
             except FAILURES:
                 self.close()

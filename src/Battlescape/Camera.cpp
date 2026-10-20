@@ -28,6 +28,16 @@
 namespace OpenXcom
 {
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+AgentMapSnapshot Camera::agentViewportSnapshot(int x, int y, bool hiddenMovement,
+    const std::string &paintedMessage) const
+{
+    return cameraMapSnapshot(CameraProjectionMath(_spriteWidth, _spriteHeight,
+        _mapOffset.x, _mapOffset.y, _mapOffset.z), x, y, _screenWidth,
+        _visibleMapHeight, hiddenMovement, paintedMessage);
+}
+#endif
+
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
 // SPDX-License-Identifier: GPL-3.0-or-later; private view generations, 2026-10-12.
 namespace {
@@ -358,6 +368,9 @@ void Camera::scrollKey()
  */
 void Camera::scrollXY(int x, int y, bool redraw)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (x || y) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -391,6 +404,9 @@ void Camera::scrollXY(int x, int y, bool redraw)
  */
 void Camera::jumpXY(int x, int y)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (x || y) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -405,6 +421,9 @@ void Camera::jumpXY(int x, int y)
  */
 void Camera::up()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_mapOffset.z < _mapsize_z - 1) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -421,6 +440,9 @@ void Camera::up()
  */
 void Camera::down()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_mapOffset.z > 0) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -438,6 +460,9 @@ void Camera::down()
  */
 void Camera::setViewLevel(int viewlevel)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_mapOffset.z != Clamp(viewlevel, 0, _mapsize_z - 1)) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -453,6 +478,10 @@ void Camera::setViewLevel(int viewlevel)
  */
 void Camera::centerOnPosition(Position mapPos, bool redraw)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Advance before the nested draw so its snapshot captures this generation.
+    ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -488,20 +517,15 @@ Position Camera::getCenterPosition()
  */
 void Camera::convertScreenToMap(int screenX, int screenY, int *mapX, int *mapY) const
 {
-	// add half a tileheight to the mouseposition per layer we are above the floor
-	screenY += (-_spriteWidth/2) + (_mapOffset.z) * ((_spriteHeight + _spriteWidth / 4) / 2);
-
-	// calculate the actual x/y pixelposition on a diamond shaped map
-	// taking the view offset into account
-	*mapY = - screenX + _mapOffset.x + 2 * screenY - 2 * _mapOffset.y;
-	*mapX = screenY - _mapOffset.y - *mapY / 4 - (_spriteWidth/4);
-
-	// to get the row&col itself, divide by the size of a tile
-	*mapX /= (_spriteWidth / 4);
-	*mapY /= _spriteWidth;
-
+	convertScreenToMapUnclamped(screenX, screenY, mapX, mapY);
 	*mapX = Clamp(*mapX, -1, _mapsize_x);
 	*mapY = Clamp(*mapY, -1, _mapsize_y);
+}
+
+void Camera::convertScreenToMapUnclamped(int screenX, int screenY, int *mapX, int *mapY) const
+{
+    CameraProjectionMath(_spriteWidth, _spriteHeight, _mapOffset.x, _mapOffset.y,
+        _mapOffset.z).screenToMapUnclamped(screenX, screenY, mapX, mapY);
 }
 
 /**
@@ -512,8 +536,8 @@ void Camera::convertScreenToMap(int screenX, int screenY, int *mapX, int *mapY) 
 void Camera::convertMapToScreen(Position mapPos, Position *screenPos) const
 {
 	screenPos->z = 0; // not used
-	screenPos->x = mapPos.x * (_spriteWidth / 2) - mapPos.y * (_spriteWidth / 2);
-	screenPos->y = mapPos.x * (_spriteWidth / 4) + mapPos.y * (_spriteWidth / 4) - mapPos.z * ((_spriteHeight + _spriteWidth / 4) / 2);
+    CameraProjectionMath(_spriteWidth, _spriteHeight, _mapOffset.x, _mapOffset.y,
+        _mapOffset.z).mapToScreen(mapPos.x, mapPos.y, mapPos.z, &screenPos->x, &screenPos->y);
 }
 
 /**
@@ -576,6 +600,9 @@ Position Camera::getMapOffset() const
  */
 void Camera::setMapOffset(const Position& pos)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_mapOffset != pos) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif
@@ -588,6 +615,9 @@ void Camera::setMapOffset(const Position& pos)
  */
 int Camera::toggleShowAllLayers()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     ++_turnControlRevision;
 #endif
@@ -666,6 +696,10 @@ __________
  */
 void Camera::resize()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_screenWidth != _map->getWidth() || _screenHeight != _map->getHeight() ||
+        _visibleMapHeight != _map->getHeight() - _map->getIconHeight()) ++_agentViewRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     TurnViewRevision viewRevision(_turnControlRevision, _mapOffset, _screenWidth, _screenHeight, _visibleMapHeight, _showAllLayers);
 #endif

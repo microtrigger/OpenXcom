@@ -16,7 +16,8 @@ bool agentInputText(const std::string &value);
 struct AgentRequest {
     char kind = 0;
     std::string id, epoch, capability, action, challenge;
-    std::uint64_t revision = 0;
+    std::uint64_t revision = 0, after = 0;
+    unsigned limit = 0;
     std::string choice, text;
     bool desired = false;
     int x = 0, y = 0;

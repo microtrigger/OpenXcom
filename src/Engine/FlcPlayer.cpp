@@ -897,6 +897,9 @@ void FlcPlayer::audioCallback(void *userData, Uint8 *stream, int len)
 
 void FlcPlayer::initAudio(Uint16 format, Uint8 channels)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_useInternalAudio && _game) _game->resetAgentAudioEvents();
+#endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
     if (_game) _game->invalidateResponsiveAudio();
     std::terminate(); // No supported ON call may enter the legacy device transition.
@@ -943,6 +946,9 @@ void FlcPlayer::initAudio(Uint16 format, Uint8 channels)
 
 void FlcPlayer::deInitAudio()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_game) _game->resetAgentAudioEvents();
+#endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
     if (_game) _game->invalidateResponsiveAudio();
     std::terminate(); // Invalidation precedes every retained legacy entry.

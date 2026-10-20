@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Pure DTO/binding tests. This is not GUI/presentation integration evidence.
 #include "../../src/Observer/AgentUi.h"
+#include "../../src/Observer/AgentPublicEvents.h"
 #include <cstdlib>
 #include <iostream>
 #include <thread>
@@ -87,6 +88,25 @@ int main()
     check(!agentRegionsDisjoint(geometry), "later painted semantic region overlap rejected");
     geometry.regions[1].y = 20;
     check(agentRegionsDisjoint(geometry), "vertical touching boundary allowed");
+    AgentUiState tactical = original;
+    tactical.controlVisible = tactical.visible;
+    tactical.visible = "{\"tactical\":{\"mode\":\"map\"}}";
+    tactical.actions.push_back(AgentUiAction("end_turn", "End turn", "visible_control_semantics"));
+    const AgentUiState readGrant = tactical;
+    tactical.visible = "{\"tactical\":{\"mode\":\"hidden_movement\"}}";
+    check(readGrant.payload() != tactical.payload() && readGrant.sameBinding(tactical), "read-only presentation change preserves stable control binding");
+    AgentPublicEvents events; AgentPublicEvents::Page page;
+    check(events.start(std::string(32,'a')), "independent public journal initialized");
+    check(events.append("\"kind\":\"audio_output\",\"duration_ms\":100,\"nonzero\":true,\"source\":null,\"sound\":null,\"position\":null"), "audio admitted between R and E");
+    check(events.read(std::string(32,'a'),0,16,page) && readGrant.sameBinding(tactical), "R to V to E independent journal preserves binding");
+    ++tactical.uiRevision;
+    check(!readGrant.sameBinding(tactical), "manual or real UI generation still invalidates grant");
+    tactical=readGrant; tactical.controlVisible="{\"kneel_indicator\":\"kneeling\"}";
+    check(!readGrant.sameBinding(tactical), "changed presented control rejects grant despite observation split");
+    tactical=readGrant; tactical.actions.clear();
+    check(!readGrant.sameBinding(tactical), "removed End Turn control rejects grant");
+    tactical=readGrant; tactical.actor=&actorB;
+    check(!readGrant.sameBinding(tactical), "private actor substitution still rejects grant");
     check(agentPaintHealthy(), "owner paint starts healthy");
     check(agentObservePaint(0) == 0 && agentPaintHealthy(), "normal blit return preserved");
     bool workerHealthy = true;

@@ -185,6 +185,9 @@ StartState::~StartState()
  */
 void StartState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _game->resetAgentAudioEvents(true);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
 	_game->resetMixedAudioObserver(true);
 #endif

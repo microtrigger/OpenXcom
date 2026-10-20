@@ -27,7 +27,9 @@ def dump(obj):
 
 def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence=1, screen='battlescape'):
     visible = dict(selected_name='Jane', time_units=58, energy=62, health=33, morale=100, kneel_indicator='standing')
-    ids = ['next_soldier', 'previous_soldier', 'kneel', 'open_pause_menu']
+    visible['tactical'] = dict(mode='map', viewport=dict(x=0, y=0, width=320, height=140),
+        message=None, view_level=None, grid=[], fragment_status='unavailable', fragments=[], truncated=False)
+    ids = ['next_soldier', 'previous_soldier', 'kneel', 'open_pause_menu', 'end_turn']
     if screen in a.STATE_FIELDS:
         visible = {key: key.title() for key in a.STATE_FIELDS[screen]}; ids = sorted(a.STATE_ACTIONS[screen])
     elif screen == 'new_game':
@@ -95,7 +97,10 @@ class NativeFixture:
         self.difficulty, self.ironman, self.base_name = 'beginner', False, ''
         self.control = 'mission'
         self.latest = None
-        self.hello = hello or dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
+        self.public_events = []
+        self.event_page_limit = a.MAX_EVENTS
+        self.audio_status = 'active'
+        self.hello = hello or dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output')
         self.thread = threading.Thread(target=self.run); self.thread.start()
 
     def observation(self, challenge, capability):
@@ -143,6 +148,19 @@ class NativeFixture:
                     obj = result(ident, event_sequence=self.sequence,
                                  observation=self.observation(None, None))
                     self.results[ident] = copy.deepcopy(obj)
+                elif command[0] == 'V' and len(command) == 5:
+                    _, challenge, epoch, after, limit = command
+                    after, limit = int(after), int(limit)
+                    newest = len(self.public_events); oldest = max(1, newest-a.EVENT_CAPACITY+1)
+                    if epoch != EPOCH or after > newest:
+                        obj = dict(schema=a.SCHEMA, mode=a.MODE, type='error', status='unavailable')
+                    else:
+                        events = copy.deepcopy(self.public_events[max(after, oldest-1):][:min(limit, self.event_page_limit)])
+                        obj = dict(schema=a.SCHEMA, mode=a.MODE, type='events', challenge=challenge, epoch=epoch,
+                            audio_history=self.hello['audio_history'],
+                            audio_status=self.audio_status if self.hello['audio_history']=='mixed_output' else 'unavailable',
+                            after=after, oldest=oldest, newest=newest,
+                            next_cursor=events[-1]['seq'] if events else after, gap=after+1<oldest, events=events)
                 elif command[0] == 'S' and len(command) == 2:
                     obj = copy.deepcopy(self.results[command[1]])
                 else:
@@ -162,7 +180,7 @@ class NativeFixture:
 
 class ValidationTests(unittest.TestCase):
     def test_exact_hello_and_version_identity(self):
-        hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
+        hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output')
         self.assertEqual(a.validate_hello(dump(hello)), EPOCH)
         for key, value in (('schema', 'experimental-stance/1'), ('mode', 'supervised'), ('epoch', 'A' * 32),
                            ('ledger_capacity', 64.0), ('ledger_capacity', True), ('extra', 'hidden')):
@@ -181,7 +199,7 @@ class ValidationTests(unittest.TestCase):
                 if screen == 'new_battle':
                     obj['actions'] = [item for item in obj['actions'] if item['id'] != 'open_new_battle_choice']
             a.validate_state(obj, CHALLENGE, EPOCH)
-        obj = state(); obj['visible'] = dict.fromkeys(obj['visible']); a.validate_state(obj, CHALLENGE, EPOCH)
+        obj = state(); tactical = obj['visible']['tactical']; obj['visible'] = dict.fromkeys(obj['visible']); obj['visible']['tactical'] = tactical; a.validate_state(obj, CHALLENGE, EPOCH)
 
     def test_state_rejects_unknown_hidden_or_malformed_fields(self):
         cases = []
@@ -227,10 +245,10 @@ class ValidationTests(unittest.TestCase):
         for name in obj['visible']: obj['visible'][name] = '\U0001f600' * 1000
         with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
 
-    def test_protocol_v1_v2_v3_hello_ready_state_and_result_are_rejected(self):
-        for schema in ('openxcom-agent-control/1', 'openxcom-agent-control/2', 'openxcom-agent-control/3'):
+    def test_protocol_v1_v2_v3_v4_hello_ready_state_and_result_are_rejected(self):
+        for schema in ('openxcom-agent-control/1', 'openxcom-agent-control/2', 'openxcom-agent-control/3', 'openxcom-agent-control/4'):
             with self.subTest(schema=schema):
-                hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=64)
+                hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output')
                 with self.assertRaises(Unavailable): a.validate_hello(dump(hello))
                 with self.assertRaises(Unavailable):
                     a.validate_ready(dump(dict(schema=schema, mode=a.MODE, status='ready')))
@@ -248,7 +266,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 29); self.assertEqual(len(a.STATE_ACTIONS), 18)
+        self.assertEqual(len(a.ACTIONS), 30); self.assertEqual(len(a.STATE_ACTIONS), 18)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -295,7 +313,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 29)
+        self.assertEqual(len(a.ACTIONS), 30)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
@@ -460,13 +478,13 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/4')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/5')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
     def test_mismatched_native_identity_closes_before_any_request(self):
         for key, value in (('schema', 'experimental-stance/1'), ('mode', 'supervised')):
-            hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64); hello[key] = value
+            hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output'); hello[key] = value
             native = self.fixture(hello=hello)
             with self.assertRaises(Unavailable): native.client.observe()
             self.assertEqual(native.client.state, 'CLOSED'); self.assertEqual(native.requests, [])
@@ -474,7 +492,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/4']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/5']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -578,7 +596,7 @@ class ClientTests(unittest.TestCase):
 
     def test_v1_peer_fails_before_handshake_or_action_send(self):
         native = self.fixture(hello=dict(schema='openxcom-agent-control/1', mode=a.MODE,
-                                         epoch=EPOCH, ledger_capacity=64))
+                                         epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output'))
         with self.assertRaises(Unavailable): native.client.observe()
         self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
 
@@ -672,7 +690,7 @@ class TypedClientTests(unittest.TestCase):
         native = NativeFixture(**kwargs); self.addCleanup(native.close); return native
 
     def test_v2_peer_closes_before_any_request(self):
-        native = self.fixture(hello=dict(schema='openxcom-agent-control/2', mode=a.MODE, epoch=EPOCH, ledger_capacity=64))
+        native = self.fixture(hello=dict(schema='openxcom-agent-control/2', mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output'))
         with self.assertRaises(Unavailable): native.client.observe()
         self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
 
@@ -936,7 +954,7 @@ class ListClientTests(unittest.TestCase):
         native = NativeFixture(**kwargs); self.addCleanup(native.close); return native
 
     def test_v3_peer_closes_before_any_request(self):
-        native = self.fixture(hello=dict(schema='openxcom-agent-control/3', mode=a.MODE, epoch=EPOCH, ledger_capacity=64))
+        native = self.fixture(hello=dict(schema='openxcom-agent-control/3', mode=a.MODE, epoch=EPOCH, ledger_capacity=64, audio_history='mixed_output'))
         with self.assertRaises(Unavailable): native.client.observe()
         self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
 
@@ -1093,7 +1111,7 @@ class McpTests(unittest.TestCase):
         reply = adapter.Server(agent_control=object()).handle(dict(jsonrpc='2.0', id=1, method='initialize',
             params=dict(protocolVersion=adapter.PROTOCOL, capabilities={}, clientInfo=dict(name='test', version='1'))))
         self.assertEqual(reply['result']['serverInfo']['name'], 'openxcom-semantic-agent-control')
-        self.assertEqual(reply['result']['serverInfo']['version'], '0.4.0')
+        self.assertEqual(reply['result']['serverInfo']['version'], '0.5.0')
 
     def test_malformed_tool_args_never_call_client(self):
         class Never:
@@ -1190,9 +1208,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/4',mode='agent-control',epoch='1'*32,ledger_capacity=64))
-assert channel.recv(512) == b'H openxcom-agent-control/4'
-send(dict(schema='openxcom-agent-control/4',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/5',mode='agent-control',epoch='1'*32,ledger_capacity=64, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/5'
+send(dict(schema='openxcom-agent-control/5',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1237,9 +1255,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/4',mode='agent-control',epoch='1'*32,ledger_capacity=64))
-assert channel.recv(512) == b'H openxcom-agent-control/4'
-send(dict(schema='openxcom-agent-control/4',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/5',mode='agent-control',epoch='1'*32,ledger_capacity=64, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/5'
+send(dict(schema='openxcom-agent-control/5',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1270,9 +1288,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/4', 'agent-control', '1' * 32
-send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=64))
-assert channel.recv(256) == b'H openxcom-agent-control/4'; send(dict(schema=schema,mode=mode,status='ready'))
+schema, mode, epoch = 'openxcom-agent-control/5', 'agent-control', '1' * 32
+send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=64, audio_history='mixed_output'))
+assert channel.recv(256) == b'H openxcom-agent-control/5'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

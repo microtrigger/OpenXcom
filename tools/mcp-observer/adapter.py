@@ -376,7 +376,7 @@ class Server:
                       'serverInfo': {'name': ('openxcom-semantic-agent-control' if self.agent_control is not None else
                                               'openxcom-supervised-stance-pilot' if self.supervised_stance is not None
                                               else 'openxcom-readonly-scaffold'),
-                                     'version': '0.4.0' if self.agent_control is not None else '0.1.0'}}
+                                     'version': '0.5.0' if self.agent_control is not None else '0.1.0'}}
         elif self.state != 'ready':
             return error(ident, -32000, 'Not initialized')
         elif method == 'tools/list':
@@ -390,8 +390,8 @@ class Server:
                                           self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled,
                                           self.supervised_inventory_unload_enabled, self.agent_control is not None)}
         elif (method == 'tools/call' and self.agent_control is not None
-                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result')):
-            from agent_control import token, validate_action_arguments
+                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events')):
+            from agent_control import token, validate_action_arguments, validate_event_arguments
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
             try:
@@ -399,6 +399,8 @@ class Server:
                     raise Unavailable('Unavailable')
                 if params['name'] == 'execute_ui_action':
                     validate_action_arguments(arguments)
+                elif params['name'] == 'read_public_events':
+                    validate_event_arguments(arguments)
                 elif params['name'] == 'read_ui_action_result':
                     exact(arguments, 'command_id'); token(arguments['command_id'])
                 else:
@@ -498,6 +500,8 @@ class Server:
                 obj = self.agent_control.observe()
             elif name == 'execute_ui_action':
                 obj = self.agent_control.execute(**arguments)
+            elif name == 'read_public_events':
+                obj = self.agent_control.read_events(**arguments)
             else:
                 obj = self.agent_control.read_result(**arguments)
             return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}],

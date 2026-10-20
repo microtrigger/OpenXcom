@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/4"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/5"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/4\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/5\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -36,7 +36,7 @@ bool agentActionId(const std::string &value)
         value == "set_ironman" || value == "start_new_game" || value == "place_base_site" ||
         value == "replace_base_name" || value == "confirm_base_name" ||
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "scroll_visible_list" ||
-        value == "close_dropdown" || value == "open_funding" || value == "close_funding";
+        value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn";
 }
 const char *agentArgumentKind(const std::string &action)
 {
@@ -103,6 +103,15 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     {
         if (!canonical.empty()) canonical += " ";
         canonical += part; parts.push_back(part);
+    }
+    if (canonical == packet && parts.size() == 5 && parts[0] == "V")
+    {
+        std::uint64_t limit = 0;
+        if (!agentToken(parts[1]) || !agentToken(parts[2]) ||
+            !decimal(parts[3], 9007199254740991ULL, request.after) ||
+            !decimal(parts[4], 16, limit) || !limit) return false;
+        request.kind = 'V'; request.challenge = parts[1]; request.epoch = parts[2];
+        request.limit = static_cast<unsigned>(limit); return true;
     }
     if (canonical != packet || parts.size() < 6 || parts.size() > 8 || parts[0] != "E") return false;
     request.id = parts[1]; request.epoch = parts[2]; request.capability = parts[3]; request.action = parts[5];

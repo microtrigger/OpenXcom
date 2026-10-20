@@ -20,20 +20,27 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(parseAgentRequest("H openxcom-agent-control/4", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/5", r) && r.kind == 'H', "exact handshake");
+    check(!parseAgentRequest("H openxcom-agent-control/4", r), "v4 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/2", r), "v2 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/3", r), "v3 mismatch rejected");
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
-    check(!parseAgentRequest("H openxcom-agent-control/4\n", r), "newline rejected");
+    check(!parseAgentRequest("H openxcom-agent-control/5\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
     check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
+    const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
+    check(parseAgentRequest(eventPrefix + "0 16", r) && r.kind == 'V' && r.challenge == token(1) &&
+        r.epoch == token(2) && r.after == 0 && r.limit == 16, "event cursor request");
+    check(parseAgentRequest(eventPrefix + "9007199254740991 1", r), "event safe integer boundary");
+    for (const char *suffix : {"00 1", "-1 1", "1 0", "1 17", "1 01", "1 1 extra", "9007199254740992 1"})
+        check(!parseAgentRequest(eventPrefix + suffix, r), "event noncanonical cursor or limit rejected");
     const std::string prefix = "E " + token(3) + " " + token(4) + " " + token(5) + " ";
     const char *actions[] = {"next_soldier", "previous_soldier", "kneel", "stand", "continue_next_turn",
         "new_battle", "start_battle", "continue_briefing", "close_inventory",
         "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",
         "resume_game", "cancel_menu", "dismiss_error", "start_new_game", "confirm_base_name",
-        "close_dropdown", "open_funding", "close_funding"};
+        "close_dropdown", "open_funding", "close_funding", "end_turn"};
     for (const char *action : actions)
         check(parseAgentRequest(prefix + "12 " + action, r) && r.kind == 'E' && r.revision == 12 &&
             r.id == token(3) && r.epoch == token(4) && r.capability == token(5), "bounded action parse");
@@ -69,7 +76,7 @@ int main()
     check(typed.begin(token(3),first)==AgentLedger::Fresh, "typed identity fresh");
     check(typed.begin(token(3),first)==AgentLedger::Duplicate, "typed identity duplicate");
     check(typed.begin(token(3),prefix+"0 replace_base_name 42")==AgentLedger::Conflict, "changed argument conflicts");
-    const char *bad[] = {"toggle_kneel", "end_turn", "get_unit", "click", "approve", "inventory_item",
+    const char *bad[] = {"toggle_kneel", "map_click", "get_unit", "click", "approve", "inventory_item",
         "start_campaign", "load_game", "save_game", "overwrite_save", "delete_save", "abandon_game", "apply_options"};
     for (const char *action : bad) check(!parseAgentRequest(prefix + "12 " + action, r), "unsupported action");
     check(!parseAgentRequest(prefix + "012 kneel", r), "noncanonical revision");

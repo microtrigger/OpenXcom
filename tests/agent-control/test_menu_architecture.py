@@ -106,9 +106,9 @@ class MenuArchitectureTest(unittest.TestCase):
         self.assertIn('allowButtons(true)', normal)
         self.assertIn('new PauseState(OPT_BATTLESCAPE)', normal)
 
-    def test_version_four_is_explicit(self):
+    def test_version_five_is_explicit(self):
         code = read('Observer/AgentProtocol.cpp')
-        self.assertIn('openxcom-agent-control/4', code)
+        self.assertIn('openxcom-agent-control/5', code)
         self.assertNotIn('openxcom-agent-control/2', code)
         self.assertNotIn('openxcom-agent-control/1', code)
         self.assertIn('packet == std::string("H ") + agentProtocolSchema()', code)

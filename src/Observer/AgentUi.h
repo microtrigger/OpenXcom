@@ -18,6 +18,9 @@ struct AgentUiRect {
 };
 struct AgentUiState {
     std::string screen = "unsupported", visible = "{}";
+    // Read-only tactical presentation is not an action target in /5.
+    // A provider may bind control authority to its separate visible controls.
+    std::string controlVisible;
     std::vector<AgentUiAction> actions;
     // Visible projection regions: private geometry binding and overlay checks.
     std::vector<AgentUiRect> regions;
@@ -28,6 +31,7 @@ struct AgentUiState {
     std::vector<std::size_t> rows;
     std::uint64_t actorRevision = 0, selectionRevision = 0, uiRevision = 0;
     std::string payload() const;
+    std::string authorityPayload() const;
     bool sameBinding(const AgentUiState &other) const;
     bool offers(const std::string &id) const;
 };

@@ -21,11 +21,18 @@ std::string AgentUiState::payload() const
     }
     return out + "]";
 }
+std::string AgentUiState::authorityPayload() const
+{
+    if (controlVisible.empty()) return payload();
+    AgentUiState controls = *this;
+    controls.visible = controlVisible;
+    return controls.payload();
+}
 bool AgentUiState::sameBinding(const AgentUiState &o) const
 {
     return actor == o.actor && save == o.save && actorRevision == o.actorRevision &&
         selectionRevision == o.selectionRevision && uiRevision == o.uiRevision && widgets == o.widgets &&
-        rows == o.rows && regions == o.regions && payload() == o.payload();
+        rows == o.rows && regions == o.regions && authorityPayload() == o.authorityPayload();
 }
 bool AgentUiState::offers(const std::string &id) const
 {

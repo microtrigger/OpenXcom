@@ -1,6 +1,6 @@
 # Experimental semantic MCP control
 
-**v4** — Experimental implementation; partial coverage, not a complete interface.
+**v5** — Experimental implementation; partial coverage, not a complete interface.
 
 ## Build and use
 
