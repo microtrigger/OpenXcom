@@ -19,7 +19,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <vector>
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 #include <cstdint>
 #endif
 #include <string>
@@ -51,7 +51,7 @@ class RuleItem;
 class SavedBattleGame
 {
 private:
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t _stanceControlRevision = 0;
 #endif
 	BattlescapeState *_battleState;
@@ -89,7 +89,7 @@ private:
 	/// Selects a soldier.
 	BattleUnit *selectPlayerUnit(int dir, bool checkReselect = false, bool setReselect = false, bool checkInventory = false);
 public:
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t stanceControlRevision() const { return _stanceControlRevision; }
 #endif
 	/// Creates a new battle save, based on the current generic save.

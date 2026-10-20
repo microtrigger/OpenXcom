@@ -644,7 +644,7 @@ BattleUnit *SavedBattleGame::getSelectedUnit() const
  */
 void SavedBattleGame::setSelectedUnit(BattleUnit *unit)
 {
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     ++_stanceControlRevision;
 #endif
     _selectedUnit = unit;
@@ -1881,7 +1881,7 @@ BattleActionType SavedBattleGame::getTUReserved() const
  */
 void SavedBattleGame::setTUReserved(BattleActionType reserved)
 {
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     ++_stanceControlRevision;
 #endif
 	_tuReserved = reserved;
@@ -1902,7 +1902,7 @@ bool SavedBattleGame::getKneelReserved() const
  */
 void SavedBattleGame::setKneelReserved(bool reserved)
 {
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     ++_stanceControlRevision;
 #endif
 	_kneelReserved = reserved;

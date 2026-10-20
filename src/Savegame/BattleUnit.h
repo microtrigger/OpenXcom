@@ -20,7 +20,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <vector>
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
 #include <cstdint>
 #endif
 #include <string>
@@ -64,7 +64,7 @@ enum UnitBodyPart {BODYPART_HEAD, BODYPART_TORSO, BODYPART_RIGHTARM, BODYPART_LE
 class BattleUnit
 {
 private:
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t _stanceControlRevision = 0;
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     std::uint64_t _turnControlPoseRevision = 0;
@@ -143,7 +143,7 @@ private:
 	/// Helper function initing recolor vector.
 	void setRecolor(int basicLook, int utileLook, int rankLook);
 public:
-#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
+#if defined(OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE) || defined(OPENXCOM_EXPERIMENTAL_AGENT_CONTROL)
     std::uint64_t stanceControlRevision() const { return _stanceControlRevision; }
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     std::uint64_t turnControlPoseRevision() const { return _turnControlPoseRevision; }

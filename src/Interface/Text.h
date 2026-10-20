@@ -40,6 +40,10 @@ enum TextVAlign { ALIGN_TOP, ALIGN_MIDDLE, ALIGN_BOTTOM };
 class Text : public InteractiveSurface
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentHasGlyph = false, _agentTextClipped = false;
+    int _agentInkX1 = 0, _agentInkY1 = 0, _agentInkX2 = 0, _agentInkY2 = 0;
+#endif
 	Font *_big, *_small, *_font, *_fontOrig;
 	Language *_lang;
 	std::string _text;
@@ -56,6 +60,10 @@ private:
 	/// Gets the X position of a text line.
 	int getLineX(int line) const;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentTextComplete() const { return !_agentTextClipped && !_scroll; }
+    bool agentPaintedBounds(SDL_Rect &rect) const;
+#endif
 	/// Creates a new text with the specified size and position.
 	Text(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the text.

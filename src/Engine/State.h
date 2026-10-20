@@ -22,6 +22,9 @@
 #include <SDL.h>
 #include "../Savegame/Soldier.h"
 #include "LocalizedText.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -56,6 +59,12 @@ protected:
 	SDL_Color _palette[256];
 	Uint8 _cursorColor;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Opt-in typed public UI only. Unsupported states expose no actions.
+    virtual bool agentUiState(Observer::AgentUiState &) const { return false; }
+    virtual bool agentDispatch(const std::string &) { return false; }
+    virtual bool agentBindingCurrent(const Observer::AgentUiState &) const { return true; }
+#endif
 	/// Creates a new state linked to a game.
 	State();
 	/// Cleans up the state.

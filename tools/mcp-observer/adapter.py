@@ -49,7 +49,8 @@ def error(ident, code, message):
 def definitions(presentation=False, presented_hud=False, mixed_audio=False, supervised_stance=False,
                 supervised_selection=False, supervised_turn=False, supervised_map_left_click=False,
                 supervised_inventory=False, supervised_inventory_close=False, supervised_inventory_ground=False,
-                supervised_inventory_click=False, supervised_inventory_right_click=False, supervised_inventory_unload=False):
+                supervised_inventory_click=False, supervised_inventory_right_click=False, supervised_inventory_unload=False,
+                agent_control=False):
     result = [{'name': name,
              'description': 'Read-only historical public observation, never current-state authority. HUD and cursor sessions are independent. require_current always fails closed.',
              'inputSchema': {'type': 'object', 'properties': {'require_current': {'type': 'boolean', 'default': False}}, 'additionalProperties': False},
@@ -309,11 +310,17 @@ def definitions(presentation=False, presented_hud=False, mixed_audio=False, supe
                                  'required': ['capability', 'control_epoch', 'command_id'], 'additionalProperties': False},
                              'annotations': {'readOnlyHint': False, 'destructiveHint': True,
                                              'idempotentHint': True, 'openWorldHint': False}}])
+    if agent_control:
+        from agent_control import definitions as agent_definitions
+        result.extend(agent_definitions())
     return result
 
 
 class Server:
-    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None, supervised_stance=None):
+    def __init__(self, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None, supervised_stance=None, agent_control=None):
+        if agent_control is not None and supervised_stance is not None:
+            raise ValueError('Distinct control modes cannot be combined')
+        self.agent_control = agent_control
         self.state = 'new'
         self.presentation = presentation
         self.mixed_audio = mixed_audio
@@ -366,7 +373,8 @@ class Server:
                 return error(ident, -32602, 'Invalid initialization')
             self.state = 'initializing'
             result = {'protocolVersion': PROTOCOL, 'capabilities': {'tools': {}},
-                      'serverInfo': {'name': ('openxcom-supervised-stance-pilot' if self.supervised_stance is not None
+                      'serverInfo': {'name': ('openxcom-semantic-agent-control' if self.agent_control is not None else
+                                              'openxcom-supervised-stance-pilot' if self.supervised_stance is not None
                                               else 'openxcom-readonly-scaffold'), 'version': '0.1.0'}}
         elif self.state != 'ready':
             return error(ident, -32000, 'Not initialized')
@@ -379,7 +387,24 @@ class Server:
                                           self.supervised_map_left_click_enabled, self.supervised_inventory_enabled,
                                           self.supervised_inventory_close_enabled, self.supervised_inventory_ground_enabled,
                                           self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled,
-                                          self.supervised_inventory_unload_enabled)}
+                                          self.supervised_inventory_unload_enabled, self.agent_control is not None)}
+        elif (method == 'tools/call' and self.agent_control is not None
+                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result')):
+            from agent_control import token, validate_action_arguments
+            from snapshots import Unavailable, exact
+            arguments = params.get('arguments', {})
+            try:
+                if set(params) - {'name', 'arguments', '_meta'} or type(arguments) is not dict:
+                    raise Unavailable('Unavailable')
+                if params['name'] == 'execute_ui_action':
+                    validate_action_arguments(arguments)
+                elif params['name'] == 'read_ui_action_result':
+                    exact(arguments, 'command_id'); token(arguments['command_id'])
+                else:
+                    exact(arguments, '')
+            except Unavailable:
+                return error(ident, -32602, 'Invalid params')
+            result = self.agent(params['name'], arguments)
         elif (method == 'tools/call' and self.supervised_stance is not None
                 and (params.get('name') in ('read_stance_context', 'request_stance', 'read_stance_status')
                      or (params.get('name') == 'request_selection' and self.supervised_selection_enabled)
@@ -463,6 +488,26 @@ class Server:
             return error(ident, -32601, 'Method not found')
         return {'jsonrpc': '2.0', 'id': ident, 'result': result}
 
+
+    def agent(self, name, arguments):
+        from agent_control import ActionOutcomeUnknown
+        from snapshots import Unavailable
+        try:
+            if name == 'read_ui_state':
+                obj = self.agent_control.observe()
+            elif name == 'execute_ui_action':
+                obj = self.agent_control.execute(**arguments)
+            else:
+                obj = self.agent_control.read_result(**arguments)
+            return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}],
+                    'structuredContent': obj, 'isError': False}
+        except ActionOutcomeUnknown as failure:
+            obj = failure.public_error()
+            return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}],
+                    'structuredContent': obj, 'isError': True}
+        except Unavailable:
+            return {'content': [{'type': 'text', 'text': '{"error":"unavailable"}'}],
+                    'structuredContent': {'error': 'unavailable'}, 'isError': True}
 
     def stance(self, name, arguments):
         from supervised_stance import (PUBLIC_CONTEXT_SCHEMA, PUBLIC_TACTICAL_CONTEXT_SCHEMA,
@@ -619,8 +664,8 @@ class Server:
                 '{"available":false,"freshness":"unverified","reason":"observation_unavailable"}'}], 'isError': True}
 
 
-def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None, supervised_stance=None):
-    server = Server(hud_dir, cursor_dir, presentation, mixed_audio, supervised_stance)
+def serve(source, sink, hud_dir=None, cursor_dir=None, presentation=None, mixed_audio=None, supervised_stance=None, agent_control=None):
+    server = Server(hud_dir, cursor_dir, presentation, mixed_audio, supervised_stance, agent_control)
     while True:
         raw = source.readline(MAX_MESSAGE + 1)
         if not raw:

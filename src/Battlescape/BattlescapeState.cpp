@@ -994,6 +994,12 @@ void BattlescapeState::btnShowMapClick(Action *)
 
 void BattlescapeState::toggleKneelButton(BattleUnit* unit)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // The exact same value chooses the visibly rendered kneel/stand icon.
+    _agentShownActor = unit;
+    _agentShownKneeled = unit && unit->isKneeled();
+    ++_agentUiRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     _stanceShownActor = unit;
     _stanceShownKneeled = unit && unit->isKneeled();
@@ -1411,6 +1417,9 @@ bool BattlescapeState::playableUnitSelected()
  */
 void BattlescapeState::updateSoldierInfo(bool checkFOV)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     ++_stanceUiRevision;
 #endif
@@ -2669,3 +2678,63 @@ void BattlescapeState::autosave()
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal || _warning->getVisible() || !_game->isState(const_cast<BattlescapeState *>(this)) ||
+        !Observer::agentWidgetVisible(_icons)) return false;
+    out = Observer::AgentUiState(); out.screen = "battlescape";
+    const bool selected = Observer::agentWidgetVisible(_numTimeUnits) && _numTimeUnits->agentValueFullyVisible() &&
+        Observer::agentWidgetVisible(_numEnergy) && _numEnergy->agentValueFullyVisible() &&
+        Observer::agentWidgetVisible(_numHealth) && _numHealth->agentValueFullyVisible() &&
+        Observer::agentWidgetVisible(_numMorale) && _numMorale->agentValueFullyVisible();
+    const bool stance = selected && Observer::agentWidgetVisible(_btnKneel);
+    out.visible = "{\"selected_name\":" + Observer::agentTextJson(_txtName) +
+        ",\"time_units\":" + (selected ? std::to_string(_numTimeUnits->getValue()) : "null") +
+        ",\"energy\":" + (selected ? std::to_string(_numEnergy->getValue()) : "null") +
+        ",\"health\":" + (selected ? std::to_string(_numHealth->getValue()) : "null") +
+        ",\"morale\":" + (selected ? std::to_string(_numMorale->getValue()) : "null") +
+        ",\"kneel_indicator\":" + (stance ? Observer::agentJsonString(_agentShownKneeled ? "kneeling" : "standing") : "null") + "}";
+    if (Observer::agentWidgetVisible(_btnNextSoldier))
+    {
+        out.actions.push_back(Observer::AgentUiAction("next_soldier", "Next soldier", "visible_control_semantics"));
+        // Previous is the existing keyboard action on this same shown control.
+        out.actions.push_back(Observer::AgentUiAction("previous_soldier", "Previous soldier", "visible_control_semantics"));
+    }
+    if (stance)
+        out.actions.push_back(Observer::AgentUiAction(_agentShownKneeled ? "stand" : "kneel",
+            _agentShownKneeled ? "Stand" : "Kneel", "visible_control_semantics"));
+    // Capture private freshness generations at observation time. Normal init
+    // may reapply reserve settings after it last painted the HUD; those writes
+    // must not make every future fresh observation permanently stale.
+    BattleUnit *currentActor = _save->getSelectedUnit();
+    out.actor = currentActor; out.save = _save;
+    out.actorRevision = currentActor ? currentActor->stanceControlRevision() : 0;
+    out.selectionRevision = _save->stanceControlRevision();
+    out.uiRevision = _agentUiRevision;
+    const Surface *regions[] = {_txtName, _numTimeUnits, _numEnergy, _numHealth, _numMorale, _btnNextSoldier, _btnKneel};
+    for (const Surface *widget : regions) Observer::agentIncludeWidget(out, widget);
+    return true;
+}
+bool BattlescapeState::agentBindingCurrent(const Observer::AgentUiState &binding) const
+{
+    // Validation only. These private identities/revisions never reach the wire,
+    // action list, status reason or success claims. Detect away-and-back changes.
+    BattleUnit *actor = _save->getSelectedUnit();
+    return binding.save == _save && binding.actor == actor && actor == _agentShownActor &&
+        (!actor || actor->isKneeled() == _agentShownKneeled) &&
+        binding.selectionRevision == _save->stanceControlRevision() &&
+        binding.actorRevision == (actor ? actor->stanceControlRevision() : 0);
+}
+bool BattlescapeState::agentDispatch(const std::string &action)
+{
+    if (action == "next_soldier") btnNextSoldierClick(0);
+    else if (action == "previous_soldier") btnPrevSoldierClick(0);
+    else if ((action == "kneel" && !_agentShownKneeled) || (action == "stand" && _agentShownKneeled)) btnKneelClick(0);
+    else return false;
+    return true;
+}
+}
+#endif

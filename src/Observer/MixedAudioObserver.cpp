@@ -93,12 +93,44 @@ void MixedAudioObserver::close()
         Mix_SetPostMix(NULL, NULL);
         _attached = false;
     }
+    closeDetachedState();
+}
+void MixedAudioObserver::closeDetachedState() noexcept
+{
     _slot.closeAfterDetach();
     if (_fd >= 0) ::close(_fd);
     _fd = -1;
     _challenge.clear();
     _admission.clear();
 }
+#ifdef OPENXCOM_LOADING_AUDIO_HANDOFF
+MixedAudioObserver::LoadingReset MixedAudioObserver::resetForExclusiveLoadingAfterPostmixDetach() noexcept
+{
+    // The friend completed the empty drain and global hook detach already.
+    // Never enter public owner APIs, protocol, diagnostics or clock logic here.
+    _attached = false;
+    _catalog.store(0, std::memory_order_release);
+    if (_helloSent)
+    {
+        closeDetachedState();
+        return LoadingReset::EpochClosed;
+    }
+    // Preserve original bootstrap start/deadline, fd and slot; no revival.
+    if (_fd < 0) return LoadingReset::DisabledRetained;
+    return LoadingReset::BootstrapPreserved;
+}
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+void MixedAudioObserver::terminalCloseForExclusiveLoadingAfterPostmixDetach() noexcept
+{
+    // Same-context exclusive worker authority: no clock/protocol/owner API and
+    // no mixer setter. Native callback exclusion and postmix detach came first.
+    _attached = false;
+    _catalog.store(0, std::memory_order_release);
+    closeDetachedState();
+}
+#endif
+
+#endif
 void SDLCALL MixedAudioObserver::postmix(void *context, Uint8 *stream, int len)
 {
     static_cast<MixedAudioSlot *>(context)->callback(stream, len);

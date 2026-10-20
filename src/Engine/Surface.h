@@ -136,6 +136,9 @@ public:
 	virtual void setVisible(bool visible);
 	/// Gets the surface's visibility.
     bool getVisible() const;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    virtual bool agentContextVisible() const { return _visible && !_hidden && !_redraw && !_crop.w && !_crop.h; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     virtual bool stanceContextVisible() const { return _visible && !_hidden && !_redraw && !_crop.w && !_crop.h; }
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN

@@ -1226,7 +1226,16 @@ FM_OPL *OPLCreate(int type, int clock, int rate)
 #endif
 	/* allocate memory block */
 	ptr = (char*)malloc(state_size);
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+	if(ptr==NULL)
+	{
+		// OPL_LockTable succeeded even though this chip allocation did not.
+		OPL_UnLockTable();
+		return NULL;
+	}
+#else
 	if(ptr==NULL) return NULL;
+#endif
 	/* clear */
 	memset(ptr,0,state_size);
 	OPL        = (FM_OPL *)ptr; ptr+=sizeof(FM_OPL);

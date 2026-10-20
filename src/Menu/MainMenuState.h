@@ -48,6 +48,12 @@ public:
 	MainMenuState();
 	/// Cleans up the Main Menu state.
 	~MainMenuState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Describes only the currently rendered New Battle control.
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	/// Invokes the ordinary handler for an exposed startup action.
+	bool agentDispatch(const std::string &action) override;
+#endif
 	/// Handler for clicking the New Game button.
 	void btnNewGameClick(Action *action);
 	/// Handler for clicking the New Battle button.

@@ -87,6 +87,10 @@ public:
 	size_t getHoveredListIdx() const;
 	/// Sets the button text without changing the selected option
 	void setText(const std::string &text);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Gets only the currently rendered closed-combo label, never its options.
+	std::string agentLabel() const;
+#endif
 	/// Sets the selected option in the list.
 	void setSelected(size_t sel);
 	/// Sets the list of options.

@@ -116,6 +116,8 @@ set ( engine_src
   Engine/InteractiveSurface.cpp
   Engine/Language.cpp
   Engine/LanguagePlurality.cpp
+  Engine/LoaderSession.cpp
+  Engine/LoadingUiPolicy.cpp
   Engine/LocalizedText.cpp
   Engine/ModInfo.cpp
   Engine/Music.cpp
@@ -478,8 +480,39 @@ if ( FORCE_INSTALL_DATA_TO_BIN )
 endif ()
 
 add_executable ( openxcom  ${application_type} ${openxcom_src} ${openxcom_icon} )
+
+# Default OFF. The native-provider verification macro is deliberately not a
+# user-settable CMake option; this stage is compile/test authoring, not release.
+if ( OPENXCOM_BUILD_RESPONSIVE_LOADING )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_RESPONSIVE_LOADING )
+endif()
+
+# Independently buildable helper; responsive integration requires it explicitly.
+if ( OPENXCOM_BUILD_LOADING_AUDIO_HANDOFF )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_LOADING_AUDIO_HANDOFF )
+  target_sources ( openxcom PRIVATE Engine/LoadingAudioHandoff.cpp )
+endif()
+
+if ( OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_LOADING_PRESENTATION_HELPERS )
+endif()
+
+# SPDX-License-Identifier: GPL-3.0-or-later; optional loader backend, 2026-10-14.
+# LoaderSession.cpp stays unconditional and SDL-neutral. This helper switch
+# alone enables neither Game integration nor any test hook. Isolate SDL2's headers from every SDL1 translation
+# unit by replacing the bridge target's inherited include directories.
+if ( OPENXCOM_BUILD_LINUX_LOADER_BACKEND )
+  add_library ( openxcom_loader_sdl_tls OBJECT Engine/LoaderSdlTls.cpp )
+  set_property ( TARGET openxcom_loader_sdl_tls PROPERTY INCLUDE_DIRECTORIES
+    "${OPENXCOM_LOADER_SDL2_INCLUDE_DIRS}" )
+  set_property ( SOURCE Engine/LoaderThreadLinux.cpp APPEND PROPERTY
+    COMPILE_DEFINITIONS _GNU_SOURCE )
+  target_sources ( openxcom PRIVATE Engine/LoaderThreadLinux.cpp
+    $<TARGET_OBJECTS:openxcom_loader_sdl_tls> )
+endif()
+
 # SPDX-License-Identifier: GPL-3.0-or-later; optional observer addition, 2026-10-10.
-if ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER OR EXPERIMENTAL_HUD_OBSERVER OR EXPERIMENTAL_CURSOR_OBSERVER )
+if ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER OR EXPERIMENTAL_HUD_OBSERVER OR EXPERIMENTAL_CURSOR_OBSERVER OR EXPERIMENTAL_AGENT_CONTROL )
   target_sources ( openxcom PRIVATE Observer/DiagnosticProfile.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_OBSERVER_DIAGNOSTICS )
 endif()
@@ -534,7 +567,18 @@ if (${CMAKE_SYSTEM_NAME} MATCHES FreeBSD OR ${CMAKE_SYSTEM_NAME} MATCHES NetBSD 
   set ( system_libs -lexecinfo )
 endif ()
 
-target_link_libraries ( openxcom ${system_libs} ${SDLIMAGE_LIBRARY} ${SDLMIXER_LIBRARY} ${SDLGFX_LIBRARY} ${SDL_LIBRARY} ${OPENGL_LIBRARIES} ${EXTRA_XCOM_LIBS} debug ${YAMLCPP_LIBRARY_DEBUG} optimized ${YAMLCPP_LIBRARY} )
+set ( openxcom_sdl_libraries ${SDLIMAGE_LIBRARY} ${SDLMIXER_LIBRARY} ${SDLGFX_LIBRARY} ${SDL_LIBRARY} )
+if ( OPENXCOM_BUILD_LINUX_LOADER_BACKEND )
+  # Keep the legacy SDL1 compatibility provider first for overlapping exports.
+  # Link SDL2 by its selected file, not an imported target whose include usage
+  # requirements would leak SDL2 headers into the SDL1 application. Exact loaded
+  # provider identity and same-SDL state remain separate runtime acceptance gates.
+  set ( openxcom_sdl_libraries ${SDL_LIBRARY} ${SDLIMAGE_LIBRARY} ${SDLMIXER_LIBRARY} ${SDLGFX_LIBRARY} "${OPENXCOM_LOADER_SDL2_LIBRARY}" )
+endif()
+target_link_libraries ( openxcom ${system_libs} ${openxcom_sdl_libraries} ${OPENGL_LIBRARIES} ${EXTRA_XCOM_LIBS} debug ${YAMLCPP_LIBRARY_DEBUG} optimized ${YAMLCPP_LIBRARY} )
+if ( OPENXCOM_BUILD_LINUX_LOADER_BACKEND )
+  target_link_libraries ( openxcom Threads::Threads )
+endif()
 
 # Pack libraries into bundle and link executable appropriately
 if ( APPLE AND CREATE_BUNDLE )
@@ -626,6 +670,12 @@ if ( EXPERIMENTAL_SUPERVISED_TURN )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; reconstructed Snapshot foundations, 2026-10-13.
+# No Snapshot controller/transport is enabled by this incomplete source slice.
+if ( EXPERIMENTAL_SUPERVISED_SNAPSHOT )
+  target_sources ( openxcom PRIVATE Observer/SnapshotLifetime.cpp Observer/SnapshotRuntime.cpp Observer/SnapshotCatalog.cpp Observer/SnapshotContext.cpp Observer/SnapshotPresentation.cpp Observer/SnapshotImageProof.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT )
+endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; supervised map left-click, 2026-10-12.
 if ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK )
@@ -692,4 +742,10 @@ endif()
 if ( EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE )
   target_sources ( openxcom PRIVATE ../tests/inventory-unload-control/InventoryUnloadControlGate.cpp )
   target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE )
+endif()
+
+# Separate default-off semantic execution ABI; no supervised confirmation overlay.
+if ( EXPERIMENTAL_AGENT_CONTROL )
+  target_sources ( openxcom PRIVATE Observer/AgentProtocol.cpp Observer/AgentUi.cpp Observer/AgentController.cpp )
+  target_compile_definitions ( openxcom PRIVATE OPENXCOM_EXPERIMENTAL_AGENT_CONTROL )
 endif()

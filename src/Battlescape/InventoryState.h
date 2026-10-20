@@ -114,6 +114,12 @@ public:
 	InventoryState(bool tu, BattlescapeState *parent);
 	/// Cleans up the Inventory state.
 	~InventoryState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Describes only the currently rendered ordinary close control.
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	/// Invokes the ordinary handler, retaining its normal refusal behavior.
+	bool agentDispatch(const std::string &action) override;
+#endif
 	/// Updates all soldier info.
 	void init();
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_INVENTORY

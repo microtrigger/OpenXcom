@@ -51,7 +51,39 @@ class Logger
 {
 public:
 	Logger();
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+	virtual ~Logger() noexcept;
+
+	/**
+	 * Suppresses Log on this thread before any logging expression is evaluated.
+	 * The prior-state representation supports nesting without a depth overflow.
+	 * Keep this scope on its creating thread; future loading callers must cover
+	 * their entire owner tick, including catches, and freeze logging settings
+	 * before starting a worker. This helper does not activate those callers.
+	 */
+	class ScopedSuppression
+	{
+	public:
+		ScopedSuppression() noexcept : _previous(suppressionState())
+		{
+			suppressionState() = true;
+		}
+		~ScopedSuppression() noexcept
+		{
+			suppressionState() = _previous;
+		}
+		ScopedSuppression(const ScopedSuppression&) = delete;
+		ScopedSuppression& operator=(const ScopedSuppression&) = delete;
+		ScopedSuppression(ScopedSuppression&&) = delete;
+		ScopedSuppression& operator=(ScopedSuppression&&) = delete;
+	private:
+		const bool _previous;
+	};
+
+	static bool suppressed() noexcept { return suppressionState(); }
+#else
 	virtual ~Logger();
+#endif
 	std::ostringstream& get(SeverityLevel level = LOG_INFO);
 
 	static SeverityLevel& reportingLevel();
@@ -61,6 +93,14 @@ protected:
 	std::ostringstream os;
 private:
 	Logger(const Logger&);
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+	static bool& suppressionState() noexcept
+	{
+		// One per-thread state shared by all consistent inline definitions.
+		static thread_local bool suppressed = false;
+		return suppressed;
+	}
+#endif
 };
 
 inline Logger::Logger()
@@ -73,6 +113,51 @@ inline std::ostringstream& Logger::get(SeverityLevel level)
 	return os;
 }
 
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+inline Logger::~Logger() noexcept
+{
+	FILE *file = NULL;
+	try
+	{
+		os << std::endl;
+		if (!os)
+			return;
+		const std::string message = os.str();
+		std::ostringstream ss;
+		ss << "[" << CrossPlatform::now() << "]" << "\t" << message;
+		if (!ss)
+			return;
+		// Complete all allocating formatting/extraction before opening a file.
+		const std::string record = ss.str();
+		file = fopen(logFile().c_str(), "a");
+		const bool opened = file != NULL;
+		if (file)
+		{
+			fprintf(file, "%s", record.c_str());
+			fflush(file);
+			FILE *closing = file;
+			file = NULL; // fclose is attempted once, even if that attempt fails.
+			fclose(closing);
+		}
+		if (!opened || reportingLevel() == LOG_DEBUG || reportingLevel() == LOG_VERBOSE)
+		{
+			fprintf(stderr, "%s", message.c_str());
+			fflush(stderr);
+		}
+	}
+	catch (...)
+	{
+		// Best effort only. Never recurse into Log from this failure path.
+		if (file)
+		{
+			FILE *closing = file;
+			file = NULL;
+			try { fclose(closing); }
+			catch (...) {}
+		}
+	}
+}
+#else
 inline Logger::~Logger()
 {
 	os << std::endl;
@@ -91,6 +176,7 @@ inline Logger::~Logger()
 		fflush(stderr);
 	}
 }
+#endif
 
 inline SeverityLevel& Logger::reportingLevel()
 {
@@ -110,8 +196,17 @@ inline std::string Logger::toString(SeverityLevel level)
 	return buffer[level];
 }
 
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+// Deliberately preserve legacy non-suppressed evaluation: a passing level
+// expression is evaluated twice, a filtered one once, a suppressed one never.
+#define Log(level) \
+	if (Logger::suppressed()) ; \
+	else if (level > Logger::reportingLevel()) ; \
+	else Logger().get(level)
+#else
 #define Log(level) \
 	if (level > Logger::reportingLevel()) ; \
 	else Logger().get(level)
+#endif
 
 }

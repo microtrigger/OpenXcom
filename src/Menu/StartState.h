@@ -20,6 +20,10 @@
 #include "../Engine/State.h"
 #include <string>
 #include <sstream>
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include <memory>
+#include <array>
+#endif
 
 namespace OpenXcom
 {
@@ -36,6 +40,19 @@ enum LoadingPhase { LOADING_STARTED, LOADING_FAILED, LOADING_SUCCESSFUL, LOADING
  */
 class StartState : public State
 {
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+private:
+    std::unique_ptr<Font> _font;
+    std::unique_ptr<Language> _lang;
+    Text *_text;
+public:
+    StartState();
+    ~StartState();
+    void init();
+    void think();
+    void handle(Action *);
+    void prepareResponsiveFrames(std::array<std::unique_ptr<Surface>, 3> &frames);
+#else
 private:
 	Text *_text, *_cursor;
 	Font *_font;
@@ -66,6 +83,7 @@ public:
 	void addLine(const std::string &str);
 	/// Loads the game resources.
 	static int load(void *game_ptr);
+#endif
 };
 
 }

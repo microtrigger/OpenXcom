@@ -54,6 +54,12 @@ public:
 	NewBattleState();
 	/// Cleans up the New Battle state.
 	~NewBattleState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Describes current rendered selections and the ordinary OK control.
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	/// Invokes the ordinary handler for an exposed startup action.
+	bool agentDispatch(const std::string &action) override;
+#endif
 	/// Resets state.
 	void init();
 	/// Loads New Battle settings.

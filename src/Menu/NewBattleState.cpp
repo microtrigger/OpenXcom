@@ -238,6 +238,49 @@ NewBattleState::~NewBattleState()
 
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace
+{
+std::string agentComboLabelJson(const ComboBox *combo)
+{
+	if (!Observer::agentWidgetVisible(combo)) return "null";
+	const std::string label = combo->agentLabel();
+	return label.empty() ? "null" : Observer::agentJsonString(label);
+}
+}
+
+bool NewBattleState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal || !Observer::agentWidgetVisible(_btnOk)) return false;
+	const std::string label = Observer::agentButtonLabel(_btnOk);
+	if (label.empty()) return false;
+	out = Observer::AgentUiState();
+	out.screen = "new_battle";
+	out.visible = "{\"mission\":" + agentComboLabelJson(_cbxMission) +
+		",\"craft\":" + agentComboLabelJson(_cbxCraft) +
+		",\"terrain\":" + agentComboLabelJson(_cbxTerrain) +
+		",\"difficulty\":" + agentComboLabelJson(_cbxDifficulty) +
+		",\"alien_race\":" + agentComboLabelJson(_cbxAlienRace) + "}";
+	out.actions.push_back(Observer::AgentUiAction("start_battle", label, "visible_text"));
+	out.save = _game->getSavedGame();
+	Observer::agentIncludeWidget(out, _btnOk);
+    Observer::agentIncludeWidget(out, _cbxMission);
+    Observer::agentIncludeWidget(out, _cbxCraft);
+    Observer::agentIncludeWidget(out, _cbxTerrain);
+    Observer::agentIncludeWidget(out, _cbxDifficulty);
+    Observer::agentIncludeWidget(out, _cbxAlienRace);
+    return true;
+}
+
+bool NewBattleState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (action != "start_battle" || !agentUiState(current)) return false;
+	btnOkClick(nullptr);
+	return true;
+}
+#endif
+
 /**
  * Resets the menu music and savegame
  * when coming back from the battlescape.

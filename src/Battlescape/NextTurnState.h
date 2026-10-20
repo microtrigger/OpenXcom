@@ -43,6 +43,10 @@ private:
 	Timer *_timer;
 	Surface *_bg;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 	/// Creates the Next Turn state.
 	NextTurnState(SavedBattleGame *battleGame, BattlescapeState *state);
 	/// Cleans up the Next Turn state.

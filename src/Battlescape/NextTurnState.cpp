@@ -199,3 +199,31 @@ void NextTurnState::resize(int &dX, int &dY)
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+bool NextTurnState::agentUiState(Observer::AgentUiState &out) const
+{
+    if (_modal || !_game->isState(const_cast<NextTurnState *>(this)) ||
+        !Observer::agentWidgetVisible(_window)) return false;
+    const std::string message = Observer::agentTextJson(_txtMessage);
+    out = Observer::AgentUiState(); out.screen = "next_turn";
+    out.visible = "{\"title\":" + Observer::agentTextJson(_txtTitle) +
+        ",\"turn\":" + Observer::agentTextJson(_txtTurn) +
+        ",\"side\":" + Observer::agentTextJson(_txtSide) + ",\"message\":" + message + "}";
+    if (message != "null")
+        out.actions.push_back(Observer::AgentUiAction("continue_next_turn", _txtMessage->getText(), "visible_text"));
+    Observer::agentIncludeWidget(out, _txtTitle);
+    Observer::agentIncludeWidget(out, _txtTurn);
+    Observer::agentIncludeWidget(out, _txtSide);
+    Observer::agentIncludeWidget(out, _txtMessage);
+    return true;
+}
+bool NextTurnState::agentDispatch(const std::string &action)
+{
+    if (action != "continue_next_turn") return false;
+    close(); // Ordinary handler, including all normal end-of-battle behavior.
+    return true;
+}
+}
+#endif

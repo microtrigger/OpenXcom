@@ -19,7 +19,10 @@
 // Fork modification 2026-10-10: default-off mixed-audio observation.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "Music.h"
-#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include "Game.h"
+#endif
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
 #include "../Observer/MixedAudioMusicProfile.h"
 #endif
 #include "Exception.h"
@@ -84,7 +87,7 @@ void Music::load(const void *data, int size)
 #endif
 }
 
-#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
 bool Music::isSoftwareMixedAudio() const
 {
 #ifndef __NO_MUSIC
@@ -105,6 +108,13 @@ bool Music::isSoftwareMixedAudio() const
 void Music::play(int loop) const
 {
 #ifndef __NO_MUSIC
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    // Reject before stop: even a direct video/UFO request cannot mutate the
+    // previous playback when this actual loaded handle is unsupported.
+    if (!_music) return; // explicit blank sentinel, never a catalog capability
+    if (!Game::responsiveMusicPlaybackAllowed(this))
+        throw Exception("Music playback rejected by the responsive audio capability gate.");
+#endif
 	if (!Options::mute)
 	{
 		if (_music != 0)

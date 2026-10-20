@@ -64,6 +64,44 @@
 namespace OpenXcom
 {
 
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+// The terminal is prepared wholly on the owner before any worker exists. Its
+// text/font/language are never read by an active operation: only bitmap copies.
+StartState::StartState() : _font(new Font()), _lang(new Language()), _text(nullptr)
+{
+    _font->loadTerminal();
+    std::unique_ptr<Text> text(new Text(Options::baseXResolution, Options::baseYResolution, 0, 0));
+    add(text.get());
+    _text = text.release(); // State owns it even if later preparation fails.
+    // State::add installs the current Mod defaults. Rebind AFTER add: this
+    // terminal must not keep any old-epoch font or language borrower.
+    _text->initText(_font.get(), _font.get(), _lang.get());
+    _text->setColor(0);
+    _text->setWordWrap(true);
+    _text->setPalette(_font->getPalette(), 0, 2);
+}
+StartState::~StartState() {}
+void StartState::init() {}
+void StartState::think() {}
+void StartState::handle(Action *) {}
+void StartState::prepareResponsiveFrames(std::array<std::unique_ptr<Surface>, 3> &frames)
+{
+    static const char *const labels[] = {
+        "Loading OpenXcom...\n\nYou can close the window while loading. Resources will retire safely before exit.",
+        "Retiring resources...\n\nWaiting for audio and the loading thread to finish.\nPress R to retry only a failed cleanup start.",
+        "Loading could not finish.\n\nResources are being retained or retired safely.\nPress R to retry an eligible cleanup start."
+    };
+    for (std::size_t n = 0; n < frames.size(); ++n)
+    {
+        std::unique_ptr<Surface> frame(new Surface(_text->getWidth(), _text->getHeight()));
+        frame->setPalette(_font->getPalette(), 0, 2);
+        _text->setText(labels[n]);
+        _text->blit(frame.get());
+        frames[n] = std::move(frame);
+    }
+}
+#else
+
 LoadingPhase StartState::loading;
 std::string StartState::error;
 
@@ -340,5 +378,7 @@ int StartState::load(void *game_ptr)
 
 	return 0;
 }
+
+#endif // OPENXCOM_RESPONSIVE_LOADING
 
 }

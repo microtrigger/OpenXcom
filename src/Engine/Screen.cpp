@@ -25,6 +25,9 @@
 #include "../../tests/battle-observer/RenderPairGate.h"
 #endif
 #include "Screen.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+#include "../Observer/SnapshotImageProof.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #include "../Observer/CursorFileObserver.h"
 #include "../Observer/PresentationObserver.h"
@@ -54,6 +57,253 @@
 
 namespace OpenXcom
 {
+
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+Screen::LoadingPresentation::LoadingPresentation() noexcept : _source(0), _destination(0),
+    _config{false, false, false, false, false}, _top(0), _bottom(0), _left(0), _right(0),
+    _first(0), _count(0), _zoom(false), _pending(false), _captured(false), _strict(true), _sourceColors(0)
+{
+    std::fill(_palette, _palette + 256, SDL_Color());
+    std::fill(_sourcePalette, _sourcePalette + 256, SDL_Color());
+}
+
+Zoom::RenderStatus Screen::captureLoadingPresentation(SDL_Surface *source, SDL_Surface *destination,
+    int baseWidth, int baseHeight, int top, int bottom, int left, int right,
+    const SDL_Color *palette, int first, int count, bool pending, OpenGL *gl,
+    LoadingPresentation &out) noexcept
+{
+    return capturePresentation(source, destination, baseWidth, baseHeight, top, bottom, left, right,
+        palette, first, count, pending, gl, out, true);
+}
+
+Zoom::RenderStatus Screen::capturePresentation(SDL_Surface *source, SDL_Surface *destination,
+    int baseWidth, int baseHeight, int top, int bottom, int left, int right,
+    const SDL_Color *palette, int first, int count, bool pending, OpenGL *gl,
+    LoadingPresentation &out, bool strict) noexcept
+{
+    out = LoadingPresentation();
+    out._strict = strict;
+    if (!Zoom::readableSurface(source) || !destination || !destination->format ||
+        baseWidth <= 0 || baseHeight <= 0 || source->w != baseWidth || source->h != baseHeight)
+        return Zoom::RenderStatus::InvalidSurface;
+    if (first < 0 || first > 256 || count < 0 || count > 256 - first || (count && !palette))
+        return Zoom::RenderStatus::PaletteFailure;
+    // Keep independent palette/present phases available to the ordinary
+    // wrapper even when the copy phase is rejected (its legacy error policy).
+    out._source = source; out._destination = destination;
+    out._top = top; out._bottom = bottom; out._left = left; out._right = right;
+    out._first = first; out._count = count; out._pending = pending;
+    for (int i = first; i < first + count; ++i) out._palette[i] = palette[i];
+    out._config = Zoom::captureRenderConfig();
+    out._zoom = destination->w != baseWidth || destination->h != baseHeight || out._config.openGL;
+    if (out._config.openGL)
+    {
+        const Zoom::RenderStatus captured = Zoom::captureGl(gl, out._gl);
+        if (captured != Zoom::RenderStatus::Success) return captured;
+    }
+    const Zoom::RenderStatus admission = Zoom::validateCopy(source, destination, out._zoom,
+        top, bottom, left, right, out._config, out._gl, strict);
+    if (admission != Zoom::RenderStatus::Success) return admission;
+    if (pending && count && destination->format->BitsPerPixel == 8 &&
+        (!destination->format->palette || destination->format->palette->ncolors < first + count))
+        return Zoom::RenderStatus::PaletteFailure;
+    if (source->format->palette)
+    {
+        out._sourceColors = source->format->palette->ncolors;
+        for (int i = 0; i < out._sourceColors; ++i) out._sourcePalette[i] = source->format->palette->colors[i];
+    }
+    out._captured = true;
+    return Zoom::RenderStatus::Success;
+}
+
+Zoom::RenderStatus Screen::captureLoadingPresentation(LoadingPresentation &out) const noexcept
+{
+    // Capture is an owner-only, pre-worker operation. No reset or callback.
+    return captureLoadingPresentation(_surface ? _surface->getSurface() : 0, _screen,
+        _baseWidth, _baseHeight, _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand,
+        deferredPalette, _firstColor, _numColors, _pushPalette, const_cast<OpenGL *>(&glOutput), out);
+}
+
+Zoom::RenderStatus Screen::copyPhase(const LoadingPresentation &frame,
+    Zoom::Workspace &workspace, int *snapshotCopyResult) noexcept
+{
+    if (snapshotCopyResult) *snapshotCopyResult = -2;
+    if (!workspace.onOwner()) return Zoom::RenderStatus::WrongOwner;
+    if (!frame._captured || !Zoom::readableSurface(frame._source)) return Zoom::RenderStatus::InvalidSurface;
+    const SDL_Palette *palette = frame._source->format->palette;
+    if ((palette ? palette->ncolors : 0) != frame._sourceColors) return Zoom::RenderStatus::PaletteFailure;
+    for (int i = 0; i < frame._sourceColors; ++i)
+    {
+        const SDL_Color &current = palette->colors[i], &captured = frame._sourcePalette[i];
+        if (current.r != captured.r || current.g != captured.g || current.b != captured.b || current.unused != captured.unused)
+            return Zoom::RenderStatus::PaletteFailure;
+    }
+    return Zoom::copy(frame._source, frame._destination, frame._zoom, frame._top, frame._bottom,
+        frame._left, frame._right, frame._config, frame._gl, workspace, snapshotCopyResult, frame._strict);
+}
+
+Zoom::RenderStatus Screen::palettePhase(const LoadingPresentation &frame) noexcept
+{
+    if (!frame._destination || !frame._destination->format)
+        return Zoom::RenderStatus::InvalidSurface;
+    if (!frame._pending || !frame._count || frame._destination->format->BitsPerPixel != 8)
+        return Zoom::RenderStatus::Success;
+    if ((frame._strict && !Zoom::readableSurface(frame._destination)) || !frame._destination->format->palette ||
+        frame._first < 0 || frame._count < 0 || frame._first > 256 - frame._count ||
+        frame._destination->format->palette->ncolors < frame._first + frame._count)
+        return Zoom::RenderStatus::PaletteFailure;
+    // SDL's legacy signature is mutable; it does not modify the color array.
+    try
+    {
+        return SDL_SetColors(frame._destination, const_cast<SDL_Color *>(frame._palette + frame._first),
+            frame._first, frame._count) != 0 ? Zoom::RenderStatus::Success : Zoom::RenderStatus::PaletteFailure;
+    }
+    catch (...) { return Zoom::RenderStatus::ExceptionFailure; }
+}
+
+Zoom::RenderStatus Screen::presentPhase(const LoadingPresentation &frame) noexcept
+{
+    if (!frame._destination || !frame._destination->format || frame._destination->w <= 0 ||
+        frame._destination->h <= 0 || frame._destination->w > 8192 || frame._destination->h > 8192)
+        return Zoom::RenderStatus::InvalidSurface;
+    // GL refresh and swap happened in the same legacy copy phase. SDL_Flip is
+    // still dispatched here, as in ordinary Screen::flip; it is not GPU proof.
+    try
+    {
+        return SDL_Flip(frame._destination) == -1 ? Zoom::RenderStatus::FlipFailure : Zoom::RenderStatus::Success;
+    }
+    catch (...) { return Zoom::RenderStatus::ExceptionFailure; }
+}
+
+Zoom::RenderStatus Screen::presentLoading(const LoadingPresentation &frame, Zoom::Workspace &workspace) noexcept
+{
+    Logger::ScopedSuppression suppress;
+    try
+    {
+        Zoom::RenderStatus result = copyPhase(frame, workspace);
+        if (result != Zoom::RenderStatus::Success) return result;
+        result = palettePhase(frame);
+        if (result != Zoom::RenderStatus::Success) return result;
+        return presentPhase(frame);
+    }
+    catch (...) { return Zoom::RenderStatus::ExceptionFailure; }
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+namespace {
+bool snapshotReadableSurface(const SDL_Surface *s) noexcept
+{
+    const Uint32 rejected = SDL_HWSURFACE | SDL_ASYNCBLIT | SDL_DOUBLEBUF | SDL_OPENGL | SDL_RLEACCEL;
+    return s && s->format && !(s->flags & rejected) && !SDL_MUSTLOCK(s) &&
+        s->format->BitsPerPixel == 8 && s->format->BytesPerPixel == 1 &&
+        s->format->palette && s->format->palette->ncolors == 256 && s->format->palette->colors &&
+        s->pixels && s->w > 0 && s->w <= 1920 && s->h > 0 && s->h <= 1200 && s->pitch >= s->w;
+}
+void snapshotPalette(const SDL_Surface *s, std::array<unsigned char, 768> &out) noexcept
+{
+    for (std::size_t i = 0; i < 256; ++i)
+    {
+        const SDL_Color &c = s->format->palette->colors[i];
+        out[i * 3] = c.r; out[i * 3 + 1] = c.g; out[i * 3 + 2] = c.b;
+    }
+}
+Observer::SnapshotIndexedView snapshotView(const SDL_Surface *s, const unsigned char *palette) noexcept
+{
+    Observer::SnapshotIndexedView view;
+    view.pixels = static_cast<const unsigned char *>(s->pixels); view.palette = palette; view.paletteBytes = 768;
+    view.width = s->w; view.height = s->h; view.pitch = s->pitch;
+    // SDL owns the allocation. These bounded, validated Uint16-pitch dimensions
+    // cannot overflow size_t; pure helper views additionally verify their span.
+    view.bytes = (view.height - 1) * view.pitch + view.width; view.readable = true;
+    return view;
+}
+}
+Observer::SnapshotDisplayFacts Screen::snapshotFacts(SDL_Surface *physical, bool allowPendingPalette) const noexcept
+{
+    Observer::SnapshotDisplayFacts f;
+    f.screen = _snapshotScreenLife.value(); f.backing = _snapshotBacking.value();
+    f.configuration = _snapshotConfiguration.value(); f.appliedPalette = _snapshotAppliedPalette.value();
+    f.physicalAddress = reinterpret_cast<std::uintptr_t>(physical);
+    f.baseWidth = _baseWidth; f.baseHeight = _baseHeight;
+    f.top = _topBlackBand; f.bottom = _bottomBlackBand; f.left = _leftBlackBand; f.right = _rightBlackBand;
+    if (!_surface || !physical || !physical->format) return f;
+    f.logicalLife = _surface->snapshotSurfaceLife(); f.logicalBacking = _surface->snapshotSurfaceBacking();
+    f.logicalRevision = _surface->snapshotSurfaceRevision();
+    f.width = physical->w; f.height = physical->h; f.flags = physical->flags;
+    const SDL_Surface *logical = _surface->getSurface();
+    f.physicalPixels = reinterpret_cast<std::uintptr_t>(physical->pixels);
+    f.physicalFormat = reinterpret_cast<std::uintptr_t>(physical->format);
+    f.physicalPalette = reinterpret_cast<std::uintptr_t>(physical->format->palette);
+    f.physicalPitch = physical->pitch;
+    if (logical && logical->format)
+    {
+        f.logicalAddress = reinterpret_cast<std::uintptr_t>(logical);
+        f.logicalPixels = reinterpret_cast<std::uintptr_t>(logical->pixels);
+        f.logicalFormat = reinterpret_cast<std::uintptr_t>(logical->format);
+        f.logicalPalette = reinterpret_cast<std::uintptr_t>(logical->format->palette);
+        f.logicalPitch = logical->pitch;
+    }
+    const Uint8 focus = SDL_APPACTIVE | SDL_APPINPUTFOCUS | SDL_APPMOUSEFOCUS;
+    const Uint32 unsupported = SDL_HWSURFACE | SDL_ASYNCBLIT | SDL_DOUBLEBUF | SDL_OPENGL;
+    f.healthy = _snapshotPaintHealth.healthy() && _surface->snapshotPaintHealthy();
+    f.logicalTransfersComplete = _surface->snapshotPixelTransfersComplete();
+    f.supported = logical && logical->format && logical->format->BitsPerPixel == 8 &&
+        logical->format->BytesPerPixel == 1 && logical->format->palette && logical->format->palette->ncolors == 256 && logical->format->palette->colors &&
+        !(logical->flags & unsupported) &&
+        logical->pixels && logical->w == 320 && logical->h == 200 && logical->pitch >= 320 &&
+        physical->format->BitsPerPixel == 8 && physical->format->BytesPerPixel == 1 &&
+        physical->format->palette && physical->format->palette->ncolors == 256 && physical->format->palette->colors && physical->pixels &&
+        !(physical->flags & unsupported) && physical->pitch >= physical->w &&
+        f.width >= 320 && f.width <= 1920 && f.width % 320 == 0 && f.height == 200 * (f.width / 320) &&
+        _baseWidth == 320 && _baseHeight == 200 && !f.top && !f.bottom && !f.left && !f.right &&
+        (_snapshotFullPalette || (allowPendingPalette && _pushPalette && _firstColor == 0 && _numColors == 256)) &&
+        !useOpenGL() && !use32bitScaler() && !Options::useScaleFilter &&
+        !Options::debug && (SDL_GetAppState() & focus) == focus;
+    return f;
+}
+void Screen::snapshotComposedProof() noexcept
+{
+    if (!_snapshotPresentation || !_snapshotPresentation->wantsComposedProof()) return;
+    const Observer::SnapshotDisplayFacts facts = snapshotFacts(_screen, true);
+    const SDL_Surface *logical = _surface ? _surface->getSurface() : 0;
+    std::array<unsigned char, 768> palette;
+    Observer::SnapshotIndexedView view;
+    if (facts.supported && snapshotReadableSurface(logical) && snapshotReadableSurface(_screen))
+    { snapshotPalette(logical, palette); view = snapshotView(logical, palette.data()); }
+    _snapshotPresentation->composedProof(facts, view);
+}
+void Screen::snapshotPresentedProof(SDL_Surface *physical) noexcept
+{
+    if (!_snapshotPresentation || !_snapshotPresentation->wantsPresentedProof()) return;
+    const Observer::SnapshotDisplayFacts facts = snapshotFacts(physical);
+    const SDL_Surface *logical = _surface ? _surface->getSurface() : 0;
+    std::array<unsigned char, 768> logicalPalette, physicalPalette;
+    Observer::SnapshotIndexedView view;
+    const unsigned char *logicalColors = 0;
+    if (facts.supported && snapshotReadableSurface(logical) && snapshotReadableSurface(physical))
+    {
+        snapshotPalette(logical, logicalPalette); logicalColors = logicalPalette.data();
+        snapshotPalette(physical, physicalPalette); view = snapshotView(physical, physicalPalette.data());
+    }
+    _snapshotPresentation->presentedProof(facts, view, logicalColors, logicalColors ? 768 : 0);
+}
+void Screen::snapshotFinishFrame(bool current) noexcept
+{
+    if (!_snapshotPresentation) return;
+    const Observer::SnapshotDisplayFacts facts = snapshotFacts(_screen);
+    std::array<unsigned char, 768> palette;
+    const unsigned char *colors = 0;
+    bool readable = false;
+    if (_snapshotPresentation->wantsFinishedProof())
+    {
+        const SDL_Surface *logical = _surface ? _surface->getSurface() : 0;
+        readable = facts.supported && snapshotReadableSurface(logical) && snapshotReadableSurface(_screen);
+        if (readable) { snapshotPalette(logical, palette); colors = palette.data(); }
+    }
+    _snapshotPresentation->finish(current, facts, colors, colors ? 768 : 0, readable);
+}
+#endif
 
 const int Screen::ORIGINAL_WIDTH = 320;
 const int Screen::ORIGINAL_HEIGHT = 200;
@@ -149,6 +399,9 @@ Screen::Screen() :
  */
 Screen::~Screen()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    _snapshotPresentation = 0;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	delete _cursorObserver;
 	delete _presentationObserver;
@@ -266,22 +519,86 @@ void Screen::flip(int cursorX, int cursorY)
 void Screen::flip()
 #endif
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLastFlipOk = false;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    snapshotComposedProof();
+    int snapshotCopyResult = -2;
+#endif
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+    LoadingPresentation frame;
+    const Zoom::RenderStatus captured = capturePresentation(_surface->getSurface(), _screen,
+        _baseWidth, _baseHeight, _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand,
+        deferredPalette, _firstColor, _numColors, _pushPalette, &glOutput, frame, false);
+    const Zoom::RenderStatus copied = copyPhase(frame, _renderWorkspace,
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+        &snapshotCopyResult
+#else
+        0
+#endif
+    );
+    (void)captured;
+    (void)copied;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    const bool agentCopied = captured == Zoom::RenderStatus::Success && copied == Zoom::RenderStatus::Success;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    // Only the historical direct/unbanded route supplies copy proof. A strict
+    // admission failure on such a route is a failure, never successful proof.
+    if (copied != Zoom::RenderStatus::Success && !frame._config.openGL &&
+        (!frame._zoom || (!frame._top && !frame._bottom && !frame._left && !frame._right)))
+        snapshotCopyResult = -1;
+#endif
+#else
 	if (getWidth() != _baseWidth || getHeight() != _baseHeight || useOpenGL())
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+		Zoom::flipWithZoom(_surface->getSurface(), _screen, _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand, &glOutput, &snapshotCopyResult);
+#else
 		Zoom::flipWithZoom(_surface->getSurface(), _screen, _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand, &glOutput);
+#endif
 	}
 	else
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+		snapshotCopyResult = SDL_BlitSurface(_surface->getSurface(), 0, _screen, 0);
+#else
 		SDL_BlitSurface(_surface->getSurface(), 0, _screen, 0);
+#endif
 	}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    if (snapshotCopyResult != -2) _snapshotPaintHealth.observe(snapshotCopyResult == 0);
+#endif
 
 	// perform any requested palette update
 	if (_pushPalette && _numColors && _screen->format->BitsPerPixel == 8)
 	{
-		const bool paletteExact = SDL_SetColors(_screen, &(deferredPalette[_firstColor]), _firstColor, _numColors) != 0;
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+        const std::uint64_t snapshotPaletteBefore = _snapshotAppliedPalette.value();
+        _snapshotAppliedPalette.renew();
+#endif
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+        const bool paletteExact = palettePhase(frame) == Zoom::RenderStatus::Success;
+#else
+        const bool paletteExact = SDL_SetColors(_screen, &(deferredPalette[_firstColor]), _firstColor, _numColors) != 0;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+        _snapshotPaintHealth.observe(paletteExact);
+        if (!paletteExact) _snapshotFullPalette = false;
+        else if (_firstColor == 0 && _numColors == 256) _snapshotFullPalette = true;
+        if (_snapshotPresentation) _snapshotPresentation->proofPaletteApplied(
+            snapshotPaletteBefore, _snapshotAppliedPalette.value(), paletteExact);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 		if (!paletteExact) _observerPaletteExact = false;
 		else if (_firstColor == 0 && _numColors == 256) _observerPaletteExact = true;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (!paletteExact) _agentPaletteExact = false;
+        else if (_firstColor == 0 && _numColors == 256) _agentPaletteExact = true;
 #endif
 		if (!paletteExact)
 		{
@@ -293,8 +610,15 @@ void Screen::flip()
 
 
 
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+    if (presentPhase(frame) != Zoom::RenderStatus::Success)
+#else
     if (SDL_Flip(_screen) == -1)
+#endif
     {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+        _snapshotPaintHealth.observe(false);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
         if (_stanceController) _stanceController->close();
 #endif
@@ -303,6 +627,13 @@ void Screen::flip()
 #endif
 		throw Exception(SDL_GetError());
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLastFlipOk = agentCopied && (_screen->format->BitsPerPixel != 8 || _agentPaletteExact);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    if (_snapshotPresentation) _snapshotPresentation->flipped(snapshotFacts(_screen), snapshotCopyResult == 0);
+    snapshotPresentedProof(_screen);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLE_PAIR_GATE
 #ifdef OPENXCOM_EXPERIMENTAL_TIMING_CALIBRATION
 	RenderPairGate::timingFlipped();
@@ -343,7 +674,11 @@ void Screen::clear()
 {
 	_surface->clear();
 	if (_screen->flags & SDL_SWSURFACE) memset(_screen->pixels, 0, _screen->h*_screen->pitch);
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+	else _snapshotPaintHealth.observe(SDL_FillRect(_screen, &_clear, 0) == 0);
+#else
 	else SDL_FillRect(_screen, &_clear, 0);
+#endif
 }
 
 /**
@@ -355,6 +690,12 @@ void Screen::clear()
  */
 void Screen::setPalette(SDL_Color* colors, int firstcolor, int ncolors, bool immediately)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLastFlipOk = false; ++_agentDisplayRevision;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    _snapshotConfiguration.renew();
+#endif
 	if (_numColors && (_numColors != ncolors) && (_firstColor != firstcolor))
 	{
 		// an initial palette setup has not been committed to the screen yet
@@ -374,7 +715,19 @@ void Screen::setPalette(SDL_Color* colors, int firstcolor, int ncolors, bool imm
 	// defer actual update of screen until SDL_Flip()
 	if (immediately && _screen->format->BitsPerPixel == 8)
 	{
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+        _snapshotAppliedPalette.renew();
+#endif
 		const bool paletteExact = SDL_SetColors(_screen, colors, firstcolor, ncolors) != 0;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (!paletteExact) _agentPaletteExact = false;
+        else if (firstcolor == 0 && ncolors == 256) _agentPaletteExact = true;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+        _snapshotPaintHealth.observe(paletteExact);
+        if (!paletteExact) _snapshotFullPalette = false;
+        else if (firstcolor == 0 && ncolors == 256) _snapshotFullPalette = true;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 		if (!paletteExact) _observerPaletteExact = false;
 		else if (firstcolor == 0 && ncolors == 256) _observerPaletteExact = true;
@@ -434,6 +787,15 @@ int Screen::getHeight() const
  */
 void Screen::resetDisplay(bool resetVideo)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLastFlipOk = false; ++_agentDisplayRevision;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    // Invalidate before any replacement attempt, including a reused SDL address.
+    _snapshotBacking.renew();
+    _snapshotConfiguration.renew();
+    _snapshotFullPalette = false;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     if (_stanceController) _stanceController->invalidate(true);
@@ -459,7 +821,11 @@ void Screen::resetDisplay(bool resetVideo)
 		_surface = new Surface(_baseWidth, _baseHeight, 0, 0, Screen::use32bitScaler() ? 32 : 8); // only HQX/XBRZ needs 32bpp for this surface; the OpenGL class has its own 32bpp buffer
 		if (_surface->getSurface()->format->BitsPerPixel == 8) _surface->setPalette(deferredPalette);
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+	_snapshotPaintHealth.observe(SDL_SetColorKey(_surface->getSurface(), 0, 0) == 0); // turn off color key!
+#else
 	SDL_SetColorKey(_surface->getSurface(), 0, 0); // turn off color key!
+#endif
 
 	if (resetVideo || _screen->format->BitsPerPixel != _bpp)
 	{
@@ -800,3 +1166,13 @@ void Screen::updateScale(int type, int &width, int &height, bool change)
 }
 
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace OpenXcom {
+bool Screen::agentPresentationReady() const
+{
+    return _agentLastFlipOk && !useOpenGL() && _surface && _screen &&
+        !(_pushPalette && _numColors && _screen->format->BitsPerPixel == 8) && _baseWidth > 0 && _baseHeight > 0;
+}
+}
+#endif

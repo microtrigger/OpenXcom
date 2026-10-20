@@ -44,6 +44,12 @@ public:
 	BriefingState(Craft *craft = 0, Base *base = 0);
 	/// Cleans up the Briefing state.
 	~BriefingState();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Describes only currently rendered briefing text and its OK control.
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	/// Invokes the ordinary handler for an exposed startup action.
+	bool agentDispatch(const std::string &action) override;
+#endif
 	/// Initialization
 	void init();
 	/// Handler for clicking the Ok button.

@@ -774,6 +774,31 @@ void InventoryState::saveEquipmentLayout()
 	}
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool InventoryState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal || !Observer::agentWidgetVisible(_btnOk)) return false;
+	out = Observer::AgentUiState();
+	out.screen = "inventory";
+	// This is the visible icon control's meaning, not an unpainted tooltip.
+	out.visible = "{\"close_label\":\"Close inventory\"}";
+	out.actions.push_back(Observer::AgentUiAction("close_inventory", "Close inventory", "visible_control_semantics"));
+	out.save = _battleGame;
+	Observer::agentIncludeWidget(out, _btnOk);
+    return true;
+}
+
+bool InventoryState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (action != "close_inventory" || !agentUiState(current)) return false;
+	// A held item may make this a no-op, just as for the human OK control.
+	// Do not inspect or expose that hidden eligibility before dispatch.
+	btnOkClick(nullptr);
+	return true;
+}
+#endif
+
 /**
  * Returns to the previous screen.
  * @param action Pointer to an action.

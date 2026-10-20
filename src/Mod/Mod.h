@@ -18,6 +18,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 // Fork modification 2026-10-10: default-off mixed-audio observation.
+// Reconstructed Snapshot stock qualification, 2026-10-13; default off.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include <map>
 #include <vector>
@@ -28,6 +29,9 @@
 #include "../Savegame/GameTime.h"
 #include "Unit.h"
 #include "RuleAlienMission.h"
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+#include "../Observer/SnapshotCatalog.h"
+#endif
 
 namespace OpenXcom
 {
@@ -104,6 +108,11 @@ struct ModData
  */
 class Mod
 {
+#ifdef OPENXCOM_RESPONSIVE_TESTING
+    // Synthetic fixtures populate real owning maps; production classification
+    // and destruction still inspect and retire the actual loaded objects.
+    friend struct LoadingGameResourceAccess;
+#endif
 private:
 	Music *_muteMusic;
 	Sound *_muteSound;
@@ -171,6 +180,13 @@ private:
 	ModData* _modCurrent;
 	SDL_Color *_statePalette;
 	std::vector<std::string> _psiRequirements; // it's a cache for psiStrengthEval
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+	// One qualification attempt per Mod lifetime; failures cannot be reset.
+	Observer::SnapshotCatalog _snapshotCatalog;
+	void beginSnapshotCatalog(const Observer::SnapshotCatalog::ModFiles &mods) noexcept;
+	YAML::Node loadSnapshotDocument(const std::string &filename, bool resourceConfig);
+#endif
 
 	/// Loads a ruleset from a YAML file that have basic resources configuration.
 	void loadResourceConfigFile(const std::string &filename);
@@ -247,6 +263,11 @@ public:
 	/// Cleans up the mod.
 	~Mod();
 
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+	/// Native read-only qualification; no authority when the runtime switch is off.
+	const Observer::SnapshotCatalog *getSnapshotCatalog() const;
+#endif
+
 	/// For internal use only
 	const std::map<std::string, int> &getUfopaediaSections() const { return _ufopaediaSections; }
 
@@ -290,9 +311,13 @@ public:
 
 	/// Loads a list of mods.
 	void loadAll(const std::vector< std::pair< std::string, std::vector<std::string> > > &mods);
-#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
 	/// Qualify the entire loaded catalog on its resource-loading thread.
 	bool isMusicCatalogSoftwareMixed() const;
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    enum class ResponsiveMusicCatalog { Empty, SoftwareMixed, Unsupported };
+    ResponsiveMusicCatalog responsiveMusicCatalog() const;
+#endif
 #endif
 	/// Generates the starting saved game.
 	SavedGame *newSave() const;

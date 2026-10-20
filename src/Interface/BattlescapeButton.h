@@ -44,6 +44,9 @@ protected:
 	InversionType _toggleMode;
 	Surface *_altSurface;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentContextVisible() const override;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     bool stanceToggled() const { return _inverted; }
     bool stanceContextVisible() const override;

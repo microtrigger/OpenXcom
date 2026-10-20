@@ -43,6 +43,14 @@ private:
 	bool _bordered;
 	Uint8 _color;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentValueFullyVisible() const
+    {
+        const std::size_t digits = std::to_string(_value).size();
+        return agentContextVisible() && getHeight() >= (_bordered ? 7 : 5) &&
+            4 * (digits - 1) + (_bordered ? 5 : 3) <= static_cast<std::size_t>(getWidth());
+    }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	void armPresentedDigits(Observer::HudDigits *digits) { _presentedDigits = digits; }
 	void blit(Surface *surface);

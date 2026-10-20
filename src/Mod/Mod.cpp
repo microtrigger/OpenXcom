@@ -17,8 +17,16 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 // Fork modification 2026-10-10: default-off mixed-audio observation.
+// Reconstructed Snapshot stock qualification, 2026-10-13; default off.
 // SPDX-License-Identifier: GPL-3.0-or-later; upstream notices retained.
 #include "Mod.h"
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include "../Engine/Game.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+#include "../Observer/SnapshotRuntime.h"
+#include <fstream>
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE
 #include "../../tests/inventory-unload-control/InventoryUnloadControlGate.h"
 #endif
@@ -549,6 +557,11 @@ void Mod::playMusic(const std::string &name, int id)
 			ss << name << id;
 			music = getMusic(ss.str());
 		}
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+        if (music == _muteMusic) return; // explicit no-op sentinel, not a loaded capability
+        if (!Game::responsiveMusicPlaybackAllowed(music))
+            throw Exception("The requested music provider is unsupported or the audio epoch is busy.");
+#endif
 		music->play(loop);
 		if (music != _muteMusic)
 		{
@@ -888,7 +901,7 @@ static void throwModOnErrorHelper(const std::string& modId, const std::string& e
 	throw Exception(errorStream.str());
 }
 
-#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) || defined(OPENXCOM_RESPONSIVE_LOADING)
 bool Mod::isMusicCatalogSoftwareMixed() const
 {
 	for (std::map<std::string, Music*>::const_iterator i = _musics.begin(); i != _musics.end(); ++i)
@@ -899,12 +912,144 @@ bool Mod::isMusicCatalogSoftwareMixed() const
 }
 #endif
 
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+Mod::ResponsiveMusicCatalog Mod::responsiveMusicCatalog() const
+{
+    if (_musics.empty()) return ResponsiveMusicCatalog::Empty;
+    return isMusicCatalogSoftwareMixed() ? ResponsiveMusicCatalog::SoftwareMixed : ResponsiveMusicCatalog::Unsupported;
+}
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+namespace
+{
+// Every exit other than complete ordinary loading poisons qualification,
+// including exceptions raised after the YAML parser has returned successfully.
+class SnapshotLoadGuard
+{
+	Observer::SnapshotCatalog *_catalog;
+	bool _finished;
+public:
+	explicit SnapshotLoadGuard(Observer::SnapshotCatalog *catalog) noexcept :
+		_catalog(catalog), _finished(false) { }
+	~SnapshotLoadGuard()
+	{
+		if (_catalog && !_finished) _catalog->invalidate();
+	}
+	void finish() noexcept
+	{
+		if (_catalog) _catalog->finish();
+		_finished = true;
+	}
+private:
+	SnapshotLoadGuard(const SnapshotLoadGuard &);
+	SnapshotLoadGuard &operator=(const SnapshotLoadGuard &);
+};
+}
+
+const Observer::SnapshotCatalog *Mod::getSnapshotCatalog() const
+{
+	return Observer::snapshotRuntimeEnabled() ? &_snapshotCatalog : 0;
+}
+
+void Mod::beginSnapshotCatalog(const Observer::SnapshotCatalog::ModFiles &mods) noexcept
+{
+	try
+	{
+		const std::string master = Options::getActiveMaster();
+		// This is deliberately not inferred from FileMap::getRulesets(): an
+		// enabled asset-only mod has no entry in that rules-only list.
+		const std::vector<const ModInfo *> active = Options::getActiveMods();
+		std::vector<std::string> activeIds;
+		for (std::vector<const ModInfo *>::const_iterator i = active.begin(); i != active.end(); ++i)
+		{
+			if (!*i) { _snapshotCatalog.invalidate(); return; }
+			activeIds.push_back((*i)->getId());
+		}
+		if ((master != "xcom1" && master != "xcom2") || active.size() != 1 ||
+			activeIds[0] != master || mods.size() != 1 || mods[0].first != master ||
+			mods[0].second.size() != 32)
+		{
+			_snapshotCatalog.invalidate();
+			return;
+		}
+
+		const std::map<std::string, ModInfo> &infos = Options::getModInfos();
+		const std::map<std::string, ModInfo>::const_iterator selected = infos.find(master);
+		const ModInfo *info = active[0];
+		const bool tftd = master == "xcom2";
+		// Check the already-parsed metadata used by the actual mapper/loader.
+		// Requiring an empty parent excludes every super-master chain, including
+		// asset-only parents that FileMap's rules list would otherwise conceal.
+		if (selected == infos.end() || &selected->second != info || !info->isMaster() ||
+			!info->getMaster().empty() || info->getReservedSpace() != 1 ||
+			!info->isEngineOk() || !info->getRequiredExtendedEngine().empty() ||
+			!info->getRequiredExtendedVersion().empty() ||
+			info->getResourceConfigFile() != (tftd ? "vars.rul" : "") ||
+			info->getExternalResourceDirs().size() != 1 ||
+			info->getExternalResourceDirs()[0] != (tftd ? "TFTD" : "UFO") ||
+			info->getPath().empty())
+		{
+			_snapshotCatalog.invalidate();
+			return;
+		}
+
+		const std::string directory = info->getPath() + "/";
+		for (std::vector<std::string>::const_iterator i = mods[0].second.begin(); i != mods[0].second.end(); ++i)
+		{
+			const std::size_t slash = i->find_last_of("/\\");
+			if (slash == std::string::npos || i->substr(0, slash + 1) != directory)
+			{
+				_snapshotCatalog.invalidate();
+				return;
+			}
+		}
+		_snapshotCatalog.begin(master, activeIds, mods, tftd ? directory + "vars.rul" : "");
+	}
+	catch (...)
+	{
+		// Optional qualification must never prevent ordinary mod loading.
+		_snapshotCatalog.invalidate();
+	}
+}
+
+YAML::Node Mod::loadSnapshotDocument(const std::string &filename, bool resourceConfig)
+{
+	try
+	{
+		std::ifstream input(filename.c_str(), std::ios::in | std::ios::binary);
+		if (!input) throw YAML::BadFile(filename);
+		std::string bytes;
+		char block[8192];
+		while (input.read(block, sizeof(block))) bytes.append(block, sizeof(block));
+		bytes.append(block, static_cast<std::size_t>(input.gcount()));
+		if (input.bad() || !input.eof()) throw YAML::BadFile(filename);
+
+		if (resourceConfig) _snapshotCatalog.resourceConfig(filename, bytes);
+		else _snapshotCatalog.rulesFile(filename, bytes);
+		// The checked bytes are the parser input, even after a mismatch. Never
+		// reopen a qualified pathname and never reject an otherwise legal mod.
+		return YAML::Load(bytes);
+	}
+	catch (...)
+	{
+		_snapshotCatalog.invalidate();
+		throw;
+	}
+}
+#endif
+
 /**
  * Loads a list of mods specified in the options.
  * @param mods List of <modId, rulesetFiles> pairs.
  */
 void Mod::loadAll(const std::vector< std::pair< std::string, std::vector<std::string> > > &mods)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+	Observer::SnapshotCatalog *snapshot = Observer::snapshotRuntimeEnabled() ? &_snapshotCatalog : 0;
+	SnapshotLoadGuard snapshotGuard(snapshot);
+	if (snapshot) beginSnapshotCatalog(mods);
+#endif
 	Log(LOG_INFO) << "Loading rulesets...";
 	_modData.clear();
 	_modData.resize(mods.size());
@@ -971,6 +1116,9 @@ void Mod::loadAll(const std::vector< std::pair< std::string, std::vector<std::st
 	sortLists();
 	loadExtraResources();
 	modResources();
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+	snapshotGuard.finish();
+#endif
 }
 
 /**
@@ -1057,7 +1205,11 @@ void Mod::loadMod(const std::vector<std::string> &rulesetFiles)
  */
 void Mod::loadResourceConfigFile(const std::string &filename)
 {
-	YAML::Node doc = YAML::LoadFile(filename);
+	YAML::Node doc =
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+		Observer::snapshotRuntimeEnabled() ? loadSnapshotDocument(filename, true) :
+#endif
+		YAML::LoadFile(filename);
 
 	for (YAML::const_iterator i = doc["soundDefs"].begin(); i != doc["soundDefs"].end(); ++i)
 	{
@@ -1163,7 +1315,11 @@ void Mod::loadConstants(const YAML::Node &node)
  */
 void Mod::loadFile(const std::string &filename)
 {
-	YAML::Node doc = YAML::LoadFile(filename);
+	YAML::Node doc =
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+		Observer::snapshotRuntimeEnabled() ? loadSnapshotDocument(filename, false) :
+#endif
+		YAML::LoadFile(filename);
 
 	for (YAML::const_iterator i = doc["countries"].begin(); i != doc["countries"].end(); ++i)
 	{
@@ -2852,11 +3008,24 @@ void Mod::loadVanillaResources()
 		{ 8, 12, 16, 255 },
 		{ 3, 4, 8, 255 },
 		{ 3, 3, 6, 255 } };
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+		Palette &observedPalette = *_palettes[s2];
+		Palette::SnapshotPaletteCompletion observation(observedPalette,
+			Observer::SnapshotPaletteOperation::UfoGradient, 256, Palette::palOffset(4));
+#endif
 		for (size_t i = 0; i < ARRAYLEN(gradient); ++i)
 		{
 			SDL_Color *color = _palettes[s2]->getColors(Palette::backPos + 16 + i);
 			*color = gradient[i];
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+			if (observation.scope.acceptsGradient(i, reinterpret_cast<std::uintptr_t>(color)))
+				observation.scope.gradient(i, reinterpret_cast<std::uintptr_t>(color),
+					Observer::SnapshotPaletteColor(color->r, color->g, color->b, color->unused));
+#endif
 		}
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+		observation.scope.stage(observedPalette.snapshotPaletteIdentity());
+#endif
 	}
 
 	// Load surfaces

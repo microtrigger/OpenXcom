@@ -31,6 +31,9 @@
 #include "../Engine/Options.h"
 #include "../Engine/Action.h"
 #include "StartState.h"
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include "ErrorMessageState.h"
+#endif
 
 namespace OpenXcom
 {
@@ -475,10 +478,21 @@ void ModListState::lstModsMousePress(Action *action)
  */
 void ModListState::btnOkClick(Action *)
 {
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    if (Options::reload)
+    {
+        const Game::LoadingAdmission result = _game->reserveResponsiveLoad(Game::LoadingOrigin::ModListMenu, this);
+        if (result != Game::LoadingAdmission::Accepted)
+            _game->pushState(new ErrorMessageState(Game::loadingAdmissionMessage(result), getPalette(), 15, "BACK01.SCR", 1));
+        return; // no save/display/map/language/volume mutation on rejection
+    }
+#endif
 	Options::save();
 	if (Options::reload)
 	{
+#ifndef OPENXCOM_RESPONSIVE_LOADING
 		_game->setState(new StartState);
+#endif
 	}
 	else
 	{

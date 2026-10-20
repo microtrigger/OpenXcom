@@ -8,9 +8,14 @@
 #include <string>
 #include <SDL.h>
 
+#ifdef OPENXCOM_LOADING_AUDIO_HANDOFF
+namespace OpenXcom { class LoadingAudioHandoff; }
+#endif
+
 namespace OpenXcom { namespace Observer {
 // Independent, inherited connected socket. Never opens a listener or file log.
-// All methods are main-thread-only except publishCatalogSupported().
+// Public methods are main-thread-only except publishCatalogSupported().
+// A selected helper may exclusively reset retained same-context state after drain/detach.
 class MixedAudioObserver
 {
     typedef std::chrono::steady_clock Clock;
@@ -22,6 +27,16 @@ class MixedAudioObserver
     Clock::time_point _started, _lastAdmission;
     bool sendPacket(const std::string &packet);
     void pollImpl();
+    void closeDetachedState() noexcept;
+#ifdef OPENXCOM_LOADING_AUDIO_HANDOFF
+    friend class OpenXcom::LoadingAudioHandoff;
+    enum class LoadingReset { BootstrapPreserved, EpochClosed, DisabledRetained };
+    // Private exclusive worker transfer; never an owner API or cleanup fallback.
+    LoadingReset resetForExclusiveLoadingAfterPostmixDetach() noexcept;
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    void terminalCloseForExclusiveLoadingAfterPostmixDetach() noexcept;
+#endif
+#endif
     static void SDLCALL postmix(void *context, Uint8 *stream, int len);
 public:
     explicit MixedAudioObserver(const char *descriptor);

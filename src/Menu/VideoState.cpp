@@ -18,6 +18,12 @@
  */
 #include "VideoState.h"
 #include <algorithm>
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include <cstring>
+#include <exception>
+#include <utility>
+#include "../Engine/Surface.h"
+#endif
 #include <SDL_mixer.h>
 #include "../Engine/Adlib/adlplayer.h"
 #include "../Engine/Logger.h"
@@ -43,16 +49,22 @@ namespace OpenXcom
  * @param wasLetterBoxed Was the game letterboxed?
  */
 VideoState::VideoState(const std::vector<std::string> *videos, const std::vector<std::string> *tracks, bool useUfoAudioSequence)
-		: _videos(videos), _tracks(tracks), _useUfoAudioSequence(useUfoAudioSequence)
+		:
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+          _responsiveFinished(false), _responsiveInitFailed(false),
+#endif
+          _videos(videos), _tracks(tracks), _useUfoAudioSequence(useUfoAudioSequence)
 {
 }
 
 /**
  *
  */
+#ifndef OPENXCOM_RESPONSIVE_LOADING
 VideoState::~VideoState()
 {
 }
+#endif
 
 
 typedef struct
@@ -315,7 +327,11 @@ static introSoundEffect introSoundTrack[] =
 };
 
 
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+struct AudioSequence
+#else
 static struct AudioSequence
+#endif
 {
 	Mod *mod;
 	Music *m;
@@ -323,14 +339,34 @@ static struct AudioSequence
 	int trackPosition;
 	FlcPlayer *_flcPlayer;
 
-	AudioSequence(Mod *_mod, FlcPlayer *flcPlayer) : mod(_mod), m(0), s(0), trackPosition(0), _flcPlayer(flcPlayer)
-	{ }
+	#ifdef OPENXCOM_RESPONSIVE_LOADING
+    const int _soundVolume;
+    const bool _playAudio;
+    AudioSequence(Mod *_mod, FlcPlayer *flcPlayer, int soundVolume, bool playAudio)
+        : mod(_mod), m(0), s(0), trackPosition(0), _flcPlayer(flcPlayer), _soundVolume(soundVolume), _playAudio(playAudio) {}
+#else
+    AudioSequence(Mod *_mod, FlcPlayer *flcPlayer) : mod(_mod), m(0), s(0), trackPosition(0), _flcPlayer(flcPlayer)
+    { }
+#endif
 
 	void operator()()
 	{
-		while (_flcPlayer->getFrameCount() >= introSoundTrack[trackPosition].frameNumber)
+		#ifdef OPENXCOM_RESPONSIVE_LOADING
+        // At most16 commands per owner tick, and never consume the sentinel.
+        unsigned budget = 16;
+        while (budget-- && trackPosition < int(sizeof introSoundTrack / sizeof introSoundTrack[0]) - 1 &&
+            _flcPlayer->getFrameCount() >= introSoundTrack[trackPosition].frameNumber)
+#else
+        while (_flcPlayer->getFrameCount() >= introSoundTrack[trackPosition].frameNumber)
+#endif
 		{
 			int command = introSoundTrack[trackPosition].sound;
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+            // Silence removes only playback, never the source's visual clock.
+            // The silent sequence carries no Mod pointer and cannot access its
+            // Music/Sound borrowers, but still applies every speed command.
+            if (!_playAudio && !(command & 0x400)) { ++trackPosition; continue; }
+#endif
 
 			if (command & 0x200)
 			{
@@ -368,7 +404,11 @@ static struct AudioSequence
 				{
 					soundInFile *sf = (*sounds) + command;
 					int channel = trackPosition % 4; // use at most four channels to play sound effects
-					double ratio = (double)Options::soundVolume / MIX_MAX_VOLUME;
+					#ifdef OPENXCOM_RESPONSIVE_LOADING
+                    double ratio = double(_soundVolume) / MIX_MAX_VOLUME;
+#else
+                    double ratio = (double)Options::soundVolume / MIX_MAX_VOLUME;
+#endif
 					Log(LOG_DEBUG) << "playing: " << sf->catFile << ":" << sf->sound << " for index " << command;
 					s = mod->getSound(sf->catFile, sf->sound, false);
 					if (s)
@@ -384,6 +424,9 @@ static struct AudioSequence
 		}
 
 	}
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+};
+#else
 } *audioSequence = NULL;
 
 
@@ -546,5 +589,359 @@ void VideoState::init()
 	CutsceneState::resetDisplay(wasLetterboxed);
 	_game->popState();
 }
+
+#endif // legacy synchronous VideoState
+
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+struct VideoState::ResponsiveVideo
+{
+    enum class Phase { Prepare, AwaitAttach, Playing, Hold, Fade, NeedDetach, AwaitDetach, Retained, Finish, Done };
+    Phase phase;
+    std::shared_ptr<void> epoch;
+    std::unique_ptr<FlcPlayer> player;
+    std::shared_ptr<FlcPlayer::AudioLease> lease;
+    std::unique_ptr<AudioSequence> sequence;
+    Music *track;
+    std::vector<std::string> videos, tracks;
+    std::size_t index;
+    bool close, skip, failed, displayChanged, volumeChanged, cursorVisible;
+    bool ufoAvailable, mute, allowResize, resizePending, wasLetterboxed, fadePossible, fadeStarted, retryDetach;
+    int oldMusic, oldSound, oldUi, soundVolume, musicVolume, resizeWidth, resizeHeight;
+    Uint32 phaseTick;
+    unsigned fadeStep;
+    SDL_Color palette[256];
+    ResponsiveVideo()
+        : phase(Phase::Prepare), track(nullptr), index(0), close(false), skip(false), failed(false),
+          displayChanged(false), volumeChanged(false), cursorVisible(true), ufoAvailable(false),
+          mute(false), allowResize(false), resizePending(false), wasLetterboxed(false),
+          fadePossible(false), fadeStarted(false), retryDetach(false), oldMusic(0), oldSound(0), oldUi(0),
+          soundVolume(0), musicVolume(0), resizeWidth(0), resizeHeight(0), phaseTick(0), fadeStep(0), palette() {}
+};
+
+VideoState::~VideoState()
+{
+    // Active state removal is intercepted by Game. An unexpected destructor must
+    // fail before releasing a pending operation target, epoch or callback lease.
+    if (_responsiveVideo && _responsiveVideo->phase != ResponsiveVideo::Phase::Done) std::terminate();
+}
+
+bool VideoState::responsiveVideoActive() const noexcept { return !_responsiveFinished; }
+
+void VideoState::init()
+{
+    if (_responsiveVideo || _responsiveInitFailed || _responsiveFinished) return;
+    try
+    {
+        _responsiveVideo.reset(new ResponsiveVideo());
+        ResponsiveVideo &v = *_responsiveVideo;
+        v.epoch = _game->retainResponsiveEpoch(); // genuine strong ownership, never an access permit
+        if (!v.epoch) { v.failed = true; v.phase = ResponsiveVideo::Phase::Finish; return; }
+        if (_videos) v.videos = *_videos;
+        if (_tracks) v.tracks = *_tracks;
+        if (v.videos.size() > 256 || v.tracks.size() > 256) { v.failed = true; v.phase = ResponsiveVideo::Phase::Finish; return; }
+        v.oldMusic = Options::musicVolume; v.oldSound = Options::soundVolume; v.oldUi = Options::uiVolume;
+        v.musicVolume = v.oldMusic; v.soundVolume = v.oldSound;
+        v.mute = Options::mute; v.allowResize = Options::allowResize;
+        v.cursorVisible = _game->getCursor()->getVisible();
+        if (_useUfoAudioSequence)
+        {
+            const std::set<std::string> &sounds = FileMap::getVFolderContents("SOUND");
+            v.ufoAvailable = sounds.count("intro.cat") || sounds.count("sample3.cat");
+            if (v.ufoAvailable) v.musicVolume = v.soundVolume = std::max(v.oldMusic, v.oldSound);
+        }
+        State::init(); // owner-only preparation, before any operation is reserved
+        v.wasLetterboxed = Options::keepAspectRatio; v.displayChanged = true;
+        CutsceneState::initDisplay();
+        _game->getCursor()->setVisible(false);
+        v.fadePossible = _game->getScreen()->getSurface()->getSurface()->format->BitsPerPixel == 8;
+    }
+    catch (...)
+    {
+        _responsiveInitFailed = true;
+        if (_responsiveVideo) { _responsiveVideo->failed = true; _responsiveVideo->phase = ResponsiveVideo::Phase::Finish; }
+    }
+}
+
+void VideoState::responsivePrepareVideo()
+{
+    ResponsiveVideo &v = *_responsiveVideo;
+    if (v.close || v.skip || v.failed || v.index >= v.videos.size()) { v.phase = ResponsiveVideo::Phase::Finish; return; }
+    // One candidate per tick. Missing files never start an external track.
+    const std::string filename = FileMap::getFilePath(v.videos[v.index]);
+    if (!CrossPlatform::fileExists(filename)) { ++v.index; return; }
+    using Route = FlcPlayer::AudioLease::Route;
+    Route selected = v.ufoAvailable ? Route::UfoSequence : Route::InternalPCM;
+    Music *track = nullptr;
+#ifndef __NO_MUSIC
+    if (!v.ufoAvailable && v.index < v.tracks.size())
+    {
+        track = _game->getMod()->getMusic(v.tracks[v.index]);
+        if (track) selected = Route::ExplicitTrack;
+    }
+#endif
+    const bool sourceTiming = selected == Route::InternalPCM;
+    // Deliberate ON precedence: UFO > explicit track > internal PCM. The old
+    // transient explicit track, immediately replaced by UFO frame zero, is gone.
+    if (v.mute || !_game->responsiveAudioAvailable()) selected = Route::Silent;
+    std::unique_ptr<FlcPlayer> player(new FlcPlayer());
+    int dx = (Options::baseXResolution - Screen::ORIGINAL_WIDTH) / 2;
+    int dy = (Options::baseYResolution - Screen::ORIGINAL_HEIGHT) / 2;
+    if (!player->initResponsive(filename.c_str(), _game, selected, _game->responsiveAudioGeneration(),
+            Game::volumeExponent(v.musicVolume), sourceTiming, dx, dy))
+    {
+        ++v.index; return; // typed file/parse/cap failure: no lease was submitted
+    }
+    std::unique_ptr<AudioSequence> sequence;
+    if (v.ufoAvailable) sequence.reset(new AudioSequence(selected == Route::UfoSequence ? _game->getMod() : nullptr,
+        player.get(), v.soundVolume, selected == Route::UfoSequence));
+    v.player.swap(player); v.sequence.swap(sequence); v.track = selected == Route::ExplicitTrack ? track : nullptr;
+    v.lease = v.player->responsiveLease();
+    Game::VideoAudioResult result = _game->reserveVideoAudio(this, v.lease, true);
+    if (result == Game::VideoAudioResult::Reserved) v.phase = ResponsiveVideo::Phase::AwaitAttach;
+    else
+    {
+        // Rejection/preparation failure did not enter work or mutate hooks.
+        if (!v.lease->canRelease()) std::terminate();
+        v.sequence.reset(); v.track = nullptr; v.lease.reset(); v.player.reset();
+        v.failed = true; v.phase = ResponsiveVideo::Phase::Finish;
+    }
+}
+
+void VideoState::responsiveReserveDetach() noexcept
+{
+    ResponsiveVideo &v = *_responsiveVideo;
+    if (!v.lease) { v.phase = ResponsiveVideo::Phase::Finish; return; }
+    if (v.player) v.player->skipResponsive(); // stop all visual/sequence production first
+    Game::VideoAudioResult result = _game->reserveVideoAudio(this, v.lease, false);
+    v.retryDetach = result != Game::VideoAudioResult::Reserved;
+    v.phase = v.retryDetach ? ResponsiveVideo::Phase::Retained : ResponsiveVideo::Phase::AwaitDetach;
+    // NoThread/setup/ambiguous entered failures are owned by Game's separate
+    // operation gate; no owner stop/drain or destructor fallback is permitted.
+}
+
+void VideoState::responsiveStartFade(Uint32 now)
+{
+    ResponsiveVideo &v = *_responsiveVideo;
+    if (!v.fadePossible || v.skip || v.close || v.failed) { v.phase = ResponsiveVideo::Phase::NeedDetach; return; }
+    std::memcpy(v.palette, _game->getScreen()->getPalette(), sizeof v.palette);
+    v.phaseTick = now; v.fadeStep = 20; v.fadeStarted = true; v.phase = ResponsiveVideo::Phase::Fade;
+#ifndef __NO_MUSIC
+    if (v.lease && v.lease->route() != FlcPlayer::AudioLease::Route::Silent)
+    {
+        // Ordinary owner playback API, not a hard-real-time/retirement claim.
+        Mix_FadeOutChannel(-1, 900); Mix_FadeOutMusic(900); func_fade();
+    }
+#endif
+}
+
+void VideoState::responsiveAudioComplete(bool attach, bool success, bool closeRequested) noexcept
+{
+    if (!_responsiveVideo || _responsiveFinished) std::terminate();
+    ResponsiveVideo &v = *_responsiveVideo;
+    if (closeRequested) v.close = true;
+    try
+    {
+        if (attach)
+        {
+            if (v.phase != ResponsiveVideo::Phase::AwaitAttach || !v.lease) std::terminate();
+            if (!success)
+            {
+                // Game may report failure here only with no-hook/detach proof AND reap.
+                if (!v.lease->canRelease()) std::terminate();
+                v.sequence.reset(); v.track = nullptr; v.lease.reset(); v.player.reset();
+                v.failed = true; v.phase = ResponsiveVideo::Phase::Finish; return;
+            }
+            if (v.lease->attachmentState() != FlcPlayer::AudioLease::AttachmentState::Attached) std::terminate();
+            // Game delivers same-tick pending skip/close before this completion.
+            if (v.close || v.skip) { v.phase = ResponsiveVideo::Phase::NeedDetach; return; }
+            if (v.lease->route() == FlcPlayer::AudioLease::Route::UfoSequence && !v.volumeChanged)
+            {
+                Options::musicVolume = v.musicVolume; Options::soundVolume = v.soundVolume;
+                v.volumeChanged = true; _game->setVolume(v.soundVolume, v.musicVolume, -1);
+            }
+            v.lease->notePlaybackStarted(); // includes a possibly throwing attempt
+#ifndef __NO_MUSIC
+            if (v.track) v.track->play(0);
+#endif
+            if (v.sequence) (*v.sequence)(); // actual frame-zero UFO commands, after reap
+            if (v.close || v.skip) { v.phase = ResponsiveVideo::Phase::NeedDetach; return; }
+            _game->unpauseResponsiveVideo(this); // exactly once, validated by Game provenance
+            v.player->beginResponsive(SDL_GetTicks());
+            v.phase = ResponsiveVideo::Phase::Playing;
+        }
+        else
+        {
+            if (v.phase != ResponsiveVideo::Phase::AwaitDetach || !v.lease) std::terminate();
+            if (!success || v.lease->attachmentState() != FlcPlayer::AudioLease::AttachmentState::Detached)
+            { v.retryDetach = false; v.phase = ResponsiveVideo::Phase::Retained; return; }
+            // This callback is AFTER checked reap; release every per-video borrower.
+            v.sequence.reset(); v.track = nullptr; v.lease.reset(); v.player.reset();
+            ++v.index;
+            v.phase = (v.close || v.skip || v.failed || v.index >= v.videos.size()) ?
+                ResponsiveVideo::Phase::Finish : ResponsiveVideo::Phase::Prepare;
+        }
+    }
+    catch (...) { v.failed = true; v.phase = v.lease && !v.lease->canRelease() ? ResponsiveVideo::Phase::NeedDetach : ResponsiveVideo::Phase::Finish; }
+}
+
+void VideoState::responsiveVideoTick(Uint32 now, bool present) noexcept
+{
+    if (_responsiveFinished) return;
+    if (!_responsiveVideo)
+    {
+        if (_responsiveInitFailed) responsiveFinish(present);
+        else init();
+        return;
+    }
+    ResponsiveVideo &v = *_responsiveVideo;
+    try
+    {
+        if ((v.close || v.skip) && (v.phase == ResponsiveVideo::Phase::Playing || v.phase == ResponsiveVideo::Phase::Hold || v.phase == ResponsiveVideo::Phase::Fade))
+            v.phase = ResponsiveVideo::Phase::NeedDetach;
+        switch (v.phase)
+        {
+        case ResponsiveVideo::Phase::Prepare: responsivePrepareVideo(); break;
+        case ResponsiveVideo::Phase::Playing:
+        {
+            if (v.sequence) (*v.sequence)();
+            FlcPlayer::ResponsiveStep step = v.player->stepResponsive(now, v.ufoAvailable, present);
+            if (step == FlcPlayer::ResponsiveStep::Failed) { v.failed = true; v.phase = ResponsiveVideo::Phase::NeedDetach; }
+            else if (step == FlcPlayer::ResponsiveStep::Finished || step == FlcPlayer::ResponsiveStep::Skipped)
+            {
+                if (v.ufoAvailable && !v.skip) { v.phase = ResponsiveVideo::Phase::Hold; v.phaseTick = now; }
+                else if (v.index + 1 == v.videos.size()) responsiveStartFade(now);
+                else v.phase = ResponsiveVideo::Phase::NeedDetach;
+            }
+            break;
+        }
+        case ResponsiveVideo::Phase::Hold:
+            if (Uint32(now - v.phaseTick) >= 10000u)
+            {
+                if (v.index + 1 == v.videos.size()) responsiveStartFade(now);
+                else v.phase = ResponsiveVideo::Phase::NeedDetach;
+            }
+            break;
+        case ResponsiveVideo::Phase::Fade:
+            if (Uint32(now - v.phaseTick) >= 45u)
+            {
+                SDL_Color palette[256];
+                for (unsigned i = 0; i < 256; ++i)
+                {
+                    palette[i].r = Uint8(unsigned(v.palette[i].r) * v.fadeStep / 20u);
+                    palette[i].g = Uint8(unsigned(v.palette[i].g) * v.fadeStep / 20u);
+                    palette[i].b = Uint8(unsigned(v.palette[i].b) * v.fadeStep / 20u);
+                    palette[i].unused = v.palette[i].unused;
+                }
+                _game->getScreen()->setPalette(palette, 0, 256, present);
+                if (present) _game->getScreen()->flip();
+                v.phaseTick = now;
+                if (!--v.fadeStep) v.phase = ResponsiveVideo::Phase::NeedDetach;
+            }
+            break;
+        case ResponsiveVideo::Phase::NeedDetach: responsiveReserveDetach(); break;
+        case ResponsiveVideo::Phase::Finish: responsiveFinish(present); break;
+        case ResponsiveVideo::Phase::AwaitAttach:
+        case ResponsiveVideo::Phase::AwaitDetach:
+        case ResponsiveVideo::Phase::Retained:
+        case ResponsiveVideo::Phase::Done: break; // no poll/play/render while audio is worker-owned
+        }
+    }
+    catch (...)
+    {
+        v.failed = true;
+        v.phase = v.lease && !v.lease->canRelease() ? ResponsiveVideo::Phase::NeedDetach : ResponsiveVideo::Phase::Finish;
+    }
+}
+
+void VideoState::responsiveRequestClose() noexcept
+{
+    if (_responsiveVideo) _responsiveVideo->close = true;
+    else _responsiveInitFailed = true;
+}
+
+void VideoState::responsiveVideoEvent(const SDL_Event &event) noexcept
+{
+    if (event.type == SDL_QUIT) { responsiveRequestClose(); return; }
+    if (!_responsiveVideo) return;
+    ResponsiveVideo &v = *_responsiveVideo;
+    if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_KEYDOWN)
+    {
+        if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r && v.phase == ResponsiveVideo::Phase::Retained && v.retryDetach)
+            v.phase = ResponsiveVideo::Phase::NeedDetach; // explicit pre-work reservation retry only
+        else v.skip = true;
+    }
+    else if (event.type == SDL_VIDEORESIZE && v.allowResize)
+    {
+        v.resizePending = true; v.resizeWidth = std::max(Screen::ORIGINAL_WIDTH, event.resize.w);
+        v.resizeHeight = std::max(Screen::ORIGINAL_HEIGHT, event.resize.h);
+    }
+    // Focus/minimize do not pause the timeline; generic debug/grab/events never run.
+}
+
+void VideoState::responsiveFinish(bool present) noexcept
+{
+    if (_responsiveFinished) return;
+    if (_responsiveVideo)
+    {
+        ResponsiveVideo &v = *_responsiveVideo;
+        if (v.lease && !v.lease->canRelease()) { v.phase = ResponsiveVideo::Phase::Retained; return; }
+        v.sequence.reset(); v.track = nullptr; v.lease.reset(); v.player.reset();
+        try
+        {
+            if (v.volumeChanged)
+            {
+                Options::musicVolume = v.oldMusic; Options::soundVolume = v.oldSound;
+                v.volumeChanged = false; _game->setVolume(v.oldSound, v.oldMusic, v.oldUi);
+            }
+            if (v.displayChanged)
+            {
+                if (v.resizePending)
+                {
+                    Options::newDisplayWidth = Options::displayWidth = v.resizeWidth;
+                    Options::newDisplayHeight = Options::displayHeight = v.resizeHeight;
+                }
+                v.displayChanged = false; CutsceneState::resetDisplay(v.wasLetterboxed);
+                _game->getScreen()->clear();
+                if (present) _game->getScreen()->flip();
+            }
+        }
+        catch (...) { /* Presentation failure cannot resurrect audio or suppress retirement. */ }
+        try { _game->getCursor()->setVisible(v.cursorVisible); } catch (...) {}
+        v.epoch.reset(); v.phase = ResponsiveVideo::Phase::Done;
+    }
+    _responsiveFinished = true;
+    _game->finishResponsiveVideo(this); // all borrowers gone, before state removal
+    _game->popState();
+}
+#ifdef OPENXCOM_RESPONSIVE_TESTING
+const char *LoadingVideoIntegrationTestAccess::phase(const VideoState &video) noexcept
+{
+    if (!video._responsiveVideo) return video._responsiveFinished ? "Done" : "Uninitialized";
+    using P = VideoState::ResponsiveVideo::Phase;
+    switch (video._responsiveVideo->phase)
+    {
+    case P::Prepare: return "Prepare"; case P::AwaitAttach: return "AwaitAttach";
+    case P::Playing: return "Playing"; case P::Hold: return "Hold";
+    case P::Fade: return "Fade"; case P::NeedDetach: return "NeedDetach";
+    case P::AwaitDetach: return "AwaitDetach"; case P::Retained: return "Retained";
+    case P::Finish: return "Finish"; case P::Done: return "Done";
+    }
+    return "Invalid";
+}
+std::weak_ptr<void> LoadingVideoIntegrationTestAccess::lease(const VideoState &video) noexcept
+{ return video._responsiveVideo ? std::weak_ptr<void>(video._responsiveVideo->lease) : std::weak_ptr<void>(); }
+unsigned LoadingVideoIntegrationTestAccess::frameCount(const VideoState &video) noexcept
+{ return video._responsiveVideo && video._responsiveVideo->player ? unsigned(video._responsiveVideo->player->getFrameCount()) : 0u; }
+unsigned LoadingVideoIntegrationTestAccess::headerSpeed(const VideoState &video) noexcept
+{ return video._responsiveVideo && video._responsiveVideo->player ? video._responsiveVideo->player->_headerSpeed : 0u; }
+unsigned LoadingVideoIntegrationTestAccess::route(const VideoState &video) noexcept
+{ return video._responsiveVideo && video._responsiveVideo->lease ? unsigned(video._responsiveVideo->lease->route()) : 99u; }
+bool LoadingVideoIntegrationTestAccess::closeRequested(const VideoState &video) noexcept
+{ return video._responsiveVideo ? video._responsiveVideo->close : video._responsiveInitFailed; }
+bool LoadingVideoIntegrationTestAccess::skipped(const VideoState &video) noexcept
+{ return video._responsiveVideo && video._responsiveVideo->skip; }
+#endif
+
+#endif
 
 }

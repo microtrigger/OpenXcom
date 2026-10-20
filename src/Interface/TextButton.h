@@ -73,6 +73,10 @@ public:
 	void setText(const std::string &text);
 	/// Gets the text button's text.
 	std::string getText() const;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Gets only a fully rendered label, excluding an optional covered right edge.
+	std::string agentLabel(int rightInset = 0) const;
+#endif
 	/// Sets the text button's group.
 	void setGroup(TextButton **group);
 	/// Sets the text button's palette.

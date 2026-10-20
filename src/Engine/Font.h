@@ -52,6 +52,9 @@ private:
 	/// Determines the size and position of each character in the font.
 	void init(size_t index, const UString &str);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentHasGlyph(UCode codepoint) const { return _chars.find(codepoint) != _chars.end(); }
+#endif
 
 	/// Creates a blank font.
 	Font();

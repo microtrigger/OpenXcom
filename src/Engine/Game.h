@@ -1,5 +1,8 @@
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 #pragma once
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentController.h"
+#endif
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -29,6 +32,18 @@
 #include <list>
 #include <string>
 #include <SDL.h>
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include <memory>
+#include <cstdint>
+#include "LoaderSession.h"
+#include "FlcPlayer.h"
+#endif
+
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+#include "../Observer/SnapshotStamp.h"
+#include "../Observer/SnapshotScope.h"
+#include "../Observer/SnapshotPresentation.h"
+#endif
 
 namespace OpenXcom
 {
@@ -40,6 +55,11 @@ class Language;
 class SavedGame;
 class Mod;
 class FpsCounter;
+class Music;
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+class VideoState;
+struct LoadingGameIntegrationAccess;
+#endif
 
 /**
  * The core of the game engine, manages the game's entire contents and structure.
@@ -65,10 +85,47 @@ class Game
     friend struct InventoryGroundGateAccess;
 #endif
 private:
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    // Constructed first: a denied process lease cannot publish resources.
+    LoaderProcessLease _loadingProcessLease;
+    struct ResourceEpoch;
+    struct LoadingWork;
+    struct PreparedOperation;
+    struct ResponsiveCore;
+    std::unique_ptr<ResponsiveCore> _responsive;
+    bool loadingBoundary() noexcept;
+    void applyResponsiveResize() noexcept;
+    void runOneOperationTick() noexcept;
+    bool runResponsiveVideoTick() noexcept;
+    bool reserveResponsiveCleanup() noexcept;
+    void beginResponsiveCleanup() noexcept;
+    void publishResponsiveLoad() noexcept;
+    void assertResponsiveOwnerAccess() const noexcept;
+    static LoaderSession::WorkResult loadResponsiveResources(void *, const LoaderSession::StopToken &);
+    static LoaderSession::WorkResult cleanupResponsiveResources(void *, const LoaderSession::StopToken &);
+    static LoaderSession::WorkResult transitionResponsiveVideo(void *, const LoaderSession::StopToken &);
+    static void loadEpochLanguages(ResourceEpoch &);
+#ifdef OPENXCOM_RESPONSIVE_TESTING
+    friend struct LoadingGameIntegrationAccess;
+#endif
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    Observer::SnapshotStamp _snapshotSavedRevision;
+    Observer::SnapshotStamp _snapshotModRevision;
+    Observer::SnapshotStamp _snapshotStackRevision;
+    Observer::SnapshotActivity _snapshotInitActivity;
+    Observer::SnapshotPresentation _snapshotPresentation;
+    Observer::SnapshotPaintedState snapshotPaintedState(const State *state) const noexcept;
+    bool snapshotFrameStateCurrent() const noexcept;
+#endif
+
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     Observer::StanceController _stanceController;
 #endif
-#ifdef OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentController _agentController;
+#endif
+#if defined(OPENXCOM_EXPERIMENTAL_MIXED_AUDIO_OBSERVER) && !defined(OPENXCOM_RESPONSIVE_LOADING)
 	Observer::MixedAudioObserver _mixedAudioObserver;
 #endif
 	SDL_Event _event;
@@ -86,6 +143,33 @@ private:
 	static const double VOLUME_GRADIENT;
 
 public:
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    enum class LoadingOrigin { Startup, OptionsMenu, ModListMenu };
+    enum class LoadingAdmission { Accepted, Busy, LiveSave, UnsupportedProfile, UnknownAudioGeneration, InvalidDeviceState, PreparationFailure };
+    enum class VideoAudioResult { RejectedUnchanged, Reserved, PreparationFailure };
+    LoadingAdmission responsiveLoadEligibility(LoadingOrigin, const State *caller) const noexcept;
+    LoadingAdmission reserveResponsiveLoad(LoadingOrigin, State *caller = nullptr) noexcept;
+    static const char *loadingAdmissionMessage(LoadingAdmission) noexcept;
+    VideoAudioResult reserveVideoAudio(VideoState *, std::shared_ptr<FlcPlayer::AudioLease>, bool attach) noexcept;
+    std::shared_ptr<void> retainResponsiveEpoch() const;
+    std::uint64_t responsiveAudioGeneration() const noexcept;
+    bool responsiveAudioAvailable() const noexcept;
+    void invalidateResponsiveAudio() noexcept;
+    void finishResponsiveVideo(VideoState *) noexcept;
+    void unpauseResponsiveVideo(VideoState *) noexcept;
+    static bool responsiveMusicPlaybackAllowed(const Music *) noexcept;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    const Observer::SnapshotFrameFacts &snapshotFrameFacts() const noexcept { return _snapshotPresentation.facts(); }
+    std::uint64_t snapshotSavedRevision() const noexcept { return _snapshotSavedRevision.value(); }
+    std::uint64_t snapshotModRevision() const noexcept { return _snapshotModRevision.value(); }
+    std::uint64_t snapshotStackRevision() const noexcept { return _snapshotStackRevision.value(); }
+    State *snapshotLiveState(const State *state) const noexcept;
+    bool snapshotStateInStack(const State *state) const noexcept;
+    bool snapshotStateInitialized(const State *state) const noexcept;
+    bool snapshotInitializationIdle() const noexcept { return _snapshotInitActivity.idle(); }
+#endif
+
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     Observer::StanceController *getStanceController() { return &_stanceController; }
 #endif
@@ -127,6 +211,10 @@ public:
 	void setMouseActive(bool active);
 	/// Returns whether current state is the param state
 	bool isState(State *state) const;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    State *agentTopState() const;
+    bool agentOverlayClear(const Observer::AgentUiState &ui) const;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_TURN
     // Bind a pending observation to its admission state, not a previous action.
     State *turnControlState() const { return _states.empty() ? 0 : _states.back(); }

@@ -17,6 +17,12 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Surface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#define OPENXCOM_AGENT_PAINT(call) Observer::agentObservePaint(call)
+#else
+#define OPENXCOM_AGENT_PAINT(call) (call)
+#endif
 #include "ShaderDraw.h"
 #include <vector>
 #include <fstream>
@@ -478,7 +484,7 @@ void Surface::loadBdy(const std::string &filename)
 void Surface::clear(Uint32 color)
 {
 	if (_surface->flags & SDL_SWSURFACE) memset(_surface->pixels, color, _surface->h*_surface->pitch);
-	else SDL_FillRect(_surface, &_clear, color);
+	else OPENXCOM_AGENT_PAINT(SDL_FillRect(_surface, &_clear, color));
 }
 
 /**
@@ -659,7 +665,7 @@ void Surface::blit(Surface *surface)
 		}
 		target.x = getX();
 		target.y = getY();
-		SDL_BlitSurface(_surface, cropper, surface->getSurface(), &target);
+		OPENXCOM_AGENT_PAINT(SDL_BlitSurface(_surface, cropper, surface->getSurface(), &target));
 	}
 }
 
@@ -683,7 +689,7 @@ void Surface::copy(Surface *surface)
 	from.y = getY() - surface->getY();
 	from.w = getWidth();
 	from.h = getHeight();
-	SDL_BlitSurface(surface->getSurface(), &from, _surface, 0);
+	OPENXCOM_AGENT_PAINT(SDL_BlitSurface(surface->getSurface(), &from, _surface, 0));
 	*/
 	const int from_x = getX() - surface->getX();
 	const int from_y = getY() - surface->getY();
@@ -708,7 +714,7 @@ void Surface::drawRect(SDL_Rect *rect, Uint8 color)
 {
 	if (rect->w == 0 || rect->h == 0) return;
 
-	SDL_FillRect(_surface, rect, color);
+	OPENXCOM_AGENT_PAINT(SDL_FillRect(_surface, rect, color));
 }
 
 /**
@@ -728,7 +734,7 @@ void Surface::drawRect(Sint16 x, Sint16 y, Sint16 w, Sint16 h, Uint8 color)
 	rect.h = h;
 	rect.x = x;
 	rect.y = y;
-	SDL_FillRect(_surface, &rect, color);
+	OPENXCOM_AGENT_PAINT(SDL_FillRect(_surface, &rect, color));
 }
 
 /**
@@ -1057,7 +1063,7 @@ void Surface::resize(int width, int height)
 	// Copy old contents
 	SDL_SetColorKey(surface, SDL_SRCCOLORKEY, 0);
 	SDL_SetColors(surface, getPalette(), 0, 256);
-	SDL_BlitSurface(_surface, 0, surface, 0);
+	OPENXCOM_AGENT_PAINT(SDL_BlitSurface(_surface, 0, surface, 0));
 
 	// Delete old surface
 	DeleteAligned(_alignedBuffer);

@@ -43,6 +43,9 @@
 #include "OptionsDefaultsState.h"
 #include "OptionsConfirmState.h"
 #include "StartState.h"
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include "ErrorMessageState.h"
+#endif
 
 namespace OpenXcom
 {
@@ -189,6 +192,15 @@ void OptionsBaseState::setCategory(TextButton *button)
  */
 void OptionsBaseState::btnOkClick(Action *)
 {
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    if (Options::reload && _origin == OPT_MENU)
+    {
+        const Game::LoadingAdmission result = _game->reserveResponsiveLoad(Game::LoadingOrigin::OptionsMenu, this);
+        if (result != Game::LoadingAdmission::Accepted)
+            _game->pushState(new ErrorMessageState(Game::loadingAdmissionMessage(result), getPalette(), 15, "BACK01.SCR", 1));
+        return; // no save/display/map/language/volume mutation on rejection
+    }
+#endif
 	Options::switchDisplay();
 	int dX = Options::baseXResolution;
 	int dY = Options::baseYResolution;
@@ -208,7 +220,9 @@ void OptionsBaseState::btnOkClick(Action *)
 	_game->setVolume(Options::soundVolume, Options::musicVolume, Options::uiVolume);
 	if (Options::reload && _origin == OPT_MENU)
 	{
+#ifndef OPENXCOM_RESPONSIVE_LOADING
 		_game->setState(new StartState);
+#endif
 	}
 	else
 	{

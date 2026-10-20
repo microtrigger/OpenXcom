@@ -42,6 +42,9 @@
 #include "Engine/Logger.h"
 #include "Engine/CrossPlatform.h"
 #include "Engine/Game.h"
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include "Engine/Exception.h"
+#endif
 #include "Engine/Options.h"
 #include "Menu/StartState.h"
 // Fork modification 2026-10-10: qualify effective diagnostics before observation.
@@ -173,7 +176,13 @@ int main(int argc, char *argv[])
 	RenderPairGate::silence();
 #endif
 	State::setGamePtr(game);
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+    const Game::LoadingAdmission admission = game->reserveResponsiveLoad(Game::LoadingOrigin::Startup);
+    if (admission != Game::LoadingAdmission::Accepted)
+        throw Exception(Game::loadingAdmissionMessage(admission));
+#else
 	game->setState(new StartState);
+#endif
 	game->run();
 
 	// Comment this for faster exit.

@@ -1178,6 +1178,17 @@ std::string now()
 	if (GetTimeFormatA(LOCALE_INVARIANT, TIME_FORCE24HOURFORMAT, 0, "HH'-'mm'-'ss", time, MAX_LEN) == 0)
 		return "00-00-00";
 	sprintf(result, "%s_%s", date, time);
+#elif defined(OPENXCOM_LOADING_PRESENTATION_HELPERS) && defined(__linux__)
+	// Selected POSIX helper profile: no shared localtime buffer. Other platform
+	// paths and the default-OFF implementation retain their existing behavior.
+	const time_t rawtime = time(NULL);
+	if (rawtime == static_cast<time_t>(-1))
+		return "00-00-0000_00-00-00";
+	struct tm timeinfo = {};
+	if (localtime_r(&rawtime, &timeinfo) == NULL)
+		return "00-00-0000_00-00-00";
+	if (strftime(result, MAX_LEN, "%d-%m-%Y_%H-%M-%S", &timeinfo) == 0)
+		return "00-00-0000_00-00-00";
 #else
 	char buffer[MAX_LEN];
 	time_t rawtime;

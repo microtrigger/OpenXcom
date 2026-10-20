@@ -110,6 +110,29 @@ MainMenuState::~MainMenuState()
 
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool MainMenuState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal || !Observer::agentWidgetVisible(_btnNewBattle)) return false;
+	const std::string label = Observer::agentButtonLabel(_btnNewBattle);
+	if (label.empty()) return false;
+	out = Observer::AgentUiState();
+	out.screen = "main_menu";
+	out.visible = "{\"new_battle_label\":" + Observer::agentJsonString(label) + "}";
+	out.actions.push_back(Observer::AgentUiAction("new_battle", label, "visible_text"));
+	Observer::agentIncludeWidget(out, _btnNewBattle);
+    return true;
+}
+
+bool MainMenuState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (action != "new_battle" || !agentUiState(current)) return false;
+	btnNewBattleClick(nullptr);
+	return true;
+}
+#endif
+
 /**
  * Opens the New Game window.
  * @param action Pointer to an action.

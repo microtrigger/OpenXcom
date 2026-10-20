@@ -483,6 +483,9 @@ struct PaletteShift
  */
 void Text::draw()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentHasGlyph = _agentTextClipped = false;
+#endif
 	Surface::draw();
 	if (_text.empty() || _font == 0)
 	{
@@ -577,14 +580,46 @@ void Text::draw()
 			if (dir < 0)
 				x += dir * font->getCharSize(*c).w;
 			Surface* chr = font->getChar(*c);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            // Font::getChar substitutes '?' for a missing glyph. Never expose
+            // the underlying original codepoint as if the player saw it.
+            if (!font->agentHasGlyph(*c)) _agentTextClipped = true;
+#endif
 			chr->setX(x);
 			chr->setY(y);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            // Record the existing glyph destination geometry, without reading
+            // pixels or resolving any underlying game object/string.
+            const SDL_Rect *crop = chr->getCrop();
+            const int width = crop->w ? crop->w : chr->getWidth();
+            const int height = crop->h ? crop->h : chr->getHeight();
+            if (x < 0 || y < 0 || x + width > getWidth() || y + height > getHeight()) _agentTextClipped = true;
+            const int left = std::max(0, x), top = std::max(0, y);
+            const int right = std::min(getWidth(), x + width), bottom = std::min(getHeight(), y + height);
+            if (left < right && top < bottom)
+            {
+                if (!_agentHasGlyph) { _agentInkX1 = left; _agentInkY1 = top; _agentInkX2 = right; _agentInkY2 = bottom; }
+                else { _agentInkX1 = std::min(_agentInkX1, left); _agentInkY1 = std::min(_agentInkY1, top);
+                    _agentInkX2 = std::max(_agentInkX2, right); _agentInkY2 = std::max(_agentInkY2, bottom); }
+                _agentHasGlyph = true;
+            }
+#endif
 			ShaderDraw<PaletteShift>(ShaderSurface(this, 0, 0), ShaderCrop(chr), ShaderScalar(color), ShaderScalar(mul), ShaderScalar(mid));
 			if (dir > 0)
 				x += dir * font->getCharSize(*c).w;
 		}
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool Text::agentPaintedBounds(SDL_Rect &rect) const
+{
+    if (!_agentHasGlyph || !agentContextVisible()) return false;
+    rect.x = getX() + _agentInkX1; rect.y = getY() + _agentInkY1;
+    rect.w = _agentInkX2 - _agentInkX1; rect.h = _agentInkY2 - _agentInkY1;
+    return true;
+}
+#endif
 
 /**
  * Allows the text to be scrollable via mouse wheel.

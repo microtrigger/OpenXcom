@@ -16,6 +16,7 @@ from adapter import serve, silence_broken_stdout
 from presentation import PresentationClient
 from mixed_audio import MixedAudioClient
 from supervised_stance import StanceClient
+from agent_control import AgentControlClient
 
 
 class QuietArgumentParser(argparse.ArgumentParser):
@@ -54,6 +55,8 @@ def run():
                         help='explicitly select presentation version 2 for displayed HUD reads')
     parser.add_argument('--mixed-audio', action='store_true',
                         help='also enable the independent fixed-window mixed-audio channel')
+    parser.add_argument('--agent-control', action='store_true',
+                        help='explicitly enable direct semantic UI agent control; incompatible with supervised mode')
     parser.add_argument('--supervised-stance', action='store_true',
                         help='enable the experimental local-UI-confirmed stance pilot')
     parser.add_argument('--supervised-selection', action='store_true',
@@ -83,6 +86,8 @@ def run():
         command = command[1:]
     if not command:
         parser.error('an explicit game command is required after --')
+    if args.agent_control and any(value for name, value in vars(args).items() if name.startswith('supervised_')):
+        parser.error('--agent-control cannot be combined with supervised controls')
     if args.supervised_selection and not args.supervised_stance:
         parser.error('--supervised-selection requires --supervised-stance')
     if args.supervised_turn and not args.supervised_stance:
@@ -101,7 +106,7 @@ def run():
         parser.error('--supervised-inventory-right-click requires --supervised-inventory-close')
     if args.supervised_inventory_unload and not args.supervised_inventory_close:
         parser.error('--supervised-inventory-unload requires --supervised-inventory-close')
-    if args.audio_only and (args.presented_hud or args.supervised_stance):
+    if args.audio_only and (args.presented_hud or args.supervised_stance or args.agent_control):
         parser.error('--audio-only cannot be combined with visual channels')
     env = os.environ.copy()
     # Ambient descriptors and versions cannot silently enable another stream.
@@ -110,11 +115,12 @@ def run():
                 'OPENXCOM_TURN_ENABLED', 'OPENXCOM_MAP_LEFT_CLICK_ENABLED',
                 'OPENXCOM_INVENTORY_ENABLED', 'OPENXCOM_INVENTORY_CLOSE_ENABLED',
                 'OPENXCOM_INVENTORY_GROUND_ENABLED', 'OPENXCOM_INVENTORY_CLICK_ENABLED',
-                'OPENXCOM_INVENTORY_RIGHT_CLICK_ENABLED', 'OPENXCOM_INVENTORY_UNLOAD_ENABLED'):
+                'OPENXCOM_INVENTORY_RIGHT_CLICK_ENABLED', 'OPENXCOM_INVENTORY_UNLOAD_ENABLED',
+                'OPENXCOM_AGENT_CONTROL', 'OPENXCOM_AGENT_CONTROL_FD'):
         env.pop(key, None)
     with ExitStack() as cleanup:
         children = []
-        client = audio = stance = None
+        client = audio = stance = agent = None
         if not args.audio_only:
             parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
             cleanup.callback(parent.close); cleanup.callback(child.close)
@@ -164,6 +170,14 @@ def run():
                                   inventory_right_click_enabled=args.supervised_inventory_right_click,
                                   inventory_unload_enabled=args.supervised_inventory_unload)
             cleanup.callback(stance.close)
+        if args.agent_control:
+            parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+            cleanup.callback(parent.close); cleanup.callback(child.close)
+            children.append(child)
+            env['OPENXCOM_AGENT_CONTROL'] = '1'
+            env['OPENXCOM_AGENT_CONTROL_FD'] = str(child.fileno())
+            agent = AgentControlClient(parent)
+            cleanup.callback(agent.close)
         # Discard both diagnostics streams at the OS boundary, including startup,
         # logger fallback and shutdown. No pipe, decoding, reader or log buffer.
         # The native producer separately qualifies effective engine options.
@@ -173,7 +187,7 @@ def run():
         for child in children:
             child.close()
         try:
-            serve(sys.stdin.buffer, sys.stdout.buffer, args.hud_dir, args.cursor_dir, client, audio, stance)
+            serve(sys.stdin.buffer, sys.stdout.buffer, args.hud_dir, args.cursor_dir, client, audio, stance, agent)
         finally:
             process.poll() # Reap only if already exited; never wait for or stop the game.
     # EOF ends observation only. Never terminate the normally running game.

@@ -158,6 +158,37 @@ BriefingState::~BriefingState()
 
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BriefingState::agentUiState(Observer::AgentUiState &out) const
+{
+	if (_modal || !Observer::agentWidgetVisible(_btnOk)) return false;
+	const std::string label = Observer::agentButtonLabel(_btnOk);
+	if (label.empty()) return false;
+	out = Observer::AgentUiState();
+	out.screen = "briefing";
+	out.visible = "{\"title\":" + Observer::agentTextJson(_txtTitle) +
+		",\"target\":" + Observer::agentTextJson(_txtTarget) +
+		",\"craft\":" + Observer::agentTextJson(_txtCraft) +
+		",\"briefing\":" + Observer::agentTextJson(_txtBriefing) + "}";
+	out.actions.push_back(Observer::AgentUiAction("continue_briefing", label, "visible_text"));
+	out.save = _game->getSavedGame();
+	Observer::agentIncludeWidget(out, _btnOk);
+    Observer::agentIncludeWidget(out, _txtTitle);
+    Observer::agentIncludeWidget(out, _txtTarget);
+    Observer::agentIncludeWidget(out, _txtCraft);
+    Observer::agentIncludeWidget(out, _txtBriefing);
+    return true;
+}
+
+bool BriefingState::agentDispatch(const std::string &action)
+{
+	Observer::AgentUiState current;
+	if (action != "continue_briefing" || !agentUiState(current)) return false;
+	btnOkClick(nullptr);
+	return true;
+}
+#endif
+
 void BriefingState::init()
 {
 	State::init();

@@ -23,6 +23,10 @@
 #include "../Engine/Sound.h"
 #include "../Engine/Action.h"
 #include "ComboBox.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Font.h"
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -168,6 +172,22 @@ std::string TextButton::getText() const
 {
 	return _text->getText();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+std::string TextButton::agentLabel(int rightInset) const
+{
+    // The child Text uses button-local coordinates, including the combo's
+    // deliberate negative X offset. Use its actual rendered glyph footprint,
+    // rather than an assumed nonnegative font spacing (stock FONT_SMALL is -1).
+    if (!Observer::agentWidgetVisible(this) || !_text || !_text->agentContextVisible() ||
+        !_text->agentTextComplete() || !_text->getFont() || _text->getText().size() > 1024 ||
+        rightInset < 0 || rightInset >= getWidth()) return std::string();
+    SDL_Rect ink;
+    if (!_text->agentPaintedBounds(ink) || ink.x < 0 || ink.y < 0 ||
+        ink.x + ink.w > getWidth() - rightInset || ink.y + ink.h > getHeight()) return std::string();
+    return _text->getText();
+}
+#endif
 
 /**
  * Changes the button group this button belongs to.

@@ -58,6 +58,11 @@ namespace Observer { class HudFileObserver; }
 class BattlescapeState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    BattleUnit *_agentShownActor = 0;
+    bool _agentShownKneeled = false;
+    std::uint64_t _agentUiRevision = 0;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     friend class Observer::StanceController;
     std::uint64_t _stanceUiRevision = 0;
@@ -135,6 +140,11 @@ private:
 	/// Gets the built-in melee weapon of a unit, if any.
 	BattleItem *getSpecialMeleeWeapon(BattleUnit *unit);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentBindingCurrent(const Observer::AgentUiState &binding) const override;
+    bool agentDispatch(const std::string &action) override;
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 	void blit();
 #endif

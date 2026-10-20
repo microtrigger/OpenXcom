@@ -23,15 +23,148 @@
  * Based on http://www.libsdl.org/projects/flxplay/
  */
 #include <SDL.h>
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <thread>
+#include <vector>
+#endif
 
 namespace OpenXcom
 {
 
 class Screen;
 class Game;
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+class LoadingAudioHandoff;
+class LoadingVideoAudioTestAccess;
+#endif
 
 class FlcPlayer
 {
+#ifdef OPENXCOM_RESPONSIVE_LOADING
+public:
+    // The lease has no Game, Screen, Mod, VideoState, Options or callback-owner
+    // pointer. Its only mutable playback field is the callback's private cursor.
+    class AudioLease
+    {
+    public:
+        enum class Route { InternalPCM, ExplicitTrack, UfoSequence, Silent };
+        enum class PrepareStatus { Ready, NoPCM, InvalidSpec, InvalidPCM,
+            AllocationFailure, ConversionFailure };
+        enum class AttachmentState { NeverAttached, Attached, Detached };
+        class AttachReceipt
+        {
+        public:
+            AttachReceipt() noexcept : _lease(nullptr), _generation(0), _route(Route::Silent), _hook(false) {}
+            bool validFor(std::uint64_t generation, const void *lease) const noexcept { return _lease && _lease == lease && _generation == generation; }
+            bool hookInstalled() const noexcept { return _hook; }
+        private:
+            friend class LoadingAudioHandoff;
+            friend class AudioLease;
+            AttachReceipt(AudioLease *lease, std::uint64_t generation, Route route, bool hook) noexcept
+                : _lease(lease), _generation(generation), _route(route), _hook(hook) {}
+            AudioLease *const _lease;
+            const std::uint64_t _generation;
+            const Route _route;
+            const bool _hook;
+        };
+        class NoHookReceipt
+        {
+            friend class LoadingAudioHandoff;
+            friend class AudioLease;
+            NoHookReceipt(AudioLease *lease, std::uint64_t generation, Route route) noexcept
+                : _lease(lease), _generation(generation), _route(route) {}
+            AudioLease *const _lease;
+            const std::uint64_t _generation;
+            const Route _route;
+        };
+        class DetachReceipt
+        {
+        public:
+            DetachReceipt() noexcept : _lease(nullptr), _generation(0), _route(Route::Silent) {}
+            bool validFor(std::uint64_t generation, const void *lease) const noexcept { return _lease && _lease == lease && _generation == generation; }
+        private:
+            friend class LoadingAudioHandoff;
+            friend class AudioLease;
+            DetachReceipt(AudioLease *lease, std::uint64_t generation, Route route) noexcept
+                : _lease(lease), _generation(generation), _route(route) {}
+            AudioLease *const _lease;
+            const std::uint64_t _generation;
+            const Route _route;
+        };
+        ~AudioLease() noexcept;
+        PrepareStatus prepareForDevice(int rate, Uint16 format, int channels) noexcept;
+        void acceptAttach(const AttachReceipt &) noexcept;
+        void acceptNoHook(const NoHookReceipt &) noexcept;
+        void acceptDetach(const DetachReceipt &) noexcept;
+        void notePlaybackStarted() noexcept;
+        Route route() const noexcept { return _route; }
+        std::uint64_t generation() const noexcept { return _generation; }
+        bool hasPCM() const noexcept { return _status == PrepareStatus::Ready && !_pcm.empty(); }
+        AttachmentState attachmentState() const noexcept { return _attachment; }
+        // Lifetime fact only. Caller still needs the matching actual checked reap.
+        bool canRelease() const noexcept { return _attachment != AttachmentState::Attached; }
+        static void SDLCALL callback(void *, Uint8 *, int) noexcept;
+        AudioLease(const AudioLease &) = delete;
+        AudioLease &operator=(const AudioLease &) = delete;
+    private:
+        friend class FlcPlayer;
+#ifdef OPENXCOM_RESPONSIVE_TESTING
+        friend class LoadingVideoAudioTestAccess;
+#endif
+        AudioLease(Route, std::uint64_t, std::vector<Uint8> &&, unsigned sourceRate, double gain);
+        void requireWorker() const noexcept;
+        const Route _route;
+        const std::uint64_t _generation;
+        const std::thread::id _owner;
+        const std::vector<Uint8> _source;
+        const unsigned _sourceRate;
+        const double _gain;
+        std::atomic_flag _prepareClaim = ATOMIC_FLAG_INIT;
+        std::vector<Uint8> _pcm;
+        std::size_t _cursor;
+        unsigned _frameBytes;
+        PrepareStatus _status;
+        AttachmentState _attachment;
+        bool _hookInstalled, _playbackStarted;
+    };
+    enum class ResponsiveFailure { None, File, Header, Record, Rate, SizeLimit,
+        Allocation, Surface, State };
+    enum class ResponsiveStep { Waiting, Presented, Finished, Skipped, Failed };
+    bool initResponsive(const char *, Game *, AudioLease::Route, std::uint64_t,
+        double gain, bool sourceAudioTiming, int dx, int dy) noexcept;
+    void beginResponsive(Uint32 now) noexcept;
+    ResponsiveStep stepResponsive(Uint32 now, bool skipLastFrame, bool present = true);
+    void skipResponsive() noexcept;
+    std::shared_ptr<AudioLease> responsiveLease() const noexcept { return _responsiveLease; }
+    ResponsiveFailure responsiveFailure() const noexcept { return _responsiveFailure; }
+private:
+    struct ResponsiveFrame { std::size_t offset, size; Uint16 chunks, delayOverride; };
+    struct ResponsiveData
+    {
+        std::vector<ResponsiveFrame> frames;
+        std::vector<Uint8> audio;
+        unsigned sourceRate, firstAudioBytes;
+        Uint16 type, width, height, speed;
+        ResponsiveData() : sourceRate(0), firstAudioBytes(0), type(0), width(0), height(0), speed(0) {}
+    };
+    static ResponsiveFailure inspectResponsive(const Uint8 *, std::size_t, ResponsiveData &);
+    Uint32 responsiveFrameDelay(const ResponsiveFrame &) const noexcept;
+    std::shared_ptr<AudioLease> _responsiveLease;
+    std::vector<ResponsiveFrame> _responsiveFrames;
+    std::size_t _responsiveIndex;
+    Uint32 _responsiveLastTick;
+    bool _responsiveBegun, _responsiveFirst, _responsiveOwnSurface, _responsiveSourceTiming, _responsivePresent;
+    unsigned _responsiveSourceRate, _responsiveFirstAudioBytes;
+    ResponsiveFailure _responsiveFailure;
+#ifdef OPENXCOM_RESPONSIVE_TESTING
+    friend class LoadingVideoAudioTestAccess;
+    friend class LoadingVideoIntegrationTestAccess;
+#endif
+#endif
+
 private:
 
 	Uint8 *_fileBuf;

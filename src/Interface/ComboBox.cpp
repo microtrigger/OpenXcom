@@ -27,6 +27,9 @@
 #include "../Engine/Action.h"
 #include "../Engine/Options.h"
 #include "../Engine/Screen.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -275,6 +278,15 @@ void ComboBox::setText(const std::string &text)
 {
 	_button->setText(text);
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+std::string ComboBox::agentLabel() const
+{
+	if (!Observer::agentWidgetVisible(this) || _window->getVisible()) return std::string();
+	// The arrow is blitted after the button and can cover the label's right end.
+	return _button->agentLabel(BUTTON_WIDTH);
+}
+#endif
 
 /**
  * Changes the currently selected option.

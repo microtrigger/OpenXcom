@@ -13,6 +13,21 @@ set (CMAKE_CXX_STANDARD 11)
 # use std=c++11 rather than std=gnu++11
 set (CMAKE_CXX_EXTENSIONS OFF)
 
+# SPDX-License-Identifier: GPL-3.0-or-later; unintegrated loader backend, 2026-10-14.
+# These helper switches do not activate Game by themselves. The separate
+# responsive integration requires all three and remains default OFF/native-gated.
+# OFF retains the legacy Game loading route, not a responsive fallback.
+option ( OPENXCOM_BUILD_LINUX_LOADER_BACKEND "Build the unintegrated Linux/glibc loader backend" OFF )
+option ( OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS "Build unactivated loading presentation and logging helpers" OFF )
+option ( OPENXCOM_BUILD_LOADING_AUDIO_HANDOFF "Build the unactivated loading audio handoff" OFF )
+option ( OPENXCOM_BUILD_RESPONSIVE_LOADING "Build staged responsive Game loading and fixed-generation video (native release gated)" OFF )
+if ( OPENXCOM_BUILD_LOADING_AUDIO_HANDOFF AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" )
+  message ( FATAL_ERROR "Loading audio handoff requires the selected Linux profile" )
+endif()
+if ( OPENXCOM_BUILD_LINUX_LOADER_BACKEND AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" )
+  message ( FATAL_ERROR "The Linux loader backend requires Linux/glibc" )
+endif()
+
 # SPDX-License-Identifier: GPL-3.0-or-later; optional observer addition, 2026-10-10.
 option ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER "Build experimental final mixed-audio observer (POSIX only)" OFF )
 if ( EXPERIMENTAL_MIXED_AUDIO_OBSERVER AND NOT UNIX )
@@ -92,10 +107,18 @@ if ( EXPERIMENTAL_TIMING_CALIBRATION AND (EXPERIMENTAL_SMOKE_CLIPPING_GATE OR EX
   message ( FATAL_ERROR "Timing calibration requires a separate test binary" )
 endif()
 
+# SPDX-License-Identifier: GPL-3.0-or-later; distinct native agent-control profile, 2026-10-18.
+option ( EXPERIMENTAL_AGENT_CONTROL "Build bounded semantic native agent control (separate opt-in ABI)" OFF )
+if ( EXPERIMENTAL_AGENT_CONTROL AND (NOT UNIX OR NOT OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS) )
+  message ( FATAL_ERROR "Agent control requires POSIX and OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS" )
+endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; supervised pilot, 2026-10-11.
 option ( EXPERIMENTAL_SUPERVISED_STANCE "Build local-confirmation desired-stance pilot" OFF )
 if ( EXPERIMENTAL_SUPERVISED_STANCE AND NOT EXPERIMENTAL_CURSOR_OBSERVER )
   message ( FATAL_ERROR "Supervised stance requires EXPERIMENTAL_CURSOR_OBSERVER" )
+endif()
+if ( EXPERIMENTAL_AGENT_CONTROL AND EXPERIMENTAL_SUPERVISED_STANCE )
+  message ( FATAL_ERROR "Agent control and supervised stance are distinct build profiles" )
 endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; supervised selection, 2026-10-12.
 option ( EXPERIMENTAL_SUPERVISED_SELECTION "Build local-confirmation next/previous selection pilot" OFF )
@@ -106,6 +129,14 @@ endif()
 option ( EXPERIMENTAL_SUPERVISED_TURN "Build local-confirmation normal right-click pilot" OFF )
 if ( EXPERIMENTAL_SUPERVISED_TURN AND NOT EXPERIMENTAL_SUPERVISED_STANCE )
   message ( FATAL_ERROR "Supervised turn requires EXPERIMENTAL_SUPERVISED_STANCE" )
+endif()
+# SPDX-License-Identifier: GPL-3.0-or-later; reconstructed Snapshot foundations, 2026-10-13.
+option ( EXPERIMENTAL_SUPERVISED_SNAPSHOT "Build experimental local-confirmation Snapshot foundations (POSIX only)" OFF )
+if ( EXPERIMENTAL_SUPERVISED_SNAPSHOT AND NOT UNIX )
+  message ( FATAL_ERROR "Supervised Snapshot currently requires POSIX" )
+endif()
+if ( EXPERIMENTAL_SUPERVISED_SNAPSHOT AND (NOT EXPERIMENTAL_SUPERVISED_TURN OR NOT EXPERIMENTAL_SUPERVISED_STANCE OR NOT EXPERIMENTAL_CURSOR_OBSERVER) )
+  message ( FATAL_ERROR "Supervised Snapshot requires supervised turn, stance and cursor observer infrastructure" )
 endif()
 # SPDX-License-Identifier: GPL-3.0-or-later; supervised map left-click, 2026-10-12.
 option ( EXPERIMENTAL_SUPERVISED_MAP_LEFT_CLICK "Build local-confirmation ordinary map left-click pilot" OFF )
@@ -276,8 +307,103 @@ else ( )
   endif ( NOT YAMLCPP_FOUND )
 endif()
 
+# Keep this independent of the legacy FindSDL2.cmake module above: that module
+# intentionally finds SDL 1.2 and its image/mixer/gfx dependencies. These private
+# variables select SDL2 only for the raw-pthread TLS-cleanup bridge.
+if ( OPENXCOM_BUILD_LINUX_LOADER_BACKEND )
+  find_package ( Threads REQUIRED )
+  if ( NOT CMAKE_USE_PTHREADS_INIT )
+    message ( FATAL_ERROR "The Linux loader backend requires POSIX Threads" )
+  endif()
+  find_path ( OPENXCOM_LOADER_SDL2_INCLUDE_DIR SDL_thread.h
+    HINTS ${DEPS_DIR}
+    PATH_SUFFIXES include/SDL2 SDL2 )
+  find_library ( OPENXCOM_LOADER_SDL2_LIBRARY
+    NAMES SDL2 SDL2-2.0
+    HINTS ${DEPS_DIR}
+    PATH_SUFFIXES lib lib64 )
+  if ( NOT OPENXCOM_LOADER_SDL2_INCLUDE_DIR OR NOT OPENXCOM_LOADER_SDL2_LIBRARY )
+    message ( FATAL_ERROR "The Linux loader backend requires SDL2 >= 2.0.16 headers and library" )
+  endif()
+  set ( OPENXCOM_LOADER_SDL2_INCLUDE_DIRS "${OPENXCOM_LOADER_SDL2_INCLUDE_DIR}" )
+  # Debian's SDL_config.h redirects to an architecture-specific SDL2 header.
+  # Resolve that root within the selected header installation, never silently
+  # borrowing a different host SDL2 config. Other SDL2 layouts need no extra root.
+  file ( READ "${OPENXCOM_LOADER_SDL2_INCLUDE_DIR}/SDL_config.h" openxcom_loader_sdl2_config )
+  if ( openxcom_loader_sdl2_config MATCHES "SDL2/_real_SDL_config[.]h" )
+    get_filename_component ( openxcom_loader_sdl2_include_root
+      "${OPENXCOM_LOADER_SDL2_INCLUDE_DIR}" DIRECTORY )
+    find_path ( OPENXCOM_LOADER_SDL2_CONFIG_INCLUDE_DIR SDL2/_real_SDL_config.h
+      PATHS "${openxcom_loader_sdl2_include_root}/${CMAKE_LIBRARY_ARCHITECTURE}"
+            "${openxcom_loader_sdl2_include_root}"
+      NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH )
+    if ( NOT OPENXCOM_LOADER_SDL2_CONFIG_INCLUDE_DIR OR
+         NOT EXISTS "${OPENXCOM_LOADER_SDL2_CONFIG_INCLUDE_DIR}/SDL2/_real_SDL_config.h" )
+      message ( FATAL_ERROR "Selected SDL2 headers require their matching architecture config; set OPENXCOM_LOADER_SDL2_CONFIG_INCLUDE_DIR explicitly" )
+    endif()
+    list ( APPEND OPENXCOM_LOADER_SDL2_INCLUDE_DIRS "${OPENXCOM_LOADER_SDL2_CONFIG_INCLUDE_DIR}" )
+  endif()
+  mark_as_advanced ( OPENXCOM_LOADER_SDL2_INCLUDE_DIR OPENXCOM_LOADER_SDL2_CONFIG_INCLUDE_DIR OPENXCOM_LOADER_SDL2_LIBRARY )
+
+  # Function scope prevents _GNU_SOURCE/check includes from escaping into the
+  # SDL1 application. These are compile AND link checks, never runtime probes.
+  function ( openxcom_check_linux_loader_dependencies )
+    include ( CheckCXXSourceCompiles )
+    set ( CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE )
+    set ( CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE )
+    set ( CMAKE_REQUIRED_INCLUDES "" )
+    set ( CMAKE_REQUIRED_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} )
+    check_cxx_source_compiles ( "
+      #include <features.h>
+      #include <pthread.h>
+      #if !defined(__linux__) || !defined(__GLIBC__)
+      #error The loader backend requires Linux and glibc
+      #endif
+      int (*volatile checked_tryjoin)(pthread_t, void **) = &pthread_tryjoin_np;
+      int main() { return checked_tryjoin == nullptr; }
+      " OPENXCOM_LOADER_HAS_GLIBC_TRYJOIN )
+    if ( NOT OPENXCOM_LOADER_HAS_GLIBC_TRYJOIN )
+      message ( FATAL_ERROR "The Linux loader backend requires glibc and declared/linkable pthread_tryjoin_np" )
+    endif()
+
+    set ( CMAKE_REQUIRED_DEFINITIONS "" )
+    set ( CMAKE_REQUIRED_INCLUDES "${OPENXCOM_LOADER_SDL2_INCLUDE_DIRS}" )
+    set ( CMAKE_REQUIRED_LIBRARIES "${OPENXCOM_LOADER_SDL2_LIBRARY}" )
+    check_cxx_source_compiles ( "
+      #include <SDL_version.h>
+      #if SDL_MAJOR_VERSION != 2 || !SDL_VERSION_ATLEAST(2, 0, 16)
+      #error The loader cleanup bridge requires SDL2 >= 2.0.16
+      #endif
+      #include <SDL_thread.h>
+      void (SDLCALL *volatile checked_cleanup)(void) = &SDL_TLSCleanup;
+      int main() { return checked_cleanup == nullptr; }
+      " OPENXCOM_LOADER_HAS_SDL2_TLS_CLEANUP )
+    if ( NOT OPENXCOM_LOADER_HAS_SDL2_TLS_CLEANUP )
+      message ( FATAL_ERROR "The Linux loader backend requires SDL2 >= 2.0.16 and declared/linkable SDL_TLSCleanup" )
+    endif()
+  endfunction()
+  openxcom_check_linux_loader_dependencies()
+endif()
+
 # Find OpenGL
 set (OpenGL_GL_PREFERENCE LEGACY)
+# The integration never silently enables a dependency or a native profile.
+if ( OPENXCOM_BUILD_RESPONSIVE_LOADING )
+  if ( NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT OPENXCOM_BUILD_LINUX_LOADER_BACKEND OR
+       NOT OPENXCOM_BUILD_LOADING_PRESENTATION_HELPERS OR NOT OPENXCOM_BUILD_LOADING_AUDIO_HANDOFF )
+    message ( FATAL_ERROR "Responsive loading requires explicitly enabled Linux/glibc backend, presentation helpers and audio handoff" )
+  endif()
+  get_cmake_property ( openxcom_responsive_variables VARIABLES )
+  foreach ( openxcom_responsive_variable ${openxcom_responsive_variables} )
+    if ( openxcom_responsive_variable MATCHES "^EXPERIMENTAL_" AND
+         NOT openxcom_responsive_variable STREQUAL "EXPERIMENTAL_MIXED_AUDIO_OBSERVER" )
+      if ( ${openxcom_responsive_variable} )
+        message ( FATAL_ERROR "Responsive loading is not integrated with ${openxcom_responsive_variable}" )
+      endif()
+    endif()
+  endforeach()
+endif()
+
 find_package ( OpenGL )
 if ( NOT OPENGL_FOUND )
   message ( WARNING "Can't find OpenGL; how does that even happen?\n"

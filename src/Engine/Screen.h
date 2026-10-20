@@ -1,5 +1,8 @@
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 	#pragma once
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <cstdint>
+#endif
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -23,6 +26,13 @@
 #include <SDL.h>
 #include <string>
 #include "OpenGL.h"
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+#include "Zoom.h"
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+#include "../Observer/SnapshotPresentation.h"
+#include "../Observer/SnapshotPaint.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_CURSOR_OBSERVER
 #include "../Observer/PresentedHud.h"
 #endif
@@ -50,6 +60,22 @@ class Action;
 class Screen
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentLastFlipOk = false, _agentPaletteExact = false;
+    std::uint64_t _agentDisplayRevision = 0;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    friend class Game;
+    Observer::SnapshotPresentation *_snapshotPresentation = 0; // owned by Game
+    Observer::SnapshotStamp _snapshotScreenLife, _snapshotBacking, _snapshotConfiguration, _snapshotAppliedPalette;
+    Observer::SnapshotPaintHealth _snapshotPaintHealth;
+    bool _snapshotFullPalette = false;
+    Observer::SnapshotDisplayFacts snapshotFacts(SDL_Surface *exactPhysical, bool allowPendingPalette = false) const noexcept;
+    void snapshotComposedProof() noexcept;
+    void snapshotPresentedProof(SDL_Surface *exactPhysical) noexcept;
+    void snapshotFinishFrame(bool liveStateFactsCurrent) noexcept;
+    void attachSnapshotPresentation(Observer::SnapshotPresentation *p) noexcept { _snapshotPresentation = p; }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     Observer::StanceController *_stanceController = 0;
     bool _stancePanelBlocked = false;
@@ -74,7 +100,59 @@ private:
 	SDL_Rect _clear;
 	/// Sets the _flags and _bpp variables based on game options; needed in more than one place now
 	void makeVideoFlags();
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+	Zoom::Workspace _renderWorkspace;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentPresentationReady() const;
+    std::uint64_t agentDisplayRevision() const { return _agentDisplayRevision; }
+#endif
+#ifdef OPENXCOM_LOADING_PRESENTATION_HELPERS
+	// Immutable after capture. Surface pixels remain owner-writable; pointers,
+	// dimensions/layout, source palette and GL state remain owner-exclusive.
+	class LoadingPresentation
+	{
+		friend class Screen;
+		SDL_Surface *_source, *_destination;
+		Zoom::RenderConfig _config;
+		Zoom::GlSnapshot _gl;
+		int _top, _bottom, _left, _right, _first, _count;
+		bool _zoom, _pending, _captured, _strict;
+		SDL_Color _palette[256], _sourcePalette[256];
+		int _sourceColors;
+	public:
+		LoadingPresentation() noexcept;
+	};
+private:
+	static Zoom::RenderStatus capturePresentation(SDL_Surface *source,
+		SDL_Surface *destination, int baseWidth, int baseHeight, int top, int bottom,
+		int left, int right, const SDL_Color *palette, int first, int count,
+		bool pending, OpenGL *gl, LoadingPresentation &out, bool strict) noexcept;
+public:
+	// This factory alone reads live Options. Do not call it during loading.
+	// palette is a table covering absolute indices [first, first+count), not
+	// a count-element pointer already advanced to the first selected color.
+	static Zoom::RenderStatus captureLoadingPresentation(SDL_Surface *source,
+		SDL_Surface *destination, int baseWidth, int baseHeight, int top, int bottom,
+		int left, int right, const SDL_Color *palette, int first, int count,
+		bool pending, OpenGL *gl, LoadingPresentation &out) noexcept;
+	Zoom::RenderStatus captureLoadingPresentation(LoadingPresentation &out) const noexcept;
+	// Shared production phases; no observer/control callback occurs inside them.
+	static Zoom::RenderStatus copyPhase(const LoadingPresentation &frame,
+		Zoom::Workspace &workspace, int *snapshotCopyResult = 0) noexcept;
+	static Zoom::RenderStatus palettePhase(const LoadingPresentation &frame) noexcept;
+	static Zoom::RenderStatus presentPhase(const LoadingPresentation &frame) noexcept;
+	static Zoom::RenderStatus presentLoading(const LoadingPresentation &frame,
+		Zoom::Workspace &workspace) noexcept;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_SNAPSHOT
+    Screen(const Screen &) = delete;
+    Screen(Screen &&) = delete;
+    Screen &operator=(const Screen &) = delete;
+    Screen &operator=(Screen &&) = delete;
+    Observer::SnapshotDisplayFacts snapshotDisplayFacts() const noexcept { return snapshotFacts(_screen); }
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     void setStanceController(Observer::StanceController *controller) { _stanceController = controller; }
     bool stanceAllowed() const;

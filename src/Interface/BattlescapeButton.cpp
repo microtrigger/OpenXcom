@@ -194,6 +194,16 @@ void BattlescapeButton::initSurfaces()
 	_altSurface->unlock();
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BattlescapeButton::agentContextVisible() const
+{
+    if (!_inverted) return Surface::agentContextVisible();
+    return _visible && !_hidden && !_crop.w && !_crop.h && _altSurface &&
+        _altSurface->getX() == getX() && _altSurface->getY() == getY() &&
+        _altSurface->getWidth() == getWidth() && _altSurface->getHeight() == getHeight() &&
+        _altSurface->agentContextVisible();
+}
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
 bool BattlescapeButton::stanceContextVisible() const
 {
