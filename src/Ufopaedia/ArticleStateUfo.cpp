@@ -94,6 +94,7 @@ namespace OpenXcom
 		_txtInfo->setColor(Palette::blockOffset(8)+5);
 		_txtInfo->setWordWrap(true);
 		_txtInfo->setScrollable(true);
+		_txtInfo->setExtraLineSpacing(1);
 		_txtInfo->setText(tr(defs->text));
 
 		_lstInfo = new TextList(310, 64, 10, 68);

@@ -128,6 +128,23 @@ void stockArticleOverlap(Font &big,Font &small,Language &lang,const std::string 
  }
  check(collisions>0&&partial==(underwater?7u:2u)&&complete==1&&lines.back().complete,
        "stock article preserves mixed partial lines and complete final line");
+ // Opt-in UI fix changes actual row positions; the same conservative observer
+ // must now prove every line without weakening the negative control above.
+ const auto legacyHeight=text.getTextHeight();
+ const auto oldRevision=text.agentPresentationRevision();
+ text.setExtraLineSpacing(1);
+ check(text.agentPresentationRevision()!=oldRevision,"spacing mutation invalidates old paint authority");
+ check(text.getTextHeight()==legacyHeight+int(lines.size()),"row metrics include extra spacing");
+ background.blit(&canvas);text.blit(&canvas);lines=shown(text,canvas);
+ check(lines.size()==(underwater?8u:3u),"readable spacing preserves words and wrap width");
+ for(const auto &line:lines)check(line.complete,"separated stock article rows fully witnessed");
+ text.setHeight(18);text.setText("gggggg\nMMMMMM\nqqqqqq");
+ background.blit(&canvas);text.blit(&canvas);lines=shown(text,canvas);
+ check(agentTextOffset(text)==0,"spacing layout starts at top");
+ text.scrollLine(true);check(agentTextOffset(text)==-9,"opt-in wheel advances one readable row");
+ text.scrollLine(true);check(agentTextOffset(text)==-9,"opt-in wheel clamps at bottom");
+ text.scrollLine(false);check(agentTextOffset(text)==0,"opt-in wheel returns to top");
+ text.setExtraLineSpacing(-1);check(text.getTextHeight()==24,"negative extra spacing clamps to legacy zero");
 }
 
 // Stock HUD rows are seven pixels apart while their glyph ink can be eight high.

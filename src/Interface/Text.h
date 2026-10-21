@@ -101,6 +101,7 @@ private:
 	TextVAlign _valign;
 	Uint8 _color, _color2;
 	int _scrollY;
+	int _extraLineSpacing;
 
 	/// Processes the contained text.
 	void processText();
@@ -167,6 +168,8 @@ public:
 	void draw();
 	/// Sets the text's scrollable setting.
 	void setScrollable(bool scroll);
+	/// Adds non-negative pixels between text rows (default: legacy spacing).
+	void setExtraLineSpacing(int pixels);
 	/// Special handling for mouse presses.
 	void scrollLine(bool down);
 	void mousePress(Action* action, State* state);

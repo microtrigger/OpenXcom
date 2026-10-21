@@ -41,7 +41,7 @@ namespace OpenXcom
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-Text::Text(int width, int height, int x, int y) : InteractiveSurface(width, height, x, y), _big(0), _small(0), _font(0), _fontOrig(0), _lang(0), _wrap(false), _invert(false), _contrast(false), _indent(false), _scroll(false),_align(ALIGN_LEFT), _valign(ALIGN_TOP), _color(0), _color2(0), _scrollY(0)
+Text::Text(int width, int height, int x, int y) : InteractiveSurface(width, height, x, y), _big(0), _small(0), _font(0), _fontOrig(0), _lang(0), _wrap(false), _invert(false), _contrast(false), _indent(false), _scroll(false),_align(ALIGN_LEFT), _valign(ALIGN_TOP), _color(0), _color2(0), _scrollY(0), _extraLineSpacing(0)
 {
 }
 
@@ -378,7 +378,7 @@ void Text::processText()
 		{
 			// Add line measurements for alignment later
 			_lineWidth.push_back(width);
-			_lineHeight.push_back(font->getCharSize('\n').h);
+			_lineHeight.push_back(font->getCharSize('\n').h + _extraLineSpacing);
 			width = 0;
 			word = 0;
 			start = true;
@@ -450,7 +450,7 @@ void Text::processText()
 				}
 
 				_lineWidth.push_back(width);
-				_lineHeight.push_back(font->getCharSize('\n').h);
+				_lineHeight.push_back(font->getCharSize('\n').h + _extraLineSpacing);
 				if (_lang->getTextWrapping() == WRAP_WORDS)
 				{
 					width = word;
@@ -653,7 +653,7 @@ void Text::draw()
             if (_agentVisibleLinesEnabled) agentFinishVisibleLine();
 #endif
 			line++;
-			y += font->getCharSize(*c).h;
+			y += font->getCharSize(*c).h + _extraLineSpacing;
 			x = getLineX(line);
 			if (*c == Unicode::TOK_NL_SMALL)
 			{
@@ -834,6 +834,21 @@ bool Text::agentPaintedBounds(SDL_Rect &rect) const
 #endif
 
 /**
+ * Add vertical breathing room without changing shared font metrics or glyphs.
+ * Article bodies opt in; unrelated UI retains its legacy raster layout.
+ */
+void Text::setExtraLineSpacing(int pixels)
+{
+    pixels = std::max(0, pixels);
+    if (_extraLineSpacing == pixels) return;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
+    _extraLineSpacing = pixels;
+    processText();
+}
+
+/**
  * Allows the text to be scrollable via mouse wheel.
  */
 void Text::setScrollable(bool scroll)
@@ -869,7 +884,7 @@ void Text::scrollLine(bool down)
     int scrollArea = getHeight() - getTextHeight();
     if (scrollArea < 0)
     {
-        int scrollAmount = _font->getHeight() + _font->getSpacing();
+        int scrollAmount = _font->getHeight() + _font->getSpacing() + _extraLineSpacing;
         if (down) scrollAmount = -scrollAmount;
         _scrollY = Clamp(_scrollY + scrollAmount, scrollArea, 0);
         _redraw = true;
