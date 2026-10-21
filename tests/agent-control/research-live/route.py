@@ -1,0 +1,200 @@
+"""Bounded ordinary research smoke; only fresh, offered public controls.
+Route derived from research_route_v22.py; intentionally not its full acceptance.
+"""
+import re
+import time
+import uuid
+
+class RouteError(RuntimeError):
+    pass
+
+INCIDENTS = {'ufo_contact':'dismiss_ufo_contact', 'mission_alert':'dismiss_mission_alert'}
+TARGETS = {'xcom1':('Laser Weapons','Laser Pistol'), 'xcom2':('Gauss Technology','Gauss Pistol')}
+
+def require(ok, why):
+    if not ok: raise RouteError(why)
+
+def amount(text):
+    require(isinstance(text,str),'staff_amount_unknown')
+    match = re.fullmatch(r'(?:[A-Za-z][A-Za-z _\n]*[:>]?\s*|>\s*)?([0-9]+)',text.replace('\x01','').strip())
+    require(match is not None,'staff_amount_unknown')
+    return int(match[1])
+
+def projection(state):
+    visible = state.get('visible',{})
+    if state.get('state') == 'geoscape':
+        visible = {k:visible.get(k) for k in ('buttons','speed','speeds')}
+    return state.get('state'),visible,state.get('actions')
+
+class Route:
+    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False):
+        self.call,self.record,self.master,self.clock,self.sleep=call,record,master,clock,sleep
+        self.count=0;self.started=clock();self.state=None
+        self.allow_unknown_selection=allow_unknown_selection;self.unknown_selected=set()
+
+    def read(self):
+        require(self.clock()-self.started<600,'overall_route_timeout')
+        state=self.call('read_ui_state',{})
+        require(isinstance(state,dict),'invalid_state')
+        self.state=state
+        return state
+
+    def ready(self,allowed):
+        deadline=self.clock()+12;previous=None
+        while self.clock()<deadline:
+            state=self.read()
+            require(state.get('state') in set(allowed)|{'unsupported'},'unexpected_screen:'+str(state.get('state')))
+            if state.get('state') in allowed and all(state.get(k) is not None for k in ('epoch','capability','revision')):
+                if previous and projection(previous)==projection(state):
+                    require(previous.get('challenge')!=state.get('challenge') and previous['capability']!=state['capability'],'nonfresh_read_authority')
+                    return state
+                previous=state
+            else:
+                previous=None
+            self.sleep(.2)
+        raise RouteError('readiness_timeout')
+
+    def act(self,before,action,args=None,after=None,guard=None):
+        state=self.ready(set(before))
+        require(action in {a['id'] for a in state.get('actions',[])},'action_not_offered:'+action)
+        if guard:guard(state)
+        parameters=args(state) if callable(args) else (args or {})
+        require(self.count<128,'dispatch_budget')
+        request={k:state[k] for k in ('epoch','capability','revision')}
+        request.update(command_id=uuid.uuid4().hex,action=action,args=parameters)
+        self.record('before',action=action,state=state['state'],visible=state.get('visible'),arguments=parameters)
+        self.count+=1
+        receipt=self.call('execute_ui_action',request) # One attempt; no resend/status recovery.
+        self.record('receipt',action=action,status=receipt.get('status'))
+        require(receipt.get('status')=='dispatched','non_dispatched_stop_no_replay')
+        require(isinstance(receipt.get('observation'),dict),'missing_dispatch_observation')
+        if after:
+            state=self.ready(set(after))
+            self.record('after',action=action,state=state['state'],visible=state.get('visible'))
+        return state
+
+    def incidents(self,wanted,timeout=12):
+        deadline=self.clock()+timeout
+        while self.clock()<deadline:
+            state=self.read();kind=state.get('state')
+            if kind in wanted:return self.ready(set(wanted))
+            if kind in INCIDENTS:
+                self.act({kind},INCIDENTS[kind])
+            else:require(kind in ('unsupported','geoscape'),'unsupported_interrupt:'+str(kind))
+            self.sleep(.2)
+        raise RouteError('notice_wait_timeout')
+
+    def project_candidate(self,state,title):
+        rows=state['visible']['rows']
+        exact=[r for r in rows if r.get('cells') and r['cells'][0]==title]
+        require(len(exact)<=1,'ambiguous_project_label')
+        if exact:return exact[0],False
+        if self.allow_unknown_selection and title not in self.unknown_selected:
+            unknown=[r for r in rows if r.get('cells')==[None]]
+            require(len(unknown)<=1,'ambiguous_unknown_project_rows')
+            if unknown:return unknown[0],True
+        return None,False
+
+    def confirm_project_title(self,title):
+        state=self.ready({'research_info'})
+        if state['visible'].get('title')!=title:
+            self.record('project_title_mismatch',expected_title=title,
+                        visible_title=state['visible'].get('title'),allocation_attempted=False)
+            if 'cancel_research_project' in {a['id'] for a in state.get('actions',[])}:
+                self.act({'research_info'},'cancel_research_project',after={'new_research'})
+            raise RouteError('selected_project_title_wrong_or_unknown_stop_no_further_sampling')
+        self.record('project_title_confirmed',visible_title=title)
+        return state
+
+    def select_project(self,title):
+        self.act({'research'},'open_new_research',after={'new_research'})
+        for step in range(17):
+            state=self.ready({'new_research'})
+            row,unknown=self.project_candidate(state,title)
+            if row is not None:break
+            require(step<16 and state['visible'].get('scroll',{}).get('down'),'visible_project_not_found:'+title)
+            self.act({'new_research'},'scroll_visible_list',{'direction':'down'},after={'new_research'})
+        def select(state):
+            row,unknown=self.project_candidate(state,title)
+            require(row is not None,'project_candidate_changed')
+            if unknown:self.unknown_selected.add(title)
+            self.record('project_selection',row=row['handle'],shown_label=row['cells'][0],
+                        unknown_label=unknown,expected_title_unconfirmed=title,
+                        selection_creates_project=True,ordinary_rng_sampled=True,
+                        hidden_identity_claimed=False,repeated_sampling=False)
+            return {'row':row['handle']}
+        self.act({'new_research'},'select_research_project',select,{'research_info'})
+        self.confirm_project_title(title)
+        def staff(state):
+            v=state['visible'];require(v.get('title')==title,'selected_project_title_wrong_or_unknown')
+            return [amount(v.get(k)) for k in ('available','space','allocated')]
+        initial=staff(self.ready({'research_info'}))
+        require(initial[0]==10 and initial[1]>=10 and initial[2]==0,'unexpected_initial_staff')
+        for index in range(10):
+            expected=[10-index,initial[1]-index,index]
+            self.act({'research_info'},'adjust_scientists',{'direction':'increase'},{'research_info'},
+                     lambda s:require(staff(s)==expected,'staff_precondition_changed'))
+            require(staff(self.state)==[expected[0]-1,expected[1]-1,expected[2]+1],'staff_postcondition_wrong')
+        self.act({'research_info'},'accept_research',after={'new_research'},guard=lambda s:require(staff(s)[2]==10,'staff_changed_before_accept'))
+        self.act({'new_research'},'close_research_list',after={'research'})
+
+    def completion(self,title):
+        deadline=self.clock()+180
+        while self.clock()<deadline:
+            state=self.read();kind=state.get('state')
+            if kind=='research_complete':
+                state=self.ready({'research_complete'})
+                require(state['visible'].get('topic')==title,'wrong_research_completion')
+                self.record('completion',topic=title,visible=state['visible']);return
+            if kind in INCIDENTS:self.act({kind},INCIDENTS[kind])
+            elif kind=='geoscape':
+                if state['visible'].get('speed')!='1 Day':
+                    def day(s):
+                        rows=[r for r in s['visible']['speeds'] if r.get('label')=='1 Day']
+                        require(len(rows)==1,'day_speed_unknown');return {'speed':rows[0]['handle']}
+                    self.act({'geoscape'},'choose_geoscape_speed',day)
+            else:require(kind=='unsupported','unsupported_research_interrupt:'+str(kind))
+            self.sleep(.5)
+        raise RouteError('research_completion_timeout:'+title)
+
+    def run(self):
+        starter,pistol=TARGETS[self.master]
+        self.act({'main_menu'},'open_new_game',after={'new_game'})
+        self.act({'new_game'},'select_difficulty',{'value':'beginner'}, {'new_game'},
+                 lambda s:require(any(x['value']=='beginner' for x in s['visible']['difficulty']),'beginner_not_shown'))
+        state=self.ready({'new_game'})
+        require(type(state['visible'].get('ironman')) is bool,'ironman_unknown')
+        if state['visible']['ironman']:self.act({'new_game'},'set_ironman',{'value':False},{'new_game'})
+        self.act({'new_game'},'start_new_game',after={'build_base'},guard=lambda s:require(s['visible']['ironman'] is False and any(d['value']=='beginner' and d.get('selected') is True for d in s['visible']['difficulty']),'difficulty_or_ironman_changed'))
+        def site(s):
+            globe=s['visible'].get('globe');require(globe is not None,'public_globe_missing')
+            samples=[p for p in globe['samples'] if p.get('terrain')=='textured']
+            require(bool(samples),'public_base_site_missing')
+            p=min(samples,key=lambda p:((p['x']-globe['width']/2)**2+(p['y']-globe['height']/2)**2,p['x'],p['y']))
+            return {k:p[k] for k in ('x','y')}
+        self.act({'build_base'},'place_base_site',site,{'base_name'})
+        self.act({'base_name'},'replace_base_name',{'text':'MCP Research'},{'base_name'})
+        self.act({'base_name'},'confirm_base_name',guard=lambda s:require(s['visible'].get('name')=='MCP Research','base_name_mismatch'))
+        self.incidents({'geoscape'})
+        self.act({'geoscape'},'open_bases',after={'basescape'})
+        self.act({'basescape'},'open_research',after={'research'})
+        self.select_project(starter)
+        self.act({'research'},'close_research_list',after={'basescape'})
+        self.act({'basescape'},'return_geoscape')
+        self.completion(starter)
+        self.act({'research_complete'},'view_research_reports')
+        self.incidents({'new_possible_research'})
+        self.act({'new_possible_research'},'open_research_allocation',after={'research'})
+        self.select_project(pistol)
+        self.act({'research'},'close_research_list')
+        self.completion(pistol)
+        self.act({'research_complete'},'view_research_reports')
+        state=self.incidents({'ufopaedia_article'})
+        require(state['visible'].get('title')==pistol,'wrong_article_title')
+        self.record('article',visible=state['visible'],full_article_claimed=False)
+        self.act({'ufopaedia_article'},'close_ufopaedia_article')
+        # Remaining completion notices are left visible; do not advance time further.
+        state=self.incidents({'new_possible_research','new_possible_manufacture','geoscape'})
+        if state['state']=='geoscape':
+            state=self.act({'geoscape'},'open_pause_menu',after={'pause_menu'})
+        self.record('final',state=state['state'],visible=state['visible'],dispatches=self.count)
