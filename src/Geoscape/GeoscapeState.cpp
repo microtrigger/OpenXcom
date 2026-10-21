@@ -135,12 +135,15 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_btnOptions = new TextButton(63, 11, screenWidth-63, screenHeight/2-52);
 	_btnFunding = new TextButton(63, 11, screenWidth-63, screenHeight/2-40);
 
-	_btn5Secs = new TextButton(31, 13, screenWidth-63, screenHeight/2+12);
-	_btn1Min = new TextButton(31, 13, screenWidth-31, screenHeight/2+12);
-	_btn5Mins = new TextButton(31, 13, screenWidth-63, screenHeight/2+26);
-	_btn30Mins = new TextButton(31, 13, screenWidth-31, screenHeight/2+26);
-	_btn1Hour = new TextButton(31, 13, screenWidth-63, screenHeight/2+40);
-	_btn1Day = new TextButton(31, 13, screenWidth-31, screenHeight/2+40);
+	// Leave full nine-pixel calendar rows above the speed controls.
+	// Twelve-pixel buttons still fit the stock geo font and stop before the
+	// fixed globe rotation/zoom artwork and hit regions.
+	_btn5Secs = new TextButton(31, 12, screenWidth-63, screenHeight/2+18);
+	_btn1Min = new TextButton(31, 12, screenWidth-31, screenHeight/2+18);
+	_btn5Mins = new TextButton(31, 12, screenWidth-63, screenHeight/2+31);
+	_btn30Mins = new TextButton(31, 12, screenWidth-31, screenHeight/2+31);
+	_btn1Hour = new TextButton(31, 12, screenWidth-63, screenHeight/2+44);
+	_btn1Day = new TextButton(31, 12, screenWidth-31, screenHeight/2+44);
 
 	_btnRotateLeft = new InteractiveSurface(12, 10, screenWidth-61, screenHeight/2+76);
 	_btnRotateRight = new InteractiveSurface(12, 10, screenWidth-37, screenHeight/2+76);
@@ -153,16 +156,19 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_sideTop = new TextButton(63, height, screenWidth-63, _sidebar->getY() - height - 1);
 	_sideBottom = new TextButton(63, height, screenWidth-63, _sidebar->getY() + _sidebar->getHeight() + 1);
 
-	_txtHour = new Text(20, 16, screenWidth-61, screenHeight/2-26);
+	// Right alignment reserves one pixel; wide two-digit hours need 21.
+	_txtHour = new Text(21, 16, screenWidth-61, screenHeight/2-26);
 	_txtHourSep = new Text(4, 16, screenWidth-41, screenHeight/2-26);
 	_txtMin = new Text(20, 16, screenWidth-37, screenHeight/2-26);
 	_txtMinSep = new Text(4, 16, screenWidth-17, screenHeight/2-26);
-	_txtSec = new Text(11, 8, screenWidth-13, screenHeight/2-20);
-	_txtWeekday = new Text(59, 8, screenWidth-61, screenHeight/2-13);
-	_txtDay = new Text(29, 8, screenWidth-61, screenHeight/2-6);
-	_txtMonth = new Text(29, 8, screenWidth-32, screenHeight/2-6);
-	_txtYear = new Text(59, 8, screenWidth-61, screenHeight/2+1);
-	_txtFunds = new Text(59, 8, screenWidth-61, screenHeight/2-27);
+	_txtSec = new Text(11, 9, screenWidth-13, screenHeight/2-22);
+	// FONT_SMALL has nine-pixel ink (including descenders), despite its
+	// eight-pixel line advance. Separate rows and do not clip the ninth row.
+	_txtWeekday = new Text(59, 9, screenWidth-61, screenHeight/2-11);
+	_txtDay = new Text(29, 9, screenWidth-61, screenHeight/2-2);
+	_txtMonth = new Text(29, 9, screenWidth-32, screenHeight/2-2);
+	_txtYear = new Text(59, 9, screenWidth-61, screenHeight/2+7);
+	_txtFunds = new Text(59, 9, screenWidth-61, screenHeight/2-28);
 
 	_timeSpeed = _btn5Secs;
 	_gameTimer = new Timer(Options::geoClockSpeed);
@@ -224,6 +230,31 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	geobord->setX(_sidebar->getX() - geobord->getWidth() + _sidebar->getWidth());
 	geobord->setY(_sidebar->getY());
 	_sidebar->copy(geobord);
+
+	// GEOBORD contains the old clock frame and speed-button artwork. Reflow
+	// that background as well as the widgets, preserving its own theme colors.
+	// CalendarBackground: begin (also exercised by the stock-asset regression).
+	Uint8 calendarTop[64], calendarBody[64], calendarBottom[2][64], calendarGap[64];
+	for (int x = 0; x < 64; ++x)
+	{
+		calendarTop[x] = _sidebar->getPixel(x, 72);
+		calendarBody[x] = _sidebar->getPixel(x, 108);
+		calendarBottom[0][x] = _sidebar->getPixel(x, 109);
+		calendarBottom[1][x] = _sidebar->getPixel(x, 110);
+		calendarGap[x] = _sidebar->getPixel(x, 111);
+	}
+	for (int y = 71; y < 156; ++y)
+		for (int x = 0; x < 64; ++x)
+			_sidebar->setPixel(x, y, calendarGap[x]);
+	for (int x = 0; x < 64; ++x)
+		_sidebar->setPixel(x, 71, calendarTop[x]);
+	for (int y = 72; y < 115; ++y)
+		for (int x = 0; x < 64; ++x)
+			_sidebar->setPixel(x, y, calendarBody[x]);
+	for (int y = 0; y < 2; ++y)
+		for (int x = 0; x < 64; ++x)
+			_sidebar->setPixel(x, y + 115, calendarBottom[y][x]);
+	// CalendarBackground: end.
 	_game->getMod()->getSurface("ALTGEOBORD.SCR")->blit(_bg);
 
 	_sideLine->drawRect(0, 0, _sideLine->getWidth(), _sideLine->getHeight(), 15);
@@ -361,16 +392,20 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 
 	if (Options::showFundsOnGeoscape)
 	{
-		_txtHour->setY(_txtHour->getY()+6);
+		// Small digits have a one-pixel overhang from negative spacing.
+		_txtHour->setWidth(20);
+		_txtHour->setY(_txtHour->getY()+7);
 		_txtHour->setSmall();
-		_txtHourSep->setY(_txtHourSep->getY()+6);
+		_txtHourSep->setY(_txtHourSep->getY()+7);
 		_txtHourSep->setSmall();
-		_txtMin->setY(_txtMin->getY()+6);
+		_txtMin->setY(_txtMin->getY()+7);
 		_txtMin->setSmall();
-		_txtMinSep->setX(_txtMinSep->getX()-10);
-		_txtMinSep->setY(_txtMinSep->getY()+6);
+		// Two small digits advance ten pixels but paint eleven.
+		_txtMinSep->setX(_txtMinSep->getX()-9);
+		_txtMinSep->setY(_txtMinSep->getY()+7);
 		_txtMinSep->setSmall();
 		_txtSec->setX(_txtSec->getX()-10);
+		_txtSec->setY(_txtHour->getY());
 	}
 
 	_gameTimer->onTimer((StateHandler)&GeoscapeState::timeAdvance);
