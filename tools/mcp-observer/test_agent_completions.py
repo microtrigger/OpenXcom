@@ -22,7 +22,7 @@ BUTTONS = {
 ACTION_BUTTONS = {
     'items_arriving': {'dismiss_items_arriving': 'ok', 'open_arrival_base': 'go_to_base'},
     'production_complete': {'dismiss_production_complete': 'ok', 'open_production_destination': 'destination'},
-    'ufo_contact': {'dismiss_ufo_contact': 'cancel'},
+    'ufo_contact': {'open_contact_interception': 'intercept', 'dismiss_ufo_contact': 'cancel'},
 }
 NEW_ACTIONS = tuple(action for actions in ACTION_BUTTONS.values() for action in actions)
 SCREENS = tuple(BUTTONS)
@@ -77,7 +77,7 @@ def sized_arrival(size, event=False):
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/25')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (138, 58, 4))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (143, 60, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
         self.assertEqual(a.COMPLETION_BUTTONS, BUTTONS)
@@ -274,10 +274,10 @@ class CompletionContractTests(unittest.TestCase):
                 bad = copy.deepcopy(args); bad['args'] = extra
                 with self.subTest(action=action, args=extra), self.assertRaises(Unavailable): a.validate_action_arguments(bad)
 
-    def test_contact_intercept_and_center_are_visible_but_never_executable(self):
+    def test_contact_intercept_bounded_action_and_center_still_unavailable(self):
         obj = state(screen='ufo_contact')
         self.assertEqual([entry['id'] for entry in obj['visible']['buttons']], ['intercept', 'center', 'cancel'])
-        self.assertEqual([entry['id'] for entry in obj['actions']], ['dismiss_ufo_contact'])
+        self.assertEqual([entry['id'] for entry in obj['actions']], ['dismiss_ufo_contact', 'open_contact_interception'])
         for action in ('intercept', 'center', 'intercept_ufo', 'center_ufo', 'open_interception',
                        'intercept_ufo_contact', 'center_ufo_contact', 'open_ufo_details'):
             self.assertNotIn(action, a.ACTIONS)

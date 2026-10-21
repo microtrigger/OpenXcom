@@ -61,6 +61,10 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
     unsigned columns, bool selectable, AgentUiState &ui, AgentListProjection &projection,
     const std::function<bool(const AgentUiState &)> &regionAllowed = std::function<bool(const AgentUiState &)>(),
     bool allowMultiColumnSelection = false, bool allowUnknownTextControls = false);
+// Target-bound interception-only four-column selectable list, no unknown labels.
+bool agentProjectInterceptList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
+    AgentUiState &ui, AgentListProjection &projection,
+    const std::function<bool(const AgentUiState &)> &regionAllowed);
 // Explicit arrivals-only nullable three-cell projection; legacy lists unchanged.
 bool agentProjectArrivalList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     AgentUiState &ui, AgentListProjection &projection,

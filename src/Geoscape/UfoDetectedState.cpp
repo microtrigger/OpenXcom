@@ -272,7 +272,7 @@ bool UfoDetectedState::agentUiState(Observer::AgentUiState &out) const
     if (!_game->isState(const_cast<UfoDetectedState *>(this)) || _modal || !agentPaintHealthy() ||
         !_agentDestinationPaintFull || !agentDestinationFull() ||
         _agentStoredPaintRevisions != agentPaintRevisions()) return false;
-    out = AgentUiState();
+    out = AgentUiState(); out.actor = _ufo; out.save = _state;
     out.screen = "ufo_contact";
     const auto painted = agentFlattenPaintOrder(_surfaces);
     const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
@@ -302,9 +302,9 @@ bool UfoDetectedState::agentUiState(Observer::AgentUiState &out) const
         if (action) out.actions.emplace_back(action, label, "visible_text");
     };
     const auto title = text(_txtUfo), detected = text(_txtDetected), hyperwave = text(_txtHyperwave);
-    // Displayed Intercept and Center captions grant no control authority.
+    // Intercept uses only its admitted visible button; Center stays read-only.
     // The detail tables and underlying UFO model are deliberately unread.
-    button(_btnIntercept, "intercept", nullptr);
+    button(_btnIntercept, "intercept", "open_contact_interception");
     button(_btnCentre, "center", nullptr);
     button(_btnCancel, "cancel", "dismiss_ufo_contact");
     buttons += "]";
@@ -324,6 +324,7 @@ bool UfoDetectedState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "open_contact_interception") { btnInterceptClick(nullptr); return true; }
     if (request.action == "dismiss_ufo_contact") { btnCancelClick(nullptr); return true; }
     return false;
 }

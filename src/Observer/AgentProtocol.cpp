@@ -27,7 +27,9 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "open_transfer" || value == "cancel_transfer_destination" ||
+    return value == "open_contact_interception" || value == "cancel_interception" ||
+        value == "open_intercept_base" || value == "confirm_interception" || value == "cancel_interception_confirmation" ||
+        value == "open_transfer" || value == "cancel_transfer_destination" ||
         value == "change_transfer_quantity" || value == "review_transfer" ||
         value == "cancel_transfer_items" || value == "confirm_transfer" || value == "cancel_transfer_confirmation" ||
         value == "next_soldier" || value == "previous_soldier" || value == "kneel" ||

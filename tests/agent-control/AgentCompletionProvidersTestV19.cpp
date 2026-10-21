@@ -78,6 +78,8 @@ struct ProductionCompleteState:Common {
  using Common::Common;bool agentUiState(AgentUiState&)const;bool agentDispatch(const AgentRequest&);void btnOkClick(Action*);void btnGotoBaseClick(Action*);
 };
 struct UfoDetectedState:Common {
+ int contactToken=0;void *_ufo=&contactToken;unsigned interceptCallbacks=0;void btnInterceptClick(Action*){++interceptCallbacks;} // explicit callback seam; real route tested separately
+
  TextButton*_btnIntercept=nullptr,*_btnCentre=nullptr,*_btnCancel=nullptr;Text*_txtUfo=nullptr,*_txtDetected=nullptr,*_txtHyperwave=nullptr;TextList*_lstInfo=nullptr,*_lstInfo2=nullptr;
  bool _agentDestinationPaintFull=false;bool agentDestinationFull()const;std::vector<std::uint64_t> _agentStoredPaintRevisions;std::vector<std::uint64_t> agentPaintRevisions()const;void blit() override;
  using Common::Common;bool agentUiState(AgentUiState&)const;bool agentDispatch(const AgentRequest&);void btnCancelClick(Action*);
@@ -148,7 +150,7 @@ void validate(const AgentUiState&ui,const std::string&screen){
   for(unsigned i=0;i<v["rows"].size();++i){auto r=v["rows"][i];check(r.size()==3&&r["handle"].as<std::string>()=="r"+std::to_string(i)&&r["cells"].size()==3&&!r["selected"].as<bool>(),"read-only contiguous handles and three cells");for(auto cell:r["cells"])check(cell.IsScalar()&&cell.as<std::string>().size()<=1024,"bounded exact displayed row cell");}
  }else if(screen=="ufo_contact"){
   check(v["details_status"].as<std::string>()=="unavailable"&&ui.visible.find("Hidden")==std::string::npos&&ui.visible.find("SECRET")==std::string::npos,"UFO detail data is never exposed");
-  for(auto a:ui.actions)check(a.id=="dismiss_ufo_contact","shown UFO Intercept/Center grant no action");
+  for(auto a:ui.actions)check(a.id=="dismiss_ufo_contact"||a.id=="open_contact_interception","only explicit dismiss/intercept; center remains unsupported");
  }
 }
 void click(TextButton*b,OpenXcom::State*s){SDL_Event e={};e.type=SDL_MOUSEBUTTONDOWN;e.button.button=SDL_BUTTON_LEFT;e.button.x=b->getX()+b->getWidth()/2;e.button.y=b->getY()+b->getHeight()/2;Action down(&e,1,1,0,0);b->handle(&down,s);e.type=SDL_MOUSEBUTTONUP;Action up(&e,1,1,0,0);b->handle(&up,s);}
@@ -231,7 +233,7 @@ void production(Font&big,Font&small,Language&lang,const std::string&source,const
 }
 void ufo(Font&big,Font&small,Language&lang,const std::string&source,const std::string&game){
  for(unsigned i=0;i<3;++i){bool hyper=i==2,detected=i!=1;std::string variant=hyper?"hyperwave":detected?"detected":"redisplay";Paint p(big,small,lang,source,game,"UFOInfo",hyper);Completion::Game g;Completion::GeoscapeState geo;Completion::Base base;Completion::UfoDetectedState s(&g,&geo,&base);setup(s,p,hyper,detected);AgentUiState ui;check(s.agentUiState(ui),"stock UFO provider");validate(ui,"ufo_contact");
-  {TableChannel c(game+"-ufo-"+variant+"-caption");connect(c,s);auto state=record(c,game,"ufo_contact",variant+"_stock_caption");check(state["visible"]["buttons"].size()==3,"all three actual UFO captions visible");check(state["visible"]["detected_label"].as<std::string>()==(detected?std::string(lang.getString("STR_DETECTED")):""),"detected/empty label exact");check(hyper?!state["visible"]["hyperwave_label"].IsNull():state["visible"]["hyperwave_label"].IsNull(),"hyperwave drawn only in its actual layout");AgentRequest r;for(const char*name:{"intercept","center","open_intercept","center_ufo"}){r.action=name;check(!s.agentDispatch(r),"UFO observation-only captions never dispatch");}}
+  {TableChannel c(game+"-ufo-"+variant+"-caption");connect(c,s);auto state=record(c,game,"ufo_contact",variant+"_stock_caption");check(state["visible"]["buttons"].size()==3,"all three actual UFO captions visible");check(state["visible"]["detected_label"].as<std::string>()==(detected?std::string(lang.getString("STR_DETECTED")):""),"detected/empty label exact");check(hyper?!state["visible"]["hyperwave_label"].IsNull():state["visible"]["hyperwave_label"].IsNull(),"hyperwave drawn only in its actual layout");AgentRequest r;for(const char*name:{"intercept","center","open_intercept","center_ufo"}){r.action=name;check(!s.agentDispatch(r),"unrecognized aliases and center remain unsupported");}}
   negatives(s,p,s._txtUfo,s._btnCancel,"title","dismiss_ufo_contact","ufo_contact",game,variant);lifecycle(s,p,s._txtUfo,s._btnCancel,"dismiss_ufo_contact","ufo_contact",game,variant);check(geo.resets==0&&geo.globeReads==0&&g.pushes==0,"UFO dismissal never reads globe or resets timer");
   g.top=&s;p.draw();auto before=g.pops;click(s._btnCancel,&s);check(g.pops==before+1&&geo.resets==0,"ordinary UFO Cancel exact one-pop path");
  }

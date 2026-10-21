@@ -106,6 +106,74 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
         ",\"down\":" + (projection.down ? "true" : "false") + "}";
     return true;
 }
+bool agentProjectInterceptList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
+    AgentUiState &ui, AgentListProjection &projection,
+    const std::function<bool(const AgentUiState &)> &regionAllowed)
+{
+    // Explicit four-column interception opt-in; legacy list authority is unchanged.
+    const unsigned columns = 4;
+    const bool selectable = true, allowUnknownTextControls = false, allowMultiColumnSelection = true;
+    projection = AgentListProjection();
+    std::vector<AgentListRow> rows;
+    if (!list || !owner || !agentWidgetVisible(list) ||
+        !(allowUnknownTextControls ? (selectable && columns == 1 && list->agentControlRows(rows)) : list->agentRows(rows))) return false;
+    ui.widgets.push_back(std::make_pair(list, list->agentListRevision()));
+    projection.rows = "[";
+    unsigned count = 0;
+    for (const AgentListRow &row : rows)
+    {
+        if (count == 32) break;
+        if (row.cells.size() != columns || (selectable &&
+            ((columns != 1 && (!allowMultiColumnSelection || columns != 4)) || ((!allowUnknownTextControls || row.completeText) && row.cells[0].empty())))) continue;
+        std::vector<AgentUiRect> regions;
+        if (allowUnknownTextControls) regions.push_back({row.bounds.x, row.bounds.y, row.bounds.w, row.bounds.h});
+        else for (const SDL_Rect &r : row.regions) regions.push_back({r.x, r.y, r.w, r.h});
+        if (!agentRegionsUncovered(regions, owner, paintOrder)) continue;
+        AgentUiState candidate;
+        candidate.regions = regions;
+        if (regionAllowed && !regionAllowed(candidate)) continue;
+        const std::size_t oldSize = ui.regions.size();
+        ui.regions.insert(ui.regions.end(), regions.begin(), regions.end());
+        if (!agentRegionsDisjoint(ui)) { ui.regions.resize(oldSize); continue; }
+        bool completeText = row.completeText;
+        if (allowUnknownTextControls && completeText)
+        {
+            AgentUiState label;
+            for (const SDL_Rect &r : row.labelRegions) label.regions.push_back({r.x, r.y, r.w, r.h});
+            completeText = agentRegionsUncovered(label.regions, owner, paintOrder) &&
+                (!regionAllowed || regionAllowed(label));
+        }
+        if (!count && selectable && completeText) projection.firstLabel = row.cells[0];
+        if (count) projection.rows += ",";
+        projection.rows += "{\"handle\":\"r" + std::to_string(count++) + "\",\"cells\":[";
+        for (unsigned i = 0; i < columns; ++i)
+        {
+            if (i) projection.rows += ",";
+            projection.rows += allowUnknownTextControls && !completeText ? "null" : agentJsonString(row.cells[i]);
+        }
+        projection.rows += std::string("],\"selected\":") + (selectable && row.selected ? "true" : "false") + "}";
+        ui.rows.push_back(row.logicalIndex);
+    }
+    projection.rows += "]";
+    const Surface *up = nullptr, *down = nullptr;
+    list->agentScrollControls(up, down);
+    const auto includeArrow = [&](const Surface *arrow) -> bool
+    {
+        if (!agentWidgetVisible(arrow)) return false;
+        AgentUiState footprint;
+        agentIncludeWidget(footprint, arrow);
+        if (!agentRegionsUncovered(footprint.regions, arrow, paintOrder) ||
+            (regionAllowed && !regionAllowed(footprint))) return false;
+        const std::size_t oldSize = ui.regions.size();
+        ui.regions.insert(ui.regions.end(), footprint.regions.begin(), footprint.regions.end());
+        if (!agentRegionsDisjoint(ui)) { ui.regions.resize(oldSize); return false; }
+        return true;
+    };
+    projection.up = includeArrow(up); projection.down = includeArrow(down);
+    projection.scroll = std::string("{\"up\":") + (projection.up ? "true" : "false") +
+        ",\"down\":" + (projection.down ? "true" : "false") + "}";
+    return true;
+}
 bool agentProjectArrivalList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     AgentUiState &ui, AgentListProjection &projection,
     const std::function<bool(const AgentUiState &)> &regionAllowed)

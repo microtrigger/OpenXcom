@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "InterceptState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#endif
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -211,5 +214,92 @@ void InterceptState::lstCraftsRightClick(Action *)
 		_game->popState();
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool InterceptState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> InterceptState::agentPaintRevisions() const
+{
+    return {_txtTitle->agentTextRevision(), _txtCraft->agentTextRevision(), _txtStatus->agentTextRevision(), _txtBase->agentTextRevision(), _txtWeapons->agentTextRevision(), _btnCancel->agentLabelRevision(), _btnGotoBase->agentLabelRevision(), _lstCrafts->agentListRevision()};
+}
+
+void InterceptState::blit()
+{
+    _agentDestinationPaintFull = false;
+    _agentStoredPaintRevisions.clear();
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool InterceptState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<InterceptState *>(this)) || _modal || !_target || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState(); out.actor = _base; out.save = _target;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto include = [&](const Surface *widget) -> bool {
+        if (!agentWidgetUncovered(widget,painted)) return false;
+        AgentUiState part; agentIncludeWidget(part,widget);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before=out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value=agentTextJson(widget);
+        return value!="null" && (widget->getText().empty() || include(widget)) ? value : "null";
+    };
+    std::string buttons="[";
+    const auto button = [&](TextButton *widget,const char *id,const char *action) {
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return;
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
+        out.actions.emplace_back(action,label,"visible_text");
+    };
+    out.screen="intercept_craft";
+    out.widgets.emplace_back(_lstCrafts,_lstCrafts->agentListRevision());
+    const auto title=text(_txtTitle), craft=text(_txtCraft), status=text(_txtStatus), base=text(_txtBase), weapons=text(_txtWeapons);
+    button(_btnCancel,"cancel","cancel_interception");
+    button(_btnGotoBase,"base","open_intercept_base"); buttons+="]";
+    AgentListProjection list;
+    if (!agentProjectInterceptList(_lstCrafts,_lstCrafts,painted,out,list,allowed)) return false;
+    out.context={list.up?1u:0u,list.down?1u:0u};
+    out.visible="{\"title\":"+title+",\"headings\":["+craft+","+status+","+base+","+weapons+"],\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+buttons+"}";
+    if (!out.rows.empty()) out.actions.emplace_back("choose_visible_row","Choose visible row","visible_control_semantics","visible_row");
+    if (list.up || list.down) out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=9000;
+}
+bool InterceptState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action=="cancel_interception") { btnCancelClick(nullptr); return true; }
+    if (request.action=="open_intercept_base") { btnGotoBaseClick(nullptr); return true; }
+    if (request.action=="scroll_visible_list" && current.context.size()==2) {
+        if (request.choice=="up" && current.context[0]) { _lstCrafts->scrollUp(false,false); return true; }
+        if (request.choice=="down" && current.context[1]) { _lstCrafts->scrollDown(false,false); return true; }
+    }
+    if (request.action!="choose_visible_row" || request.choice.size()<2 || request.choice.size()>3 || request.choice[0]!='r' || (request.choice.size()==3 && request.choice[1]=='0')) return false;
+    unsigned index=0;
+    for (size_t i=1;i<request.choice.size();++i) { if(request.choice[i]<'0'||request.choice[i]>'9') return false; index=index*10+request.choice[i]-'0'; }
+    if (index>=current.rows.size() || current.rows[index]>=_crafts.size() || !_lstCrafts->agentSelectProjectRow(current.rows[index])) return false;
+    lstCraftsLeftClick(nullptr); return true;
+}
+#endif
 
 }

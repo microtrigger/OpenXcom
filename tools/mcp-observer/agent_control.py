@@ -62,7 +62,8 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'change_production_quantity', 'set_production_sell', 'open_purchase', 'change_purchase_quantity',
            'accept_purchase', 'cancel_purchase', 'open_purchase_category', 'scroll_purchase', 'position_purchase_list',
            'dismiss_items_arriving', 'open_arrival_base', 'dismiss_production_complete',
-           'open_production_destination', 'dismiss_ufo_contact',
+           'open_production_destination', 'dismiss_ufo_contact', 'open_contact_interception',
+           'cancel_interception', 'open_intercept_base', 'confirm_interception', 'cancel_interception_confirmation',
            'open_soldiers', 'select_soldier', 'close_soldiers', 'previous_personnel',
            'next_personnel', 'open_soldier_armor', 'close_soldier_info', 'open_crafts',
            'select_craft', 'close_crafts', 'open_craft_crew', 'open_craft_equipment',
@@ -119,7 +120,7 @@ COMPLETION_BUTTONS = {'items_arriving': ('ok', 'go_to_base'),
 COMPLETION_BUTTON_ACTIONS = {
     'items_arriving': {'dismiss_items_arriving': 'ok', 'open_arrival_base': 'go_to_base'},
     'production_complete': {'dismiss_production_complete': 'ok', 'open_production_destination': 'destination'},
-    'ufo_contact': {'dismiss_ufo_contact': 'cancel'}}
+    'ufo_contact': {'open_contact_interception': 'intercept', 'dismiss_ufo_contact': 'cancel'}}
 OUTFITTING_FIELDS = {
     'soldiers': 'title headings rows scroll buttons',
     'soldier_info': 'name rank missions kills craft recovery training stats buttons',
@@ -263,7 +264,9 @@ STATE_ACTIONS = {
     'purchase_category': frozenset(('choose_visible_row', 'scroll_visible_list', 'close_dropdown')),
     'items_arriving': frozenset(('dismiss_items_arriving', 'open_arrival_base', 'scroll_visible_list')),
     'production_complete': frozenset(('dismiss_production_complete', 'open_production_destination')),
-    'ufo_contact': frozenset(('dismiss_ufo_contact',)),
+    'ufo_contact': frozenset(('open_contact_interception', 'dismiss_ufo_contact')),
+    'intercept_craft': frozenset(('choose_visible_row', 'scroll_visible_list', 'cancel_interception', 'open_intercept_base')),
+    'interception_confirm': frozenset(('confirm_interception', 'cancel_interception_confirmation')),
     'soldiers': frozenset(('select_soldier', 'close_soldiers', 'scroll_visible_list')),
     'soldier_info': frozenset(('previous_personnel', 'next_personnel', 'open_soldier_armor', 'close_soldier_info')),
     'crafts': frozenset(('select_craft', 'close_crafts', 'scroll_visible_list')),
@@ -529,6 +532,41 @@ def validate_quantity_controls(visible, actions):
         require(type(sell['pressed']) is bool)
     require('change_production_quantity' not in actions or bool(controls))
     require('set_production_sell' not in actions or sell is not None)
+
+
+INTERCEPTION_BUTTON_ACTIONS = {
+    'intercept_craft': {'cancel_interception': 'cancel', 'open_intercept_base': 'base'},
+    'interception_confirm': {'confirm_interception': 'confirm', 'cancel_interception_confirmation': 'cancel'}}
+
+
+def validate_interception(screen, visible, actions):
+    mapping = INTERCEPTION_BUTTON_ACTIONS[screen]
+    if screen == 'interception_confirm':
+        exact(visible, 'target buttons')
+        strategy_text(visible['target'], nullable=True)
+    else:
+        exact(visible, 'title headings rows scroll buttons')
+        strategy_text(visible['title'], nullable=True)
+        require(type(visible['headings']) is list and len(visible['headings']) == 4)
+        for value in visible['headings']: strategy_text(value, nullable=True)
+        rows = visible['rows']; require(type(rows) is list and len(rows) <= len(ROW_HANDLES))
+        selected = 0
+        for index, row in enumerate(rows):
+            exact(row, 'handle cells selected'); require(row['handle'] == ROW_HANDLES[index])
+            require(type(row['cells']) is list and len(row['cells']) == 4)
+            for value in row['cells']: strategy_text(value, nullable=True)
+            require(type(row['selected']) is bool); selected += row['selected']
+        require(selected <= 1)
+        exact(visible['scroll'], 'up down')
+        for value in visible['scroll'].values(): require(type(value) is bool)
+        require('scroll_visible_list' not in actions or any(visible['scroll'].values()))
+        require('choose_visible_row' not in actions or bool(rows))
+    buttons = visible['buttons']; require(type(buttons) is list and len(buttons) <= len(mapping))
+    ordered_subset([entry.get('id') if type(entry) is dict else None for entry in buttons], tuple(mapping.values()))
+    for button in buttons:
+        exact(button, 'id label'); strategy_text(button['label']); require(bool(button['label']))
+    shown = {button['id'] for button in buttons}
+    for action, button in mapping.items(): require(action not in actions or button in shown)
 
 
 TRANSFER_BUTTON_ACTIONS = {
@@ -1036,6 +1074,8 @@ def validate_visible(screen, visible, seen):
         validate_research_completion(screen, visible, seen)
     elif screen in ('base_stores', 'base_transfers'):
         validate_base_table(visible, seen)
+    elif screen in INTERCEPTION_BUTTON_ACTIONS:
+        validate_interception(screen, visible, seen)
     elif screen in TRANSFER_BUTTON_ACTIONS:
         validate_transfer(screen, visible, seen)
     elif screen == 'purchase':
@@ -1127,6 +1167,14 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
             elif action in ('choose_visible_row', 'scroll_visible_list', 'close_dropdown'):
                 expected = {'choose_visible_row': 'Choose visible row', 'scroll_visible_list': 'Scroll visible list', 'close_dropdown': 'Close choices'}[action]
             if expected is not None: require(descriptor['label'] == expected)
+    if obj['state'] in INTERCEPTION_BUTTON_ACTIONS:
+        buttons = {button['id']: button['label'] for button in obj['visible']['buttons']}
+        mapping = INTERCEPTION_BUTTON_ACTIONS[obj['state']]
+        for descriptor in obj['actions']:
+            action = descriptor['id']; strategy_text(descriptor['label'])
+            expected = ('Choose visible row' if action == 'choose_visible_row' else
+                        'Scroll visible list' if action == 'scroll_visible_list' else buttons[mapping[action]])
+            require(descriptor['label'] == expected)
     if obj['state'] in TRANSFER_BUTTON_ACTIONS:
         buttons = {button['id']: button['label'] for button in obj['visible']['buttons']}
         mapping = TRANSFER_BUTTON_ACTIONS[obj['state']]
@@ -1433,7 +1481,7 @@ def definitions():
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': False, 'openWorldHint': False}},
         {'name': 'execute_ui_action',
-         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, minimap, inventory, enemy-button, hand, weapon-action and grenade-timer handles must come from the same fresh grant. Timer selection dispatch does not establish activation; require the later actual rendered warning. Throw target dispatch does not establish flight, landing, detonation or a hit. Timer cancel follows the ordinary popup cancel handler. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. View-level controls may clamp at a boundary; vertical-unit controls may silently refuse. Camera pan is an ordinary directional step, and minimap_center uses only a fresh listed local point. Dispatch never establishes camera motion, level change, movement eligibility or unit movement. Funding, Stores and Transfers rows cannot be selected. Geoscape speed and base-slot handles are fresh local painted choices; they expose no base existence, persistent identity or eligibility. Ordinary speed controls advance real game time; opening Bases can reset the speed through its normal handler. Shown base labels and metric strings are not recomputed from hidden state. Empty admitted tables do not prove empty stores or transfers. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. Select New Research using a freshly offered row handle, including an admitted unknown-label row; never infer its name from the handle or array order. Read the later complete detail title before claiming a shown project name. Selecting a new Research row immediately creates a project and can consume an item and ordinary RNG. accept_research retains the project/assignments; cancel_research_project removes it and follows ordinary unfinished-item/staff refund rules. start_production opens allocation and creates a Production. accept_production charges the first unit/materials for a new production, while existing-project acceptance does not charge again. stop_production removes it and releases assigned staff without refunding already spent costs. Only cancel_production_start is the ordinary side-effect-free detail return; there is no generic allocation cancel. adjust_scientists/adjust_engineers make one ordinary increase/decrease step from a currently shown direction, with ordinary clamping or refusal. Direct change_production_quantity and change_purchase_quantity apply bounded adjust, finite set, max or clear through shared ordinary semantic helpers. Positive adjust/max needs a shown increase control; negative adjust/clear needs decrease; set needs both. Ordinary clamping, resource limits and warnings still apply. max for units follows ordinary craft/noncraft behavior; clear means the ordinary minimum, which need not be zero. set_production_sell takes the desired boolean. Transfer changes remain a draft until confirm_transfer commits through the ordinary confirmation handler; review_transfer only opens confirmation, cancel_transfer_confirmation returns to the draft, and cancel_transfer_items discards it. Destination capacity refusals are ordinary game rules: a dispatch receipt does not establish shipment. change_transfer_quantity uses the same bounded operations and shown-direction requirements. Purchase changes remain a draft until accept_purchase commits ordinary costs/transfers; cancel_purchase discards the draft. scroll_purchase makes one semantic step/page/end and position_purchase_list uses a fresh advertised local target. None of these commands accepts pointer gestures, durations, holds or repeat counts. Fresh displayed rows/text are required to establish changes or postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
+         'description': 'Directly dispatch one currently exposed semantic UI action in explicitly enabled agent-control mode. This is not human confirmation and does not approve supervised controls. Use the exact action ID, epoch, revision and single-use capability from a fresh read_ui_state, with a new command ID and the action-specific args object ({} for no-argument actions). New Battle control names, dropdown row handles and one-step scroll directions must come from the fresh visible projection; handles are local to that list and grant, never global indices or model IDs. Grid, minimap, inventory, enemy-button, hand, weapon-action and grenade-timer handles must come from the same fresh grant. Timer selection dispatch does not establish activation; require the later actual rendered warning. Throw target dispatch does not establish flight, landing, detonation or a hit. Timer cancel follows the ordinary popup cancel handler. Map primary/secondary and hand actions preserve normal context-sensitive behavior and can refuse or cancel instead of moving/firing/opening; read the resulting state and visible warning. Scroll flags describe visible arrows, so boundary no-ops remain possible. View-level controls may clamp at a boundary; vertical-unit controls may silently refuse. Camera pan is an ordinary directional step, and minimap_center uses only a fresh listed local point. Dispatch never establishes camera motion, level change, movement eligibility or unit movement. Funding, Stores and Transfers rows cannot be selected. Geoscape speed and base-slot handles are fresh local painted choices; they expose no base existence, persistent identity or eligibility. Ordinary speed controls advance real game time; opening Bases can reset the speed through its normal handler. Shown base labels and metric strings are not recomputed from hidden state. Empty admitted tables do not prove empty stores or transfers. Difficulty must be a currently exposed choice; Ironman takes a desired boolean, not a toggle. Base-name text is strict UTF-8, at most 128 bytes, without control characters; replacement does not confirm the name. Base-site x/y must exactly match a point in the freshly advertised Globe samples; unrestricted viewport points are deferred. Coordinates are viewport-local integers, never world coordinates or a general click. Start and name confirmation are separate explicit actions. The capability expires after 120 seconds and any UI revision change invalidates it sooner. Kneel/stand may spend time units and trigger reactions. end_turn dispatches the ordinary End Turn control and may start enemy activity; its receipt is not an enemy-turn success claim. Menu cancel uses the ordinary handler: New Battle can save its skirmish preset, and Options reloads persisted settings and restores volume/input capture. Inventory hover inspects through the ordinary shared hover path. Inventory activation atomically applies ordinary hover/held-anchor and primary activation on a fresh listed vN target. Shown item/held sprite evidence never predicts emptiness, compatibility or eligibility; null and unknown stay unknown. Cancel requires a shown held sprite; unload, page and close follow ordinary controls and may refuse or have no transition. Inspect the fresh rendered item/ammo/warning and held/target projection to establish postconditions. Select New Research using a freshly offered row handle, including an admitted unknown-label row; never infer its name from the handle or array order. Read the later complete detail title before claiming a shown project name. Selecting a new Research row immediately creates a project and can consume an item and ordinary RNG. accept_research retains the project/assignments; cancel_research_project removes it and follows ordinary unfinished-item/staff refund rules. start_production opens allocation and creates a Production. accept_production charges the first unit/materials for a new production, while existing-project acceptance does not charge again. stop_production removes it and releases assigned staff without refunding already spent costs. Only cancel_production_start is the ordinary side-effect-free detail return; there is no generic allocation cancel. adjust_scientists/adjust_engineers make one ordinary increase/decrease step from a currently shown direction, with ordinary clamping or refusal. Direct change_production_quantity and change_purchase_quantity apply bounded adjust, finite set, max or clear through shared ordinary semantic helpers. Positive adjust/max needs a shown increase control; negative adjust/clear needs decrease; set needs both. Ordinary clamping, resource limits and warnings still apply. max for units follows ordinary craft/noncraft behavior; clear means the ordinary minimum, which need not be zero. set_production_sell takes the desired boolean. open_contact_interception opens the ordinary target-bound craft chooser. choose_visible_row there opens ordinary destination confirmation; confirm_interception dispatches the craft through the normal game handler, not proof of arrival or combat. cancel_interception_confirmation returns without sending the craft. Free-globe target selection and dogfight controls are not offered by this milestone. Transfer changes remain a draft until confirm_transfer commits through the ordinary confirmation handler; review_transfer only opens confirmation, cancel_transfer_confirmation returns to the draft, and cancel_transfer_items discards it. Destination capacity refusals are ordinary game rules: a dispatch receipt does not establish shipment. change_transfer_quantity uses the same bounded operations and shown-direction requirements. Purchase changes remain a draft until accept_purchase commits ordinary costs/transfers; cancel_purchase discards the draft. scroll_purchase makes one semantic step/page/end and position_purchase_list uses a fresh advertised local target. None of these commands accepts pointer gestures, durations, holds or repeat counts. Fresh displayed rows/text are required to establish changes or postconditions. A receipt means handler dispatch, never success; inspect its separate post-action observation and obtain a fresh read before another action. Exact duplicates only query the receipt; conflicting command IDs fail. Never automatically retry after uncertainty. An adapter_error with status outcome_unknown means a mutating send was attempted but no trustworthy native receipt arrived; stop and reconcile manually.',
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
@@ -1606,9 +1654,9 @@ class AgentControlClient:
                 self.available_actions = frozenset(action['id'] for action in obj['actions'])
                 if obj['state'] == 'new_battle':
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
-                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'transfer_destination'):
+                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'transfer_destination', 'intercept_craft'):
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
-                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'transfer_destination', 'transfer_items', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in RESEARCH_NOTICE_STATES:
+                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'transfer_destination', 'transfer_items', 'intercept_craft', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in RESEARCH_NOTICE_STATES:
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
                 if obj['state'] == 'geoscape':
                     self.geoscape_speeds = frozenset(speed['handle'] for speed in obj['visible']['speeds'])

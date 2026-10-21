@@ -138,6 +138,11 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             scroll=dict(up=True,down=True),scrollbar=dict(targets=[dict(handle='t0',position='top'),dict(handle='t1',position='middle'),dict(handle='t2',position='bottom')]),
             buttons=[dict(id='accept',label='OK'),dict(id='cancel',label='Cancel')])
         ids=sorted(a.STATE_ACTIONS[screen])
+    elif screen in a.INTERCEPTION_BUTTON_ACTIONS:
+        visible=dict(buttons=[dict(id=key,label=key.title()) for key in a.INTERCEPTION_BUTTON_ACTIONS[screen].values()])
+        if screen == 'interception_confirm': visible['target']='UFO-1'
+        else: visible.update(title='Select Craft',headings=[None]*4,rows=[dict(handle='r0',cells=['Shown']*4,selected=False)],scroll=dict(up=True,down=True))
+        ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.TRANSFER_BUTTON_ACTIONS:
         visible = dict(title='Transfer', buttons=[dict(id=key,label=key.title()) for key in a.TRANSFER_BUTTON_ACTIONS[screen].values()])
         if screen == 'transfer_confirm': visible.update(cost='Cost',total='$1,000')
@@ -169,6 +174,10 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     if not ids:
         capability = None
     def action_label(action):
+        if screen in a.INTERCEPTION_BUTTON_ACTIONS:
+            if action == 'choose_visible_row': return 'Choose visible row'
+            if action == 'scroll_visible_list': return 'Scroll visible list'
+            return next(button['label'] for button in visible['buttons'] if button['id'] == a.INTERCEPTION_BUTTON_ACTIONS[screen][action])
         if screen in a.TRANSFER_BUTTON_ACTIONS:
             if action in a.QUANTITY_SEMANTIC_LABELS: return a.QUANTITY_SEMANTIC_LABELS[action]
             if action == 'choose_visible_row': return 'Choose visible row'
@@ -429,7 +438,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 138); self.assertEqual(len(a.STATE_ACTIONS), 58)
+        self.assertEqual(len(a.ACTIONS), 143); self.assertEqual(len(a.STATE_ACTIONS), 60)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -476,7 +485,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 138)
+        self.assertEqual(len(a.ACTIONS), 143)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
