@@ -444,11 +444,23 @@ GeoscapeState::~GeoscapeState()
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+DogfightState *GeoscapeState::agentActiveDogfight() const
+{
+	if (_modal || _dogfights.size() != 1 || !_dogfightsToBeStarted.empty() || !_popups.empty()) return nullptr;
+	return _dogfights.front();
+}
+
 bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 {
 	if (_modal) return false;
-	// Dogfight windows are painted after this state's ordinary surface list.
-	if (!_dogfights.empty()) return false;
+	// Dogfight windows are painted after the strategic surfaces. This bounded
+	// route owns exactly one expanded composite; never route a background HUD
+	// action through an ambiguous, queued, minimized or preview window.
+	if (!_dogfights.empty())
+	{
+		DogfightState *dogfight = agentActiveDogfight();
+		return dogfight && dogfight->agentUiState(out);
+	}
 	out = Observer::AgentUiState();
 	out.screen = "geoscape";
 	const auto includeDisjoint = [&out](const Surface *widget) -> bool
@@ -550,6 +562,14 @@ bool GeoscapeState::agentDispatch(const std::string &action)
 
 bool GeoscapeState::agentDispatch(const Observer::AgentRequest &request)
 {
+	if (request.action == "choose_dogfight_mode")
+	{
+		Observer::AgentUiState current;
+		if (!agentUiState(current) || current.screen != "dogfight" ||
+			!current.offers(request.action)) return false;
+		DogfightState *dogfight = agentActiveDogfight();
+		return dogfight && dogfight->agentDispatch(request);
+	}
 	if (request.action != "choose_geoscape_speed") return agentDispatch(request.action);
 	Observer::AgentUiState current;
 	if (!agentUiState(current) || !current.offers(request.action) || request.choice.size() != 2 ||

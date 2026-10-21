@@ -40,6 +40,9 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     elif screen == 'inventory':
         visible = dict(close_label='Close inventory', **dict.fromkeys(a.INVENTORY_TEXT_FIELDS), held=None, targets=[])
         ids = ['close_inventory']
+    elif screen == 'dogfight':
+        visible=dict(status=None,distance='560',ammo1='10',ammo2=None,interception='1',damage=None,buttons=[dict(id=mode,selected=mode=='standoff') for mode in a.DOGFIGHT_MODES])
+        ids=['choose_dogfight_mode']
     elif screen == 'minimap':
         visible = dict(level_label='Level 1', viewport=dict(x=0,y=0,width=320,height=160),
                        terrain=[[0,0,4,4]], markers=[], targets=[dict(handle='m0',x=2,y=2)],
@@ -174,6 +177,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     if not ids:
         capability = None
     def action_label(action):
+        if action == 'choose_dogfight_mode': return 'Choose dogfight mode'
         if screen in a.INTERCEPTION_BUTTON_ACTIONS:
             if action == 'choose_visible_row': return 'Choose visible row'
             if action == 'scroll_visible_list': return 'Scroll visible list'
@@ -226,7 +230,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'open_hand_action_menu': {'hand':'left'}, 'choose_weapon_action': {'row':'a0'}, 'inventory_hover': {'target':'v0'},
                 'inventory_activate': {'target':'v0'}, 'choose_grenade_timer': {'timer':'t0'},
                 'camera_pan': {'direction':'left'}, 'minimap_center': {'target':'m0'},
-                'choose_geoscape_speed': {'speed':'s0'}, 'select_base': {'target':'b0'},
+                'choose_dogfight_mode': {'mode':'standoff'}, 'choose_geoscape_speed': {'speed':'s0'}, 'select_base': {'target':'b0'},
                 'select_research_project': {'row':'r0'}, 'select_production_project': {'row':'r0'},
                 'adjust_scientists': {'direction':'increase'}, 'adjust_engineers': {'direction':'increase'},
                 'change_transfer_quantity': {'row':'r0','operation':'adjust','value':1},
@@ -438,7 +442,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 143); self.assertEqual(len(a.STATE_ACTIONS), 60)
+        self.assertEqual(len(a.ACTIONS), 144); self.assertEqual(len(a.STATE_ACTIONS), 61)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -485,7 +489,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 143)
+        self.assertEqual(len(a.ACTIONS), 144)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
@@ -494,7 +498,7 @@ class TypedValidationTests(unittest.TestCase):
             'center_enemy': 'enemy_button', 'open_hand_action_menu': 'hand', 'choose_weapon_action': 'weapon_action',
             'inventory_hover': 'inventory_target', 'inventory_activate': 'inventory_target', 'choose_grenade_timer': 'grenade_timer',
             'camera_pan': 'camera_direction', 'minimap_center': 'minimap_target',
-            'choose_geoscape_speed': 'geoscape_speed', 'select_base': 'base_target',
+            'choose_dogfight_mode': 'dogfight_mode', 'choose_geoscape_speed': 'geoscape_speed', 'select_base': 'base_target',
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',

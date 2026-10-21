@@ -18,6 +18,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/InteractiveSurface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <vector>
+#endif
 
 namespace OpenXcom
 {
@@ -35,7 +38,18 @@ protected:
 	Uint8 _color;
 	ImageButton **_group;
 	bool _inverted;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentRadioTracked = false, _agentRadioPaint = false;
+    ImageButton **_agentPaintGroup = nullptr;
+    ImageButton *_agentPaintSelected = nullptr;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void agentTrackRadio() { _agentRadioTracked = true; agentTrackPresentation(); }
+    void blit(Surface *destination) override;
+    bool agentRadioControl(const Surface *destination, bool &selected) const;
+    bool agentActivateRadio(State *state);
+#endif
 	/// Creates a new image button with the specified size and position.
 	ImageButton(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the image button.

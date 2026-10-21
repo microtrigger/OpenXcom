@@ -44,6 +44,12 @@ class CraftWeaponProjectile;
 class DogfightState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	GeoscapeState *_state;
 	Timer *_craftDamageAnimTimer;
 	Surface *_window, *_battle, *_range1, *_range2, *_damage;
@@ -68,6 +74,11 @@ private:
 	void endDogfight();
 
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Dogfight state.
 	DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo);
 	/// Cleans up the Dogfight state.

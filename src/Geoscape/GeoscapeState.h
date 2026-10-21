@@ -56,6 +56,10 @@ private:
 	std::list<State*> _popups;
 	std::list<DogfightState*> _dogfights, _dogfightsToBeStarted;
 	size_t _minimizedDogfights;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Bounded composite ownership; child provider verifies expanded/fresh UI.
+	DogfightState *agentActiveDogfight() const;
+#endif
 public:
 	/// Creates the Geoscape state.
 	GeoscapeState();

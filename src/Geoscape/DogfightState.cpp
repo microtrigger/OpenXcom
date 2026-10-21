@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "DogfightState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 #include <cmath>
 #include <sstream>
 #include "GeoscapeState.h"
@@ -358,6 +361,10 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) : _st
 	_btnDisengage->copy(_window);
 	_btnDisengage->onMousePress((ActionHandler)&DogfightState::btnDisengagePress);
 	_btnDisengage->setGroup(&_mode);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for(Text *text : {_txtStatus,_txtDistance,_txtAmmo1,_txtAmmo2,_txtInterceptionNumber}) text->agentTrackPresentation();
+    for(ImageButton *button : {_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage}) button->agentTrackRadio();
+#endif
 
 	_btnUfo->copy(_window);
 	_btnUfo->onMouseClick((ActionHandler)&DogfightState::btnUfoClick);
@@ -1872,5 +1879,77 @@ bool DogfightState::getWaitForAltitude() const
 {
 	return _waitForAltitude;
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool DogfightState::agentDestinationFull() const
+{
+    const Surface *logical=_game->getScreen()->getSurface();
+    const SDL_Surface *d=logical?logical->getSurface():nullptr;
+    return d&&d->w>0&&d->h>0&&d->clip_rect.x==0&&d->clip_rect.y==0&&d->clip_rect.w==d->w&&d->clip_rect.h==d->h;
+}
+std::vector<std::uint64_t> DogfightState::agentPaintRevisions() const
+{
+    return {_txtStatus->agentPresentationRevision(),_txtDistance->agentPresentationRevision(),_txtAmmo1->agentPresentationRevision(),_txtAmmo2->agentPresentationRevision(),_txtInterceptionNumber->agentPresentationRevision(),
+        _txtStatus->agentTextRevision(),_txtDistance->agentTextRevision(),_txtAmmo1->agentTextRevision(),_txtAmmo2->agentTextRevision(),_txtInterceptionNumber->agentTextRevision(),
+        _btnStandoff->agentPresentationRevision(),_btnCautious->agentPresentationRevision(),_btnStandard->agentPresentationRevision(),_btnAggressive->agentPresentationRevision(),_btnDisengage->agentPresentationRevision()};
+}
+void DogfightState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();const bool before=agentDestinationFull();
+    State::blit();_agentStoredPaintRevisions=agentPaintRevisions();
+    _agentDestinationPaintFull=before&&agentDestinationFull()&&Observer::agentPaintHealthy();
+}
+bool DogfightState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(_state)||_modal||_minimized||_preview->getVisible()||!agentPaintHealthy()||
+        !_agentDestinationPaintFull||!agentDestinationFull()||_agentStoredPaintRevisions!=agentPaintRevisions())return false;
+    out=AgentUiState();out.screen="dogfight";out.actor=_craft;out.save=_ufo;
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    const Surface *destination=_game->getScreen()->getSurface();
+    const auto include=[&](const Surface *widget)->bool {
+        if(!agentWidgetUncovered(widget,painted))return false;
+        AgentUiState part;agentIncludeWidget(part,widget);
+        if(part.regions.empty()||!_game->agentOverlayClear(part))return false;
+        size_t before=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if(agentRegionsDisjoint(out))return true;out.regions.resize(before);return false;
+    };
+    const auto text=[&](const Text *widget)->std::string {
+        out.widgets.emplace_back(widget,widget->agentTextRevision());
+        out.widgets.emplace_back(widget,widget->agentPresentationRevision());
+        if(!widget->agentPresentationPaintedTo(destination))return "null";
+        const auto value=agentTextJson(widget);
+        return value!="null"&&(widget->getText().empty()||include(widget))?value:"null";
+    };
+    const std::string status=text(_txtStatus),distance=text(_txtDistance),ammo1=text(_txtAmmo1),ammo2=text(_txtAmmo2),interception=text(_txtInterceptionNumber);
+    ImageButton *buttons[]={_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage};
+    const char *ids[]={"standoff","cautious","standard","aggressive","disengage"};
+    std::string modes="[";unsigned selectedCount=0;
+    for(unsigned i=0;i<5;++i){
+        out.widgets.emplace_back(buttons[i],buttons[i]->agentPresentationRevision());
+        bool selected=false;
+        if(!buttons[i]->agentRadioControl(destination,selected)||!include(buttons[i]))continue;
+        if(!out.rows.empty())modes+=",";
+        modes+="{\"id\":"+agentJsonString(ids[i])+",\"selected\":"+(selected?"true":"false")+"}";
+        out.rows.push_back(i);if(selected)++selectedCount;
+    }
+    if(selectedCount>1)return false;
+    modes+="]";
+    // Private radio identity/selection freshness; never serialized as gameplay data.
+    out.widgets.emplace_back(_mode,0);
+    if(!out.rows.empty())out.actions.emplace_back("choose_dogfight_mode","Choose dogfight mode","visible_control_semantics","dogfight_mode");
+    out.visible="{\"status\":"+status+",\"distance\":"+distance+",\"ammo1\":"+ammo1+",\"ammo2\":"+ammo2+",\"interception\":"+interception+",\"damage\":null,\"buttons\":"+modes+"}";
+    return !out.regions.empty()&&agentRegionsDisjoint(out)&&out.visible.size()<=9000;
+}
+bool DogfightState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if(!agentUiState(current)||!current.offers(request.action)||request.action!="choose_dogfight_mode")return false;
+    ImageButton *buttons[]={_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage};
+    const char *ids[]={"standoff","cautious","standard","aggressive","disengage"};
+    for(size_t index:current.rows)if(index<5&&request.choice==ids[index])return buttons[index]->agentActivateRadio(this);
+    return false;
+}
+#endif
 
 }

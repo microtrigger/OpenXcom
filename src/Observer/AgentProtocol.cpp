@@ -27,7 +27,7 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "open_contact_interception" || value == "cancel_interception" ||
+    return value == "choose_dogfight_mode" || value == "open_contact_interception" || value == "cancel_interception" ||
         value == "open_intercept_base" || value == "confirm_interception" || value == "cancel_interception_confirmation" ||
         value == "open_transfer" || value == "cancel_transfer_destination" ||
         value == "change_transfer_quantity" || value == "review_transfer" ||
@@ -103,6 +103,7 @@ bool agentActionId(const std::string &value)
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "choose_dogfight_mode") return "dogfight_mode";
     if (action == "set_craft_soldier") return "crew_assignment";
     if (action == "change_craft_equipment") return "equipment_quantity";
     if (action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
@@ -203,6 +204,12 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
     const std::string kind = agentArgumentKind(request.action);
     if (kind == "none") { if (parts.size() != 6) return false; }
+    else if (kind == "dogfight_mode")
+    {
+        if (parts.size() != 7 || (parts[6] != "standoff" && parts[6] != "cautious" &&
+            parts[6] != "standard" && parts[6] != "aggressive" && parts[6] != "disengage")) return false;
+        request.choice = parts[6];
+    }
     else if (kind == "production_quantity" || kind == "purchase_quantity" || kind == "equipment_quantity" || kind == "transfer_quantity")
     {
         if (parts.size()!=8 && parts.size()!=9) return false;

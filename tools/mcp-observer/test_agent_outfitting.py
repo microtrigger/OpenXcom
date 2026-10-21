@@ -73,7 +73,7 @@ class OutfittingContractTests(unittest.TestCase):
 
     def test_closed_wire_catalog_and_four_tools(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/25')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (143, 60, 4))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (144, 61, 4))
         self.assertEqual(set(a.OUTFITTING_FIELDS), set(STATES))
         self.assertEqual(a.OUTFITTING_LISTS, ROWS)
         self.assertEqual(len(NEW_ACTIONS), 23)

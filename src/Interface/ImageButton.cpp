@@ -18,6 +18,9 @@
  */
 #include "ImageButton.h"
 #include "../Engine/Action.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -66,6 +69,9 @@ Uint8 ImageButton::getColor() const
  */
 void ImageButton::setGroup(ImageButton **group)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	_group = group;
 	if (_group != 0 && *_group == this)
 		invert(_color + 3);
@@ -79,6 +85,10 @@ void ImageButton::setGroup(ImageButton **group)
  */
 void ImageButton::mousePress(Action *action, State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    if (_group && *_group) (*_group)->agentPresentationMutation();
+#endif
 	if (_group != 0)
 	{
 		if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
@@ -117,11 +127,42 @@ void ImageButton::mouseRelease(Action *action, State *state)
  */
 void ImageButton::toggle(bool press)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+#endif
 	if (_inverted != press)
 	{
 		_inverted = !_inverted;
 		invert(_color + 3);
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void ImageButton::blit(Surface *destination)
+{
+    if (!_agentRadioTracked) { Surface::blit(destination); return; }
+    _agentRadioPaint=false;
+    Surface::blit(destination);
+    if (!agentPresentationPaintedTo(destination) || !_group || !*_group) return;
+    _agentPaintGroup=_group;_agentPaintSelected=*_group;_agentRadioPaint=true;
+}
+bool ImageButton::agentRadioControl(const Surface *destination,bool &selected) const
+{
+    selected=false;
+    if (!_agentRadioTracked || !_agentRadioPaint || !_group || _group!=_agentPaintGroup || *_group!=_agentPaintSelected ||
+        !agentPresentationPaintedTo(destination) || !destination || getX()<0 || getY()<0 ||
+        getX()+getWidth()>destination->getWidth() || getY()+getHeight()>destination->getHeight()) return false;
+    // Native radio selection retained from the painted frame, not inferred from icon pixels.
+    selected=*_group==this;return true;
+}
+bool ImageButton::agentActivateRadio(State *state)
+{
+    if (!_agentRadioTracked || !_group || !*_group || !state || !agentContextVisible()) return false;
+    SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+    Action action(&event,1,1,0,0);
+    mousePress(&action,state); // Same radio inversion + group update + registered callback as ordinary UI.
+    return true;
+}
+#endif
 
 }

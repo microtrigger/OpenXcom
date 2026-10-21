@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Compile current-source dogfight provider and actual ImageButton fixture; no game execution or live acceptance."""
+from pathlib import Path
+import argparse, hashlib, json, os, re, shlex, subprocess, time
+
+UNITS=['Observer/AgentUi','Observer/AgentProtocol','Observer/AgentProjectileWitness','Engine/Font','Engine/Surface','Engine/InteractiveSurface','Engine/Language','Engine/LanguagePlurality','Engine/LocalizedText','Engine/Unicode','Engine/Palette','Engine/Action','Engine/FileMap','Engine/Options','Engine/CrossPlatform','Engine/Timer','Engine/Sound','Interface/Text','Interface/NumberText','Interface/TextButton','Interface/ToggleTextButton','Interface/TextList','Interface/ComboBox','Interface/Window','Interface/ArrowButton','Interface/ImageButton','Interface/ScrollBar','lodepng','Engine/RNG','Interface/TextEdit']
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def block(text,signature):
+ start=text.index(signature);i=text.index('{',start)+1;depth=1
+ while depth:
+  if i>=len(text):raise RuntimeError('unclosed '+signature)
+  if text.startswith('//',i):i=text.index('\n',i)+1;continue
+  if text.startswith('/*',i):i=text.index('*/',i)+2;continue
+  if text[i] in ('"',"'"):
+   quote=text[i];i+=1
+   while text[i]!=quote:i+=2 if text[i]=='\\' else 1
+   i+=1;continue
+  if text[i]=='{':depth+=1
+  elif text[i]=='}':depth-=1
+  i+=1
+ return text[start:i]
+GENERATED={'Dogfight.generated.inc':('src/Geoscape/DogfightState.cpp',['bool DogfightState::agentDestinationFull(', 'std::vector<std::uint64_t> DogfightState::agentPaintRevisions(', 'void DogfightState::blit(', 'bool DogfightState::agentUiState(', 'bool DogfightState::agentDispatch(']+['void DogfightState::'+m+'(' for m in ('btnStandoffPress','btnCautiousPress','btnStandardPress','btnAggressivePress','btnDisengagePress')])}
+GENERATED.update({'CompletionOrdinaryBlit.generated.inc':('src/Engine/State.cpp',['void State::blit(']),'CompletionOverlay.generated.inc':('src/Engine/Game.cpp',['bool Game::agentOverlayClear(']),'CompletionStateBase.generated.inc':('src/Engine/State.cpp',['void State::setModal(','void State::think(','bool State::isScreen(','void State::toggleScreen(','void State::hideAll(','void State::showAll(']),'CompletionGameIdentity.generated.inc':('src/Engine/Game.cpp',['bool Game::isState('])})
+def generate_current(directory):
+ for name,(relative,sigs) in GENERATED.items():(directory/name).write_text('\n\n'.join(block((SOURCE/relative).read_text(),sig) for sig in sigs)+'\n')
+ names={'Game':'AgentTableControllerGame','State':'AgentTableControllerState','Screen':'AgentTableControllerScreen','AgentAudioEvents':'AgentTableControllerAudioEvents','AgentController':'AgentTableTestController','AgentFrameCommand':'AgentTableFrameCommand'}
+ def rename(text):return re.sub(r'\b('+'|'.join(names)+r')\b',lambda m:names[m.group()],text)
+ def includes(text,relative):return re.sub(r'#include "([^"\n]+)"',lambda m:'#include "'+str((SOURCE/relative/m[1]).resolve())+'"',text)
+ deps=includes((SOURCE/'tests/agent-control/AgentControllerTestDependencies.h').read_text(),'tests/agent-control');deps=deps.replace('#include <functional>','#include <functional>\n#include "'+str(SOURCE/'src/Engine/Surface.h')+'"');deps=deps.replace('bool agentUiState(Observer::AgentUiState &out)const{if(dirty)return false;out=ui;return true;}','std::function<bool(Observer::AgentUiState&)> project;\n bool agentUiState(Observer::AgentUiState &out)const{if(dirty)return false;if(project)return project(out);out=ui;return true;}')
+ overlay=block((SOURCE/'src/Engine/Game.cpp').read_text(),'bool Game::agentOverlayClear(');deps=deps.replace('bool agentOverlayClear(const Observer::AgentUiState &)const{return true;}','Surface *_cursor=nullptr,*_fpsCounter=nullptr;\n '+overlay.replace('bool Game::agentOverlayClear','bool agentOverlayClear'))
+ (directory/'AgentTableControllerDependencies.generated.h').write_text(rename(deps));(directory/'AgentTableFrameCommand.generated.h').write_text(rename(includes((SOURCE/'src/Observer/AgentFrameCommand.h').read_text(),'src/Observer')))
+ header=(SOURCE/'src/Observer/AgentController.h').read_text().replace('#include "AgentFrameCommand.h"','#include "'+str(directory/'AgentTableFrameCommand.generated.h')+'"');(directory/'AgentTableController.generated.h').write_text(rename(includes(header,'src/Observer')))
+ controller=(SOURCE/'src/Observer/AgentController.cpp').read_text().replace('#include "AgentController.h"','#include "'+str(directory/'AgentTableController.generated.h')+'"')
+ for dep in ['AgentAudioEvents.h','../Engine/Game.h','../Engine/Screen.h','../Engine/State.h']:controller=controller.replace('#include "'+dep+'"','#include "'+str(directory/'AgentTableControllerDependencies.generated.h')+'"')
+ controller=controller.replace('return std::chrono::duration_cast<std::chrono::milliseconds>(\n        std::chrono::steady_clock::now().time_since_epoch()).count();','return agentTestTime;');(directory/'ActualCompletionController.cpp').write_text(rename(includes(controller,'src/Observer')))
+def closure(files):
+ files=set(files);pending=list(files)
+ while pending:
+  rel=pending.pop();p=SOURCE/rel
+  if not p.is_file():raise RuntimeError('missing source '+rel)
+  for inc in re.findall(r'^\s*#include\s+"([^"\n]+)"',p.read_text(errors='replace'),re.M):
+   q=(p.parent/inc).resolve()
+   if q.is_file() and SOURCE in q.parents:
+    n=str(q.relative_to(SOURCE))
+    if n not in files:files.add(n);pending.append(n)
+ return {r:sha(SOURCE/r) for r in sorted(files)}
+
+def main():
+    global SOURCE
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--source', type=Path, default=Path(__file__).resolve().parents[2])
+    ap.add_argument('--sdk', type=Path, help='Optional SDK prefix containing include/SDL and lib/')
+    ap.add_argument('--data', type=Path, required=True, help='Existing runtime data containing common, UFO and TFTD')
+    ap.add_argument('--output', type=Path, required=True, help='New directory, outside the source checkout')
+    ap.add_argument('--sanitize', action='store_true')
+    a = ap.parse_args()
+    SOURCE = a.source.resolve()
+    data, out = a.data.resolve(), a.output.resolve()
+    if out == SOURCE or SOURCE in out.parents:
+        ap.error('--output must be outside the source checkout')
+    if not all((data / d).is_dir() for d in ('common', 'UFO', 'TFTD')):
+        ap.error('--data must contain existing common, UFO and TFTD directories')
+    if not (data / 'common/Language/Font.dat').is_file():
+        ap.error('missing common/Language/Font.dat')
+    out.mkdir(parents=True, exist_ok=False)
+    fixture = 'tests/agent-control/DogfightProvidersTest.cpp'
+    files = {fixture, 'tests/agent-control/AgentOutfittingProviderTestV21.cpp',
+             'tests/agent-control/AgentControllerTestDependencies.h',
+             'src/Observer/AgentController.cpp', 'src/Observer/AgentController.h',
+             'src/Observer/AgentFrameCommand.h', 'src/Basescape/BasescapeState.cpp','src/Geoscape/GeoscapeState.cpp','src/Geoscape/GeoscapeState.h','src/Geoscape/DogfightState.h','src/Interface/ImageButton.h'}
+    files |= {r for r, _ in GENERATED.values()}
+    files |= {f'src/{u}.cpp' for u in UNITS}
+    files |= {f'bin/standard/{g}/{f}' for g in ('xcom1','xcom2') for f in ('Language/en-US.yml','interfaces.rul')}
+    result = {'all_passed': False, 'game_executed': False, 'live_acceptance': False,
+              'full_build_performed': False, 'source_sha256': closure(files),
+              'runner_sha256': sha(__file__), 'steps': [],
+               'limitations': ['Native SDL ImageButton/Text and actual handler bodies; synthetic geometry/palette, not a stock window or live encounter.',
+                              'Game ownership, rendering loop, Craft/Ufo and weapon/range computation are explicit seams.',
+                              'No graphical damage estimate, outcome inference, socket-controller or live encounter qualification.']}
+    assets = {str(p): sha(p) for d in ('common/Language','UFO','TFTD')
+              for p in sorted((data/d).rglob('*')) if p.is_file()}
+    result['runtime_asset_sha256'] = assets
+    def save():
+        (out/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
+    save()
+    generate_current(out)
+    path=out/'Dogfight.generated.inc'
+    path.write_text(path.read_text()+block((SOURCE/'src/Geoscape/GeoscapeState.cpp').read_text(),'DogfightState *GeoscapeState::agentActiveDogfight(')+'\n')
+    current = (SOURCE/'src/Basescape/BasescapeState.cpp').read_text()
+    (out/'BasescapeNamed.generated.inc').write_text('\n'.join(block(current, s) for s in
+        ('bool BasescapeState::agentUiState(', 'bool BasescapeState::agentDispatch(',
+         'void BasescapeState::btnGeoscapeClick(')))
+    test = out/'Test.cpp'
+    test.write_text('#include "'+str(SOURCE/fixture)+'"\n')
+    flags = ['c++','-std=c++11', '-ffunction-sections','-fdata-sections',
+             '-DOPENXCOM_EXPERIMENTAL_AGENT_CONTROL','-D__NO_OPENGL',
+             '-DOPENXCOM_LOADING_PRESENTATION_HELPERS', '-I'+str(out),
+             '-I'+str(SOURCE/'tests/agent-control')]
+    flags += (['-O1','-g','-fsanitize=address,undefined','-fno-sanitize=vptr',
+               '-fno-omit-frame-pointer','-fno-sanitize-recover=all'] if a.sanitize else ['-O2'])
+    libs = []
+    env = dict(os.environ, ASAN_OPTIONS='detect_leaks=0',
+               OPENXCOM_AGENT_TEST_PACKET_DIR=str(out))
+    if a.sdk:
+        sdk = a.sdk.resolve()
+        flags += ['-I'+str(sdk/'include/SDL'), '-I'+str(sdk/'include')]
+        lib = sdk/'lib/x86_64-linux-gnu'
+        if not lib.is_dir():
+            lib = sdk/'lib'
+        libs += ['-L'+str(lib), '-Wl,-rpath,'+str(lib)]
+        env['LD_LIBRARY_PATH'] = str(lib) + (':'+env['LD_LIBRARY_PATH'] if env.get('LD_LIBRARY_PATH') else '')
+    else:
+        flags += shlex.split(subprocess.check_output(['sdl-config','--cflags'], text=True))
+        libs += shlex.split(subprocess.check_output(['sdl-config','--libs'], text=True))
+    def run(name, command, cwd=SOURCE):
+        start = time.monotonic()
+        process = subprocess.run(list(map(str, command)), cwd=cwd, env=env,
+                                 capture_output=True, text=True, timeout=900)
+        (out/(name+'.log')).write_text(process.stdout+process.stderr)
+        result['steps'].append({'name': name, 'command': shlex.join(map(str,command)),
+                                'exit_code': process.returncode, 'seconds': time.monotonic()-start})
+        save()
+        print(name, process.returncode, process.stdout[-2000:], process.stderr[-2000:], flush=True)
+        if process.returncode:
+            raise RuntimeError(name+' failed; see '+str(out/(name+'.log')))
+        if any(s in process.stderr for s in ('runtime error:', 'ERROR: AddressSanitizer', 'UndefinedBehaviorSanitizer')):
+            raise RuntimeError(name+' sanitizer diagnostics')
+    run('syntax', flags+['-fsyntax-only',test])
+    run('compile', flags+[test]+
+        [SOURCE/f'src/{u}.cpp' for u in UNITS]+
+        ['-Wl,--gc-sections']+libs+
+        ['-lSDL','-lSDL_image','-lSDL_gfx','-lSDL_mixer','-lyaml-cpp','-o',out/'test'])
+    run('test', [out/'test',SOURCE], data/'common')
+    if not all(sha(SOURCE/p)==h for p,h in result['source_sha256'].items()):
+        raise RuntimeError('source changed during test')
+    if not all(sha(p)==h for p,h in assets.items()):
+        raise RuntimeError('runtime assets changed during test')
+    if sha(__file__) != result['runner_sha256']:
+        raise RuntimeError('runner changed during test')
+    result['artifact_sha256'] = sha(out/'test')
+    result['all_passed'] = True
+    save()
+
+if __name__ == '__main__':
+    main()
