@@ -96,3 +96,11 @@ production, changes engineers/quantity/sell settings or stops a project. Unknown
 labels/baselines, unexpected titles and uncertain outcomes fail closed.
 Live UFO/TFTD detail-and-cancel routes passed on 2026-10-21 with unchanged known
 public production summaries/rows and final Pause; this is not a hidden-state proof.
+
+Optional `--verify-visible-clock` checks complete, valid public calendar/time samples
+already read during each research wait. It requires a non-regressing revision/time
+and a strictly later observation; it adds no reads or mutations. This proves only
+an observed interval, not research duration or causality. Unknown dates fail closed.
+On 2026-10-21 both stock live routes stopped PARTIAL at their first completion:
+public day/month were null, so clock advancement was not established. Do not infer
+a date from stock defaults or a time-of-day alone; the projection gap remains open.

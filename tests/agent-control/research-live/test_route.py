@@ -1,6 +1,6 @@
 import copy
 import unittest
-from route import Route,RouteError,amount
+from route import Route,RouteError,amount,shown_clock,VisibleClockEvidence
 
 class Fake:
     def __init__(self,actions=('go',),status='dispatched'):
@@ -262,5 +262,49 @@ class ManufactureDetail(unittest.TestCase):
             f=Fake(actions=(action,));r=Route(f.call,None,'xcom1',f.clock,f.sleep,completion_allocation=True,manufacture_detail=True);r.detail_phase='select'
             with self.assertRaisesRegex(RouteError,'out_of_scope'):r.act({'example'},action)
             self.assertEqual(f.sent,[])
+
+class ClockChecks(unittest.TestCase):
+    def state(self,revision=1,**kw):
+        visible=dict(year='2000',month='Feb',day='28th',hour='23',minute='59',second='59');visible.update(kw)
+        return {'state':'geoscape','visible':visible,'revision':revision}
+    def test_leap_day_and_calendar_invalid(self):
+        self.assertIsNotNone(shown_clock(self.state(day='29th')))
+        for fields in ({'year':'1900','day':'29th'},{'day':'30th'},{'month':'Apr','day':'31st'},
+                       {'hour':'24'},{'minute':'60'},{'second':'60'},{'year':'0000'},{'month':'Unknown'}):
+            self.assertIsNone(shown_clock(self.state(**fields)))
+    def test_null_or_nonstring_unknown(self):
+        self.assertIsNone(shown_clock(self.state(hour=None)))
+        self.assertIsNone(shown_clock(self.state(year=2000)))
+    def test_success_forward_leap_transition(self):
+        e=VisibleClockEvidence();e.observe(self.state());e.observe(self.state(revision=2,day='29th',hour='0',minute='0',second='0'))
+        self.assertEqual(e.verified()['later_observed']['time'],'2000-02-29T00:00:00')
+    def test_no_sample_or_noadvance_partial(self):
+        for count in (0,1,3):
+            e=VisibleClockEvidence()
+            for _ in range(count):e.observe(self.state())
+            with self.assertRaisesRegex(RouteError,'unproven'):e.verified()
+    def test_unparseable_only_is_not_evidence(self):
+        e=VisibleClockEvidence();e.observe(self.state(day=None))
+        with self.assertRaises(RouteError):e.verified()
+    def test_backward_clock_rejected(self):
+        e=VisibleClockEvidence();e.observe(self.state())
+        with self.assertRaisesRegex(RouteError,'backward'):e.observe(self.state(revision=2,second='58'))
+    def test_revision_regression_rejected(self):
+        e=VisibleClockEvidence();e.observe(self.state(revision=2))
+        with self.assertRaisesRegex(RouteError,'revision_regressed'):e.observe(self.state(revision=1,day='29th'))
+    def test_invalid_revision_is_not_sample(self):
+        for revision in (None,True,-1,'2'):
+            e=VisibleClockEvidence();e.observe(self.state(revision=revision))
+            with self.assertRaises(RouteError):e.verified()
+    def test_each_project_evidence_resets_and_no_extra_action(self):
+        r=Route(None,lambda *a,**k:None,'xcom1',verify_visible_clock=True);seen=[]
+        def complete(title):
+            seen.append(r.clock_evidence)
+            r.clock_evidence.observe(self.state());r.clock_evidence.observe(self.state(revision=2,day='29th'))
+            r.clock_evidence.verified()
+        r._completion=complete;r.completion('starter');r.completion('pistol')
+        self.assertIsNot(seen[0],seen[1]);self.assertIsNone(r.clock_evidence);self.assertEqual(r.count,0)
+    def test_default_off(self):
+        r=Route(None,None,'xcom1');self.assertFalse(r.verify_visible_clock)
 
 if __name__=='__main__':unittest.main()

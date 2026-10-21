@@ -1,6 +1,7 @@
 """Bounded ordinary research smoke; only fresh, offered public controls.
 Route derived from research_route_v22.py; intentionally not its full acceptance.
 """
+import datetime
 import copy
 import re
 import time
@@ -27,8 +28,42 @@ def projection(state):
         visible = {k:visible.get(k) for k in ('buttons','speed','speeds')}
     return state.get('state'),visible,state.get('actions')
 
+MONTHS={name:i+1 for i,name in enumerate(('Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'))}
+
+def shown_clock(state):
+    if state.get('state')!='geoscape':return None
+    v=state.get('visible',{})
+    values=[v.get(k) for k in ('year','month','day','hour','minute','second')]
+    if not all(isinstance(x,str) for x in values):return None
+    year,month,day,hour,minute,second=values
+    if not re.fullmatch(r'[0-9]{4}',year) or month not in MONTHS or not re.fullmatch(r'[0-9]{1,2}(?:st|nd|rd|th)?',day):return None
+    if any(not re.fullmatch(r'[0-9]{1,2}',x) for x in (hour,minute,second)):return None
+    try:return datetime.datetime(int(year),MONTHS[month],int(re.match(r'[0-9]+',day)[0]),int(hour),int(minute),int(second))
+    except ValueError:return None
+
+class VisibleClockEvidence:
+    def __init__(self):
+        self.first=None;self.last=None;self.advanced=None;self.unknown=0
+    def observe(self,state):
+        if state.get('state')!='geoscape':return
+        value=shown_clock(state);revision=state.get('revision')
+        if value is None or type(revision) is not int or revision<0:
+            self.unknown+=1;return
+        point={'time':value.isoformat(),'revision':revision}
+        if self.last is not None:
+            require(point['revision']>=self.last['revision'],'visible_clock_revision_regressed')
+            require(point['time']>=self.last['time'],'visible_clock_went_backward')
+        if self.first is None:self.first=point
+        elif point['time']>self.first['time']:self.advanced=point
+        self.last=point
+    def verified(self):
+        require(self.first is not None and self.advanced is not None,'visible_clock_advancement_unproven')
+        return dict(first_observed=self.first,later_observed=self.advanced,unparseable_samples=self.unknown,
+                    interval_is_observed_only=True,research_duration_claimed=False,
+                    allocation_baseline_claimed=False,completion_causality_claimed=False)
+
 class Route:
-    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False,manufacture_detail=False):
+    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False,manufacture_detail=False,verify_visible_clock=False):
         self.call,self.record,self.master,self.clock,self.sleep=call,record,master,clock,sleep
         self.count=0;self.started=clock();self.state=None
         self.allow_unknown_selection=allow_unknown_selection;self.unknown_selected=set()
@@ -36,12 +71,14 @@ class Route:
         require(not manufacture_detail or completion_allocation,'manufacture_detail_requires_completion_allocation')
         self.completion_allocation=completion_allocation;self.research_baseline=None;self.base_name=None
         self.manufacture_detail=manufacture_detail;self.detail_phase=None
+        self.verify_visible_clock=verify_visible_clock;self.clock_evidence=None
 
     def read(self):
         require(self.clock()-self.started<600,'overall_route_timeout')
         state=self.call('read_ui_state',{})
         require(isinstance(state,dict),'invalid_state')
         self.state=state
+        if self.clock_evidence is not None:self.clock_evidence.observe(state)
         return state
 
     def ready(self,allowed):
@@ -149,12 +186,22 @@ class Route:
         self.act({'new_research'},'close_research_list',after={'research'})
 
     def completion(self,title):
+        self.clock_evidence=VisibleClockEvidence() if self.verify_visible_clock else None
+        try:return self._completion(title)
+        finally:self.clock_evidence=None
+
+    def _completion(self,title):
         deadline=self.clock()+180
         while self.clock()<deadline:
             state=self.read();kind=state.get('state')
             if kind=='research_complete':
                 state=self.ready({'research_complete'})
                 require(state['visible'].get('topic')==title,'wrong_research_completion')
+                if self.clock_evidence is not None:
+                    self.record('visible_clock_observations',project=title,first=self.clock_evidence.first,
+                                last=self.clock_evidence.last,unparseable_samples=self.clock_evidence.unknown,
+                                observed_interval_only=True)
+                    self.record('visible_clock_verified',project=title,**self.clock_evidence.verified())
                 self.record('completion',topic=title,visible=state['visible']);return
             if kind in INCIDENTS:self.act({kind},INCIDENTS[kind])
             elif kind=='geoscape':
