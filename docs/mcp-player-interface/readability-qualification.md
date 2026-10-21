@@ -1,5 +1,9 @@
 # Readability and allocation checkpoint (2026-10-21)
 
+Historical checkpoint: the subsequent [article UI-text contract](article-ui-text-contract.md)
+separates runtime article text delivery from these retained pixel diagnostics.
+The visual game fixes remain independent of the MCP text contract.
+
 The UI change is deliberately narrow: Ufopaedia body text opts into one extra
 pixel between rows, with matching layout height and wheel step. Other Text
 widgets keep their default spacing. Calendar rows have full glyph-height

@@ -128,6 +128,29 @@ void stockArticleOverlap(Font &big,Font &small,Language &lang,const std::string 
  }
  check(collisions>0&&partial==(underwater?7u:2u)&&complete==1&&lines.back().complete,
        "stock article preserves mixed partial lines and complete final line");
+ // Runtime contract: same overlapping stock layout remains available UI text.
+ text.agentEnableViewportLines();background.blit(&canvas);text.blit(&canvas);
+ std::vector<Text::AgentVisibleLine> viewport;
+ check(text.agentViewportLines(&canvas,viewport),"runtime active viewport available");
+ check(viewport.size()==lines.size(),"runtime viewport follows actual wrap layout");
+ for(size_t i=0;i<viewport.size();++i) {
+  check(viewport[i].complete&&viewport[i].text==lines[i].text,"overlap does not suppress active UI text");
+  check(viewport[i].pixels.empty(),"runtime viewport performs no glyph pixel capture");
+ }
+ text.setVisible(false);check(!text.agentViewportLines(&canvas,viewport),"hidden article body unavailable");
+ text.setVisible(true);check(!text.agentViewportLines(&canvas,viewport),"visibility mutation needs fresh paint");
+ background.blit(&canvas);text.blit(&canvas);check(text.agentViewportLines(&canvas,viewport),"fresh paint restores viewport");
+ text.setHeight(16);text.setText("FIRST\nSECOND\nTHIRD\nFOURTH");
+ check(!text.agentViewportLines(&canvas,viewport),"new text invalidates old viewport");
+ background.blit(&canvas);text.blit(&canvas);check(text.agentViewportLines(&canvas,viewport),"short viewport available");
+ check(viewport.size()==2&&viewport[0].text=="FIRST"&&viewport[1].text=="SECOND","offscreen lines not exposed");
+ text.scrollLine(true);check(!text.agentViewportLines(&canvas,viewport),"scroll invalidates old viewport");
+ background.blit(&canvas);text.blit(&canvas);check(text.agentViewportLines(&canvas,viewport),"scrolled viewport available");
+ check(viewport.size()==2&&viewport[0].text=="SECOND"&&viewport[1].text=="THIRD","scroll maps actual visible layout only");
+ // Resume explicit diagnostic mode to retain the historic raster regression.
+ text._agentViewportMode=false;text.setHeight(underwater?136:56);
+ text.setText(lang.getString(underwater?"STR_GAUSS_PISTOL_UFOPEDIA":"STR_LASER_PISTOL_UFOPEDIA"));
+ text._scrollY=0;background.blit(&canvas);text.blit(&canvas);lines=shown(text,canvas);
  // Opt-in UI fix changes actual row positions; the same conservative observer
  // must now prove every line without weakening the negative control above.
  const auto legacyHeight=text.getTextHeight();

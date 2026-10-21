@@ -916,6 +916,12 @@ void Text::agentEnableVisibleLines()
     agentPresentationMutation();
     _redraw = true;
 }
+void Text::agentEnableViewportLines()
+{
+    agentEnableVisibleLines();
+    _agentViewportMode = true;
+    _redraw = true;
+}
 void Text::agentBeginVisibleLines()
 {
     if (!_agentVisibleLinesEnabled) return;
@@ -925,6 +931,12 @@ void Text::agentBeginVisibleLines()
     _agentLineCandidate = _agentLinePendingSpace = false;
     _agentLinesDrawing = true;
     _agentLineDrawRevision = agentPresentationRevision();
+    if (_agentViewportMode)
+    {
+        _agentLinesHealthy = _agentLineDrawRevision && _font && _lang && !_crop.w && !_crop.h &&
+            getWidth()>0 && getHeight()>0 && getWidth()<=640 && getHeight()<=400 && Observer::agentPaintHealthy();
+        return; // no glyph ownership, palette snapshots, or raster reads
+    }
     _agentLinesHealthy = _agentLineDrawRevision && _font && _lang &&
         agentArticlePixels(_surface) && !_crop.w && !_crop.h && Observer::agentPaintHealthy();
     _agentLineOwners.clear();
@@ -935,6 +947,7 @@ void Text::agentBeginVisibleLines()
 void Text::agentStartVisibleLine(int y, int height)
 {
     _agentCurrentLine = AgentVisibleLine(); _agentLinePendingSpace = false;
+    _agentCurrentLine.layout = SDL_Rect{0, Sint16(std::max(0,y)), Uint16(_agentViewportMode?0:getWidth()), Uint16(std::max(0,std::min(getHeight(),y+height)-std::max(0,y)))};
     _agentLineCandidate = _agentLinesHealthy && height > 0 && y < getHeight() && y+height > 0;
     if (_agentLineCandidate && (y < 0 || y+height > getHeight())) _agentCurrentLine.complete = false;
 }
@@ -942,12 +955,22 @@ void Text::agentCaptureVisibleGlyph(UCode code, Font *font, Surface *glyph, int 
 {
     if (!_agentLinesHealthy || !_agentLineCandidate) return;
     AgentVisibleLine &line = _agentCurrentLine;
+    if (_agentViewportMode && !font->agentHasGlyph(code)) code = '?';
     if (code < 32 || code == 127 || !font->agentHasGlyph(code)) line.complete = false;
     if (_agentLinePendingSpace && !line.text.empty() && line.text.size() <= 1024) line.text += ' ';
     _agentLinePendingSpace = false;
     if (line.text.size() <= 1024 && code >= 32 && code != 127)
         line.text += Unicode::convUtf32ToUtf8(UString(1, code));
     if (line.text.size() > 1024) line.complete = false;
+    if (_agentViewportMode)
+    {
+        const int right=x+font->getCharSize(code).w;
+        if (x<0 || right>getWidth()) line.complete=false;
+        if (!line.glyphs) {line.layout.x=Sint16(std::max(0,x));line.layout.w=Uint16(std::max(0,std::min(getWidth(),right)-line.layout.x));}
+        else {const int left=std::min(int(line.layout.x),std::max(0,x));const int end=std::max(int(line.layout.x+line.layout.w),std::min(getWidth(),right));line.layout.x=Sint16(left);line.layout.w=Uint16(std::max(0,end-left));}
+        ++line.glyphs;
+        return; // UI layout text is independent of glyph readability
+    }
     const unsigned glyphId = line.glyphs++;
     const SDL_Rect crop = *glyph->getCrop();
     SDL_Surface *source = glyph->getSurface();
@@ -985,6 +1008,16 @@ void Text::agentCaptureVisibleGlyph(UCode code, Font *font, Surface *glyph, int 
 void Text::agentFinishVisibleLine()
 {
     if (!_agentLinesHealthy || !_agentLineCandidate) return;
+    if (_agentViewportMode)
+    {
+        if (!_agentCurrentLine.text.empty())
+        {
+            if (_agentVisibleLines.size()>=32) { _agentLinesHealthy=false; return; }
+            _agentVisibleLines.push_back(std::move(_agentCurrentLine));
+        }
+        _agentLineCandidate=false;
+        return;
+    }
     if (!_agentCurrentLine.pixels.empty())
     {
         if (_agentVisibleLines.size() >= 32) { _agentLinesHealthy=false; return; }
@@ -1015,6 +1048,12 @@ void Text::agentFinishVisibleLines()
 {
     _agentLinesDrawing=false;
     _agentLineOwners.clear();
+    if (_agentViewportMode)
+    {
+        if (_agentLineDrawRevision!=agentPresentationRevision() || !Observer::agentPaintHealthy()) _agentLinesHealthy=false;
+        if (!_agentLinesHealthy) _agentVisibleLines.clear();
+        return;
+    }
     if (!_agentLinesHealthy || _agentLineDrawRevision!=agentPresentationRevision() ||
         !agentArticlePixels(_surface) || _crop.w || _crop.h ||
         !agentArticleColors(_agentLinePalette,_surface->format->palette->colors) || !Observer::agentPaintHealthy())
@@ -1037,6 +1076,13 @@ bool Text::agentVisibleLineSource() const
 void Text::blit(Surface *surface)
 {
     if (!_agentVisibleLinesEnabled) { Surface::blit(surface); return; }
+    if (_agentViewportMode)
+    {
+        Surface::blit(surface);
+        if (_agentLinesHealthy && !_agentLinesDrawing && !_redraw && agentPresentationPaintedTo(surface))
+            _agentLineDrawRevision=agentPresentationRevision();
+        return;
+    }
     _agentLineBlitValid=false;_agentLineDestination=nullptr;
     if (_visible && !_hidden && _redraw) draw();
     // Placement/visibility/crop changes do not redraw the ordinary bitmap.
@@ -1069,10 +1115,21 @@ void Text::blit(Surface *surface)
         !agentArticleColors(_agentLinePalette,target->format->palette->colors)) return;
     _agentLineDestination=surface;_agentLineBlitRevision=agentPresentationRevision();_agentLineBlitValid=true;
 }
+bool Text::agentViewportLines(const Surface *destination, std::vector<AgentVisibleLine> &lines) const
+{
+    lines.clear();
+    if (!_agentViewportMode || !_agentVisibleLinesEnabled || !_agentLinesHealthy || _agentLinesDrawing || _redraw ||
+        !_agentLineDrawRevision || _agentLineDrawRevision!=agentPresentationRevision() ||
+        !agentPresentationPaintedTo(destination) || _crop.w || _crop.h || !Observer::agentPaintHealthy()) return false;
+    const SDL_Surface *target=destination->getSurface();
+    if (!target || getX()<0 || getY()<0 || getX()+getWidth()>target->w || getY()+getHeight()>target->h) return false;
+    lines=_agentVisibleLines;
+    return true;
+}
 bool Text::agentVisibleLines(const Surface *destination,std::vector<AgentVisibleLine> &lines) const
 {
     lines.clear();
-    if (!_agentLineBlitValid || destination!=_agentLineDestination ||
+    if (_agentViewportMode || !_agentLineBlitValid || destination!=_agentLineDestination ||
         _agentLineBlitRevision!=agentPresentationRevision() || !agentVisibleLineSource()) return false;
     SDL_Surface *target=destination?destination->getSurface():nullptr;
     if (!agentArticlePixels(target, true) || getX()<0 || getY()<0 || getX()+getWidth()>target->w || getY()+getHeight()>target->h ||

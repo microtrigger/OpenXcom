@@ -148,7 +148,7 @@ void ArticleState::agentRegisterText(Text *title,Text *body)
 {
     _agentTitle=title;_agentBody=body;
     if (title) title->agentTrackPresentation();
-    if (body) body->agentEnableVisibleLines();
+    if (body) body->agentEnableViewportLines();
     _btnOk->agentTrackPresentation();_btnPrev->agentTrackPresentation();_btnNext->agentTrackPresentation();
 }
 void ArticleState::agentRegisterTransparentLayer(Surface *surface)
@@ -274,49 +274,32 @@ bool ArticleState::agentUiState(Observer::AgentUiState &out) const
     std::vector<Text::AgentVisibleLine> lines;
     bool scroll=false;
     const AgentUiRect control={_agentBody->getX(),_agentBody->getY(),_agentBody->getWidth(),_agentBody->getHeight()};
-    if (_agentBody->agentVisibleLineControl(logical) && uncovered(control,_agentBody))
+    auto beforeBodyRegions=out.regions.size();
+    if (_agentBody->agentViewportLines(logical,lines))
     {
-        const auto before=out.regions.size();out.regions.push_back(control);
-        if (agentRegionsDisjoint(out)) scroll=true;else out.regions.resize(before);
-    }
-    const auto beforeBodyRegions=out.regions.size();
-    if (_agentBody->agentVisibleLines(logical,lines))
-    {
-        std::vector<unsigned char> ink(_agentBody->getWidth()*_agentBody->getHeight(),0);
+        if (_agentBody->agentScrollable() && !lines.empty() && uncovered(control,_agentBody))
+        {
+            out.regions.push_back(control);
+            if (agentRegionsDisjoint(out)) scroll=true;else out.regions.resize(beforeBodyRegions);
+        }
+        // Body-text fallback must retain an independently certified scroll control.
+        beforeBodyRegions=out.regions.size();
         size_t total=0,count=0;bool bounded=true;body="[";
         for (const auto &line:lines)
         {
-            bool complete=line.complete,visible=false;
-            std::vector<Text::AgentVisiblePixel> survivors;
-            for (const auto &pixel:line.pixels)
-            {
-                const AgentUiRect r={_agentBody->getX()+pixel.x,_agentBody->getY()+pixel.y,1,1};
-                if (!uncovered(r,_agentBody)) {complete=false;continue;}
-                if (pixel.contributed) visible=true;
-                survivors.push_back(pixel);
-            }
-            if (!visible) continue;
+            const AgentUiRect r={_agentBody->getX()+line.layout.x,_agentBody->getY()+line.layout.y,line.layout.w,line.layout.h};
             if (++count>32) {bounded=false;break;}
             if (body.size()>1) body+=",";
-            if (complete && !line.text.empty() && line.text.size()<=1024)
-            { total+=line.text.size();body+=agentJsonString(line.text); }
+            if (line.complete && !line.text.empty() && line.text.size()<=1024 && uncovered(r,_agentBody))
+            {
+                total+=line.text.size();body+=agentJsonString(line.text);
+                if (!scroll) out.regions.push_back(r);
+            }
             else body+="null";
             if (total>8192 || work>2097152) {bounded=false;break;}
-            if (!scroll) for (const auto &pixel:survivors) ink[pixel.y*_agentBody->getWidth()+pixel.x]=1;
         }
         body+="]";
-        if (bounded && !scroll)
-        {
-            for (int y=0;y<_agentBody->getHeight();++y)
-            for (int x=0;x<_agentBody->getWidth();)
-            {
-                if (!ink[y*_agentBody->getWidth()+x]) {++x;continue;}
-                const int first=x;while (x<_agentBody->getWidth() && ink[y*_agentBody->getWidth()+x]) ++x;
-                out.regions.push_back({_agentBody->getX()+first,_agentBody->getY()+y,x-first,1});
-            }
-            bounded=agentRegionsDisjoint(out);
-        }
-        if (!bounded) {body="null";out.regions.resize(beforeBodyRegions);}
+        if (!bounded || !agentRegionsDisjoint(out)) {body="null";out.regions.resize(beforeBodyRegions);}
     }
     out.context.push_back(scroll?1:0);
     if (scroll) out.actions.emplace_back("scroll_article_text","Scroll article text","visible_control_semantics","scroll_direction");

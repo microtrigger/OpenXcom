@@ -48,6 +48,7 @@ public:
     struct AgentVisibleLine
     {
         std::string text;
+        SDL_Rect layout = {}; // viewport line box, not glyph ink
         bool complete = true;
         unsigned glyphs = 0;
         std::vector<AgentVisiblePixel> pixels;
@@ -55,6 +56,7 @@ public:
 #endif
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentViewportMode = false; // runtime UI text; pixel proof remains diagnostic opt-in
     bool _agentVisibleLinesEnabled = false, _agentLinesHealthy = false, _agentLinesDrawing = false;
     bool _agentLinePendingSpace = false, _agentLineCandidate = false, _agentLineBlitValid = false;
     std::uint64_t _agentLineDrawRevision = 0, _agentLineBlitRevision = 0;
@@ -109,7 +111,9 @@ private:
 	int getLineX(int line) const;
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-    void agentEnableVisibleLines();
+    void agentEnableVisibleLines(); // diagnostic raster proof only
+    void agentEnableViewportLines();
+    bool agentViewportLines(const Surface *destination, std::vector<AgentVisibleLine> &lines) const;
     bool agentVisibleLines(const Surface *destination, std::vector<AgentVisibleLine> &lines) const;
     bool agentVisibleLineControl(const Surface *destination) const;
     bool agentScrollable() const { return _scroll; }

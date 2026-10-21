@@ -10,6 +10,7 @@
 #include "../../src/Engine/Screen.h"
 #include "../../src/Ufopaedia/ArticleState.h"
 #include "../../src/Ufopaedia/Ufopaedia.h"
+#include "../../src/Interface/Text.h"
 #undef protected
 #undef private
 #define main retainedOutfittingFixtureMain
@@ -216,12 +217,21 @@ void articleTests(Font&bigFont,Font&smallFont,Language&lang,const std::string&so
  }
  // Specific stock completion reports required by the planned public route.
  for(const std::string id:master=="xcom1"?std::vector<std::string>{"STR_LASER_PISTOL"}:std::vector<std::string>{"STR_GAUSS_PISTOL"}){
- auto*def=mod->getUfopaediaArticle(id);check(def,"declared stock report definition");auto*s=Ufopaedia::createArticleState(def);game->pushState(s);s->blit();TableChannel c(master+"-completion-report-"+id);wireArticle(c);auto shown=record(c,master,"ufopaedia_article","stock_completion_report_"+id);check(!shown["visible"]["title"].IsNull(),"planned report complete shown title");AgentUiState ui;check(s->agentUiState(ui),"planned report provider");if(ui.offers("scroll_article_text")){articleScrollPair(c,master,"report_scroll");}articleExecute(c,"close_ufopaedia_article");
+ auto*def=mod->getUfopaediaArticle(id);check(def,"declared stock report definition");auto*s=Ufopaedia::createArticleState(def);game->pushState(s);s->blit();TableChannel c(master+"-completion-report-"+id);wireArticle(c);auto shown=record(c,master,"ufopaedia_article","stock_completion_report_"+id);check(!shown["visible"]["title"].IsNull(),"planned report complete shown title");s->_agentBody->setExtraLineSpacing(0);s->blit();shown=record(c,master,"ufopaedia_article","stock_overlap_runtime_text");check(shown["visible"]["body_lines"].IsSequence()&&shown["visible"]["body_lines"].size()>1,"legacy overlapping article exposes viewport text");std::cout<<"OVERLAP "<<master<<" "<<YAML::Dump(shown["visible"])<<std::endl;for(const auto &line:shown["visible"]["body_lines"])check(!line.IsNull(),"overlap readability does not gate runtime text");std::vector<Text::AgentVisibleLine> layout;check(s->_agentBody->agentViewportLines(&canvas,layout),"active article uses viewport mode");for(const auto &line:layout)check(line.pixels.empty(),"no runtime per-glyph pixel proof");AgentUiState ui;check(s->agentUiState(ui),"planned report provider");if(ui.offers("scroll_article_text")){articleScrollPair(c,master,"report_scroll");}articleExecute(c,"close_ufopaedia_article");
  }
  // Transparent recognized-owned-layer proof: synthetic text content uses the
  // actual Text article; only the deliberately registered test layer is synthetic.
  {auto*def=available.front();auto*s=Ufopaedia::createArticleState(def);game->pushState(s);Text*body=s->_agentBody;body->setText("Visible line");body->setWidth(180);body->setHeight(30);body->setX(10);body->setY(150);body->setColor(2);body->setScrollable(true);auto*layer=new Surface(180,30,10,150);layer->setPalette(palette);layer->clear();s->add(layer);s->agentRegisterTransparentLayer(layer);s->blit();TableChannel c(master+"-article-owned-layer");wireArticle(c);auto shown=record(c,master,"ufopaedia_article","transparent_owned_layer");check(shown["visible"]["body_lines"].IsSequence(),"transparent owned layer retains body scope");
- std::vector<Text::AgentVisibleLine> lines;check(body->agentVisibleLines(&canvas,lines)&&!lines.empty()&&!lines[0].pixels.empty(),"actual body glyph for overlay witness");const auto pixel=lines[0].pixels[0];layer->setPixel(pixel.x,pixel.y,40);s->blit();shown=record(c,master,"ufopaedia_article","opaque_owned_pixel");check(shown["visible"]["body_lines"].IsSequence()&&shown["visible"]["body_lines"][0].IsNull(),"one later opaque pixel withholds full line");layer->clear();layer->setX(11);layer->setX(10);record(c,master,"ufopaedia_article","owned_layer_geometry_aba_no_paint","unsupported");s->blit();record(c,master,"ufopaedia_article","owned_layer_fresh_paint");
+ std::vector<Text::AgentVisibleLine> lines;check(body->agentViewportLines(&canvas,lines)&&!lines.empty()&&lines[0].pixels.empty(),"actual body viewport without runtime glyph pixels");layer->setPixel(lines[0].layout.x,lines[0].layout.y,40);s->blit();shown=record(c,master,"ufopaedia_article","opaque_owned_pixel");check(shown["visible"]["body_lines"].IsSequence()&&shown["visible"]["body_lines"][0].IsNull(),"one later opaque pixel withholds full line");layer->clear();layer->setX(11);layer->setX(10);record(c,master,"ufopaedia_article","owned_layer_geometry_aba_no_paint","unsupported");s->blit();record(c,master,"ufopaedia_article","owned_layer_fresh_paint");
+ // Explicit oversized captured-layout seam: text rollback must not orphan scroll authority.
+ const auto retainedLines=body->_agentVisibleLines;
+ body->_agentVisibleLines.assign(32,retainedLines.front());
+ for(auto &line:body->_agentVisibleLines)line.text=std::string(300,'A');
+ AgentUiState oversized;check(s->agentUiState(oversized),"oversized body retains bounded controls");
+ check(YAML::Load(oversized.visible)["body_lines"].IsNull(),"oversized body rolls back text");
+ check(oversized.offers("scroll_article_text"),"independent scroll authority retained");
+ bool scrollRegion=false;for(const auto&r:oversized.regions)if(r.x==body->getX()&&r.y==body->getY()&&r.width==body->getWidth()&&r.height==body->getHeight())scrollRegion=true;
+ check(scrollRegion,"text fallback retains scroll control region");body->_agentVisibleLines=retainedLines;
  const pid_t child=fork();check(child>=0,"article failed paint child");if(!child){agentObservePaint(-1);AgentUiState fail;if(s->agentUiState(fail))_exit(2);s->blit();if(s->agentUiState(fail))_exit(3);_exit(0);}int status=0;check(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0,"failed article paint remains fail closed");articleExecute(c,"close_ufopaedia_article");}
  reportStackTests(master);
  for(auto*s:retired)delete s;retired.clear();clearResources();delete mod;mod=nullptr;game=nullptr;screen=nullptr;logical=nullptr;

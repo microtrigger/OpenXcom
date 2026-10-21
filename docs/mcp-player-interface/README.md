@@ -12,8 +12,9 @@ stock-fixture Basescape return route and fresh-campaign research completion,
 article navigation, staff release, manufacture detail/Cancel and retained-history
 paging. These are bounded routes, not exhaustive gameplay coverage or a CI claim.
 Native popup/report-stack tests retain explicit ownership/resource/availability
-seams; retained-history checks do not prove whole-route retention. Stock article
-lines and calendar fields may remain unknown under strict pixel-ownership checks.
+seams; retained-history checks do not prove whole-route retention. The qualification above predates the [active article UI-text contract](article-ui-text-contract.md).
+Article body delivery now follows the open viewport layout rather than per-pixel
+readability proof; calendar fields retain their existing contract.
 Build the native game and Python adapter from the **same branch**.
 
 ## What the agent gets

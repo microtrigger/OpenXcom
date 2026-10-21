@@ -261,6 +261,9 @@ namespace OpenXcom
 	
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
         agentRegisterText(_txtTitle, _txtInfo);
+        // Owned ammo artwork may have an empty allocation over the body viewport.
+        // Check transparency there without reconstructing article glyph pixels.
+        for (Surface *image : _imageAmmo) agentRegisterTransparentLayer(image);
 #endif
 	}
 
