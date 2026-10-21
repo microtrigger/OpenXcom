@@ -186,6 +186,9 @@ queries, not a general retry strategy. For events, use the epoch from UI state a
   Closing MCP stdin/ending the connection does not terminate the game. Close the
   old game normally before explicitly starting another session.
 
+The [readability/allocation checkpoint](readability-qualification.md) records the
+new narrowly scoped UI and allocation checks and their limits.
+
 The next approved gameplay qualification slices and evidence boundaries are in
 [the gameplay plan](gameplay-plan.md). Planned coverage is not completed coverage.
 
