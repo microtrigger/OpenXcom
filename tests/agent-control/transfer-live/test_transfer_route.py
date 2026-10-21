@@ -13,7 +13,7 @@ class Fake:
     def sleep(self,n):self.time+=n
     def state(self):
         s=self.screen;b=self.base
-        v={'base_name':self.names[b],'base_slots':[{'handle':'b0','selected':b==0},{'handle':'b1','selected':b==1}]}
+        v={'base_name':self.names[b],'base_slots':[{'handle':'b'+str(i),'selected':b==i} for i in range(8)]}
         acts=[]
         if s=='geoscape':acts=['open_bases','open_pause_menu']
         elif s=='basescape':acts=['select_base','open_base_info','open_transfer','return_geoscape']
@@ -86,5 +86,30 @@ class Transfer(unittest.TestCase):
     def test_ambiguous_transfer_item_rejected(self):
         r=Fake().route()
         with self.assertRaisesRegex(RouteError,'unique_transfer_item'):r.transfer_row({'visible':{'rows':[{'cells':['Pistol']},{'cells':['Pistol']}]}})
+
+class SetupSlots(unittest.TestCase):
+    def test_eight_rendered_slots_two_named_bases(self):
+        f=Fake();f.screen='basescape';r=f.route()
+        self.assertEqual(r.select_named_base('NEWBASE')['visible']['base_name'],'NEWBASE')
+        self.assertEqual(f.sent[-1]['args'],{'target':'b1'})
+    def test_wrong_second_name_rejected(self):
+        f=Fake();f.screen='basescape';f.names[1]='Unexpected'
+        with self.assertRaisesRegex(RouteError,'name_wrong'):f.route().select_named_base('NEWBASE')
+    def test_unselected_empty_slot_not_accepted(self):
+        f=Fake();f.screen='basescape';original=f.state
+        def state():
+            s=original()
+            if f.base==1:
+                s['visible']['base_slots'][1]['selected']=False
+            return s
+        f.state=state
+        with self.assertRaisesRegex(RouteError,'not_selected'):f.route().select_named_base('NEWBASE')
+    def test_duplicate_slot_rejected_before_dispatch(self):
+        f=Fake();f.screen='basescape';original=f.state
+        def state():
+            s=original();s['visible']['base_slots'].append({'handle':'b1','selected':False});return s
+        f.state=state
+        with self.assertRaisesRegex(RouteError,'duplicate'):f.route().select_named_base('NEWBASE')
+        self.assertEqual(f.sent,[])
 
 if __name__=='__main__':unittest.main()

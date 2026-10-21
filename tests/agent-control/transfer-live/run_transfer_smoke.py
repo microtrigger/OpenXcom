@@ -39,7 +39,7 @@ def main():
     files=list((source/'src').rglob('*.cpp'))+list((source/'src').rglob('*.h'))+list(scripts.glob('*.py'))+list(Path(__file__).resolve().parent.glob('*.py'))+list((Path(__file__).resolve().parents[1]/'research-live').glob('*.py'))
     hashes={str(f):sha(f) for f in files}
     result=dict(started=utc(),all_passed=False,master=a.master,scope='operator-created two-base zero-storage refusal/cancel only',
-                source_base=a.source_base,destination_base=a.destination_base,item=a.item,full_overfull_tested=False,keyboard_tested=False,game_left_open=True,
+                source_base=a.source_base,destination_base=a.destination_base,operator_source_slot='b0',operator_destination_slot='b1',item=a.item,full_overfull_tested=False,keyboard_tested=False,game_left_open=True,
                 dispatch_budget=128,source_runner_sha256=hashes,binary_sha256=sha(binary),steps=[])
     def save():(out/'RESULT.json').write_text(json.dumps(result,indent=2)+'\n')
     def record(kind,**kw):result['steps'].append(dict(time=utc(),kind=kind,**kw));save()
@@ -56,7 +56,7 @@ def main():
     try:
         process=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env=env)
         rpc=Rpc(process)
-        (out/'ready.json').write_text(json.dumps(dict(time=utc(),launcher_pid=process.pid,game_ready=False,instruction='Using ordinary visible UI, create two bases with requested exact names; destination has no stores. Return to Geoscape, focus this game, then create marker. No save editing.'))+'\n')
+        (out/'ready.json').write_text(json.dumps(dict(time=utc(),launcher_pid=process.pid,game_ready=False,instruction='Using ordinary visible UI, create source FIRST (b0) and destination SECOND (b1) with requested exact names; destination has no stores. Return to Geoscape, focus this game, then create marker. No save editing.'))+'\n')
         wait_focus(focus,a.focus_timeout);record('operator_focus_marker');rpc.initialize()
         TransferRoute(rpc.call,record,a.master,source_name=a.source_base,destination_name=a.destination_base,item=a.item).run()
         result['all_passed']=True

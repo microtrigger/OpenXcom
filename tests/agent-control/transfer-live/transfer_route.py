@@ -12,17 +12,22 @@ class TransferRoute(Route):
         self.source_name=source_name;self.destination_name=destination_name;self.item=item
 
     def select_named_base(self,name):
-        state=self.ready({'basescape'})
-        require(len(state['visible'].get('base_slots',[]))==2,'exactly_two_visible_bases_required')
-        if state['visible'].get('base_name')==name:return state
-        for index in range(2):
-            def target(s):
-                slots=s['visible'].get('base_slots',[])
-                require(len(slots)==2,'base_slots_changed')
-                return {'target':slots[index]['handle']}
-            state=self.act({'basescape'},'select_base',target,{'basescape'})
-            if state['visible'].get('base_name')==name:return state
-        raise RouteError('named_base_not_observed:'+name)
+        # Operator setup creates the source first (b0), destination second (b1).
+        # Eight rendered mini-base slots do NOT establish eight existing bases.
+        require(name in (self.source_name,self.destination_name),'unknown_setup_base_name')
+        expected='b0' if name==self.source_name else 'b1'
+        def target(state):
+            slots=state['visible'].get('base_slots',[])
+            require(isinstance(slots,list),'base_slots_unknown')
+            handles=[slot.get('handle') for slot in slots]
+            require(len(handles)==len(set(handles)) and handles.count(expected)==1,'setup_slot_missing_or_duplicate')
+            return {'target':expected}
+        state=self.act({'basescape'},'select_base',target,{'basescape'})
+        selected=[slot.get('handle') for slot in state['visible'].get('base_slots',[]) if slot.get('selected') is True]
+        require(selected==[expected],'setup_slot_not_selected')
+        require(state['visible'].get('base_name')==name,'setup_slot_name_wrong_or_unknown')
+        self.record('setup_base_verified',slot=expected,base_name=name,rendered_slot_count_is_not_base_count=True)
+        return state
 
     def stores_item(self):
         previous=None;unknown=False;found=None
