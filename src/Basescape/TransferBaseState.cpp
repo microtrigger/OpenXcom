@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "TransferBaseState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#endif
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -138,5 +141,89 @@ void TransferBaseState::lstBasesClick(Action *)
 {
 	_game->pushState(new TransferItemsState(_base, _bases[_lstBases->getSelectedRow()]));
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool TransferBaseState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> TransferBaseState::agentPaintRevisions() const
+{
+    return {_txtTitle->agentTextRevision(), _txtFunds->agentTextRevision(), _txtName->agentTextRevision(), _txtArea->agentTextRevision(), _btnCancel->agentLabelRevision(), _lstBases->agentListRevision()};
+}
+
+void TransferBaseState::blit()
+{
+    _agentDestinationPaintFull = false;
+    _agentStoredPaintRevisions.clear();
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool TransferBaseState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<TransferBaseState *>(this)) || _modal || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState(); out.actor = _base;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto include = [&](const Surface *widget) -> bool {
+        if (!agentWidgetUncovered(widget,painted)) return false;
+        AgentUiState part; agentIncludeWidget(part,widget);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before=out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value=agentTextJson(widget);
+        return value!="null" && (widget->getText().empty() || include(widget)) ? value : "null";
+    };
+    std::string buttons="[";
+    const auto button = [&](TextButton *widget,const char *id,const char *action) {
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const auto label=agentButtonLabel(widget);
+        if (label.empty() || label.size()>1024 || !include(widget)) return;
+        if (buttons.size()>1) buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
+        out.actions.emplace_back(action,label,"visible_text");
+    };
+    out.screen="transfer_destination";
+    out.widgets.emplace_back(_lstBases,_lstBases->agentListRevision());
+    const auto title=text(_txtTitle), funds=text(_txtFunds), name=text(_txtName), area=text(_txtArea);
+    button(_btnCancel,"cancel","cancel_transfer_destination"); buttons+="]";
+    AgentListProjection list;
+    if (!agentProjectList(_lstBases,_lstBases,painted,2,true,out,list,allowed,true)) return false;
+    out.context={list.up?1u:0u,list.down?1u:0u};
+    out.visible="{\"title\":"+title+",\"funds\":"+funds+",\"headings\":["+name+","+area+"],\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+buttons+"}";
+    if (!out.rows.empty()) out.actions.emplace_back("choose_visible_row","Choose visible row","visible_control_semantics","visible_row");
+    if (list.up || list.down) out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=9000;
+}
+bool TransferBaseState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action=="cancel_transfer_destination") { btnCancelClick(nullptr); return true; }
+    if (request.action=="scroll_visible_list" && current.context.size()==2) {
+        if (request.choice=="up" && current.context[0]) { _lstBases->scrollUp(false,false); return true; }
+        if (request.choice=="down" && current.context[1]) { _lstBases->scrollDown(false,false); return true; }
+    }
+    if (request.action!="choose_visible_row" || request.choice.size()!=2 || request.choice[0]!='r' || request.choice[1]<'0' || request.choice[1]>'7') return false;
+    const unsigned index=request.choice[1]-'0';
+    if (index>=current.rows.size() || current.rows[index]>=_bases.size() || !_lstBases->agentSelectProjectRow(current.rows[index])) return false;
+    lstBasesClick(nullptr); return true;
+}
+#endif
 
 }

@@ -41,6 +41,12 @@ class Base;
 class TransferItemsState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Base *_baseFrom, *_baseTo;
 	TextButton *_btnOk, *_btnCancel;
 	Window *_window;
@@ -64,6 +70,11 @@ private:
 	/// Gets distance between bases.
 	double getDistance() const;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	void blit() override;
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Transfer Items state.
 	TransferItemsState(Base *baseFrom, Base *baseTo);
 	/// Cleans up the Transfer Items state.

@@ -27,7 +27,10 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "next_soldier" || value == "previous_soldier" || value == "kneel" ||
+    return value == "open_transfer" || value == "cancel_transfer_destination" ||
+        value == "change_transfer_quantity" || value == "review_transfer" ||
+        value == "cancel_transfer_items" || value == "confirm_transfer" || value == "cancel_transfer_confirmation" ||
+        value == "next_soldier" || value == "previous_soldier" || value == "kneel" ||
         value == "stand" || value == "continue_next_turn" || value == "new_battle" ||
         value == "start_battle" || value == "continue_briefing" || value == "close_inventory" ||
         value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
@@ -102,6 +105,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "change_craft_equipment") return "equipment_quantity";
     if (action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
+    if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "change_purchase_quantity") return "purchase_quantity";
     if (action == "set_production_sell") return "boolean_value";
     if (action == "scroll_purchase") return "purchase_scroll";
@@ -197,7 +201,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
     const std::string kind = agentArgumentKind(request.action);
     if (kind == "none") { if (parts.size() != 6) return false; }
-    else if (kind == "production_quantity" || kind == "purchase_quantity" || kind == "equipment_quantity")
+    else if (kind == "production_quantity" || kind == "purchase_quantity" || kind == "equipment_quantity" || kind == "transfer_quantity")
     {
         if (parts.size()!=8 && parts.size()!=9) return false;
         if (kind=="production_quantity") { if (parts[6]!="engineers" && parts[6]!="units") return false; request.control=parts[6]; }

@@ -138,6 +138,17 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             scroll=dict(up=True,down=True),scrollbar=dict(targets=[dict(handle='t0',position='top'),dict(handle='t1',position='middle'),dict(handle='t2',position='bottom')]),
             buttons=[dict(id='accept',label='OK'),dict(id='cancel',label='Cancel')])
         ids=sorted(a.STATE_ACTIONS[screen])
+    elif screen in a.TRANSFER_BUTTON_ACTIONS:
+        visible = dict(title='Transfer', buttons=[dict(id=key,label=key.title()) for key in a.TRANSFER_BUTTON_ACTIONS[screen].values()])
+        if screen == 'transfer_confirm': visible.update(cost='Cost',total='$1,000')
+        else:
+            destination = screen == 'transfer_destination'
+            columns = 2 if destination else 4
+            row = dict(handle='r0',cells=['Shown']*columns,selected=False)
+            if not destination: row['controls']=['increase','decrease']
+            visible.update(headings=[None]*columns,rows=[row],scroll=dict(up=True,down=True))
+            if destination: visible['funds']='$1,000'
+        ids = sorted(a.STATE_ACTIONS[screen])
     elif screen == 'purchase_category':
         visible=dict(control='category',label='All',rows=[dict(handle='r0',cells=['All'],selected=True)],scroll=dict(up=True,down=True))
         ids=sorted(a.STATE_ACTIONS[screen])
@@ -158,6 +169,11 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     if not ids:
         capability = None
     def action_label(action):
+        if screen in a.TRANSFER_BUTTON_ACTIONS:
+            if action in a.QUANTITY_SEMANTIC_LABELS: return a.QUANTITY_SEMANTIC_LABELS[action]
+            if action == 'choose_visible_row': return 'Choose visible row'
+            if action == 'scroll_visible_list': return 'Scroll visible list'
+            return next(button['label'] for button in visible['buttons'] if button['id'] == a.TRANSFER_BUTTON_ACTIONS[screen][action])
         if screen in a.RESEARCH_COMPLETION_FIELDS:
             if action == 'scroll_article_text': return 'Scroll article text'
             if action == 'scroll_visible_list': return 'Scroll visible list'
@@ -204,6 +220,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'choose_geoscape_speed': {'speed':'s0'}, 'select_base': {'target':'b0'},
                 'select_research_project': {'row':'r0'}, 'select_production_project': {'row':'r0'},
                 'adjust_scientists': {'direction':'increase'}, 'adjust_engineers': {'direction':'increase'},
+                'change_transfer_quantity': {'row':'r0','operation':'adjust','value':1},
                 'change_production_quantity': {'control':'engineers','operation':'adjust','value':1},
                 'set_production_sell': {'enabled':True},
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
@@ -279,7 +296,7 @@ class NativeFixture:
                     assert ident not in self.results, 'Native action unexpectedly replayed'
                     kind = a.ARGUMENT_KINDS[action]
                     expected_count = 6 if kind == 'none' else 8 if kind in ('point', 'purchase_scroll', 'crew_assignment') else 7
-                    if kind in ('production_quantity','purchase_quantity','equipment_quantity'):
+                    if kind in ('production_quantity','purchase_quantity','equipment_quantity','transfer_quantity'):
                         expected_count = 9 if command[7] in ('adjust','set') else 8
                     assert len(command) == expected_count
                     if action == 'select_difficulty': self.difficulty = command[6]
@@ -412,7 +429,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 131); self.assertEqual(len(a.STATE_ACTIONS), 55)
+        self.assertEqual(len(a.ACTIONS), 138); self.assertEqual(len(a.STATE_ACTIONS), 58)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -459,7 +476,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 131)
+        self.assertEqual(len(a.ACTIONS), 138)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',
@@ -472,7 +489,7 @@ class TypedValidationTests(unittest.TestCase):
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
-            'change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
+            'change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
             'select_soldier':'outfitting_row','select_craft':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',

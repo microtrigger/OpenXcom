@@ -36,6 +36,12 @@ class Base;
 class TransferBaseState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Base *_base;
 	TextButton *_btnCancel;
 	Window *_window;
@@ -43,6 +49,11 @@ private:
 	TextList *_lstBases;
 	std::vector<Base*> _bases;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	void blit() override;
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Transfer Base state.
 	TransferBaseState(Base *base);
 	/// Cleans up the Transfer Base state.

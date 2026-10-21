@@ -34,12 +34,23 @@ class Base;
 class TransferConfirmState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	TextButton *_btnCancel, *_btnOk;
 	Window *_window;
 	Text *_txtTitle, *_txtCost, *_txtTotal;
 	Base *_base;
 	TransferItemsState *_state;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	void blit() override;
+	bool agentUiState(Observer::AgentUiState &out) const override;
+	bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Transfer Confirm state.
 	TransferConfirmState(Base *base, TransferItemsState *state);
 	/// Cleans up the Transfer Confirm state.

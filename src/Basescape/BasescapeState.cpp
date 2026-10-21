@@ -599,6 +599,7 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
     button(_btnResearch,"research","open_research");
     button(_btnManufacture,"manufacture","open_manufacture");
     button(_btnPurchase,"purchase","open_purchase");
+    button(_btnTransfer,"transfer","open_transfer");
     button(_btnSoldiers,"soldiers","open_soldiers");
     button(_btnCrafts,"crafts","open_crafts");
     button(_btnGeoscape,"geoscape","return_geoscape"); buttons+="]";
@@ -621,6 +622,7 @@ bool BasescapeState::agentDispatch(const Observer::AgentRequest &request)
     if (request.action=="open_research") { btnResearchClick(nullptr); return true; }
     if (request.action=="open_manufacture") { btnManufactureClick(nullptr); return true; }
     if (request.action=="open_purchase") { btnPurchaseClick(nullptr); return true; }
+    if (request.action=="open_transfer") { btnTransferClick(nullptr); return true; }
     if (request.action=="open_soldiers") { btnSoldiersClick(nullptr); return true; }
     if (request.action=="open_crafts") { btnCraftsClick(nullptr); return true; }
     if (request.action=="return_geoscape") { btnGeoscapeClick(nullptr); return true; }

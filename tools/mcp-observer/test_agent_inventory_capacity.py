@@ -17,7 +17,7 @@ class InventoryCapacityValidationTests(unittest.TestCase):
     def test_exact_identity_capacity_and_unchanged_surface(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/25')
         self.assertEqual(a.INVENTORY_TARGET_HANDLES, tuple(f'v{i}' for i in range(96)))
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (131, 55, 4))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (138, 58, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_PACKET, a.MAX_TEXT_PACKET, a.MAX_REQUEST, a.CAPABILITY_TTL), (49152, 32768, 512, 120))
         self.assertEqual(a.ERROR_SCHEMA, 'openxcom-mcp-agent-control-error/1')
