@@ -444,6 +444,14 @@ GeoscapeState::~GeoscapeState()
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool GeoscapeState::agentCursorMotionSafe() const
+{
+    if (!State::agentCursorMotionSafe() || !_dogfightsToBeStarted.empty() || !_popups.empty()) return false;
+    for (const DogfightState *dogfight : _dogfights)
+        if (!dogfight || !dogfight->agentCursorMotionSafe()) return false;
+    return true;
+}
+
 DogfightState *GeoscapeState::agentActiveDogfight() const
 {
 	if (_modal || _dogfights.size() != 1 || !_dogfightsToBeStarted.empty() || !_popups.empty()) return nullptr;

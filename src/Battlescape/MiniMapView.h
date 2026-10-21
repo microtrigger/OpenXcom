@@ -67,6 +67,7 @@ class MiniMapView : public InteractiveSurface
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     const Observer::AgentMiniMapPresentation &agentPresentation() const { return _agentPresentation; }
+    bool agentCursorMotionSafe() const override { return InteractiveSurface::agentCursorMotionSafe() && !_isMouseScrolling; }
     bool agentReady() const;
     std::uint64_t agentCameraRevision() const;
     void agentActivatePoint(int x, int y) { activatePoint(x, y); }

@@ -53,6 +53,9 @@ private:
 	void drawThumb();
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentCursorMotionSafe() const override { return InteractiveSurface::agentCursorMotionSafe() && !_pressed; }
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	// Private presented geometry only; never exposes row count or scroll ratio.
 	bool agentPaintGeometry(SDL_Rect &track, SDL_Rect &thumb) const;
 #endif

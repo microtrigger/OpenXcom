@@ -129,7 +129,7 @@ void InteractiveSurface::handle(Action *action, State *state)
 				_isHovered = true;
 				mouseIn(action, state);
 			}
-			if (_listButton && action->getDetails()->type == SDL_MOUSEMOTION)
+			if (_listButton && action->getDetails()->type == SDL_MOUSEMOTION && !action->isAgentMotion())
 			{
 				_buttonsPressed = SDL_GetMouseState(0, 0);
 				for (Uint8 i = 1; i <= NUM_BUTTONS; ++i)
@@ -149,7 +149,7 @@ void InteractiveSurface::handle(Action *action, State *state)
 			{
 				_isHovered = false;
 				mouseOut(action, state);
-				if (_listButton && action->getDetails()->type == SDL_MOUSEMOTION)
+				if (_listButton && action->getDetails()->type == SDL_MOUSEMOTION && !action->isAgentMotion())
 				{
 					for (Uint8 i = 1; i <= NUM_BUTTONS; ++i)
 					{

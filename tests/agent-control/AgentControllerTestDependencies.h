@@ -34,9 +34,16 @@ public: bool ready=true; std::uint64_t revision=1;
 };
 class Game {
 public: State *top=nullptr;Screen screen;Observer::AgentAudioEvents audio;
+ bool cursorEnabled=false,cursorSafe=true;int cursorX=0,cursorY=0;unsigned cursorMoves=0;
  State *agentTopState()const{return top;} Screen *getScreen(){return &screen;}
  bool agentOverlayClear(const Observer::AgentUiState &)const{return true;}
  void agentRecordAdmissionFailure(bool,bool,bool)const{}
+ void agentCursorState(Observer::AgentUiState &out)const{
+  if(!cursorEnabled)return;
+  out.cursor="{\"x\":"+std::to_string(cursorX)+",\"y\":"+std::to_string(cursorY)+",\"width\":320,\"height\":200,\"visible\":true}";
+  if(cursorSafe)out.actions.emplace_back("move_cursor","Move cursor","visible_control_semantics","cursor_position");
+ }
+ bool agentMoveCursor(int x,int y,State*expected){if(!cursorEnabled||!cursorSafe||expected!=top||x<0||x>=320||y<0||y>=200)return false;++cursorMoves;cursorX=x;cursorY=y;return true;}
  Observer::AgentAudioEvents &agentAudioEvents(){return audio;}
 };
 }

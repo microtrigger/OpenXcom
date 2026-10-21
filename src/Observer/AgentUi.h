@@ -20,6 +20,8 @@ struct AgentUiRect {
 };
 struct AgentUiState {
     std::string screen = "unsupported", visible = "{}";
+    // Public logical-canvas cursor only; no desktop coordinates or world state.
+    std::string cursor = "null";
     // Read-only tactical presentation is not an action target in /5.
     // A provider may bind control authority to its separate visible controls.
     std::string controlVisible;

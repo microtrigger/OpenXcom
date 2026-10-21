@@ -65,14 +65,14 @@ class ResearchCompletionContract(unittest.TestCase):
         with self.assertRaises(Unavailable): validate(page([event(obj)]))
 
     def test_exact_catalog_and_old_wires(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/25')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(144,61,4))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/26')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(145,61,4))
         self.assertEqual(a.RESEARCH_COMPLETION_FIELDS,FIELDS)
         self.assertEqual(a.RESEARCH_COMPLETION_BUTTONS,BUTTONS)
         self.assertEqual(a.RESEARCH_COMPLETION_BUTTON_ACTIONS,MAPPING)
         self.assertEqual(len(NEW),12)
         self.assertEqual((a.MAX_REQUEST,a.MAX_TEXT_PACKET,a.MAX_PACKET,a.MAX_EVENTS,a.MAX_COMMANDS),(512,32768,49152,16,256))
-        for v in range(1,25):
+        for v in range(1,26):
             obj=state(screen='research_complete');obj['schema']=f'openxcom-agent-control/{v}'
             with self.subTest(version=v),self.assertRaises(Unavailable): checked(obj)
 

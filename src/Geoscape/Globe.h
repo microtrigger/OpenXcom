@@ -124,6 +124,7 @@ public:
 	/// Shared ordinary click geometry; contains no site eligibility check.
 	bool pointOnVisibleGlobe(int x, int y) const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentCursorMotionSafe() const override { return InteractiveSurface::agentCursorMotionSafe() && !_isMouseScrolling && !_isMouseScrolled; }
 	void agentRecordOccluders(const std::vector<Surface *> &paintOrder, bool safe = true);
 	std::string agentGeography(Observer::AgentUiState &ui, const std::vector<Surface *> &overlays) const;
 	std::uint64_t agentViewRevision() const { return _agentViewRevision; }

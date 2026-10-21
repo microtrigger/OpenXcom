@@ -11,7 +11,7 @@ from test_agent_control import NativeFixture, arguments, call, dump, result, sta
 from test_agent_events import page, validate
 
 
-SCHEMA = 'openxcom-agent-control/25'
+SCHEMA = 'openxcom-agent-control/26'
 
 
 def descriptor(action, label):
@@ -24,7 +24,7 @@ def grenade_state(count=3, *, title='Set timer', challenge=CHALLENGE, capability
     timers = [dict(handle=f't{i}', label=str(i)) for i in range(count)]
     actions = ([descriptor('choose_grenade_timer', timers[0]['label'])] if timers else [])
     actions.append(descriptor('cancel_grenade_timer', 'Cancel timer'))
-    return dict(schema=SCHEMA, mode='agent-control', type='state', epoch=EPOCH, challenge=challenge,
+    return dict(schema=SCHEMA, mode='agent-control', type='state', cursor=None, epoch=EPOCH, challenge=challenge,
                 capability=capability, revision=revision, event_sequence=event_sequence, state='prime_grenade',
                 visible=dict(title=title, timers=timers), actions=actions, semantics='presented_after_request')
 
@@ -60,7 +60,7 @@ class GrenadeValidationTests(unittest.TestCase):
 
     def test_exact_version_closed_counts_and_replaced_weapon_name(self):
         self.assertEqual(a.SCHEMA, SCHEMA)
-        self.assertEqual((len(a.definitions()), len(a.ACTIONS), len(a.STATE_ACTIONS)), (4, 144, 61))
+        self.assertEqual((len(a.definitions()), len(a.ACTIONS), len(a.STATE_ACTIONS)), (4, 145, 61))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertNotIn('choose_fire_mode', a.ACTIONS)
         self.assertEqual(a.WEAPON_ACTION_HANDLES, tuple(f'a{i}' for i in range(6)))

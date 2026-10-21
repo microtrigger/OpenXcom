@@ -53,6 +53,9 @@ protected:
 	/// Set a mouse button's internal state.
 	void setButtonPressed(Uint8 button, bool pressed);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    virtual bool agentCursorMotionSafe() const { return !isButtonPressed(); }
+#endif
 	/// Creates a new interactive surface with the specified size and position.
 	InteractiveSurface(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the interactive surface.

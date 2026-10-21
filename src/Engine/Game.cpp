@@ -1644,13 +1644,30 @@ void Game::run()
 			_states.back()->resetAll();
 
 			// Refresh mouse position
-			SDL_Event ev;
+			SDL_Event ev = {};
 			int x, y;
 			SDL_GetMouseState(&x, &y);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            const bool hadVirtualCursor = _agentVirtualCursor;
+            bool virtualRefresh = false;
+            if (_agentVirtualCursor)
+            {
+                Surface *canvas=_screen->getSurface();
+                virtualRefresh=canvas && SDL_GetMouseState(0,0)==0 && _states.back()->agentCursorMotionSafe() &&
+                    agentCursorWindowPoint(_agentCursorX,_agentCursorY,canvas->getWidth(),canvas->getHeight(),
+                        _screen->getXScale(),_screen->getYScale(),_screen->getCursorLeftBlackBand(),
+                        _screen->getCursorTopBlackBand(),x,y);
+                if (!virtualRefresh) { _agentVirtualCursor=false; ++_agentCursorRevision; SDL_GetMouseState(&x,&y); }
+            }
+#endif
 			ev.type = SDL_MOUSEMOTION;
 			ev.motion.x = x;
 			ev.motion.y = y;
 			Action action = Action(&ev, _screen->getXScale(), _screen->getYScale(), _screen->getCursorTopBlackBand(), _screen->getCursorLeftBlackBand());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            action.setAgentMotion(virtualRefresh);
+            if (hadVirtualCursor) _cursor->handle(&action);
+#endif
 			#ifdef OPENXCOM_RESPONSIVE_LOADING
             { ResponsiveCallbackScope callback(_responsive->callbackDepth); _states.back()->handle(&action); }
 #else
@@ -1779,6 +1796,17 @@ void Game::run()
 				case SDL_MOUSEMOTION:
 				case SDL_MOUSEBUTTONDOWN:
 				case SDL_MOUSEBUTTONUP:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    if (_agentVirtualCursor)
+                    {
+                        _agentVirtualCursor=false; ++_agentCursorRevision;
+                        if (_event.type != SDL_MOUSEMOTION)
+                        {
+                            _cursor->setX(static_cast<int>(std::floor((_event.button.x-_screen->getCursorLeftBlackBand())/_screen->getXScale())));
+                            _cursor->setY(static_cast<int>(std::floor((_event.button.y-_screen->getCursorTopBlackBand())/_screen->getYScale())));
+                        }
+                    }
+#endif
 					// Skip mouse events if they're disabled
 					if (!_mouseActive) continue;
 					// re-gain focus on mouse-over or keypress.
@@ -2641,6 +2669,58 @@ State *Game::agentTopState() const
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace OpenXcom {
+bool Game::agentCursorWindowPoint(int x, int y, int width, int height,
+    double scaleX, double scaleY, int left, int top, int &windowX, int &windowY)
+{
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
+        x < 0 || y < 0 || x >= width || y >= height || left < 0 || top < 0 ||
+        !std::isfinite(scaleX) || !std::isfinite(scaleY) || scaleX < 1.0 || scaleY < 1.0) return false;
+    const double px = std::ceil(x * scaleX) + left;
+    const double py = std::ceil(y * scaleY) + top;
+    if (px < 0 || py < 0 || px > 65535 || py > 65535 ||
+        std::floor((px-left)/scaleX) != x || std::floor((py-top)/scaleY) != y) return false;
+    windowX = static_cast<int>(px); windowY = static_cast<int>(py); return true;
+}
+void Game::agentCursorState(Observer::AgentUiState &out) const
+{
+    State *top = agentTopState();
+    if (!top || !_screen || !_cursor || !_mouseActive || !_cursor->getVisible() ||
+        (SDL_GetAppState() & (SDL_APPACTIVE | SDL_APPINPUTFOCUS)) != (SDL_APPACTIVE | SDL_APPINPUTFOCUS) ||
+        SDL_GetMouseState(0,0) != 0 || !top->agentCursorMotionSafe()) return;
+    Surface *canvas = _screen->getSurface();
+    int wx=0,wy=0;
+    if (!canvas || !agentCursorWindowPoint(canvas->getWidth()-1,canvas->getHeight()-1,
+        canvas->getWidth(),canvas->getHeight(),_screen->getXScale(),_screen->getYScale(),
+        _screen->getCursorLeftBlackBand(),_screen->getCursorTopBlackBand(),wx,wy) ||
+        wx >= _screen->getWidth() || wy >= _screen->getHeight()) return;
+    const int x=_cursor->getX(),y=_cursor->getY();
+    if (x < 0 || y < 0 || x >= canvas->getWidth() || y >= canvas->getHeight()) return;
+    out.cursor="{\"x\":"+std::to_string(x)+",\"y\":"+std::to_string(y)+
+        ",\"width\":"+std::to_string(canvas->getWidth())+",\"height\":"+std::to_string(canvas->getHeight())+",\"visible\":true}";
+    out.context.push_back(_agentCursorRevision);
+    out.context.push_back(_screen->agentDisplayRevision());
+    out.actions.emplace_back("move_cursor","Move cursor","visible_control_semantics","cursor_position");
+}
+bool Game::agentMoveCursor(int x, int y, State *expected)
+{
+    if (!expected || expected != agentTopState()) return false;
+    Observer::AgentUiState admitted; agentCursorState(admitted);
+    if (!admitted.offers("move_cursor")) return false;
+    Surface *canvas=_screen->getSurface(); int wx=0,wy=0;
+    if (!agentCursorWindowPoint(x,y,canvas->getWidth(),canvas->getHeight(),
+        _screen->getXScale(),_screen->getYScale(),_screen->getCursorLeftBlackBand(),
+        _screen->getCursorTopBlackBand(),wx,wy) || wx >= _screen->getWidth() || wy >= _screen->getHeight()) return false;
+    SDL_Event event = {}; event.type=SDL_MOUSEMOTION;
+    event.motion.x=static_cast<Uint16>(wx); event.motion.y=static_cast<Uint16>(wy);
+    Action action(&event,_screen->getXScale(),_screen->getYScale(),
+        _screen->getCursorTopBlackBand(),_screen->getCursorLeftBlackBand());
+    action.setAgentMotion(true);
+    _agentVirtualCursor=true; _agentCursorX=x; _agentCursorY=y; ++_agentCursorRevision;
+    _screen->handle(&action); _cursor->handle(&action); _fpsCounter->handle(&action);
+    expected->handle(&action);
+    return true; // Ordinary hover dispatched; post-presentation position is separate evidence.
+}
+
 bool Game::agentOverlayClear(const Observer::AgentUiState &ui) const
 {
     const Surface *overlays[] = {_cursor, _fpsCounter};

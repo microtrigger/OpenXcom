@@ -2,7 +2,8 @@
 
 This fork lets an MCP-capable agent observe and operate OpenXcom through a bounded
 interface to the game's **displayed UI**, rather than unrestricted memory access
-or a stream of mouse coordinates. It supports UFO Defense and Terror from the
+or unrestricted desktop input. An explicit in-game cursor-motion action
+is available separately from semantic gameplay actions. It supports UFO Defense and Terror from the
 Deep with separately supplied original game data.
 
 **Status: experimental, with unified qualification completed on 2026-10-21.**
@@ -157,6 +158,37 @@ reconcile with the human; do not retry with a new ID. Exact duplicates are recei
 queries, not a general retry strategy. For events, use the epoch from UI state and
 `after`/`limit` (`1..16`); follow `next_cursor` and handle `gap` explicitly.
 
+## In-game cursor motion (native schema 26)
+
+Build and launch the matching native game and adapter as above; no extra server,
+permission switch or desktop automation is needed. `read_ui_state` includes
+`cursor: {"x": 0, "y": 0, "width": 320, "height": 200, "visible": true}` when
+cursor motion is safely available, otherwise `cursor: null`. Use the actual
+returned dimensions: these are **logical game-canvas coordinates**, origin at
+top-left, not desktop/window pixels. Only when `move_cursor` is offered, call
+`execute_ui_action` using fresh authority and `action: "move_cursor"`,
+`args: {"x": 318, "y": 198}` (an example for a 320×200 canvas).
+Both coordinates must be integers within `[0,width)` / `[0,height)`; native wire
+limits are 0…4095. Old schema-25 adapters must be upgraded with the game.
+
+The action dispatches ordinary in-game hover, not a click or desktop mouse warp.
+It can change tooltips, highlights, selection previews or tactical edge scrolling;
+**no click does not mean no game effect**. Held physical buttons, retained native
+pressed/drag states, local modal handlers and pending UI transitions refuse motion.
+Mapping accounts for cursor letterbox bands and actual display scaling (scales
+below 1 are unsupported); unrepresentable coordinates fail closed. Existing
+semantic actions, including `inventory_hover`, keep their existing event behavior.
+
+A successful dispatch receipt is not proof of its desired effect. Verify the
+post-presentation `observation.cursor` and subsequent visible UI. Freshness binds
+the current screen, display and cursor revision. Virtual position persists through
+ordinary screen initialization when safe; real mouse motion/button input takes
+ownership back. Unsafe initialization or a changed canvas can reset ownership.
+The action does not warp the physical desktop cursor; unrelated native screen
+initialization can still retain the game's existing pointer-refresh behavior.
+A semantically unsupported screen may offer
+**only** cursor motion: that does not unlock hidden values or gameplay actions.
+
 ## Observation versus control
 
 - `--agent-control` explicitly enables direct semantic actions. It does **not**
@@ -229,3 +261,21 @@ Repeat with `xcom2` and a new output directory. `--sdk /path/to/sdk/usr` support
 non-system libraries; `--before-return-gate /path/to/new-marker` optionally pauses
 for a Basescape screenshot and obtains fresh authority after that marker appears.
 Close the test game normally afterward: MCP EOF deliberately leaves it running.
+
+### Cursor regression scope
+
+The focused `tests/agent-control/run-cursor-controller-tests.py` exercises the
+actual socket/controller/authority/receipt loop with explicit Game/input seams.
+`run-cursor-core.py` exercises real native `Action`/`InteractiveSurface` hover and
+source-extracted cursor mapping/dispatch; window/top-state/cursor rendering remain
+seams. `run-cursor-inventory-hover.py` checks the existing inventory hover path and
+held-item invariance with lookup/render/domain seams. These are **not live-game
+acceptance** or full event-loop tests. Specialized drag-readiness overrides are
+source-audited, not all instantiated by the focused fixture. Ordinary real input
+reclaiming the virtual position and cross-screen behavior still need live checks.
+
+Controller/core runners take `--source`, `--sdk`, `--output` (a new external
+evidence directory) and optional `--sanitize`; core tests additionally require
+`--data`. The inventory runner takes only `--output` and optional `--sanitize`.
+See each runner's `--help`. Scoped sanitizers and test seams are recorded in their results;
+do not describe these as unrestricted whole-game sanitizer coverage.

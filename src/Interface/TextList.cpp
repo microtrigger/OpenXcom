@@ -1305,6 +1305,18 @@ void TextList::blit(Surface *surface)
  * @param action Pointer to an action.
  * @param state State that the action handlers belong to.
  */
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool TextList::agentCursorMotionSafe() const
+{
+    if (!InteractiveSurface::agentCursorMotionSafe() ||
+        (_up && !_up->agentCursorMotionSafe()) || (_down && !_down->agentCursorMotionSafe()) ||
+        (_scrollbar && !_scrollbar->agentCursorMotionSafe())) return false;
+    for (const ArrowButton *button : _arrowLeft) if (button && !button->agentCursorMotionSafe()) return false;
+    for (const ArrowButton *button : _arrowRight) if (button && !button->agentCursorMotionSafe()) return false;
+    return true;
+}
+#endif
+
 void TextList::handle(Action *action, State *state)
 {
 	InteractiveSurface::handle(action, state);

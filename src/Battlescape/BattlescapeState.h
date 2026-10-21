@@ -144,6 +144,7 @@ private:
 	BattleItem *getSpecialMeleeWeapon(BattleUnit *unit);
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentCursorMotionSafe() const override;
     bool agentUiState(Observer::AgentUiState &out) const override;
     bool agentBindingCurrent(const Observer::AgentUiState &binding) const override;
     bool agentDispatch(const std::string &action) override;

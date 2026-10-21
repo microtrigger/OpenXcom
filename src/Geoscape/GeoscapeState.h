@@ -67,6 +67,7 @@ public:
 	~GeoscapeState();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Painted strategic HUD and bounded ordinary navigation/speed controls.
+	bool agentCursorMotionSafe() const override;
 	bool agentUiState(Observer::AgentUiState &out) const override;
 	bool agentDispatch(const std::string &action) override;
 	bool agentDispatch(const Observer::AgentRequest &request) override;

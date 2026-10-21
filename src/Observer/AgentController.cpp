@@ -125,6 +125,9 @@ bool AgentController::sample(AgentUiState &out) const
         _game->agentRecordAdmissionFailure(provider, disjoint, overlayClear);
         out = AgentUiState();
     }
+    // Cursor-only UI motion is independent of semantic provider availability.
+    // A rejected provider was cleared above; never revive its hidden semantics.
+    _game->agentCursorState(out);
     return true;
 }
 void AgentController::unavailable()
@@ -298,7 +301,7 @@ void AgentController::dispatchQueued(const AgentUiState &shown)
     const bool valid = diagnosticProfileQualified() && agentPaintHealthy() &&
         _game->getScreen()->agentPresentationReady() &&
         _queued.matchesFrame(now(), _generation, _game->getScreen()->agentDisplayRevision(), target, shown) &&
-        target->agentBindingCurrent(_queued.binding());
+        (_queued.request().action == "move_cursor" || target->agentBindingCurrent(_queued.binding()));
     if (!valid) { rejectQueued(); return; }
     const AgentRequest request = _queued.request();
     _queued.clear(); // No replay or reentrant frame can dispatch this again.
@@ -307,7 +310,10 @@ void AgentController::dispatchQueued(const AgentUiState &shown)
     _ledger.find(request.id)->dispatched = true;
     try
     {
-        if (!target->agentDispatch(request))
+        const bool dispatched = request.action == "move_cursor"
+            ? _game->agentMoveCursor(request.x, request.y, target)
+            : target->agentDispatch(request);
+        if (!dispatched)
         {
             _pendingId.clear();
             _ledger.find(request.id)->response = resultPacket(request.id, "unavailable"); receipt(request.id);

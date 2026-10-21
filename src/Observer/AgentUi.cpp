@@ -14,7 +14,7 @@ int agentObservePaint(int result) { if (result < 0) paintHealthy = false; return
 bool agentPaintHealthy() { return paintHealthy; }
 std::string AgentUiState::payload() const
 {
-    std::string out = "\"state\":" + agentJsonString(screen) + ",\"visible\":" + visible + ",\"actions\":[";
+    std::string out = "\"state\":" + agentJsonString(screen) + ",\"visible\":" + visible + ",\"cursor\":" + cursor + ",\"actions\":[";
     for (std::size_t i = 0; i < actions.size(); ++i)
     {
         if (i) out += ",";

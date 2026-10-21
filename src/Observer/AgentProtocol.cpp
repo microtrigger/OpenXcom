@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/25"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/26"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/25\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/26\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -27,7 +27,7 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "choose_dogfight_mode" || value == "open_contact_interception" || value == "cancel_interception" ||
+    return value == "move_cursor" || value == "choose_dogfight_mode" || value == "open_contact_interception" || value == "cancel_interception" ||
         value == "open_intercept_base" || value == "confirm_interception" || value == "cancel_interception_confirmation" ||
         value == "open_transfer" || value == "cancel_transfer_destination" ||
         value == "change_transfer_quantity" || value == "review_transfer" ||
@@ -103,6 +103,7 @@ bool agentActionId(const std::string &value)
 }
 const char *agentArgumentKind(const std::string &action)
 {
+    if (action == "move_cursor") return "cursor_position";
     if (action == "choose_dogfight_mode") return "dogfight_mode";
     if (action == "set_craft_soldier") return "crew_assignment";
     if (action == "change_craft_equipment") return "equipment_quantity";
@@ -345,7 +346,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         }
         if (!agentInputText(request.text)) return false;
     }
-    else if (kind == "point")
+    else if (kind == "point" || kind == "cursor_position")
     {
         std::uint64_t x, y;
         if (parts.size() != 8 || !decimal(parts[6], 4095, x) || !decimal(parts[7], 4095, y)) return false;

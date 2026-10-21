@@ -283,6 +283,19 @@ void State::think()
  * and passes them on to its InteractiveSurface child elements.
  * @param action Pointer to an action.
  */
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool State::agentCursorMotionSafe() const
+{
+    if (_modal) return false;
+    for (const Surface *surface : _surfaces)
+    {
+        const InteractiveSurface *interactive = dynamic_cast<const InteractiveSurface *>(surface);
+        if (interactive && !interactive->agentCursorMotionSafe()) return false;
+    }
+    return true;
+}
+#endif
+
 void State::handle(Action *action)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_UNLOAD_CONTROL_GATE

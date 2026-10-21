@@ -1725,6 +1725,12 @@ void BattlescapeState::warning(const std::string &message)
  * Takes care of any events from the core game engine.
  * @param action Pointer to an action.
  */
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BattlescapeState::agentCursorMotionSafe() const
+{
+    return !_firstInit && !_isMouseScrolling && !_isMouseScrolled && State::agentCursorMotionSafe();
+}
+#endif
 inline void BattlescapeState::handle(Action *action)
 {
 	if (!_firstInit)

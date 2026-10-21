@@ -33,6 +33,7 @@ class Action
 {
 private:
 	SDL_Event *_ev;
+	bool _agentMotion = false;
 	double _scaleX, _scaleY;
 	int _topBlackBand, _leftBlackBand, _mouseX, _mouseY, _surfaceX, _surfaceY;
 	InteractiveSurface *_sender;
@@ -41,6 +42,8 @@ public:
 	Action(SDL_Event *ev, double scaleX, double scaleY, int topBlackBand, int leftBlackBand);
 	/// Cleans up the action.
 	~Action();
+	void setAgentMotion(bool value) { _agentMotion = value; }
+	bool isAgentMotion() const { return _agentMotion; }
 	/// Gets the screen's X scale.
 	double getXScale() const;
 	/// Gets the screen's Y scale.

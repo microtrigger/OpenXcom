@@ -124,6 +124,9 @@ private:
     Observer::StanceController _stanceController;
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentVirtualCursor = false;
+    int _agentCursorX = 0, _agentCursorY = 0;
+    std::uint64_t _agentCursorRevision = 0;
     Observer::AgentController _agentController;
     Observer::AgentAudioEvents _agentAudioEvents;
 #endif
@@ -215,6 +218,10 @@ public:
 	bool isState(State *state) const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     State *agentTopState() const;
+    void agentCursorState(Observer::AgentUiState &out) const;
+    bool agentMoveCursor(int x, int y, State *expected);
+    static bool agentCursorWindowPoint(int x, int y, int width, int height,
+        double scaleX, double scaleY, int left, int top, int &windowX, int &windowY);
     bool agentOverlayClear(const Observer::AgentUiState &ui) const;
     void agentRecordAdmissionFailure(bool provider, bool disjoint, bool overlayClear) const;
 #endif

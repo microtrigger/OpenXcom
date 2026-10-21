@@ -42,7 +42,7 @@ def main():
     def save(): (out/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
     save()
     wrapper = out/'Pixels.cpp'
-    wrapper.write_text('#include "'+str(fixture)+'"\n#include "'+str(source/'src/Engine/State.h')+'"\nnamespace OpenXcom {\n'+support.block((source/'src/Engine/State.cpp').read_text(), 'void State::setModal(')+'\n}\n')
+    wrapper.write_text('#include "'+str(fixture)+'"\n#include "'+str(source/'src/Engine/State.h')+'"\nnamespace OpenXcom {\n'+support.block((source/'src/Engine/State.cpp').read_text(), 'bool State::agentCursorMotionSafe(')+'\n'+support.block((source/'src/Engine/State.cpp').read_text(), 'void State::setModal(')+'\n}\n')
     for enabled in (False, True):
         name = 'on' if enabled else 'off'
         flags = ['c++','-std=c++11','-O2','-ffunction-sections','-fdata-sections',

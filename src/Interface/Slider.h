@@ -46,6 +46,9 @@ private:
 	/// Sets the slider's position.
 	void setPosition(double pos);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentCursorMotionSafe() const override { return InteractiveSurface::agentCursorMotionSafe() && !_pressed; }
+#endif
 	/// Creates a new slider with the specified size and position.
 	Slider(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the slider.

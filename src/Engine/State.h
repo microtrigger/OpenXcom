@@ -61,6 +61,7 @@ protected:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     // Opt-in typed public UI only. Unsupported states expose no actions.
+    virtual bool agentCursorMotionSafe() const;
     virtual bool agentUiState(Observer::AgentUiState &) const { return false; }
     virtual bool agentDispatch(const std::string &) { return false; }
     virtual bool agentDispatch(const Observer::AgentRequest &request) { return agentDispatch(request.action); }

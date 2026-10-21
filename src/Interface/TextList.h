@@ -141,6 +141,9 @@ private:
 	void updateVisible();
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentCursorMotionSafe() const override;
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
 	void agentEnableOutfitting(unsigned columns, bool equipment = false, bool crew = false);
 	bool agentOutfittingRows(std::vector<AgentOutfittingRow> &rows) const;
