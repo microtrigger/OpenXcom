@@ -9,6 +9,7 @@
 #include "../../src/Interface/ImageButton.h"
 #include "../../src/Interface/Text.h"
 #include "../../src/Observer/AgentUi.h"
+#include "../../src/Observer/AgentFrameCommand.h"
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <cstdlib>
@@ -66,7 +67,7 @@ int main(){
  check(s._mode==&s.disengage&&s.calls==5,"invalid mode never mutates selection/callback");
  bad.action="choose_visible_row";bad.choice="standard";check(!s.agentDispatch(bad),"wrong action rejected");
  for(Text*t:{&s.status,&s.distance,&s.ammo1,&s.ammo2,&s.interception}){int x=t->getX(),y=t->getY();t->setX(x+1);check(!s.agentUiState(u),"text moved without repaint unavailable");t->setX(x);check(!s.agentUiState(u),"text X ABA still stale");s.blit();check(s.agentUiState(u),"text X redraw restores");t->setY(y+1);t->setY(y);check(!s.agentUiState(u),"text Y ABA stale");s.blit();check(s.agentUiState(u),"text Y redraw restores");t->setVisible(false);t->setVisible(true);check(!s.agentUiState(u),"text visibility ABA stale");s.blit();check(s.agentUiState(u),"text visibility redraw restores");}
- auto old=u;s.status.setText("DISENGAGING");check(!s.agentUiState(u),"changed text without repaint rejected");s.blit();check(s.agentUiState(u)&&!old.sameBinding(u),"rendered status binding updated");
+ auto old=u;s.status.setText("DISENGAGING");check(!s.agentUiState(u),"changed text without repaint rejected");s.blit();check(s.agentUiState(u)&&old.sameBinding(u)&&old.visible!=u.visible,"fresh telemetry changes observation without changing control authority");
  s._minimized=true;check(!s.agentUiState(u),"minimized unavailable");s._minimized=false;s.preview.setVisible(true);check(!s.agentUiState(u),"preview unavailable");s.preview.setVisible(false);s._modal=&s.preview;check(!s.agentUiState(u),"local modal unavailable");s._modal=nullptr;game.top=nullptr;check(!s.agentUiState(u),"not owning geoscape unavailable");game.top=&geo;
  SDL_Rect clipped={0,0,100,200};SDL_SetClipRect(canvas.getSurface(),&clipped);s.blit();check(!s.agentUiState(u),"clipped draw unavailable");SDL_SetClipRect(canvas.getSurface(),nullptr);check(!s.agentUiState(u),"restored clip needs redraw");s.blit();check(s.agentUiState(u),"full redraw accepted");
  s.paintHook=[&](){SDL_SetClipRect(canvas.getSurface(),&clipped);};s.blit();check(!s.agentUiState(u),"clip during draw unavailable");s.paintHook=nullptr;SDL_SetClipRect(canvas.getSurface(),nullptr);s.blit();
@@ -84,6 +85,26 @@ int main(){
  s.craft.destroyed=s.ufo.crashed=s._ufoBreakingOff=false;s.blit();ImageButton*other=&s.standoff;s.standard.setGroup(&other);check(!s.agentUiState(u),"group pointer mutation needs repaint");s.standard.setGroup(&s._mode);s.blit();
  // The selected control may be unavailable while the other painted modes remain actionable.
  ImageButton*hiddenSelected=s._mode;hiddenSelected->setVisible(false);s.status.setVisible(false);s.blit();check(s.agentUiState(u),"zero visible selected mode remains valid bounded state");auto zero=YAML::Load(u.visible);unsigned selectedCount=0;for(auto button:zero["buttons"])selectedCount+=button["selected"].as<bool>();check(zero["buttons"].size()==4&&selectedCount==0&&zero["status"].IsNull(),"no inferred hidden selection and unknown text stays null");int unchanged=s.calls;AgentRequest hidden;hidden.action="choose_dogfight_mode";hidden.choice="disengage";check(!s.agentDispatch(hidden)&&s.calls==unchanged&&s._mode==hiddenSelected,"hidden selected mode refusal no mutation");hidden.choice="invalid";check(!s.agentDispatch(hidden)&&s.calls==unchanged&&s._mode==hiddenSelected,"invalid mode refusal no mutation with partial view");hiddenSelected->setVisible(true);s.status.setVisible(true);s.blit();check(s.agentUiState(u),"restored selected control requires redraw");
+ // Actual immutable frame command: telemetry freshness is local, control authority survives redraw.
+ AgentRequest command;command.action="choose_dogfight_mode";command.choice="standard";
+ const auto stage=[&](AgentFrameCommand &frame){check(s.agentUiState(u),"frame baseline available");check(frame.stage(command,u,&s,7,9,100,100),"stage actual immutable command");};
+ const auto matches=[&](AgentFrameCommand &frame){AgentUiState shown;return s.agentUiState(shown)&&frame.matchesFrame(101,7,9,&s,shown);};
+ for(Text*t:{&s.status,&s.distance,&s.ammo1,&s.ammo2,&s.interception}){
+  for(bool same:{false,true}){AgentFrameCommand frame;stage(frame);auto before=u;const std::string value=same?t->getText():"42";t->setText(value);check(!matches(frame),"unpainted telemetry cannot authorize command");s.blit();check(matches(frame),"fresh changed or identical telemetry preserves queued command");check(s.agentUiState(u)&&u.controlVisible==before.controlVisible,"canonical mode control payload unaffected");}
+  AgentFrameCommand frame;stage(frame);int x=t->getX();t->setX(x+1);check(!matches(frame),"unpainted telemetry geometry fails closed");s.blit();check(!matches(frame),"fresh telemetry geometry still rejects old authority");t->setX(x);s.blit();
+  {AgentFrameCommand hiddenFrame;stage(hiddenFrame);t->setVisible(false);s.blit();check(!matches(hiddenFrame),"fresh hidden telemetry rejects old authority");t->setVisible(true);s.blit();}
+  AgentFrameCommand visibility;stage(visibility);t->setVisible(false);t->setVisible(true);check(!matches(visibility),"telemetry visibility ABA needs redraw");s.blit();check(matches(visibility),"telemetry visibility redraw recovers authority");
+ }
+ {AgentFrameCommand f;stage(f);auto*p=s._craft;Fixture::Craft replacement;s._craft=&replacement;check(!matches(f),"changed craft identity rejects pending mode");s._craft=p;}
+ {AgentFrameCommand f;stage(f);auto*p=s._ufo;Fixture::Ufo replacement;s._ufo=&replacement;check(!matches(f),"changed target identity rejects pending mode");s._ufo=p;}
+ {AgentFrameCommand f;stage(f);auto*p=s._mode;s._mode=&s.cautious;s.blit();check(!matches(f),"changed selected mode rejects pending command");s._mode=p;s.blit();}
+ {AgentFrameCommand f;stage(f);int x=s.standard.getX();s.standard.setX(x+1);check(!matches(f),"unpainted control geometry rejects");s.blit();check(!matches(f),"repainted control geometry still rejects old authority");s.standard.setX(x);s.blit();}
+ {AgentFrameCommand f;stage(f);s.standard.setVisible(false);s.blit();check(!matches(f),"hidden control rows reject pending command");s.standard.setVisible(true);s.blit();}
+ {AgentFrameCommand f;stage(f);SDL_SetClipRect(canvas.getSurface(),&clipped);check(!matches(f),"current clipped destination rejects pending command");s.blit();SDL_SetClipRect(canvas.getSurface(),nullptr);check(!matches(f),"restored clip without repaint rejects");s.blit();check(matches(f),"full fresh paint restores unchanged control authority");}
+ {AgentFrameCommand f;stage(f);s._minimized=true;check(!matches(f),"minimized rejects pending command");s._minimized=false;s.preview.setVisible(true);check(!matches(f),"preview rejects pending command");s.preview.setVisible(false);s._modal=&s.preview;check(!matches(f),"modal rejects pending command");s._modal=nullptr;game.top=nullptr;check(!matches(f),"changed top rejects pending command");game.top=&geo;}
+ // Nonoverlap is still checked across telemetry and controls, not merely within action regions.
+ {int x=s.status.getX(),y=s.status.getY();s.status.setX(s.standard.getX());s.status.setY(s.standard.getY());s.blit();check(s.agentUiState(u),"partial overlap can yield bounded remaining controls");check(YAML::Load(u.visible)["status"].IsNull()||std::find(u.rows.begin(),u.rows.end(),2)==u.rows.end(),"overlapping text/control never admitted together");s.status.setX(x);s.status.setY(y);s.blit();}
+ {for(auto*b:bs)b->setVisible(false);s.blit();check(s.agentUiState(u)&&u.actions.empty()&&u.rows.empty()&&!u.regions.empty(),"no controls permits readonly telemetry only");for(auto*b:bs)b->setVisible(true);s.blit();}
  check(!geo.agentActiveDogfight(),"zero windows unavailable");geo._dogfights={&s};check(geo.agentActiveDogfight()==&s,"exactly one active child");geo._dogfights.push_back(&s);check(!geo.agentActiveDogfight(),"two windows unavailable");geo._dogfights={nullptr};check(!geo.agentActiveDogfight(),"null window unavailable");geo._dogfights={&s};geo._dogfightsToBeStarted={&s};check(!geo.agentActiveDogfight(),"queued window unavailable");geo._dogfightsToBeStarted.clear();geo._popups={&s};check(!geo.agentActiveDogfight(),"popup unavailable");geo._popups.clear();geo._modal=&s;check(!geo.agentActiveDogfight(),"geoscape modal unavailable");
  check(!SDL_GetVideoSurface(),"no actual game/video session");std::cout<<checks<<" native dogfight provider/radio checks passed; combat/owning Game seams, no live encounter\n";
 }

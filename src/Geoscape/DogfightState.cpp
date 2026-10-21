@@ -1907,19 +1907,27 @@ bool DogfightState::agentUiState(Observer::AgentUiState &out) const
     out=AgentUiState();out.screen="dogfight";out.actor=_craft;out.save=_ufo;
     const auto painted=agentFlattenPaintOrder(_surfaces);
     const Surface *destination=_game->getScreen()->getSurface();
-    const auto include=[&](const Surface *widget)->bool {
+    // Observation coverage remains complete; action authority only binds controls.
+    AgentUiState observation;
+    const auto include=[&](const Surface *widget, bool control)->bool {
         if(!agentWidgetUncovered(widget,painted))return false;
         AgentUiState part;agentIncludeWidget(part,widget);
         if(part.regions.empty()||!_game->agentOverlayClear(part))return false;
-        size_t before=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
-        if(agentRegionsDisjoint(out))return true;out.regions.resize(before);return false;
+        size_t before=observation.regions.size();observation.regions.insert(observation.regions.end(),part.regions.begin(),part.regions.end());
+        if(agentRegionsDisjoint(observation)){
+            if(control)out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+            return true;
+        }
+        observation.regions.resize(before);return false;
     };
     const auto text=[&](const Text *widget)->std::string {
-        out.widgets.emplace_back(widget,widget->agentTextRevision());
-        out.widgets.emplace_back(widget,widget->agentPresentationRevision());
+        // Stable telemetry placement/visibility binds authority, but ticking content does not.
+        out.context.insert(out.context.end(),{static_cast<std::uint64_t>(widget->getX()),
+            static_cast<std::uint64_t>(widget->getY()),static_cast<std::uint64_t>(widget->getWidth()),
+            static_cast<std::uint64_t>(widget->getHeight()),widget->getVisible()?1u:0u,widget->agentContextVisible()?1u:0u});
         if(!widget->agentPresentationPaintedTo(destination))return "null";
         const auto value=agentTextJson(widget);
-        return value!="null"&&(widget->getText().empty()||include(widget))?value:"null";
+        return value!="null"&&(widget->getText().empty()||include(widget,false))?value:"null";
     };
     const std::string status=text(_txtStatus),distance=text(_txtDistance),ammo1=text(_txtAmmo1),ammo2=text(_txtAmmo2),interception=text(_txtInterceptionNumber);
     ImageButton *buttons[]={_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage};
@@ -1928,7 +1936,7 @@ bool DogfightState::agentUiState(Observer::AgentUiState &out) const
     for(unsigned i=0;i<5;++i){
         out.widgets.emplace_back(buttons[i],buttons[i]->agentPresentationRevision());
         bool selected=false;
-        if(!buttons[i]->agentRadioControl(destination,selected)||!include(buttons[i]))continue;
+        if(!buttons[i]->agentRadioControl(destination,selected)||!include(buttons[i],true))continue;
         if(!out.rows.empty())modes+=",";
         modes+="{\"id\":"+agentJsonString(ids[i])+",\"selected\":"+(selected?"true":"false")+"}";
         out.rows.push_back(i);if(selected)++selectedCount;
@@ -1939,6 +1947,8 @@ bool DogfightState::agentUiState(Observer::AgentUiState &out) const
     out.widgets.emplace_back(_mode,0);
     if(!out.rows.empty())out.actions.emplace_back("choose_dogfight_mode","Choose dogfight mode","visible_control_semantics","dogfight_mode");
     out.visible="{\"status\":"+status+",\"distance\":"+distance+",\"ammo1\":"+ammo1+",\"ammo2\":"+ammo2+",\"interception\":"+interception+",\"damage\":null,\"buttons\":"+modes+"}";
+    if(!out.rows.empty())out.controlVisible="{\"buttons\":"+modes+"}";
+    else out.regions=observation.regions; // Read-only telemetry is still observable.
     return !out.regions.empty()&&agentRegionsDisjoint(out)&&out.visible.size()<=9000;
 }
 bool DogfightState::agentDispatch(const Observer::AgentRequest &request)

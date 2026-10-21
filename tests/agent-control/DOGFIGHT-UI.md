@@ -69,7 +69,7 @@ outcome still need real UFO/TFTD route evidence.
   also pass feature-disabled syntax checks.
 - Adapter suite: 1,224 tests run, two pre-existing skips.
 - Closed native protocol: 48 checks, normal and ASan/UBSan.
-- Dedicated provider/controller fixture: 209 checks, normal and ASan/UBSan,
+- Dedicated provider/controller fixture: 344 checks, normal and ASan/UBSan,
   using real SDL ImageButton/Surface/Text with actual font PNGs. Combat domain,
   owning Game and range-helper seams are explicit; no game window is created.
 - Matrix includes all five mode handlers; zero/one/two/null weapon slots;
@@ -85,3 +85,36 @@ FileMap returns the original relative font path, and SDL loads it under the
 configured common-data working directory. Recorded asset hashes identify those
 inputs. These native results do not qualify real-time socket-action latency,
 combat outcomes, graphical damage, or an end-to-end campaign route.
+
+## Read-only telemetry versus action authority
+
+The ordinary combat update rewrites distance text on its timer, including when
+its displayed value stays unchanged. Binding mode actions to all text
+presentation generations consequently rejected a queued mode action whenever a
+tick intervened. A deterministic actual-provider/AgentFrameCommand audit
+reproduced this even with an identical public payload; it is not a claim about
+measured live network latency.
+
+The bounded provider therefore follows the existing `AgentUiState.controlVisible`
+pattern used by Battlescape: observation still contains freshly painted status,
+distance and ammunition, but action authority contains only the admitted mode
+controls. Text content, text presentation generations and changing glyph-ink
+extents are not mode-action targets. Current observation validation still checks
+all text paint generations, full clipping, visibility and overlap before reading
+it. Stable private text position, dimensions and visibility remain bound, as do
+craft/UFO identity, mode selection, control-widget revisions, actual control
+regions and the composite/modal/queue ownership restrictions. Read-only telemetry
+without admitted controls can still be observed, but grants no mode action.
+
+`AgentDogfightTelemetryControllerTest.cpp` separately tests the actual socket
+controller using explicit synthetic projections: full-payload binding and a
+`controlVisible`-only change reject telemetry churn, whereas the complete narrow
+split permits it. Its control/actor/geometry/top/modal negative cases still
+refuse without dispatch. The provider fixture tests the actual new projection
+with real Text/ImageButton widgets and `AgentFrameCommand`; neither replaces
+real UFO/TFTD encounter qualification.
+
+Follow-up qualification: the actual socket-controller regression passes 371
+checks normally and with ASan/UBSan. The actual-widget provider fixture passes
+344 checks in both modes. Dependency-seam sanitizer limits are recorded by each
+runner; these counts are separate layers, not a single live-test total.
