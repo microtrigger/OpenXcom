@@ -61,6 +61,10 @@ namespace OpenXcom
 		_txtInfo->setWordWrap(true);
 		_txtInfo->setScrollable(true);
 		_txtInfo->setText(tr(defs->text));
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateText::~ArticleStateText()

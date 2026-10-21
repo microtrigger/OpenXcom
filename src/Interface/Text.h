@@ -42,8 +42,34 @@ enum TextVAlign { ALIGN_TOP, ALIGN_MIDDLE, ALIGN_BOTTOM };
  */
 class Text : public InteractiveSurface
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+public:
+    struct AgentVisiblePixel { Sint16 x, y; Uint8 value; unsigned glyph; bool contributed; };
+    struct AgentVisibleLine
+    {
+        std::string text;
+        bool complete = true;
+        unsigned glyphs = 0;
+        std::vector<AgentVisiblePixel> pixels;
+    };
+#endif
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentVisibleLinesEnabled = false, _agentLinesHealthy = false, _agentLinesDrawing = false;
+    bool _agentLinePendingSpace = false, _agentLineCandidate = false, _agentLineBlitValid = false;
+    std::uint64_t _agentLineDrawRevision = 0, _agentLineBlitRevision = 0;
+    const Surface *_agentLineDestination = nullptr;
+    SDL_Color _agentLinePalette[256] = {};
+    std::vector<AgentVisibleLine> _agentVisibleLines;
+    AgentVisibleLine _agentCurrentLine;
+    std::vector<int> _agentLineOwners;
+    std::size_t _agentLineWork = 0, _agentLinePixelCount = 0;
+    void agentBeginVisibleLines();
+    void agentStartVisibleLine(int y, int height);
+    void agentFinishVisibleLine();
+    void agentCaptureVisibleGlyph(UCode code, Font *font, Surface *glyph, int x, int y, int color, int mul, int mid);
+    void agentFinishVisibleLines();
+    bool agentVisibleLineSource() const;
     bool _agentHasGlyph = false, _agentTextClipped = false;
     std::uint64_t _agentTextRevision = 0;
     // Opt-in only for ErrorMessageState. Captures the typed prefix in its
@@ -82,6 +108,11 @@ private:
 	int getLineX(int line) const;
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void agentEnableVisibleLines();
+    bool agentVisibleLines(const Surface *destination, std::vector<AgentVisibleLine> &lines) const;
+    bool agentVisibleLineControl(const Surface *destination) const;
+    bool agentScrollable() const { return _scroll; }
+    void blit(Surface *surface) override;
     bool agentTextComplete() const { return !_agentTextClipped && !_scroll; }
     std::uint64_t agentTextRevision() const { return _agentTextRevision; }
     void agentEnableErrorHeading() { _agentErrorHeading = true; _redraw = true; }
@@ -137,6 +168,7 @@ public:
 	/// Sets the text's scrollable setting.
 	void setScrollable(bool scroll);
 	/// Special handling for mouse presses.
+	void scrollLine(bool down);
 	void mousePress(Action* action, State* state);
 };
 

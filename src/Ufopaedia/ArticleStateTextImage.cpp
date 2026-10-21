@@ -65,6 +65,10 @@ namespace OpenXcom
 		_txtInfo->setText(tr(defs->text));
 
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateTextImage::~ArticleStateTextImage()

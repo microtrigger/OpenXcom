@@ -5,15 +5,12 @@ interface to the game's **displayed UI**, rather than unrestricted memory access
 or a stream of mouse coordinates. It supports UFO Defense and Terror from the
 Deep with separately supplied original game data.
 
-**Status: experimental v21d plus named-button admission guards.** On 20 October
-2026, live UFO and TFTD stock-fixture runs passed the route Geoscape → Bases →
-Base Information → Stores → back to Geoscape, including a cursor on the bottom-right
-decorative corner. Named buttons require a fully visible label and clear activation
-point; opaque final-screen canvases are supported. Native, ASan/UBSan and agent-OFF/ON
-raster-parity checks also pass. This is bounded route acceptance, not full interface
-coverage or proof of the original historical failure's exact cursor geometry.
-`wip/named-button-v21e` and `wip/research-v22` preserve unfinished work; they are not
-releases. Build the native game and use the Python adapter from the **same branch**.
+**Status: experimental integration candidate, not a release.** This combines the
+main named-button fixes with WIP research completion, article navigation and public
+history. Its combined tree still requires native/build/replay/live qualification;
+separate branch successes do not establish integrated acceptance. Stock article
+lines and calendar fields may remain unknown under strict pixel-ownership checks.
+Build the native game and Python adapter from the **same branch**.
 
 ## What the agent gets
 

@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/24"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/25"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/24\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/25\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -82,7 +82,19 @@ bool agentActionId(const std::string &value)
         value == "select_craft_armor_soldier" ||
         value == "close_craft_armor" ||
         value == "select_soldier_armor" ||
-        value == "cancel_soldier_armor";
+        value == "cancel_soldier_armor" ||
+        value == "dismiss_research_complete" ||
+        value == "view_research_reports" ||
+        value == "dismiss_new_research" ||
+        value == "open_research_allocation" ||
+        value == "dismiss_new_manufacture" ||
+        value == "open_manufacture_allocation" ||
+        value == "dismiss_research_required" ||
+        value == "dismiss_mission_alert" ||
+        value == "close_ufopaedia_article" ||
+        value == "previous_ufopaedia_article" ||
+        value == "next_ufopaedia_article" ||
+        value == "scroll_article_text";
 }
 const char *agentArgumentKind(const std::string &action)
 {
@@ -108,7 +120,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "minimap_center") return "minimap_target";
     if (action == "open_new_battle_choice") return "choice_control";
     if (action == "choose_visible_row") return "visible_row";
-    if (action == "scroll_visible_list") return "scroll_direction";
+    if (action == "scroll_visible_list" || action == "scroll_article_text") return "scroll_direction";
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
     if (action == "replace_base_name") return "text";

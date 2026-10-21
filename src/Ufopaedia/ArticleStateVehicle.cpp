@@ -136,6 +136,10 @@ namespace OpenXcom
 			_lstStats->addRow(2, tr("STR_WEAPON_POWER").c_str(), ss8.str().c_str());
 		}
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateVehicle::~ArticleStateVehicle()

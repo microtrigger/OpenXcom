@@ -114,6 +114,10 @@ namespace OpenXcom
 		_lstInfo->addRow(2, tr("STR_WEAPON_RANGE").c_str(), tr("STR_KILOMETERS").arg(ufo->getWeaponRange()).c_str());
 
 		_lstInfo->addRow(2, tr("STR_MAXIMUM_SPEED").c_str(), tr("STR_KNOTS").arg(Unicode::formatNumber(ufo->getMaxSpeed())).c_str());
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateUfo::~ArticleStateUfo()

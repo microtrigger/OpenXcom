@@ -93,6 +93,10 @@ namespace OpenXcom
 		_lstInfo->setCellColor(4, 1, Palette::blockOffset(15)+4);
 
 		centerAllSurfaces();
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateCraftWeapon::~ArticleStateCraftWeapon()

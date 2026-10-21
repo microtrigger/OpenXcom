@@ -21,7 +21,7 @@ import time
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-SCHEMA = 'openxcom-agent-control/24'
+SCHEMA = 'openxcom-agent-control/25'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -66,7 +66,8 @@ ACTIONS = ('next_soldier', 'previous_soldier', 'kneel', 'stand', 'continue_next_
            'select_craft', 'close_crafts', 'open_craft_crew', 'open_craft_equipment',
            'open_craft_armor', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
            'close_craft_crew', 'change_craft_equipment', 'close_craft_equipment', 'select_craft_armor_soldier',
-           'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor')
+           'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor',
+           'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'dismiss_mission_alert')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -158,13 +159,45 @@ OUTFITTING_ROW_ACTIONS = {
     'soldier_armor': ('select_soldier_armor',),
 }
 OUTFITTING_SEMANTIC_LABELS = {'select_soldier': 'Select soldier', 'select_craft': 'Select craft', 'set_craft_soldier': 'Set craft assignment', 'open_craft_soldier_info': 'Inspect soldier', 'change_craft_equipment': 'Change craft equipment', 'select_craft_armor_soldier': 'Select soldier armor', 'select_soldier_armor': 'Select armor'}
+RESEARCH_NOTICE_STATES = ('new_possible_research', 'new_possible_manufacture')
+RESEARCH_COMPLETION_FIELDS = {'research_complete': 'title topic buttons',
+ 'new_possible_research': 'title rows scroll buttons',
+ 'new_possible_manufacture': 'title rows scroll buttons',
+ 'research_required': 'message buttons',
+ 'ufopaedia_article': 'title body_lines buttons details_status',
+ 'mission_alert': 'title city buttons'}
+RESEARCH_COMPLETION_BUTTONS = {'research_complete': ('ok', 'reports'),
+ 'new_possible_research': ('ok', 'allocate'),
+ 'new_possible_manufacture': ('ok', 'allocate'),
+ 'research_required': ('ok',),
+ 'ufopaedia_article': ('ok', 'previous', 'next'),
+ 'mission_alert': ('intercept', 'center', 'cancel')}
+RESEARCH_COMPLETION_BUTTON_ACTIONS = {'research_complete': {'dismiss_research_complete': 'ok', 'view_research_reports': 'reports'},
+ 'new_possible_research': {'dismiss_new_research': 'ok', 'open_research_allocation': 'allocate'},
+ 'new_possible_manufacture': {'dismiss_new_manufacture': 'ok', 'open_manufacture_allocation': 'allocate'},
+ 'research_required': {'dismiss_research_required': 'ok'},
+ 'ufopaedia_article': {'close_ufopaedia_article': 'ok',
+                       'previous_ufopaedia_article': 'previous',
+                       'next_ufopaedia_article': 'next'},
+ 'mission_alert': {'dismiss_mission_alert': 'cancel'}}
+RESEARCH_COMPLETION_ACTION_ORDER = {'research_complete': ('dismiss_research_complete', 'view_research_reports'),
+ 'new_possible_research': ('dismiss_new_research', 'open_research_allocation', 'scroll_visible_list'),
+ 'new_possible_manufacture': ('dismiss_new_manufacture',
+                              'open_manufacture_allocation',
+                              'scroll_visible_list'),
+ 'research_required': ('dismiss_research_required',),
+ 'ufopaedia_article': ('close_ufopaedia_article',
+                       'previous_ufopaedia_article',
+                       'next_ufopaedia_article',
+                       'scroll_article_text'),
+ 'mission_alert': ('dismiss_mission_alert',)}
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
 ARGUMENT_KINDS.update(select_difficulty='difficulty', set_ironman='boolean',
                       replace_base_name='text', place_base_site='point',
                       open_new_battle_choice='choice_control', choose_visible_row='visible_row',
-                      scroll_visible_list='scroll_direction', map_primary='grid_cell', map_secondary='grid_cell',
+                      scroll_visible_list='scroll_direction', scroll_article_text='scroll_direction', map_primary='grid_cell', map_secondary='grid_cell',
                       center_enemy='enemy_button', open_hand_action_menu='hand', choose_weapon_action='weapon_action',
                       inventory_hover='inventory_target', inventory_activate='inventory_target',
                       choose_grenade_timer='grenade_timer', camera_pan='camera_direction',
@@ -244,6 +277,12 @@ STATE_ACTIONS = {
     'weapon_action_menu': frozenset(('choose_weapon_action', 'cancel_weapon_action')),
     'prime_grenade': frozenset(('choose_grenade_timer', 'cancel_grenade_timer')),
     'debriefing': frozenset(('close_debriefing',)),
+    'research_complete': frozenset(('dismiss_research_complete', 'view_research_reports')),
+    'new_possible_research': frozenset(('dismiss_new_research', 'open_research_allocation', 'scroll_visible_list')),
+    'new_possible_manufacture': frozenset(('dismiss_new_manufacture', 'open_manufacture_allocation', 'scroll_visible_list')),
+    'research_required': frozenset(('dismiss_research_required',)),
+    'ufopaedia_article': frozenset(('close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text')),
+    'mission_alert': frozenset(('dismiss_mission_alert',)),
     'unsupported': frozenset(),
 }
 GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year', 'funds', 'speed')
@@ -318,7 +357,7 @@ def label_source(screen, action):
         return 'visible_control_semantics'
     return ('visible_control_semantics' if screen in ('battlescape', 'inventory', 'minimap') or
             action in ('replace_base_name', 'place_base_site', 'open_new_battle_choice',
-                       'choose_visible_row', 'scroll_visible_list', 'close_dropdown', 'cancel_weapon_action',
+                       'choose_visible_row', 'scroll_visible_list', 'scroll_article_text', 'close_dropdown', 'cancel_weapon_action',
                        'cancel_grenade_timer', 'select_base') else 'visible_text')
 
 
@@ -569,6 +608,45 @@ def validate_outfitting(screen, visible, actions):
         exact(button, 'id label'); strategy_text(button['label']); require(bool(button['label']))
     shown = {button['id'] for button in buttons}
     for action, button in OUTFITTING_BUTTON_ACTIONS[screen].items():
+        require(action not in actions or button in shown)
+
+
+def validate_research_completion(screen, visible, actions):
+    """Shown completion controls and separately proved article lines only."""
+    exact(visible, RESEARCH_COMPLETION_FIELDS[screen])
+    for field in RESEARCH_COMPLETION_FIELDS[screen].split():
+        if field not in ('rows', 'scroll', 'buttons', 'body_lines', 'details_status'):
+            strategy_text(visible[field], nullable=True)
+    if screen in RESEARCH_NOTICE_STATES:
+        rows = visible['rows']; require(type(rows) is list and len(rows) <= len(ROW_HANDLES))
+        for index, row in enumerate(rows):
+            exact(row, 'handle cells selected')
+            require(row['handle'] == ROW_HANDLES[index])
+            require(type(row['cells']) is list and len(row['cells']) == 1)
+            strategy_text(row['cells'][0]); require(row['selected'] is False)
+        exact(visible['scroll'], 'up down')
+        for flag in visible['scroll'].values(): require(type(flag) is bool)
+        require('scroll_visible_list' not in actions or any(visible['scroll'].values()))
+    elif screen == 'ufopaedia_article':
+        require(visible['details_status'] == 'unavailable')
+        lines = visible['body_lines']
+        if lines is not None:
+            require(type(lines) is list and len(lines) <= 32)
+            total = 0
+            for line in lines:
+                if line is None: continue
+                strategy_text(line); require(bool(line))
+                require(all(ord(char) >= 32 and ord(char) != 127 for char in line))
+                require(not line.startswith(' ') and not line.endswith(' ') and '  ' not in line)
+                total += len(line.encode('utf-8'))
+            require(total <= 8192)
+    buttons = visible['buttons']
+    require(type(buttons) is list and len(buttons) <= len(RESEARCH_COMPLETION_BUTTONS[screen]))
+    ordered_subset([button.get('id') if type(button) is dict else None for button in buttons], RESEARCH_COMPLETION_BUTTONS[screen])
+    for button in buttons:
+        exact(button, 'id label'); strategy_text(button['label']); require(bool(button['label']))
+    shown = {button['id'] for button in buttons}
+    for action, button in RESEARCH_COMPLETION_BUTTON_ACTIONS[screen].items():
         require(action not in actions or button in shown)
 
 
@@ -906,6 +984,8 @@ def validate_visible(screen, visible, seen):
         validate_projects(screen, visible, seen)
     elif screen in OUTFITTING_FIELDS:
         validate_outfitting(screen, visible, seen)
+    elif screen in RESEARCH_COMPLETION_FIELDS:
+        validate_research_completion(screen, visible, seen)
     elif screen in ('base_stores', 'base_transfers'):
         validate_base_table(visible, seen)
     elif screen == 'purchase':
@@ -1014,6 +1094,16 @@ def validate_state(obj, challenge, epoch, *, post_action=False):
             action = descriptor['id']; strategy_text(descriptor['label'])
             expected = ('Scroll visible list' if action == 'scroll_visible_list' else
                         OUTFITTING_SEMANTIC_LABELS[action] if action in OUTFITTING_SEMANTIC_LABELS else buttons[mapping[action]])
+            require(descriptor['label'] == expected)
+    if obj['state'] in RESEARCH_COMPLETION_FIELDS:
+        buttons = {button['id']: button['label'] for button in obj['visible']['buttons']}
+        mapping = RESEARCH_COMPLETION_BUTTON_ACTIONS[obj['state']]
+        for action, button in mapping.items(): require((action in seen) == (button in buttons))
+        ordered_subset([descriptor['id'] for descriptor in obj['actions']], RESEARCH_COMPLETION_ACTION_ORDER[obj['state']])
+        for descriptor in obj['actions']:
+            action = descriptor['id']; strategy_text(descriptor['label'])
+            expected = ('Scroll article text' if action == 'scroll_article_text' else
+                        'Scroll visible list' if action == 'scroll_visible_list' else buttons[mapping[action]])
             require(descriptor['label'] == expected)
     # An empty/unsupported catalog never authorizes an action.
     if not seen:
@@ -1456,7 +1546,7 @@ class AgentControlClient:
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
                 if obj['state'] in ('new_battle_dropdown', 'purchase_category'):
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
-                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS:
+                if obj['state'] in ('new_battle_dropdown', 'purchase_category', 'purchase', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in RESEARCH_NOTICE_STATES:
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
                 if obj['state'] == 'geoscape':
                     self.geoscape_speeds = frozenset(speed['handle'] for speed in obj['visible']['speeds'])

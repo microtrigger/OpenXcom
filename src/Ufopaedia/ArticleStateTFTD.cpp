@@ -84,6 +84,10 @@ namespace OpenXcom
 			centerAllSurfaces();
 		}
 
+	
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterText(_txtTitle, _txtInfo);
+#endif
 	}
 
 	ArticleStateTFTD::~ArticleStateTFTD()
