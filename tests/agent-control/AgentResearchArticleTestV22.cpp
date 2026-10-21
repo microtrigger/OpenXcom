@@ -18,6 +18,7 @@
 #include "../../src/Engine/SurfaceSet.h"
 #include "../../src/Mod/ArticleDefinition.h"
 #include "../../src/Mod/RuleCraft.h"
+#include "../../src/Mod/RuleResearch.h"
 #include "../../src/Mod/RuleCraftWeapon.h"
 #include "../../src/Mod/RuleBaseFacility.h"
 #include "../../src/Mod/RuleUfo.h"
@@ -88,6 +89,17 @@ ArticleDefinition*Mod::getUfopaediaArticle(const std::string&id,bool error)const
 bool Ufopaedia::isArticleAvailable(SavedGame*,ArticleDefinition*){return true;}
 ArticleDefinitionList Ufopaedia::getAvailableArticles(SavedGame*,Mod*){return ArticleHarness::available;}
 #include "ArticleNavigation.generated.inc"
+
+class ReportPopupHarness : public State {
+ const RuleResearch *_research,*_bonus;
+ public: ReportPopupHarness(const RuleResearch *main,const RuleResearch *bonus):_research(main),_bonus(bonus){}
+ void btnReportClick(Action*);
+};
+#include "ReportCallback.generated.inc"
+struct SuppressionSave {std::set<std::string>done;std::vector<std::string>queries;bool isResearched(const std::string&name,bool){queries.push_back(name);return done.count(name);}};
+struct SuppressionGame {SuppressionSave*save;explicit SuppressionGame(SuppressionSave*s):save(s){}SuppressionSave*getSavedGame(){return save;}};
+#include "ReportSuppression.generated.inc"
+
 }
 namespace {
 ArticleDefinition*definition(unsigned type){switch(type){case 1:return new ArticleDefinitionCraft;case 2:return new ArticleDefinitionCraftWeapon;case 3:return new ArticleDefinitionVehicle;case 4:return new ArticleDefinitionItem;case 5:return new ArticleDefinitionArmor;case 6:return new ArticleDefinitionBaseFacility;case 7:return new ArticleDefinitionTextImage;case 8:return new ArticleDefinitionText;case 9:return new ArticleDefinitionUfo;default:return new ArticleDefinitionTFTD;}}
@@ -132,6 +144,60 @@ void articleScrollPair(TableChannel &c,const std::string &master,const std::stri
   record(c,master,"ufopaedia_article",prefix+"_control_unavailable");
  }
 }
+// Real report-opening and article navigation bodies; owning popup and availability
+// are explicit seams. No completion/RNG/eligibility or live-game claim.
+void reportStackTests(const std::string &master)
+{
+ using namespace ArticleHarness;
+ const auto previousAvailable=available;
+ auto *bonusDef=mod->getUfopaediaArticle(master=="xcom1"?"STR_LASER_PISTOL":"STR_GAUSS_PISTOL");
+ auto *mainDef=previousAvailable.front();check(bonusDef&&mainDef&&bonusDef!=mainDef,"two distinct stock report definitions");
+ available={bonusDef,mainDef};
+ RuleResearch bonus(bonusDef->id),main(mainDef->id),missing("MCP_MISSING_REPORT"),lookup("MCP_LOOKUP_TOPIC");
+ YAML::Node node;node["lookup"]=mainDef->id;lookup.load(node,0);
+ struct Case {const char *name;const RuleResearch *main,*bonus;std::vector<std::string> bottomToTop;};
+ const std::vector<Case> cases={
+  {"none",nullptr,nullptr,{}},{"missing",&missing,nullptr,{}},
+  {"main",&main,nullptr,{mainDef->id}},{"bonus",nullptr,&bonus,{bonusDef->id}},
+  {"both",&main,&bonus,{bonusDef->id,mainDef->id}},
+  {"missing_main",&missing,&bonus,{bonusDef->id}},
+  {"lookup",&lookup,&bonus,{bonusDef->id,mainDef->id}}
+ };
+ for(const auto &test:cases)
+ {
+  check(game->_states.empty(),"report case starts with isolated stack");
+  auto *parent=new State;game->pushState(parent);
+  auto *popup=new ReportPopupHarness(test.main,test.bonus);game->pushState(popup);
+  popup->btnReportClick(nullptr);
+  check(game->_states.size()==test.bottomToTop.size()+1&&game->_states.front()==parent,"ordinary callback pops popup and opens expected report count");
+  for(size_t i=0;i<test.bottomToTop.size();++i){auto *article=dynamic_cast<ArticleState*>(*std::next(game->_states.begin(),i+1));check(article&&article->getId()==test.bottomToTop[i],"actual article stack order follows bonus then main");}
+  if(currentArticle())
+  {
+   paintArticle();TableChannel c(master+"-report-stack-"+test.name);wireArticle(c);
+   record(c,master,"ufopaedia_article","stack_open");
+   for(auto it=test.bottomToTop.rbegin();it!=test.bottomToTop.rend();++it)
+   {check(currentArticle()&&currentArticle()->getId()==*it,"close reveals exact lower article");articleExecute(c,"close_ufopaedia_article");if(currentArticle())record(c,master,"ufopaedia_article","lower_report_after_close");}
+  }
+  check(game->_states.size()==1&&game->_states.back()==parent,"all report exits preserve original parent");game->popState();
+ }
+ // A global index belongs to Ufopaedia, not to each stacked report. Closing
+ // main does not restore bonus's index; ordinary next/prev wrap accordingly.
+ auto *parent=new State;game->pushState(parent);auto *popup=new ReportPopupHarness(&main,&bonus);game->pushState(popup);popup->btnReportClick(nullptr);paintArticle();
+ TableChannel c(master+"-report-stack-navigation");wireArticle(c);articleExecute(c,"close_ufopaedia_article");
+ check(currentArticle()->getId()==bonusDef->id&&Ufopaedia::_current_index==1,"closing top leaves ordinary shared index unchanged");
+ articleExecute(c,"next_ufopaedia_article");check(currentArticle()->getId()==bonusDef->id&&Ufopaedia::_current_index==0,"ordinary global next wraps after top close");
+ articleExecute(c,"previous_ufopaedia_article");check(currentArticle()->getId()==mainDef->id&&Ufopaedia::_current_index==1,"ordinary previous wraps globally on remaining report");
+ articleExecute(c,"close_ufopaedia_article");check(game->_states.size()==1&&game->_states.back()==parent,"stack navigation preserves parent");game->popState();
+ // Exact daily-completion suppression block, with a declared researched-set seam.
+ SuppressionSave saved;SuppressionGame context(&saved);
+ check(selectReportResearch(&lookup,&context)==&lookup,"unseen lookup retains main report");
+ saved.done.insert(mainDef->id);check(selectReportResearch(&lookup,&context)==nullptr,"previously researched lookup suppresses main report");
+ check(selectReportResearch(&bonus,&context)==&bonus,"distinct unresearched name is not suppressed");
+ saved.done.insert(bonusDef->id);check(selectReportResearch(&bonus,&context)==nullptr,"name fallback suppression uses exact research name");
+ check(saved.queries==std::vector<std::string>({mainDef->id,mainDef->id,bonusDef->id,bonusDef->id}),"suppression consults actual lookup/name targets");
+ available=previousAvailable;
+}
+
 void articleTests(Font&bigFont,Font&smallFont,Language&lang,const std::string&source,const std::string&master){using namespace ArticleHarness;big=&bigFont;small=&smallFont;language=&lang;loadRules(source,master);Surface canvas(320,200);logical=&canvas;Screen ownerScreen;screen=&ownerScreen;Game ownerGame("offscreen owning seam");game=&ownerGame;State::setGamePtr(game);Outfitting::Game overlays;overlays.lang=&lang;Outfitting::active=&overlays;
  unsigned index=0;
  for(auto*def:available){Ufopaedia::_current_index=index++;auto*s=Ufopaedia::createArticleState(def);check(s,"actual17 constructor switch");game->pushState(s);TableChannel c(master+"-article-type-"+std::to_string(unsigned(def->getType())));wireArticle(c);
@@ -157,6 +223,7 @@ void articleTests(Font&bigFont,Font&smallFont,Language&lang,const std::string&so
  {auto*def=available.front();auto*s=Ufopaedia::createArticleState(def);game->pushState(s);Text*body=s->_agentBody;body->setText("Visible line");body->setWidth(180);body->setHeight(30);body->setX(10);body->setY(150);body->setColor(2);body->setScrollable(true);auto*layer=new Surface(180,30,10,150);layer->setPalette(palette);layer->clear();s->add(layer);s->agentRegisterTransparentLayer(layer);s->blit();TableChannel c(master+"-article-owned-layer");wireArticle(c);auto shown=record(c,master,"ufopaedia_article","transparent_owned_layer");check(shown["visible"]["body_lines"].IsSequence(),"transparent owned layer retains body scope");
  std::vector<Text::AgentVisibleLine> lines;check(body->agentVisibleLines(&canvas,lines)&&!lines.empty()&&!lines[0].pixels.empty(),"actual body glyph for overlay witness");const auto pixel=lines[0].pixels[0];layer->setPixel(pixel.x,pixel.y,40);s->blit();shown=record(c,master,"ufopaedia_article","opaque_owned_pixel");check(shown["visible"]["body_lines"].IsSequence()&&shown["visible"]["body_lines"][0].IsNull(),"one later opaque pixel withholds full line");layer->clear();layer->setX(11);layer->setX(10);record(c,master,"ufopaedia_article","owned_layer_geometry_aba_no_paint","unsupported");s->blit();record(c,master,"ufopaedia_article","owned_layer_fresh_paint");
  const pid_t child=fork();check(child>=0,"article failed paint child");if(!child){agentObservePaint(-1);AgentUiState fail;if(s->agentUiState(fail))_exit(2);s->blit();if(s->agentUiState(fail))_exit(3);_exit(0);}int status=0;check(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0,"failed article paint remains fail closed");articleExecute(c,"close_ufopaedia_article");}
+ reportStackTests(master);
  for(auto*s:retired)delete s;retired.clear();clearResources();delete mod;mod=nullptr;game=nullptr;screen=nullptr;logical=nullptr;
 }
 

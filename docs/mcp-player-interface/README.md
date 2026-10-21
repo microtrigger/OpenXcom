@@ -1,6 +1,10 @@
 # Experimental semantic MCP control
 
-**v22-wip** — WIP research completion and article UI. Focused checks passed, but premerge adapter replay is incomplete; article text/scroll remain partial. No final native build or live acceptance. This branch starts from v21b and does not yet contain v21d or v21e.
+**v22-wip** — research completion and article UI. Native, sanitizer and adapter
+replay checks cover popup providers, article constructors and report stacks. Bounded
+stock UFO/TFTD research routes passed live; article text/calendar may remain unknown
+under strict pixel-ownership guards. This branch is not a release: integration with
+main's named-button fixes and final unified qualification remain separate gates.
 
 ## Build and use
 

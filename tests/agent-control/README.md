@@ -120,3 +120,15 @@ Native UFO/TFTD fixtures verify actual pixel collisions, complete source text bu
 unavailable composed fields, and an unaffected year; a descender month also clips
 inside its own widget. Complete-clock validation therefore remains unproven; do
 not infer a date from stock defaults or substitute time-of-day for a full clock.
+
+Offscreen article/report-stack fixture:
+
+    python3 tests/agent-control/run-research-article-tests.py --data /path/to/runtime/data --output /tmp/articles
+
+Optional `--sdk /prefix` and `--sanitize` follow the text fixture conventions.
+Uses actual article constructors, Ufopaedia resolution/navigation and extracted
+ordinary report callback. Tests zero/one/two reports, missing reports, lookup/name
+fallback, close revealing the lower report and the shared navigation index.
+The popup owner and researched-set inputs are explicit seams; the exact daily
+suppression block is checked, not the whole daily simulation or research eligibility.
+Generated packets can be replayed with `replay_client_server_v22.py`, normal and `-O`.
