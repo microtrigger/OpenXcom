@@ -396,4 +396,44 @@ class HistoryPrerequisiteTests(unittest.TestCase):
         self.assertIn('--verify-retained-history requires --completion-allocation',error.getvalue())
         launch.assert_not_called();mkdir.assert_not_called()
 
+
+
+
+class QueuedResearchCompletion(unittest.TestCase):
+    def run_case(self, initial, title='Laser Weapons', receipt='dispatched', replacement='research_complete'):
+        n=[0];sent=[]
+        def call(name,args):
+            if name=='execute_ui_action':
+                sent.append(args)
+                return {'status':receipt,'observation':{}}
+            n[0]+=1
+            kind=initial if n[0]==1 else replacement
+            return dict(state=kind,visible={'topic':title,'speed':'5 Secs'},
+                        actions=[{'id':'dismiss_ufo_contact'},{'id':'choose_geoscape_speed'}],
+                        epoch='e',revision=n[0],challenge=str(n[0]),capability=str(n[0]))
+        r=Route(call,lambda *a,**kw:None,'xcom1')
+        return r,sent
+    def test_queued_completion_replaces_incident_before_dispatch(self):
+        r,sent=self.run_case('ufo_contact');r._completion('Laser Weapons')
+        self.assertEqual(sent,[])
+    def test_queued_completion_replaces_geoscape_before_speed_dispatch(self):
+        r,sent=self.run_case('geoscape');r._completion('Laser Weapons')
+        self.assertEqual(sent,[])
+    def test_wrong_completion_topic_still_rejected(self):
+        r,sent=self.run_case('ufo_contact',title='Other')
+        with self.assertRaisesRegex(RouteError,'wrong_research_completion'):r._completion('Laser Weapons')
+        self.assertEqual(sent,[])
+    def test_unrelated_replacement_not_allowed(self):
+        r,sent=self.run_case('ufo_contact',replacement='manufacture')
+        with self.assertRaisesRegex(RouteError,'unexpected_screen:manufacture'):r._completion('Laser Weapons')
+        self.assertEqual(sent,[])
+
+    def test_unknown_outcome_still_stops(self):
+        r,_=self.run_case('ufo_contact');calls=[]
+        def act(*a,**kw):
+            calls.append(1);raise RouteError('non_dispatched_stop_no_replay')
+        r.act=act
+        with self.assertRaisesRegex(RouteError,'no_replay'):r._completion('Laser Weapons')
+        self.assertEqual(calls,[1])
+
 if __name__=='__main__':unittest.main()

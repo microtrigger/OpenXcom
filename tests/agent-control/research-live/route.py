@@ -264,14 +264,23 @@ class Route:
                                 observed_interval_only=True)
                     self.record('visible_clock_verified',project=title,**self.clock_evidence.verified())
                 self.record('completion',topic=title,visible=state['visible']);return
-            if kind in INCIDENTS:self.act({kind},INCIDENTS[kind])
-            elif kind=='geoscape':
-                if state['visible'].get('speed')!='1 Day':
-                    def day(s):
-                        rows=[r for r in s['visible']['speeds'] if r.get('label')=='1 Day']
-                        require(len(rows)==1,'day_speed_unknown');return {'speed':rows[0]['handle']}
-                    self.act({'geoscape'},'choose_geoscape_speed',day)
-            else:require(kind=='unsupported','unsupported_research_interrupt:'+str(kind))
+            try:
+                if kind in INCIDENTS:self.act({kind},INCIDENTS[kind])
+                elif kind=='geoscape':
+                    if state['visible'].get('speed')!='1 Day':
+                        def day(s):
+                            rows=[r for r in s['visible']['speeds'] if r.get('label')=='1 Day']
+                            require(len(rows)==1,'day_speed_unknown');return {'speed':rows[0]['handle']}
+                        self.act({'geoscape'},'choose_geoscape_speed',day)
+                else:require(kind=='unsupported','unsupported_research_interrupt:'+str(kind))
+            except RouteError as error:
+                # A queued completion can replace the incidental/geoscape view
+                # during act's PRE-dispatch fresh-read readiness check. Nothing
+                # was sent for that attempted action. Do not replay it; re-read
+                # and validate the exact expected completion title above.
+                if str(error) != 'unexpected_screen:research_complete':
+                    raise
+                continue
             self.sleep(.5)
         raise RouteError('research_completion_timeout:'+title)
 
