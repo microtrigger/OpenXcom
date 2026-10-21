@@ -5,10 +5,14 @@ interface to the game's **displayed UI**, rather than unrestricted memory access
 or a stream of mouse coordinates. It supports UFO Defense and Terror from the
 Deep with separately supplied original game data.
 
-**Status: experimental integration candidate, not a release.** This combines the
-main named-button fixes with WIP research completion, article navigation and public
-history. Its combined tree still requires native/build/replay/live qualification;
-separate branch successes do not establish integrated acceptance. Stock article
+**Status: experimental, with unified qualification completed on 2026-10-21.**
+The integrated tree passed a full build, native normal/sanitizer tests, adapter
+normal/optimized replay, and OFF/ON raster parity. Actual UFO/TFTD runs passed the
+stock-fixture Basescape return route and fresh-campaign research completion,
+article navigation, staff release, manufacture detail/Cancel and retained-history
+paging. These are bounded routes, not exhaustive gameplay coverage or a CI claim.
+Native popup/report-stack tests retain explicit ownership/resource/availability
+seams; retained-history checks do not prove whole-route retention. Stock article
 lines and calendar fields may remain unknown under strict pixel-ownership checks.
 Build the native game and Python adapter from the **same branch**.
 
