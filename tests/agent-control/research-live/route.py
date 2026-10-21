@@ -1,6 +1,7 @@
 """Bounded ordinary research smoke; only fresh, offered public controls.
 Route derived from research_route_v22.py; intentionally not its full acceptance.
 """
+import json
 import datetime
 import copy
 import re
@@ -62,8 +63,66 @@ class VisibleClockEvidence:
                     interval_is_observed_only=True,research_duration_claimed=False,
                     allocation_baseline_claimed=False,completion_causality_claimed=False)
 
+class RetainedHistoryEvidence:
+    """Final paused retained-window check, not a whole-route event capture."""
+    def __init__(self,call,record,epoch,clock=time.monotonic):
+        self.call,self.record,self.epoch,self.clock=call,record,epoch,clock
+        self.deadline=clock()+30;self.previous=None;self.pages=0;self.challenges=set()
+    def page(self,after):
+        require(self.clock()<self.deadline,'history_timeout')
+        require(self.pages<257,'history_page_budget')
+        self.pages+=1
+        p=self.call('read_public_events',dict(epoch=self.epoch,after=after,limit=16))
+        require(self.clock()<self.deadline,'history_timeout')
+        require(isinstance(p,dict),'history_invalid_page')
+        require(p.get('schema')=='openxcom-agent-control/25' and p.get('mode')=='agent-control' and p.get('type')=='events','history_schema')
+        require(p.get('epoch')==self.epoch,'history_epoch_changed')
+        challenge=p.get('challenge')
+        require(isinstance(challenge,str) and bool(challenge) and challenge not in self.challenges,'history_challenge_not_fresh')
+        self.challenges.add(challenge)
+        for k in ('after','oldest','newest','next_cursor'):
+            require(type(p.get(k)) is int and 0<=p[k]<=2**53-1,'history_invalid_counter')
+        require(p['after']==after and after<=p['newest'],'history_cursor_mismatch')
+        require(p['oldest']==max(1,p['newest']-255),'history_retention_bounds')
+        require(type(p.get('gap')) is bool and p['gap']==(after+1<p['oldest']),'history_gap_mismatch')
+        if self.previous:
+            require(p['oldest']>=self.previous['oldest'] and p['newest']>=self.previous['newest'],'history_bounds_regressed')
+        events=p.get('events');require(isinstance(events,list) and len(events)<=16,'history_invalid_events')
+        first=max(after+1,p['oldest'])
+        require(bool(events)==(first<=p['newest']),'history_missing_events')
+        for i,e in enumerate(events):
+            require(isinstance(e,dict) and type(e.get('seq')) is int and e['seq']==first+i and e['seq']<=p['newest'] and isinstance(e.get('kind'),str),'history_sequence_invalid')
+        require(p['next_cursor']==(events[-1]['seq'] if events else after),'history_next_cursor_invalid')
+        self.previous=p
+        return p
+    @staticmethod
+    def canonical(event):
+        return json.dumps(event,sort_keys=True,ensure_ascii=True,separators=(',',':'),allow_nan=False)
+    def verify(self):
+        p=self.page(0);cutoff=p['newest'];initial_gap=p['gap'];records={};cursor=0
+        self.record('history_window',cutoff=cutoff,oldest=p['oldest'],initial_expired_gap=initial_gap,whole_route_completeness_claimed=False)
+        while True:
+            for e in p['events']:
+                if e['seq']<=cutoff:records[e['seq']]=self.canonical(e)
+            cursor=p['next_cursor']
+            if cursor>=cutoff:break
+            require(self.pages<256,'history_page_budget')
+            p=self.page(cursor)
+            require(not p['gap'],'history_expired_during_drain')
+        require(bool(records),'history_no_retained_records')
+        # Repeat exactly the final page's cursor, not the moving tail.
+        repeat=self.page(p['after'])
+        require(not repeat['gap'] or repeat['oldest']==p['oldest'],'history_expired_during_repeat')
+        common=0
+        for e in repeat['events']:
+            if e['seq'] in records:
+                require(records[e['seq']]==self.canonical(e),'history_retained_record_changed')
+                common+=1
+        require(common>0,'history_no_common_retained_records')
+        self.record('history_retained_verified',cutoff=cutoff,retained_records=len(records),common_records=common,pages=self.pages,initial_expired_gap=initial_gap,whole_route_completeness_claimed=False,simulation_causality_claimed=False)
+
 class Route:
-    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False,manufacture_detail=False,verify_visible_clock=False):
+    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False,manufacture_detail=False,verify_visible_clock=False,verify_retained_history=False):
         self.call,self.record,self.master,self.clock,self.sleep=call,record,master,clock,sleep
         self.count=0;self.started=clock();self.state=None
         self.allow_unknown_selection=allow_unknown_selection;self.unknown_selected=set()
@@ -72,6 +131,8 @@ class Route:
         self.completion_allocation=completion_allocation;self.research_baseline=None;self.base_name=None
         self.manufacture_detail=manufacture_detail;self.detail_phase=None
         self.verify_visible_clock=verify_visible_clock;self.clock_evidence=None
+        require(not verify_retained_history or completion_allocation,'retained_history_requires_completion_allocation')
+        self.verify_retained_history=verify_retained_history
 
     def read(self):
         require(self.clock()-self.started<600,'overall_route_timeout')
@@ -319,6 +380,12 @@ class Route:
         self.record('final',state=state['state'],visible=state['visible'],dispatches=self.count)
 
     def run(self):
+        self._run()
+        if self.verify_retained_history:
+            state=self.ready({'pause_menu'})
+            RetainedHistoryEvidence(self.call,self.record,state['epoch'],self.clock).verify()
+
+    def _run(self):
         starter,pistol=TARGETS[self.master]
         self.act({'main_menu'},'open_new_game',after={'new_game'})
         self.act({'new_game'},'select_difficulty',{'value':'beginner'}, {'new_game'},

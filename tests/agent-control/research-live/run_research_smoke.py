@@ -66,7 +66,7 @@ class Rpc:
             raise SmokeError('invalid_rpc_response')
         return reply.get('result')
 
-    def initialize(self):
+    def initialize(self, verify_retained_history=False):
         result = self.request('initialize', {'protocolVersion':'2025-11-25', 'capabilities':{},
                               'clientInfo':{'name':'research-smoke','version':'1'}})
         if not isinstance(result, dict) or result.get('protocolVersion') != '2025-11-25':
@@ -74,6 +74,8 @@ class Rpc:
         self.send({'jsonrpc':'2.0','method':'notifications/initialized'})
         result = self.request('tools/list', {})
         names = {t.get('name') for t in result.get('tools', [])}
+        if verify_retained_history and 'read_public_events' not in names:
+            raise SmokeError('public_events_tool_missing')
         if not {'read_ui_state','execute_ui_action'} <= names:
             raise SmokeError('semantic_tools_missing')
 
@@ -106,6 +108,7 @@ def wait_focus(path, timeout):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--verify-retained-history', action='store_true', help='Verify a bounded retained public event window at final Pause, not whole-route completeness')
     ap.add_argument('--verify-visible-clock', action='store_true', help='Require observed public Geoscape clock advance separately during each completion wait')
     ap.add_argument('--manufacture-detail', action='store_true', help='Requires completion-allocation; inspect exact labelled production detail then cancel, never start')
     ap.add_argument('--completion-allocation', action='store_true', help='Check released scientist baseline, manufacture notice/allocation without production start, and final pause')
@@ -121,6 +124,7 @@ def main():
                     help='Must not exist; operator creates after observing and focusing own game window')
     ap.add_argument('--focus-timeout', type=float, default=120)
     a = ap.parse_args()
+    if a.verify_retained_history and not a.completion_allocation:ap.error('--verify-retained-history requires --completion-allocation')
     if a.manufacture_detail and not a.completion_allocation:ap.error('--manufacture-detail requires --completion-allocation')
     source = a.source.resolve()
     binary, data, out, focus = (p.resolve() for p in (a.binary,a.data,a.output,a.focus_ready_file))
@@ -141,7 +145,7 @@ def main():
     files += list((source/'tests/agent-report-fixture').glob('*'))+[p for p in scripts.glob('*.py') if not p.name.startswith('test_')]
     hashes = {str(p.relative_to(source)):sha(p) for p in files if p.is_file()}
     runner_hashes={p.name:sha(p) for p in Path(__file__).resolve().parent.glob('*.py')}
-    result = {'verify_visible_clock':a.verify_visible_clock, 'manufacture_detail':a.manufacture_detail, 'completion_allocation':a.completion_allocation, 'article_navigation':a.article_navigation, 'allow_unknown_selection':a.allow_unknown_selection, 'runner_sha256':runner_hashes, 'started':utc(), 'all_passed':False, 'master':a.master,
+    result = {'verify_retained_history':a.verify_retained_history, 'verify_visible_clock':a.verify_visible_clock, 'manufacture_detail':a.manufacture_detail, 'completion_allocation':a.completion_allocation, 'article_navigation':a.article_navigation, 'allow_unknown_selection':a.allow_unknown_selection, 'runner_sha256':runner_hashes, 'started':utc(), 'all_passed':False, 'master':a.master,
               'binary_sha256':sha(binary), 'source_sha256':hashes, 'steps':[],
               'game_left_open':True, 'scope':'Ordinary fresh stock research smoke; not full v22 acceptance'}
     def save(): (out/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
@@ -170,8 +174,8 @@ def main():
             'instruction':'Verify and focus own game window, then create focus-ready file.'})+'\n')
         wait_focus(focus,a.focus_timeout)
         record('operator_focus_marker')
-        rpc.initialize()
-        Route(rpc.call,record,a.master,allow_unknown_selection=a.allow_unknown_selection,article_navigation=a.article_navigation,completion_allocation=a.completion_allocation,manufacture_detail=a.manufacture_detail,verify_visible_clock=a.verify_visible_clock).run()
+        rpc.initialize(a.verify_retained_history)
+        Route(rpc.call,record,a.master,allow_unknown_selection=a.allow_unknown_selection,article_navigation=a.article_navigation,completion_allocation=a.completion_allocation,manufacture_detail=a.manufacture_detail,verify_visible_clock=a.verify_visible_clock,verify_retained_history=a.verify_retained_history).run()
         if not all(sha(Path(__file__).resolve().parent/p)==h for p,h in runner_hashes.items()) or sha(binary) != result['binary_sha256'] or not all(sha(source/p)==h for p,h in hashes.items()):
             raise SmokeError('source_or_binary_changed')
         result['all_passed'] = True

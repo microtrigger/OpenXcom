@@ -104,3 +104,12 @@ an observed interval, not research duration or causality. Unknown dates fail clo
 On 2026-10-21 both stock live routes stopped PARTIAL at their first completion:
 public day/month were null, so clock advancement was not established. Do not infer
 a date from stock defaults or a time-of-day alone; the projection gap remains open.
+
+Optional `--verify-retained-history` requires `--completion-allocation`. At final
+Pause it drains public events up to the first page's fixed cutoff, then verifies
+common retained records on a repeated page. Epoch/cursor/sequence errors, new gaps,
+changed records or absent common evidence fail closed. Reads are bounded to 30 s
+and 257 pages; no additional game actions are issued. Initial expired history is
+reported, not reconstructed. This does not prove whole-route completeness.
+Live UFO/TFTD checks on 2026-10-21 passed with 106/108 retained records respectively,
+eight pages each and 10/12 identical common records; neither had an initial gap.

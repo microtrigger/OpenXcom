@@ -307,4 +307,93 @@ class ClockChecks(unittest.TestCase):
     def test_default_off(self):
         r=Route(None,None,'xcom1');self.assertFalse(r.verify_visible_clock)
 
+class HistoryGuards(unittest.TestCase):
+    def runner(self,newest=20,chunk=16,mutate=None):
+        from route import RetainedHistoryEvidence
+        calls=[];logs=[]
+        def call(name,args):
+            self.assertEqual(name,'read_public_events');calls.append(dict(args))
+            n=len(calls);after=args['after'];oldest=max(1,newest-255)
+            events=[dict(seq=i,kind='presentation',state='pause_menu',visible={}) for i in range(max(after+1,oldest),min(newest+1,max(after+1,oldest)+chunk))]
+            p=dict(schema='openxcom-agent-control/25',mode='agent-control',type='events',epoch='epoch',challenge=str(n),after=after,oldest=oldest,newest=newest,next_cursor=events[-1]['seq'] if events else after,gap=after+1<oldest,events=events)
+            if mutate:mutate(p,n)
+            return p
+        h=RetainedHistoryEvidence(call,lambda event,**kw:logs.append((event,kw)),'epoch')
+        return h,calls,logs
+    def test_bounded_success(self):
+        h,c,l=self.runner();h.verify();self.assertEqual([x['after'] for x in c],[0,16,16]);self.assertEqual(l[-1][1]['common_records'],4);self.assertFalse(l[-1][1]['whole_route_completeness_claimed'])
+    def test_initial_gap_explicit_not_full_history(self):
+        h,c,l=self.runner(300);h.verify();self.assertTrue(l[-1][1]['initial_expired_gap']);self.assertEqual(l[-1][1]['retained_records'],256)
+    def test_one_record_pages_supported(self):
+        h,c,l=self.runner(256,1);h.verify();self.assertEqual(len(c),257)
+    def test_epoch_and_schema_rejected(self):
+        for key,value in [('epoch','other'),('schema','old'),('mode','other')]:
+            h,_,_=self.runner(mutate=lambda p,n:p.update({key:value}))
+            with self.assertRaises(RouteError):h.verify()
+    def test_counter_bool_sequence_and_cursor_rejected(self):
+        mutations=[lambda p,n:p.update(newest=True),lambda p,n:p.update(next_cursor=0),lambda p,n:p['events'][0].update(seq=2),lambda p,n:p.update(gap=True),lambda p,n:p.update(events=[])]
+        for m in mutations:
+            h,_,_=self.runner(mutate=m)
+            with self.assertRaises(RouteError):h.verify()
+    def test_retained_mutation_rejected(self):
+        def mutate(p,n):
+            if n==3:p['events'][0]['visible']={'changed':True}
+        h,_,_=self.runner(mutate=mutate)
+        with self.assertRaisesRegex(RouteError,'retained_record_changed'):h.verify()
+    def test_fresh_challenge_required(self):
+        h,_,_=self.runner(mutate=lambda p,n:p.update(challenge='same'))
+        with self.assertRaisesRegex(RouteError,'challenge'):h.verify()
+    def test_empty_history_unproven(self):
+        h,_,_=self.runner(0)
+        with self.assertRaisesRegex(RouteError,'no_retained_records'):h.verify()
+    def test_expiration_during_drain_rejected(self):
+        def mutate(p,n):
+            if n==2:
+                p.update(newest=300,oldest=45,gap=True,events=[dict(seq=45,kind='presentation')],next_cursor=45)
+        h,_,_=self.runner(mutate=mutate)
+        with self.assertRaisesRegex(RouteError,'expired_during_drain'):h.verify()
+    def test_new_tail_not_chased(self):
+        def mutate(p,n):
+            if n>1:p['newest']=30
+        h,c,_=self.runner(mutate=mutate);h.verify();self.assertEqual(len(c),3)
+    def test_bounds_regression_rejected(self):
+        def mutate(p,n):
+            if n==2:p['newest']=19
+        h,_,_=self.runner(mutate=mutate)
+        with self.assertRaisesRegex(RouteError,'bounds_regressed'):h.verify()
+    def test_optin_tool_requirement(self):
+        from run_research_smoke import Rpc,SmokeError
+        rpc=object.__new__(Rpc);rpc.send=lambda *a:None
+        rpc.request=lambda method,args:({'protocolVersion':'2025-11-25'} if method=='initialize' else {'tools':[{'name':'read_ui_state'},{'name':'execute_ui_action'}]})
+        rpc.initialize()
+        with self.assertRaisesRegex(SmokeError,'public_events_tool_missing'):rpc.initialize(True)
+    def test_timeout(self):
+        h,c,_=self.runner();h.clock=lambda:h.deadline
+        with self.assertRaisesRegex(RouteError,'timeout'):h.verify()
+        self.assertEqual(c,[])
+    def test_default_off_no_extra_reads(self):
+        f=Fake();r=f.route();r._run=lambda:None;r.run();self.assertEqual(f.n,0)
+    def test_optin_requires_final_pause(self):
+        f=Fake();r=f.route();r.verify_retained_history=True;r._run=lambda:None
+        with self.assertRaisesRegex(RouteError,'unexpected_screen'):r.run()
+        self.assertEqual(f.sent,[])
+
+class HistoryPrerequisiteTests(unittest.TestCase):
+    def test_constructor_rejects_before_rpc(self):
+        calls=[]
+        with self.assertRaisesRegex(RouteError,'retained_history_requires_completion_allocation'):
+            Route(lambda *args:calls.append(args),lambda *a,**k:None,'xcom1',verify_retained_history=True)
+        self.assertEqual(calls,[])
+    def test_cli_rejects_before_launch_or_output(self):
+        import contextlib,io,sys
+        from unittest.mock import patch
+        import run_research_smoke as cli
+        args=['runner','--verify-retained-history','--source','/unused','--binary','/unused','--data','/unused','--master','xcom1','--output','/unused','--focus-ready-file','/unused']
+        error=io.StringIO()
+        with patch.object(sys,'argv',args),patch.object(cli.subprocess,'Popen') as launch,patch.object(cli.Path,'mkdir') as mkdir,contextlib.redirect_stderr(error):
+            with self.assertRaises(SystemExit) as stopped:cli.main()
+        self.assertEqual(stopped.exception.code,2)
+        self.assertIn('--verify-retained-history requires --completion-allocation',error.getvalue())
+        launch.assert_not_called();mkdir.assert_not_called()
+
 if __name__=='__main__':unittest.main()
