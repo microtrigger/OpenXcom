@@ -111,4 +111,43 @@ class UnknownSelection(unittest.TestCase):
         r.act=lambda *a,**kw:actions.append(a)
         r.confirm_project_title('Gauss Technology');self.assertEqual(actions,[])
 
+class ArticleNavigation(unittest.TestCase):
+    def make(self,scroll=True,returned='Laser Pistol'):
+        log=[];actions=[]
+        r=Route(lambda *a:None,lambda kind,**kw:log.append((kind,kw)),'xcom1',article_navigation=True)
+        def state(title):
+            return {'visible':{'title':title},'actions':[{'id':a} for a in
+                    (['scroll_article_text'] if scroll else [])+['next_ufopaedia_article','previous_ufopaedia_article'] ]}
+        r.state=state('Laser Pistol')
+        r.ready=lambda allowed:r.state
+        def act(before,action,args=None,after=None,guard=None):
+            if guard:guard(r.state)
+            actions.append((action,args))
+            if action=='next_ufopaedia_article':r.state=state('Other Article')
+            elif action=='previous_ufopaedia_article':r.state=state(returned)
+            return r.state
+        r.act=act
+        return r,actions,log
+    def test_scroll_dispatch_then_next_previous(self):
+        r,actions,log=self.make();r.navigate_article('Laser Pistol')
+        self.assertEqual(actions,[('scroll_article_text',{'direction':'down'}),('scroll_article_text',{'direction':'up'}),
+                                 ('next_ufopaedia_article',None),('previous_ufopaedia_article',None)])
+        self.assertEqual(log[-1][0],'article_navigation_return')
+    def test_absent_scroll_is_explicit_skip_not_dispatch(self):
+        r,actions,log=self.make(scroll=False);r.navigate_article('Laser Pistol')
+        self.assertEqual([a[0] for a in actions],['next_ufopaedia_article','previous_ufopaedia_article'])
+        skipped=[v for k,v in log if k=='article_scroll_skipped']
+        self.assertEqual([v['direction'] for v in skipped],['down','up'])
+        self.assertTrue(all(v['scroll_tested'] is False for v in skipped))
+    def test_return_title_mismatch_stops_before_close(self):
+        r,actions,log=self.make(returned='Wrong')
+        with self.assertRaisesRegex(RouteError,'article_title_changed'):r.navigate_article('Laser Pistol')
+        self.assertNotIn('close_ufopaedia_article',[a[0] for a in actions])
+        self.assertNotIn('article_navigation_return',[k for k,v in log])
+    def test_unknown_return_title_is_not_identity(self):
+        r,actions,log=self.make(returned=None)
+        with self.assertRaises(RouteError):r.navigate_article('Laser Pistol')
+    def test_default_navigation_disabled(self):
+        self.assertFalse(Route(None,None,'xcom1').article_navigation)
+
 if __name__=='__main__':unittest.main()

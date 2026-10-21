@@ -64,3 +64,11 @@ TFTD required the explicit unknown-row option and subsequent detail confirmation
 These bounded smokes do not establish full v22 acceptance, complete article body
 projection, or every research/navigation route. Source, binary and runner hashes,
 steps and partial failures are recorded outside the checkout.
+
+Optional `--article-navigation` additionally checks offered scroll down/up, then
+Next → Previous and the original visible title before Close. Missing scroll actions
+are explicitly recorded as skipped (not tested); dispatch alone does not prove text
+movement or complete reading. Any unexpected return title stops the route.
+Live on 2026-10-21: UFO Laser Pistol → Grenade → Laser Pistol; TFTD Gauss Pistol →
+Magna-Blast Grenade → Gauss Pistol. TFTD dispatched both offered scroll directions;
+UFO offered neither, so both were skipped. Article body projection remained partial.

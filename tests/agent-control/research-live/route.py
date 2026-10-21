@@ -27,10 +27,11 @@ def projection(state):
     return state.get('state'),visible,state.get('actions')
 
 class Route:
-    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False):
+    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False):
         self.call,self.record,self.master,self.clock,self.sleep=call,record,master,clock,sleep
         self.count=0;self.started=clock();self.state=None
         self.allow_unknown_selection=allow_unknown_selection;self.unknown_selected=set()
+        self.article_navigation=article_navigation
 
     def read(self):
         require(self.clock()-self.started<600,'overall_route_timeout')
@@ -157,6 +158,27 @@ class Route:
             self.sleep(.5)
         raise RouteError('research_completion_timeout:'+title)
 
+    def navigate_article(self,title):
+        def same_title(state):
+            require(state['visible'].get('title')==title,'article_title_changed')
+        for direction in ('down','up'):
+            state=self.ready({'ufopaedia_article'})
+            same_title(state)
+            if 'scroll_article_text' not in {a['id'] for a in state.get('actions',[])}:
+                self.record('article_scroll_skipped',direction=direction,
+                            reason='action_not_offered',scroll_tested=False)
+                continue
+            self.act({'ufopaedia_article'},'scroll_article_text',{'direction':direction},
+                     {'ufopaedia_article'},guard=same_title)
+            same_title(self.state)
+            self.record('article_scroll_dispatched',direction=direction,visible=self.state['visible'],
+                        movement_claimed=False,full_article_claimed=False)
+        self.act({'ufopaedia_article'},'next_ufopaedia_article',after={'ufopaedia_article'},guard=same_title)
+        self.record('article_next',visible=self.state['visible'],adjacency_identity_claimed=False)
+        self.act({'ufopaedia_article'},'previous_ufopaedia_article',after={'ufopaedia_article'})
+        same_title(self.state)
+        self.record('article_navigation_return',visible_title=title,stable_article_identity_claimed=False)
+
     def run(self):
         starter,pistol=TARGETS[self.master]
         self.act({'main_menu'},'open_new_game',after={'new_game'})
@@ -192,7 +214,9 @@ class Route:
         state=self.incidents({'ufopaedia_article'})
         require(state['visible'].get('title')==pistol,'wrong_article_title')
         self.record('article',visible=state['visible'],full_article_claimed=False)
-        self.act({'ufopaedia_article'},'close_ufopaedia_article')
+        if self.article_navigation:self.navigate_article(pistol)
+        self.act({'ufopaedia_article'},'close_ufopaedia_article',
+                 guard=(lambda s:require(s['visible'].get('title')==pistol,'article_title_changed_before_close')) if self.article_navigation else None)
         # Remaining completion notices are left visible; do not advance time further.
         state=self.incidents({'new_possible_research','new_possible_manufacture','geoscape'})
         if state['state']=='geoscape':
