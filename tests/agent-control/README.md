@@ -78,7 +78,7 @@ summary and checks its return after both research completions. It validates the
 new-research and new-manufacture notices, opens and closes Manufacture without
 starting production, revisits the same named base and ends paused. Unknown numbers,
 changed totals or unexpected notice labels stop the route. Production editing and
-project-detail actions are explicitly excluded from this smoke.
+project-detail actions are excluded unless the separate option below is enabled.
 Live UFO/TFTD checks on 2026-10-21 restored the visible `[10, 0, 50]` baseline after
 each project, opened the production allocation screen and finished in Pause without
 issuing production-start or editing commands.
@@ -88,3 +88,11 @@ backgrounds. The conservative cross-line pixel-ownership guard intentionally lea
 intersecting text lines unavailable: stock small-font ink can exceed the line
 advance. A complete final line does not imply the preceding paragraph is readable.
 Tests load existing language/assets at runtime; no game resources are bundled.
+
+Optional `--manufacture-detail` (requires `--completion-allocation`) opens the
+uniquely labelled pistol production detail, verifies its title and cancels. The
+known public production summary/rows must match before and after. It never starts
+production, changes engineers/quantity/sell settings or stops a project. Unknown
+labels/baselines, unexpected titles and uncertain outcomes fail closed.
+Live UFO/TFTD detail-and-cancel routes passed on 2026-10-21 with unchanged known
+public production summaries/rows and final Pause; this is not a hidden-state proof.

@@ -106,6 +106,7 @@ def wait_focus(path, timeout):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--manufacture-detail', action='store_true', help='Requires completion-allocation; inspect exact labelled production detail then cancel, never start')
     ap.add_argument('--completion-allocation', action='store_true', help='Check released scientist baseline, manufacture notice/allocation without production start, and final pause')
     ap.add_argument('--article-navigation', action='store_true', help='Exercise offered scroll down/up, then next/previous and require original title before close')
     ap.add_argument('--allow-unknown-selection', action='store_true', help='Allow one uniquely visible null-label selection per project; confirm detail title or cancel once and stop')
@@ -119,6 +120,7 @@ def main():
                     help='Must not exist; operator creates after observing and focusing own game window')
     ap.add_argument('--focus-timeout', type=float, default=120)
     a = ap.parse_args()
+    if a.manufacture_detail and not a.completion_allocation:ap.error('--manufacture-detail requires --completion-allocation')
     source = a.source.resolve()
     binary, data, out, focus = (p.resolve() for p in (a.binary,a.data,a.output,a.focus_ready_file))
     if not 0 < a.focus_timeout <= 120: ap.error('focus timeout must be in (0,120]')
@@ -138,7 +140,7 @@ def main():
     files += list((source/'tests/agent-report-fixture').glob('*'))+[p for p in scripts.glob('*.py') if not p.name.startswith('test_')]
     hashes = {str(p.relative_to(source)):sha(p) for p in files if p.is_file()}
     runner_hashes={p.name:sha(p) for p in Path(__file__).resolve().parent.glob('*.py')}
-    result = {'completion_allocation':a.completion_allocation, 'article_navigation':a.article_navigation, 'allow_unknown_selection':a.allow_unknown_selection, 'runner_sha256':runner_hashes, 'started':utc(), 'all_passed':False, 'master':a.master,
+    result = {'manufacture_detail':a.manufacture_detail, 'completion_allocation':a.completion_allocation, 'article_navigation':a.article_navigation, 'allow_unknown_selection':a.allow_unknown_selection, 'runner_sha256':runner_hashes, 'started':utc(), 'all_passed':False, 'master':a.master,
               'binary_sha256':sha(binary), 'source_sha256':hashes, 'steps':[],
               'game_left_open':True, 'scope':'Ordinary fresh stock research smoke; not full v22 acceptance'}
     def save(): (out/'RESULT.json').write_text(json.dumps(result, indent=2)+'\n')
@@ -168,7 +170,7 @@ def main():
         wait_focus(focus,a.focus_timeout)
         record('operator_focus_marker')
         rpc.initialize()
-        Route(rpc.call,record,a.master,allow_unknown_selection=a.allow_unknown_selection,article_navigation=a.article_navigation,completion_allocation=a.completion_allocation).run()
+        Route(rpc.call,record,a.master,allow_unknown_selection=a.allow_unknown_selection,article_navigation=a.article_navigation,completion_allocation=a.completion_allocation,manufacture_detail=a.manufacture_detail).run()
         if not all(sha(Path(__file__).resolve().parent/p)==h for p,h in runner_hashes.items()) or sha(binary) != result['binary_sha256'] or not all(sha(source/p)==h for p,h in hashes.items()):
             raise SmokeError('source_or_binary_changed')
         result['all_passed'] = True

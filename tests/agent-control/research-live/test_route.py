@@ -196,4 +196,71 @@ class CompletionAllocation(unittest.TestCase):
         r.act=act;r.complete_allocation('Laser Pistol')
         self.assertEqual(actions,['dismiss_new_research','open_manufacture_allocation','close_production_list','open_bases','open_research','close_research_list','return_geoscape','open_pause_menu'])
 
+class ManufactureDetail(unittest.TestCase):
+    def scenario(self,labels=('Laser Pistol',),title='Laser Pistol',cancel=True,changed=False,uncertain=False):
+        records=[];sent=[]
+        r=Route(None,lambda kind,**kw:records.append(kind),'xcom1',completion_allocation=True,manufacture_detail=True)
+        baseline={'state':'manufacture','visible':{'summary':['10','0','50','$100'],'rows':[]}}
+        r.state=copy.deepcopy(baseline)
+        r.ready=lambda allowed:r.state
+        def act(before,action,args=None,after=None,guard=None):
+            if guard:guard(r.state)
+            if callable(args):args(r.state)
+            if action=='cancel_production_start' and not cancel:raise RouteError('action_not_offered')
+            sent.append(action)
+            if action=='open_new_production':
+                r.state={'state':'new_manufacture','visible':{'rows':[{'handle':'r'+str(i),'cells':[v]} for i,v in enumerate(labels)]}}
+            elif action=='select_production_project':
+                if uncertain:raise RouteError('non_dispatched_stop_no_replay')
+                r.state={'state':'manufacture_start','visible':{'title':title},'actions':[{'id':'cancel_production_start'}] if cancel else []}
+            elif action=='cancel_production_start':r.state={'state':'new_manufacture','visible':{}}
+            elif action=='close_production_list':
+                r.state=copy.deepcopy(baseline)
+                if changed:r.state['visible']['summary'][0]='9'
+            return r.state
+        r.act=act
+        return r,sent,records
+    def test_unknown_baseline_cells_failclosed(self):
+        r,_,_=self.scenario()
+        for summary,rows in [(['10',None,'50','$100'],[]),(['10','0','50','$100'],[{'cells':['Pistol',None]}])]:
+            with self.assertRaisesRegex(RouteError,'baseline_unknown'):
+                r.production_projection({'state':'manufacture','visible':{'summary':summary,'rows':rows}})
+    def test_detail_requires_completion(self):
+        with self.assertRaises(RouteError):Route(None,None,'xcom1',manufacture_detail=True)
+    def test_success_order_and_phase_reset(self):
+        r,sent,records=self.scenario();r.inspect_manufacture_detail('Laser Pistol')
+        self.assertEqual(sent,['open_new_production','select_production_project','cancel_production_start','close_production_list'])
+        self.assertIsNone(r.detail_phase);self.assertIn('manufacture_cancel_verified',records)
+    def test_duplicate_unknown_labels_never_select(self):
+        for labels in [(None,),('Laser Pistol','Laser Pistol'),('Other',)]:
+            r,sent,_=self.scenario(labels=labels)
+            with self.assertRaisesRegex(RouteError,'unique_visible'):r.inspect_manufacture_detail('Laser Pistol')
+            self.assertEqual(sent,['open_new_production']);self.assertIsNone(r.detail_phase)
+    def test_wrong_unknown_title_cancel_once_then_stop(self):
+        for title in ('Other',None):
+            r,sent,_=self.scenario(title=title)
+            with self.assertRaisesRegex(RouteError,'wrong_title'):r.inspect_manufacture_detail('Laser Pistol')
+            self.assertEqual(sent,['open_new_production','select_production_project','cancel_production_start'])
+    def test_absent_cancel_stops(self):
+        r,sent,_=self.scenario(cancel=False)
+        with self.assertRaises(RouteError):r.inspect_manufacture_detail('Laser Pistol')
+        self.assertEqual(sent,['open_new_production','select_production_project'])
+    def test_unknown_dispatch_does_not_compensate(self):
+        r,sent,_=self.scenario(uncertain=True)
+        with self.assertRaisesRegex(RouteError,'no_replay'):r.inspect_manufacture_detail('Laser Pistol')
+        self.assertEqual(sent,['open_new_production','select_production_project']);self.assertIsNone(r.detail_phase)
+    def test_changed_summary_fails(self):
+        r,sent,_=self.scenario(changed=True)
+        with self.assertRaisesRegex(RouteError,'projection_changed'):r.inspect_manufacture_detail('Laser Pistol')
+    def test_detail_phase_not_global_permission(self):
+        for action in ('open_new_production','select_production_project','cancel_production_start'):
+            f=Fake(actions=(action,));r=Route(f.call,None,'xcom1',f.clock,f.sleep,completion_allocation=True,manufacture_detail=True)
+            with self.assertRaisesRegex(RouteError,'wrong_phase'):r.act({'example'},action)
+            self.assertEqual(f.sent,[])
+    def test_mutations_forbidden_even_in_detail_phase(self):
+        for action in ('start_production','adjust_engineers','change_production_quantity','set_production_sell','stop_production','accept_production'):
+            f=Fake(actions=(action,));r=Route(f.call,None,'xcom1',f.clock,f.sleep,completion_allocation=True,manufacture_detail=True);r.detail_phase='select'
+            with self.assertRaisesRegex(RouteError,'out_of_scope'):r.act({'example'},action)
+            self.assertEqual(f.sent,[])
+
 if __name__=='__main__':unittest.main()

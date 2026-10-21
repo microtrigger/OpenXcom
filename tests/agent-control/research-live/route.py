@@ -1,6 +1,7 @@
 """Bounded ordinary research smoke; only fresh, offered public controls.
 Route derived from research_route_v22.py; intentionally not its full acceptance.
 """
+import copy
 import re
 import time
 import uuid
@@ -27,12 +28,14 @@ def projection(state):
     return state.get('state'),visible,state.get('actions')
 
 class Route:
-    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False):
+    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False,manufacture_detail=False):
         self.call,self.record,self.master,self.clock,self.sleep=call,record,master,clock,sleep
         self.count=0;self.started=clock();self.state=None
         self.allow_unknown_selection=allow_unknown_selection;self.unknown_selected=set()
         self.article_navigation=article_navigation
+        require(not manufacture_detail or completion_allocation,'manufacture_detail_requires_completion_allocation')
         self.completion_allocation=completion_allocation;self.research_baseline=None;self.base_name=None
+        self.manufacture_detail=manufacture_detail;self.detail_phase=None
 
     def read(self):
         require(self.clock()-self.started<600,'overall_route_timeout')
@@ -58,7 +61,10 @@ class Route:
 
     def act(self,before,action,args=None,after=None,guard=None):
         if self.completion_allocation:
-            require(action not in {'start_production','adjust_engineers','change_production_quantity','open_new_production','select_production_project','accept_production','stop_production','cancel_production_start','set_production_sell'},'production_mutation_or_detail_out_of_scope')
+            require(action not in {'start_production','adjust_engineers','change_production_quantity','accept_production','stop_production','set_production_sell'},'production_mutation_or_detail_out_of_scope')
+            detail_actions={'open_new_production':'open','select_production_project':'select','cancel_production_start':'cancel'}
+            if action in detail_actions:
+                require(self.manufacture_detail and self.detail_phase==detail_actions[action],'production_mutation_or_detail_out_of_scope:wrong_phase')
         state=self.ready(set(before))
         require(action in {a['id'] for a in state.get('actions',[])},'action_not_offered:'+action)
         if guard:guard(state)
@@ -204,6 +210,45 @@ class Route:
         require(all(shown.count(label)==1 for label in labels) and
                 [label for label in shown if label in labels]==labels,'wrong_or_unknown_notice_labels')
 
+    def production_projection(self,state):
+        require(state.get('state')=='manufacture','manufacture_baseline_wrong_screen')
+        visible=state.get('visible',{});summary=visible.get('summary');rows=visible.get('rows')
+        require(isinstance(summary,list) and len(summary)==4 and all(isinstance(v,str) for v in summary)
+                and isinstance(rows,list) and all(isinstance(row,dict) and isinstance(row.get('cells'),list)
+                and bool(row['cells']) and all(isinstance(cell,str) for cell in row['cells']) for row in rows),
+                'manufacture_baseline_unknown')
+        return copy.deepcopy({'summary':summary,'rows':rows})
+
+    def inspect_manufacture_detail(self,pistol):
+        require(self.manufacture_detail and self.completion_allocation,'manufacture_detail_disabled')
+        baseline=self.production_projection(self.ready({'manufacture'}))
+        try:
+            self.detail_phase='open'
+            self.act({'manufacture'},'open_new_production',after={'new_manufacture'})
+            self.detail_phase='select'
+            def select(state):
+                rows=[r for r in state['visible'].get('rows',[]) if r.get('cells') and r['cells'][0]==pistol]
+                require(len(rows)==1,'manufacture_unique_visible_label_required')
+                return {'row':rows[0]['handle']}
+            self.act({'new_manufacture'},'select_production_project',select,{'manufacture_start'})
+            self.detail_phase='cancel'
+            detail=self.ready({'manufacture_start'})
+            correct=detail['visible'].get('title')==pistol
+            self.record('manufacture_detail',visible=detail['visible'],title_confirmed=correct,production_started_claimed=False)
+            if not correct:
+                if 'cancel_production_start' in {a['id'] for a in detail.get('actions',[])}:
+                    self.act({'manufacture_start'},'cancel_production_start',after={'new_manufacture'})
+                raise RouteError('manufacture_detail_wrong_title_stop')
+            self.act({'manufacture_start'},'cancel_production_start',after={'new_manufacture'},
+                     guard=lambda s:require(s['visible'].get('title')==pistol,'manufacture_title_changed_before_cancel'))
+            self.detail_phase='close'
+            self.act({'new_manufacture'},'close_production_list',after={'manufacture'})
+            current=self.production_projection(self.ready({'manufacture'}))
+            require(current==baseline,'manufacture_public_projection_changed')
+            self.record('manufacture_cancel_verified',public_projection=current,hidden_model_unchanged_claimed=False)
+        finally:
+            self.detail_phase=None
+
     def complete_allocation(self,pistol):
         expected=['Laser Rifle'] if self.master=='xcom1' else ['Gauss Pistol Clip','Gauss Rifle']
         self.incidents({'new_possible_research'})
@@ -213,6 +258,7 @@ class Route:
         self.act({'new_possible_manufacture'},'open_manufacture_allocation',after={'manufacture'},
                  guard=lambda s:self.notice(s,'new_possible_manufacture',[pistol]))
         self.record('manufacture_allocation_opened',visible=self.state['visible'],production_started_claimed=False)
+        if self.manufacture_detail:self.inspect_manufacture_detail(pistol)
         self.act({'manufacture'},'close_production_list')
         self.incidents({'geoscape'})
         self.act({'geoscape'},'open_bases',after={'basescape'})
