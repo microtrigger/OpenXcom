@@ -81,10 +81,59 @@ void lineTests(Font&big,Font&small,Language&lang,const std::string&source,const 
  }
 }
 }
+void stockArticleOverlap(Font &big,Font &small,Language &lang,const std::string &game)
+{
+ // Reproduce actual stock pistol Text geometry, palette and static background,
+ // not an ArticleState constructor or a live research-completion route.
+ const bool underwater=game=="xcom2";
+ const std::string root=std::string("../")+(underwater?"TFTD":"UFO");
+ Palette palette;palette.loadDat(root+"/GEODATA/PALETTES.DAT",256,Palette::palOffset(underwater?1:4));
+ Surface canvas(320,200),background(320,200);
+ canvas.setPalette(palette.getColors());background.setPalette(palette.getColors());
+ background.loadScr(root+"/GEOGRAPH/BACK08.SCR");
+ if(underwater)
+ {
+  Surface picture(320,200);picture.setPalette(palette.getColors());
+  picture.loadBdy(root+"/GEOGRAPH/UP031.BDY");picture.blit(&background);
+ }
+ check(SDL_SetColorKey(canvas.getSurface(),0,0)==0,"stock article opaque destination");
+ Text text(underwater?157:300,underwater?136:56,underwater?163:8,underwater?34:138);
+ text.initText(&big,&small,&lang);text.setPalette(palette.getColors());
+ text.setColor(underwater?2:239);text.setWordWrap(true);text.setScrollable(true);text.agentEnableVisibleLines();
+ text.setText(lang.getString(underwater?"STR_GAUSS_PISTOL_UFOPEDIA":"STR_LASER_PISTOL_UFOPEDIA"));
+ background.blit(&canvas);text.blit(&canvas);
+ auto lines=shown(text,canvas);
+ check(lines.size()==(underwater?8u:3u),"stock pistol expected visual line count");
+ unsigned partial=0,complete=0,collisions=0;
+ for(size_t i=0;i<lines.size();++i)
+ {
+  const auto &line=lines[i];
+  check(!line.text.empty()&&!line.pixels.empty(),"stock article typed line has raster witnesses");
+  if(line.complete)++complete;else ++partial;
+  // Check captured-source provenance before destination filtering as well:
+  // cross-line overlap must withhold both typed lines even for equal colors.
+  const auto &sourceLine=text._agentVisibleLines[i];
+  check(line.complete==sourceLine.complete,"stock partial status originates at glyph composition");
+  std::vector<bool> glyphs(line.glyphs,false);
+  for(const auto &pixel:line.pixels)if(pixel.contributed)glyphs[pixel.glyph]=true;
+  check(std::find(glyphs.begin(),glyphs.end(),false)==glyphs.end(),"partial stock line still has contribution from every glyph");
+  for(size_t j=i+1;j<text._agentVisibleLines.size();++j)
+   for(const auto &left:sourceLine.pixels)
+    for(const auto &right:text._agentVisibleLines[j].pixels)
+     if(left.x==right.x&&left.y==right.y)
+     {
+      ++collisions;
+      check(!sourceLine.complete&&!text._agentVisibleLines[j].complete,"cross-line collision retains conservative invalidation");
+     }
+ }
+ check(collisions>0&&partial==(underwater?7u:2u)&&complete==1&&lines.back().complete,
+       "stock article preserves mixed partial lines and complete final line");
+}
+
 int main(int argc,char**argv)
 {
  check(argc==2,"source root");check(!SDL_Init(0)&&!SDL_GetVideoSurface(),"offscreen only");Options::baseXResolution=320;Options::baseYResolution=400;
  Font big,small;for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
- for(const std::string game:{"xcom1","xcom2"}){Language lang;lang.loadFile(std::string(argv[1])+"/bin/standard/"+game+"/Language/en-US.yml");lineTests(big,small,lang,argv[1],game);}
+ for(const std::string game:{"xcom1","xcom2"}){Language lang;lang.loadFile(std::string(argv[1])+"/bin/standard/"+game+"/Language/en-US.yml");lineTests(big,small,lang,argv[1],game);stockArticleOverlap(big,small,lang,game);}
  check(agentPaintHealthy()&&!SDL_GetVideoSurface(),"no paint failure or GUI");std::cout<<"PASS "<<checks<<" checks\n";
 }

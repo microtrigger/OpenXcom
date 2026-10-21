@@ -16,7 +16,7 @@ Requires SDL 1.2 development libraries and existing UFO/TFTD stock assets; optio
 `--sdk /prefix` supplies headers/libraries. Output directories must be new and outside
 the checkout. Tests cover opaque final-screen canvases, strict source/format guards,
 clipping, stale mutations and exact current-source OFF/ON raster parity. This does
-not resolve the separate v22 replay/live acceptance gaps or promote WIP to main.
+not establish full v22 acceptance or promote WIP to main.
 
 Replay independently generated v22 native packet schedules through the real Python
 client and MCP server (no game execution):
@@ -82,3 +82,9 @@ project-detail actions are explicitly excluded from this smoke.
 Live UFO/TFTD checks on 2026-10-21 restored the visible `[10, 0, 50]` baseline after
 each project, opened the production allocation screen and finished in Pause without
 issuing production-start or editing commands.
+
+Stock pistol fixtures also cover actual UFO/TFTD article geometry, palettes and
+backgrounds. The conservative cross-line pixel-ownership guard intentionally leaves
+intersecting text lines unavailable: stock small-font ink can exceed the line
+advance. A complete final line does not imply the preceding paragraph is readable.
+Tests load existing language/assets at runtime; no game resources are bundled.
