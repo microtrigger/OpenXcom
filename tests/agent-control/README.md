@@ -113,3 +113,10 @@ and 257 pages; no additional game actions are issued. Initial expired history is
 reported, not reconstructed. This does not prove whole-route completeness.
 Live UFO/TFTD checks on 2026-10-21 passed with 106/108 retained records respectively,
 eight pages each and 10/12 identical common records; neither had an initial gap.
+
+Stock calendar projection has a separate strict boundary: weekday/day/month glyphs
+can be overwritten by the next HUD row (seven-pixel row spacing, eight-pixel ink).
+Native UFO/TFTD fixtures verify actual pixel collisions, complete source text but
+unavailable composed fields, and an unaffected year; a descender month also clips
+inside its own widget. Complete-clock validation therefore remains unproven; do
+not infer a date from stock defaults or substitute time-of-day for a full clock.

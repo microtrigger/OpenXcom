@@ -130,10 +130,42 @@ void stockArticleOverlap(Font &big,Font &small,Language &lang,const std::string 
        "stock article preserves mixed partial lines and complete final line");
 }
 
+// Stock HUD rows are seven pixels apart while their glyph ink can be eight high.
+// Preserve refusal even when a later glyph overwrites with the same palette index.
+void stockCalendarOverlap(Font &big,Font &small,Language &lang,const std::string &source,const std::string &game)
+{
+ Paint p(big,small,lang,source,game,"geoscape");
+ Palette base;base.loadDat(std::string("../")+(game=="xcom1"?"UFO":"TFTD")+"/GEODATA/PALETTES.DAT",256,Palette::palOffset(0));
+ for(unsigned i=0;i<256;++i)if(i<Palette::backPos||i>=Palette::backPos+16)p.palette[i]=base.getColors()[i];
+ p.canvas.setPalette(p.palette);check(SDL_SetColorKey(p.canvas.getSurface(),0,0)==0,"calendar opaque canvas");
+ Text weekday(59,8,259,87),day(29,8,259,94),month(29,8,288,94),year(59,8,259,101);
+ std::vector<Surface*> order={&weekday,&day,&month,&year};
+ for(auto *surface:order){Text *text=static_cast<Text*>(surface);text->initText(&big,&small,&lang);text->setPalette(p.palette);p.colors(text,"text");text->setAlign(ALIGN_CENTER);}
+ weekday.setText(lang.getString("STR_THURSDAY"));day.setText("1st");month.setText(lang.getString("STR_JAN"));year.setText(game=="xcom1"?"1999":"2040");
+ p.canvas.clear(40);for(auto *surface:order)surface->blit(&p.canvas);
+ for(unsigned i=0;i<3;++i)
+ {
+  Text *text=static_cast<Text*>(order[i]);unsigned collisions=0,changed=0;
+  for(int y=0;y<text->getHeight();++y)for(int x=0;x<text->getWidth();++x)
+  {
+   const Uint8 value=text->getPixel(x,y);if(!value)continue;
+   const int xx=x+text->getX(),yy=y+text->getY();
+   for(unsigned j=i+1;j<order.size();++j){Surface *later=order[j];const int lx=xx-later->getX(),ly=yy-later->getY();if(lx>=0&&ly>=0&&lx<later->getWidth()&&ly<later->getHeight()&&later->getPixel(lx,ly)){++collisions;break;}}
+   if(p.canvas.getPixel(xx,yy)!=value)++changed;
+  }
+  check(text->agentTextComplete()&&Observer::agentTextJson(text)!="null","calendar source is complete before later paint");
+  check(collisions>0&&changed>0,"calendar has real later-owned and overwritten ink, not only overlapping boxes");
+  check(!Observer::agentWidgetUncovered(text,order)&&Observer::agentCompositeTextJson(text,320,200,order)=="null","overwritten calendar field remains unavailable");
+ }
+ check(Observer::agentWidgetUncovered(&year,order)&&Observer::agentTextJson(&year)!="null","last calendar row stays available");
+ month.setText(lang.getString("STR_APR"));month.blit(&p.canvas);
+ check(!month.agentTextComplete()&&Observer::agentTextJson(&month)=="null","stock descender month also clips in its own eight-pixel widget");
+}
+
 int main(int argc,char**argv)
 {
  check(argc==2,"source root");check(!SDL_Init(0)&&!SDL_GetVideoSurface(),"offscreen only");Options::baseXResolution=320;Options::baseYResolution=400;
  Font big,small;for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
- for(const std::string game:{"xcom1","xcom2"}){Language lang;lang.loadFile(std::string(argv[1])+"/bin/standard/"+game+"/Language/en-US.yml");lineTests(big,small,lang,argv[1],game);stockArticleOverlap(big,small,lang,game);}
+ for(const std::string game:{"xcom1","xcom2"}){Language lang;lang.loadFile(std::string(argv[1])+"/bin/standard/"+game+"/Language/en-US.yml");lineTests(big,small,lang,argv[1],game);stockArticleOverlap(big,small,lang,game);stockCalendarOverlap(big,small,lang,argv[1],game);}
  check(agentPaintHealthy()&&!SDL_GetVideoSurface(),"no paint failure or GUI");std::cout<<"PASS "<<checks<<" checks\n";
 }
