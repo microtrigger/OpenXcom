@@ -162,7 +162,7 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 	_btnGeoscape->onKeyboardPress((ActionHandler)&BasescapeState::btnGeoscapeClick, Options::keyCancel);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     for(Surface *surface:_surfaces) surface->agentTrackPresentation();
-    for(TextButton *button:{_btnBaseInfo,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnGeoscape})
+    for(TextButton *button:{_btnBaseInfo,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnTransfer,_btnGeoscape})
         button->agentEnableNamedControl();
     if(_game->getCursor()) _game->getCursor()->agentTrackPresentation();
     if(_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
