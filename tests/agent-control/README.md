@@ -72,3 +72,13 @@ movement or complete reading. Any unexpected return title stops the route.
 Live on 2026-10-21: UFO Laser Pistol → Grenade → Laser Pistol; TFTD Gauss Pistol →
 Magna-Blast Grenade → Gauss Pistol. TFTD dispatched both offered scroll directions;
 UFO offered neither, so both were skipped. Article body projection remained partial.
+
+Optional `--completion-allocation` records the initial visible scientist/laboratory
+summary and checks its return after both research completions. It validates the
+new-research and new-manufacture notices, opens and closes Manufacture without
+starting production, revisits the same named base and ends paused. Unknown numbers,
+changed totals or unexpected notice labels stop the route. Production editing and
+project-detail actions are explicitly excluded from this smoke.
+Live UFO/TFTD checks on 2026-10-21 restored the visible `[10, 0, 50]` baseline after
+each project, opened the production allocation screen and finished in Pause without
+issuing production-start or editing commands.

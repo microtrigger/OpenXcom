@@ -150,4 +150,50 @@ class ArticleNavigation(unittest.TestCase):
     def test_default_navigation_disabled(self):
         self.assertFalse(Route(None,None,'xcom1').article_navigation)
 
+class CompletionAllocation(unittest.TestCase):
+    def route(self):
+        return Route(None,lambda *a,**k:None,'xcom1',completion_allocation=True)
+    def research(self,summary):
+        return {'state':'research','visible':{'summary':summary,'rows':[]}}
+    def test_numeric_baseline_is_public(self):
+        self.assertEqual(self.route().research_summary(self.research(['Scientists Available>10','Scientists Allocated>0','Laboratory Space Available>50'])),[10,0,50])
+    def test_unknown_summary_fails(self):
+        for summary in (None,[],['10',None,'50'],['10','0','unknown']):
+            with self.assertRaises(RouteError):self.route().research_summary(self.research(summary))
+    def test_changed_summary_stops(self):
+        r=self.route();r.research_baseline=[10,0,50]
+        r.ready=lambda states:self.research(['9','1','49'])
+        with self.assertRaisesRegex(RouteError,'summary_changed'):r.check_released('pistol')
+    def test_wrong_notice_title_label_duplicates_stop(self):
+        r=self.route()
+        for title,labels in [('Wrong',['Laser Pistol']),('We can now produce',[None]),('We can now produce',['Other']),('We can now produce',['Laser Pistol','Laser Pistol'])]:
+            state={'state':'new_possible_manufacture','visible':{'title':title,'rows':[{'cells':[x]} for x in labels]}}
+            with self.assertRaises(RouteError):r.notice(state,'new_possible_manufacture',['Laser Pistol'])
+    def test_production_actions_rejected_before_read_or_send(self):
+        for action in ('start_production','adjust_engineers','change_production_quantity','open_new_production','select_production_project','accept_production','stop_production','cancel_production_start','set_production_sell'):
+            f=Fake(actions=(action,));r=Route(f.call,lambda *a,**k:None,'xcom1',f.clock,f.sleep,completion_allocation=True)
+            with self.assertRaisesRegex(RouteError,'out_of_scope'):r.act({'example'},action)
+            self.assertEqual(f.sent,[]);self.assertEqual(f.n,0)
+    def test_default_completion_disabled(self):
+        self.assertFalse(Route(None,None,'xcom1').completion_allocation)
+    def test_minimal_completion_route_without_production(self):
+        r=self.route();actions=[];r.base_name='MCP Research';r.research_baseline=[10,0,50]
+        def state(kind):
+            visible={}
+            if kind=='new_possible_research':visible={'title':'We can now research','rows':[{'cells':['Laser Rifle']}]}
+            if kind=='new_possible_manufacture':visible={'title':'We can now produce','rows':[{'cells':['Laser Pistol']}]}
+            if kind=='basescape':visible={'base_name':'MCP Research'}
+            if kind=='research':visible={'summary':['10','0','50'],'rows':[]}
+            return {'state':kind,'visible':visible}
+        r.ready=lambda states:state(next(iter(states)))
+        r.incidents=lambda states:state(next(iter(states)))
+        def act(before,action,args=None,after=None,guard=None):
+            current=state(next(iter(before)))
+            if guard:guard(current)
+            actions.append(action)
+            r.state=state(next(iter(after))) if after else current
+            return r.state
+        r.act=act;r.complete_allocation('Laser Pistol')
+        self.assertEqual(actions,['dismiss_new_research','open_manufacture_allocation','close_production_list','open_bases','open_research','close_research_list','return_geoscape','open_pause_menu'])
+
 if __name__=='__main__':unittest.main()

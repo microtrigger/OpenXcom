@@ -27,11 +27,12 @@ def projection(state):
     return state.get('state'),visible,state.get('actions')
 
 class Route:
-    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False):
+    def __init__(self,call,record,master,clock=time.monotonic,sleep=time.sleep,allow_unknown_selection=False,article_navigation=False,completion_allocation=False):
         self.call,self.record,self.master,self.clock,self.sleep=call,record,master,clock,sleep
         self.count=0;self.started=clock();self.state=None
         self.allow_unknown_selection=allow_unknown_selection;self.unknown_selected=set()
         self.article_navigation=article_navigation
+        self.completion_allocation=completion_allocation;self.research_baseline=None;self.base_name=None
 
     def read(self):
         require(self.clock()-self.started<600,'overall_route_timeout')
@@ -56,6 +57,8 @@ class Route:
         raise RouteError('readiness_timeout')
 
     def act(self,before,action,args=None,after=None,guard=None):
+        if self.completion_allocation:
+            require(action not in {'start_production','adjust_engineers','change_production_quantity','open_new_production','select_production_project','accept_production','stop_production','cancel_production_start','set_production_sell'},'production_mutation_or_detail_out_of_scope')
         state=self.ready(set(before))
         require(action in {a['id'] for a in state.get('actions',[])},'action_not_offered:'+action)
         if guard:guard(state)
@@ -179,6 +182,49 @@ class Route:
         same_title(self.state)
         self.record('article_navigation_return',visible_title=title,stable_article_identity_claimed=False)
 
+    def research_summary(self,state):
+        require(state.get('state')=='research','research_summary_wrong_screen')
+        values=state.get('visible',{}).get('summary')
+        require(isinstance(values,list) and len(values)==3,'research_summary_unavailable')
+        return [amount(value) for value in values]
+
+    def check_released(self,phase):
+        state=self.ready({'research'})
+        summary=self.research_summary(state)
+        require(self.research_baseline is not None and summary==self.research_baseline,'research_summary_changed:'+phase)
+        self.record('scientists_released',phase=phase,summary=summary,
+                    visible_rows=state['visible'].get('rows'),hidden_project_absence_claimed=False)
+
+    def notice(self,state,kind,labels):
+        require(state.get('state')==kind,'wrong_notice_screen')
+        expected='We can now research' if kind=='new_possible_research' else 'We can now produce'
+        require(state['visible'].get('title')==expected,'wrong_notice_title')
+        rows=state['visible'].get('rows',[])
+        shown=[row['cells'][0] for row in rows if isinstance(row.get('cells'),list) and len(row['cells'])==1]
+        require(all(shown.count(label)==1 for label in labels) and
+                [label for label in shown if label in labels]==labels,'wrong_or_unknown_notice_labels')
+
+    def complete_allocation(self,pistol):
+        expected=['Laser Rifle'] if self.master=='xcom1' else ['Gauss Pistol Clip','Gauss Rifle']
+        self.incidents({'new_possible_research'})
+        self.act({'new_possible_research'},'dismiss_new_research',
+                 guard=lambda s:self.notice(s,'new_possible_research',expected))
+        self.incidents({'new_possible_manufacture'})
+        self.act({'new_possible_manufacture'},'open_manufacture_allocation',after={'manufacture'},
+                 guard=lambda s:self.notice(s,'new_possible_manufacture',[pistol]))
+        self.record('manufacture_allocation_opened',visible=self.state['visible'],production_started_claimed=False)
+        self.act({'manufacture'},'close_production_list')
+        self.incidents({'geoscape'})
+        self.act({'geoscape'},'open_bases',after={'basescape'})
+        self.act({'basescape'},'open_research',after={'research'},
+                 guard=lambda s:require(self.base_name is not None and s['visible'].get('base_name')==self.base_name,'base_name_changed'))
+        self.check_released('pistol')
+        self.act({'research'},'close_research_list',after={'basescape'})
+        self.act({'basescape'},'return_geoscape')
+        self.incidents({'geoscape'})
+        state=self.act({'geoscape'},'open_pause_menu',after={'pause_menu'})
+        self.record('final',state=state['state'],visible=state['visible'],dispatches=self.count)
+
     def run(self):
         starter,pistol=TARGETS[self.master]
         self.act({'main_menu'},'open_new_game',after={'new_game'})
@@ -199,7 +245,14 @@ class Route:
         self.act({'base_name'},'confirm_base_name',guard=lambda s:require(s['visible'].get('name')=='MCP Research','base_name_mismatch'))
         self.incidents({'geoscape'})
         self.act({'geoscape'},'open_bases',after={'basescape'})
+        if self.completion_allocation:
+            self.base_name=self.ready({'basescape'})['visible'].get('base_name')
+            require(self.base_name=='MCP Research','base_name_unknown_or_wrong')
         self.act({'basescape'},'open_research',after={'research'})
+        if self.completion_allocation:
+            self.research_baseline=self.research_summary(self.ready({'research'}))
+            require(self.research_baseline[0]==10 and self.research_baseline[1]==0 and self.research_baseline[2]>=10,'unexpected_research_baseline')
+            self.record('research_baseline',summary=self.research_baseline,base_name=self.base_name)
         self.select_project(starter)
         self.act({'research'},'close_research_list',after={'basescape'})
         self.act({'basescape'},'return_geoscape')
@@ -207,6 +260,7 @@ class Route:
         self.act({'research_complete'},'view_research_reports')
         self.incidents({'new_possible_research'})
         self.act({'new_possible_research'},'open_research_allocation',after={'research'})
+        if self.completion_allocation:self.check_released('starter')
         self.select_project(pistol)
         self.act({'research'},'close_research_list')
         self.completion(pistol)
@@ -217,6 +271,9 @@ class Route:
         if self.article_navigation:self.navigate_article(pistol)
         self.act({'ufopaedia_article'},'close_ufopaedia_article',
                  guard=(lambda s:require(s['visible'].get('title')==pistol,'article_title_changed_before_close')) if self.article_navigation else None)
+        if self.completion_allocation:
+            self.complete_allocation(pistol)
+            return
         # Remaining completion notices are left visible; do not advance time further.
         state=self.incidents({'new_possible_research','new_possible_manufacture','geoscape'})
         if state['state']=='geoscape':
