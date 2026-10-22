@@ -2734,6 +2734,17 @@ bool Game::agentOverlayClear(const Observer::AgentUiState &ui) const
     }
     return true;
 }
+bool Game::agentNonCursorOverlayClear(const Observer::AgentUiState &ui) const
+{
+    const Surface *overlay = _fpsCounter;
+    if (!overlay || !overlay->getVisible()) return true;
+    for (const auto &rect : ui.regions)
+        if (overlay->getX() < rect.x + rect.width && overlay->getX() + overlay->getWidth() > rect.x &&
+            overlay->getY() < rect.y + rect.height && overlay->getY() + overlay->getHeight() > rect.y)
+            return false;
+    return true;
+}
+
 // Owner-only presentation diagnostics. Never enters the public DTO, event ring,
 // action binding, or gameplay decisions. Logger already targets the user profile.
 void Game::agentRecordAdmissionFailure(bool provider, bool disjoint, bool overlayClear) const

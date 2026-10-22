@@ -114,6 +114,9 @@ UfoDetectedState::UfoDetectedState(Ufo *ufo, GeoscapeState *state, bool detected
 	_window->setBackground(_game->getMod()->getSurface("BACK15.SCR"));
 
 	centerAllSurfaces();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _txtUfo->agentTrackPresentation();
+#endif
 
 	_btnIntercept->setText(tr("STR_INTERCEPT"));
 	_btnIntercept->onMouseClick((ActionHandler)&UfoDetectedState::btnInterceptClick);
@@ -248,7 +251,7 @@ bool UfoDetectedState::agentDestinationFull() const
 
 std::vector<std::uint64_t> UfoDetectedState::agentPaintRevisions() const
 {
-    return {_txtUfo->agentTextRevision(),
+    return {_txtUfo->agentPresentationRevision(), _txtUfo->agentTextRevision(),
         _txtDetected->agentTextRevision(),
         _txtHyperwave->agentTextRevision(),
         _btnIntercept->agentLabelRevision(),
@@ -286,6 +289,41 @@ bool UfoDetectedState::agentUiState(Observer::AgentUiState &out) const
         out.regions.resize(before);
         return false;
     };
+    const auto contactTitle = [&]() -> std::string {
+        const Text *widget = _txtUfo;
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        // Explicit geometry remains private freshness authority even though this
+        // observation-only caption is not an actionable overlay region.
+        out.context.insert(out.context.end(), {
+            static_cast<std::uint64_t>(widget->getX()), static_cast<std::uint64_t>(widget->getY()),
+            static_cast<std::uint64_t>(widget->getWidth()), static_cast<std::uint64_t>(widget->getHeight())});
+        const Surface *destination = _game->getScreen()->getSurface();
+        const int height = widget->getTextHeight();
+        if (!agentWidgetVisible(widget) || !widget->agentPresentationPaintedTo(destination) ||
+            !widget->getFont() || widget->agentScrollable() || widget->getText().size() > 1024 || height <= 0 ||
+            height > widget->getHeight() || widget->getTextWidth() > widget->getWidth()) return "null";
+        // Layout extent, not glyph-ink evidence. The stock 17px title allocation
+        // has a spare row shared with Detected's allocation; its text is 16px tall.
+        int y = widget->getY();
+        if (widget->getVerticalAlign() == ALIGN_MIDDLE) y += (widget->getHeight() - height + 1) / 2;
+        else if (widget->getVerticalAlign() == ALIGN_BOTTOM) y += widget->getHeight() - height;
+        AgentUiState part;
+        part.regions.push_back({widget->getX(), y, widget->getWidth(), height});
+        bool found = false;
+        for (const Surface *later : painted)
+        {
+            if (later == widget) { found = true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &rect = part.regions.front();
+            if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+                rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return "null";
+        }
+        if (!found || !_game->agentNonCursorOverlayClear(part)) return "null";
+        // No region is added to out: the outer action admission still checks all
+        // existing action/other-label regions with its strict cursor policy.
+        return agentJsonString(widget->getText());
+    };
     const auto text = [&](const Text *widget) -> std::string {
         out.widgets.emplace_back(widget, widget->agentTextRevision());
         const auto value = agentTextJson(widget);
@@ -301,7 +339,7 @@ bool UfoDetectedState::agentUiState(Observer::AgentUiState &out) const
         buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
         if (action) out.actions.emplace_back(action, label, "visible_text");
     };
-    const auto title = text(_txtUfo), detected = text(_txtDetected), hyperwave = text(_txtHyperwave);
+    const auto title = contactTitle(), detected = text(_txtDetected), hyperwave = text(_txtHyperwave);
     // Intercept uses only its admitted visible button; Center stays read-only.
     // The detail tables and underlying UFO model are deliberately unread.
     button(_btnIntercept, "intercept", "open_contact_interception");
