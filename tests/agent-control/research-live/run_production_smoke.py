@@ -4,6 +4,7 @@ Requires explicit matching WIP source/binary and legal stock data. No focus bypa
 GUI automation, save access, asset copying or mutation replay is performed.
 """
 import argparse
+from tool_failure_evidence import safe_tool_failure
 import datetime
 import hashlib
 import json
@@ -87,8 +88,12 @@ class Rpc:
         obj = result.get('structuredContent')
         if not isinstance(obj, dict):
             raise SmokeError('missing_structured_content')
-        if result.get('isError') or obj.get('status') in ('outcome_unknown','unknown_after_dispatch'):
-            raise SmokeError('tool_error_stop_no_replay')
+        failure=obj.get('failure')
+        if (result.get('isError') or obj.get('status') in ('outcome_unknown','unknown_after_dispatch','unknown','unavailable')
+                or (isinstance(failure,dict) and failure.get('action_outcome')=='unknown')):
+            error=SmokeError('tool_error_stop_no_replay')
+            error.tool_failure=safe_tool_failure(name,result)
+            raise error
         return obj
 
     def close(self):
@@ -186,6 +191,7 @@ def main():
         result['all_passed'] = True
     except Exception as error:
         result['failure'] = str(error) if isinstance(error, (SmokeError,RouteError)) else 'local_runtime_failure'
+        if hasattr(error,'tool_failure'):result['tool_failure']=error.tool_failure
     finally:
         if rpc:
             try: rpc.close()

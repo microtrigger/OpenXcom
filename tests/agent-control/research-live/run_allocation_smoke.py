@@ -80,6 +80,7 @@ def main():
         result['all_passed']=True
     except Exception as e:
         result['failure']=str(e) if isinstance(e,(SmokeError,RouteError)) else 'local_runtime_failure'
+        if hasattr(e,'tool_failure'):result['tool_failure']=e.tool_failure
     finally:
         if rpc:
             try:rpc.close()

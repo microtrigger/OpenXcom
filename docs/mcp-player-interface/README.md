@@ -203,6 +203,21 @@ A semantically unsupported screen may offer
 - The separate `--supervised-stance` family is an older local-human-confirmation
   pilot, with its own build flags. It cannot be mixed with `--agent-control`.
 
+## Failure classification
+
+Semantic tool errors may include additive `failure` metadata: fixed `code`,
+`category`, `severity`, `phase`, `action_outcome`, and `recovery`. Existing error
+and receipt statuses are retained. These fields explain the safe next decision;
+they do not authorize automatic retries. See the [error contract and path-family
+inventory](error-handling-contract.md).
+
+A valid `unsupported` observation is not a tool failure. A `dispatched` receipt
+followed by unavailable observation does not turn the known dispatch into an
+unknown command. Conversely, native receipt `unavailable` does **not** prove no
+mutation: the native code can return it after entering a handler, so its added
+classification requires reconciliation. `action_outcome` applies to the described
+operation; it never clears uncertainty from an earlier command.
+
 ## Troubleshooting and shutdown
 
 - **Only historical tools appear:** the client launched `adapter.py`, or omitted
