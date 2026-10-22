@@ -75,3 +75,41 @@ per-type checked/pending/not-applicable status and evidence links. Qualify modal
 interruption, time pause, offered buttons, Cancel/return/resume, and repeated
 events where applicable. A few alert examples cannot stand in for all event
 types. Source inventory is not proof of live handling; retain that distinction.
+
+## Manufacture limits milestone — 2026-10-22
+
+`tests/agent-control/research-live/run_manufacture_limits.py` is a separate,
+manual-entry launcher. Supply `--source`, `--binary`, `--data`, `--master`, a new
+`--output`, and a nonexistent `--focus-ready-file` (optional `--sdk`). Using ordinary
+UI, prepare a legal campaign with the stock pistol researched, open an **empty
+Manufacture list**, focus the game, then create that marker. The bounded setup wait
+is at most 480 seconds. Run it within the working graphical session: on Linux,
+`DISPLAY` must identify that desktop. Other platforms use their native graphical
+session; this is not a platform-global `DISPLAY` requirement or a focus bypass.
+This launcher does not automate research, load/copy saves,
+forward audio, advance campaign time or manufacture completed items. Missing
+prerequisites stop; there is no hidden unlock or automatic retry.
+
+| Check | Evidence and limit |
+| --- | --- |
+| Engineers 1/7/10/100000, max, above available, clear | UFO live: personnel-limited clamp; separate workshop-limited case remains pending live (scripted unit model only). |
+| Units 1/7/1000/100000, decrease, clear | UFO live; 100000 is the adapter finite-input bound, not resource/storage capacity. |
+| Units 100001 | Exact JSON-RPC -32602 rejection, then unchanged fresh visible projection; not a native over-limit dispatch. |
+| Units max twice, clear | UFO live: max means infinity; clear means produced+1, here 1. |
+| Accept 7 units/7 engineers, reopen, clear and Stop | UFO live persistence and restored empty list/staff/workshops. Stop is not Cancel; no time advancement or completion claim. |
+| Funds | Observed 4,134,000 → 4,126,000: accepting the first item can charge funds. No refund or inventory-increment claim. |
+| Other inputs/cases | TFTD live, keyboard/wheel, independently workshop-limited and material/funds/storage-full cases remain pending. |
+
+The UFO run finished **2026-10-22 14:48:23 UTC**, with 29 dispatched action receipts
+and one expected schema-rejection probe; inputs were unchanged. It used a private
+instrumented recording wrapper and operator UI setup. The public route core and
+its used helper methods were compared by AST with that measured implementation
+(excluding only the reporting-key rename `dispatches` → `requests`, since the
+30-request budget includes the rejected probe);
+this is code-equivalence evidence, **not a new live run of the public launcher**.
+The public launcher has unit qualification only. Its transport additionally
+requires exact JSON-RPC 2.0 response envelopes with matching integer IDs and a
+result; malformed replies stop without replay. Scripted transport tests also
+cover unknown outcomes, absent actions, changed readback and existing-order
+refusal; they do not establish native game-rule coverage. Native/game/schema code
+is unchanged. Every unknown action outcome stops without replay or cleanup calls.

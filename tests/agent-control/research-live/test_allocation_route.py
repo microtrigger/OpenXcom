@@ -53,7 +53,7 @@ class Matrix(unittest.TestCase):
     def test_exact_production_requests(self):
         f=Fake(False);f.route().production_finite_matrix('Test')
         self.assertEqual([s['args'] for s in f.sent],[
-            {'control':'engineers','operation':'set','value':n} for n in (1,7,100000)]+[
+            {'control':'engineers','operation':'set','value':n} for n in (1,7,10,100000)]+[
             {'control':'engineers','operation':'max'},
             {'control':'engineers','operation':'adjust','value':1},
             {'control':'engineers','operation':'clear'}]+[

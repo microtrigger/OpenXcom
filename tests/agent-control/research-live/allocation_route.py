@@ -42,7 +42,7 @@ class AllocationRoute(Route):
         screen = 'manufacture_info'
         initial = self.ready({screen})
         baseline = self.numbers(initial,title)
-        require(self.count + 12 <= 128, 'quantity_matrix_insufficient_remaining_budget')
+        require(self.count + 13 <= 128, 'quantity_matrix_insufficient_remaining_budget')
         require(baseline[2] == 0 and amount(initial['visible'].get('units')) == 1,
                 'quantity_matrix_requires_new_one_unit_draft')
         previous = [baseline, 1]
@@ -57,7 +57,7 @@ class AllocationRoute(Route):
         available,space,_ = baseline
         limit = min(available,space)
         require(0 <= limit <= 100000,'quantity_staff_limit_invalid')
-        for target in (1,7,100000):
+        for target in (1,7,10,100000):
             n=min(limit,target)
             change('engineers','set',target,(available-n,space-n,n),1)
         change('engineers','max',None,(available-limit,space-limit,limit),1)
