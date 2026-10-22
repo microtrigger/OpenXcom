@@ -858,6 +858,25 @@ void Surface::drawTexturedPolygon(Sint16 *x, Sint16 *y, int n, Surface *texture,
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentCollapsePaint = false;
     if (_agentProjectileRaster) _agentProjectileRaster->unknownWrite();
+	// SDL_gfx returns -1 for fully clipped polygons (SurfaceTexturedPolygonTest).
+	// A proven empty raster operation must not poison the agent paint audit.
+	// Keep every actual
+	// raster operation (and its error result) on the existing audited path.
+	if (x && y && n >= 3 && texture && texture->getSurface() &&
+		texture->getSurface()->w > 0 && texture->getSurface()->h > 0)
+	{
+		SDL_Rect clip;
+		SDL_GetClipRect(_surface, &clip);
+		int minX = x[0], maxX = x[0], minY = y[0], maxY = y[0];
+		for (int i = 1; i < n; ++i)
+		{
+			minX = std::min(minX, int(x[i])); maxX = std::max(maxX, int(x[i]));
+			minY = std::min(minY, int(y[i])); maxY = std::max(maxY, int(y[i]));
+		}
+		if (!clip.w || !clip.h || maxX < clip.x || maxY < clip.y ||
+			minX >= int(clip.x) + clip.w || minY >= int(clip.y) + clip.h)
+			return;
+	}
 #endif
 	OPENXCOM_AGENT_PAINT(texturedPolygon(_surface, x, y, n, texture->getSurface(), dx, dy));
 }
