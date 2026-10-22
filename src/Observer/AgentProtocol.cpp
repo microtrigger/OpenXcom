@@ -64,7 +64,7 @@ bool agentActionId(const std::string &value)
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
         value == "dismiss_production_complete" || value == "open_production_destination" ||
-        value == "dismiss_ufo_contact" ||
+        value == "dismiss_ufo_contact" || value == "continue_pursuit" || value == "return_interceptor_to_base" ||
         value == "open_soldiers" ||
         value == "select_soldier" ||
         value == "close_soldiers" ||

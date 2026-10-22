@@ -90,6 +90,8 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Gets only a fully rendered label, excluding an optional covered right edge.
 	std::string agentLabel(int rightInset = 0) const;
+    /// Current caption only if its layout fits; no glyph-raster prerequisite.
+    std::string agentLayoutLabel() const;
     // Opt-in named control only. A complete drawn label and one fixed ordinary
     // interior point are qualified separately from the decorative outer border.
     void blit(Surface *surface) override;

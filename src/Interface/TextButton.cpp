@@ -213,6 +213,18 @@ std::string TextButton::agentLabel(int rightInset) const
     return _text->getText();
 }
 
+std::string TextButton::agentLayoutLabel() const
+{
+    if (!_text || !_text->getVisible() || !_text->getFont() ||
+        _text->getText().size() > 1024 ||
+        _text->getTextWidth() > _text->getWidth() ||
+        _text->getTextHeight() > _text->getHeight() ||
+        _text->getX() < 0 || _text->getY() < 0 ||
+        _text->getX() + _text->getWidth() > getWidth() ||
+        _text->getY() + _text->getHeight() > getHeight()) return std::string();
+    return _text->getText();
+}
+
 bool TextButton::agentPressed(bool &pressed) const
 {
     if (agentLabel().empty()) return false;

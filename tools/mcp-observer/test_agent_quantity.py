@@ -174,7 +174,7 @@ class QuantityContractTests(unittest.TestCase):
 
     def test_wire_counts_no_gesture_catalog_and_old_wires_rejected(self):
         self.assertEqual(a.SCHEMA,'openxcom-agent-control/26')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(145,61,4))
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(147,62,4))
         self.assertEqual((a.MAX_COMMANDS,a.EVENT_CAPACITY,a.MAX_TEXT_PACKET,a.MAX_PACKET,a.MAX_REQUEST),(256,256,32768,49152,512))
         for version in range(1,22):
             obj=state(screen='purchase');obj['schema']=f'openxcom-agent-control/{version}'

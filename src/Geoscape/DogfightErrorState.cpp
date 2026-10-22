@@ -25,6 +25,11 @@
 #include "../Interface/Text.h"
 #include "../Engine/Options.h"
 #include "../Savegame/Craft.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#endif
 
 namespace OpenXcom
 {
@@ -75,6 +80,10 @@ DogfightErrorState::DogfightErrorState(Craft *craft, const std::string &msg) : _
 	_txtMessage->setAlign(ALIGN_CENTER);
 	_txtMessage->setWordWrap(true);
 	_txtMessage->setText(msg);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *widget : std::vector<Surface *>{_window, _txtCraft, _txtMessage, _btnIntercept, _btnBase})
+        widget->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -103,5 +112,107 @@ void DogfightErrorState::btnBaseClick(Action *)
 	_craft->returnToBase();
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool DogfightErrorState::agentDestinationFull() const
+{
+    const SDL_Surface *destination = _game->getScreen()->getSurface()->getSurface();
+    return destination && destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> DogfightErrorState::agentPaintRevisions() const
+{
+    return {_window->agentPresentationRevision(),
+        _txtCraft->agentPresentationRevision(), _txtCraft->agentTextRevision(),
+        _txtMessage->agentPresentationRevision(), _txtMessage->agentTextRevision(),
+        _btnIntercept->agentPresentationRevision(), _btnIntercept->agentLabelRevision(),
+        _btnBase->agentPresentationRevision(), _btnBase->agentLabelRevision()};
+}
+
+void DogfightErrorState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool DogfightErrorState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<DogfightErrorState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState();
+    out.screen = "dogfight_error";
+    out.actor = _craft; // Private authority identity, not serialized craft/world data.
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto include = [&](const Surface *widget) -> bool {
+        if (!widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget)) return false;
+        AgentUiState part;
+        part.regions.push_back({widget->getX(), widget->getY(), widget->getWidth(), widget->getHeight()});
+        // Allocation geometry only: do not require glyph-ink evidence for text.
+        bool found = false;
+        for (const Surface *later : painted)
+        {
+            if (later == widget) { found = true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &rect = part.regions.front();
+            if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+                rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return false;
+        }
+        if (!found || !_game->agentOverlayClear(part)) return false;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    // These are current active UI captions, not a glyph-pixel readability test.
+    // Offscreen/hidden/occluded or stale widgets contribute no text or action.
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        if (widget->getText().size() > 1024 || !widget->getFont() ||
+            widget->getTextWidth() > widget->getWidth() ||
+            widget->getTextHeight() > widget->getHeight() || !include(widget)) return "null";
+        return agentJsonString(widget->getText());
+    };
+    const auto craftName = text(_txtCraft), message = text(_txtMessage);
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const std::string label = widget->agentLayoutLabel();
+        if (label.empty() || label.size() > 1024 || !include(widget)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    button(_btnIntercept, "continue", "continue_pursuit");
+    button(_btnBase, "return", "return_interceptor_to_base");
+    buttons += "]";
+    out.visible = "{\"craft_name\":" + craftName + ",\"message\":" + message + ",\"buttons\":" + buttons + "}";
+    const std::string payload = out.payload();
+    if (payload.size() > 9000) return false;
+    std::size_t asciiBytes = 0;
+    for (unsigned char c : payload)
+        if ((asciiBytes += c < 128 ? 1 : 6) > 30000) return false;
+    return !out.regions.empty() && agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
+}
+
+bool DogfightErrorState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "continue_pursuit") { btnInterceptClick(nullptr); return true; }
+    if (request.action == "return_interceptor_to_base") { btnBaseClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

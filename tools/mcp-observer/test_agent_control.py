@@ -143,7 +143,8 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.INTERCEPTION_BUTTON_ACTIONS:
         visible=dict(buttons=[dict(id=key,label=key.title()) for key in a.INTERCEPTION_BUTTON_ACTIONS[screen].values()])
-        if screen == 'interception_confirm': visible['target']='UFO-1'
+        if screen == 'dogfight_error': visible.update(craft_name='BARRACUDA-1',message='Unable to engage')
+        elif screen == 'interception_confirm': visible['target']='UFO-1'
         else: visible.update(title='Select Craft',headings=[None]*4,rows=[dict(handle='r0',cells=['Shown']*4,selected=False)],scroll=dict(up=True,down=True))
         ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.TRANSFER_BUTTON_ACTIONS:
@@ -442,7 +443,7 @@ class ValidationTests(unittest.TestCase):
             'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 145); self.assertEqual(len(a.STATE_ACTIONS), 61)
+        self.assertEqual(len(a.ACTIONS), 147); self.assertEqual(len(a.STATE_ACTIONS), 62)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -489,7 +490,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 145)
+        self.assertEqual(len(a.ACTIONS), 147)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'place_base_site': 'point',

@@ -61,6 +61,13 @@ and visible damage/outcomes, never hidden enemy statistics. Include interrupted
 and repeated transitions where safe; a successful single interception is not
 exhaustive air-combat coverage.
 
+The [2026-10-22 bounded qualification](../../tests/agent-control/INTERCEPTION_QUALIFICATION_20261022.md)
+now covers one natural-contact cautious-attack/withdrawal/return route in each
+game. It does not establish hits, destruction, every combat mode or every warning.
+The next narrow warning surface is the depth/airborne engagement popup: expose
+its two explicit choices without deciding for the player, then separately verify
+actual pursuit or return. Native handler coverage is not natural-event coverage.
+
 ## 4. Geoscape event-type inventory and coverage
 
 Inventory **all** event types for both games from source and public UI, with

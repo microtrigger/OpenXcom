@@ -22,7 +22,7 @@ def projectile(seq=1):
 class ProjectileValidationTests(unittest.TestCase):
     def test_exact_protocol_catalog_counts_and_limits_unchanged(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/26')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (145, 61, 4))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (147, 62, 4))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_REQUEST, a.MAX_TEXT_PACKET, a.MAX_PACKET), (512, 32768, 49152))
         self.assertEqual(a.ERROR_SCHEMA, 'openxcom-mcp-agent-control-error/1')
