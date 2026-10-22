@@ -20,6 +20,7 @@ import time
 
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
+from error_contract import classified, ensure, code_for, detail
 
 SCHEMA = 'openxcom-agent-control/26'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
@@ -313,14 +314,15 @@ class ActionOutcomeUnknown(Unavailable):
     This is local transport uncertainty, never a native dispatch/outcome report.
     The client has already closed and cannot reconnect or replay the command.
     """
-    def __init__(self, command_id):
-        super().__init__('Action outcome unknown')
+    def __init__(self, command_id, failure_code=None):
+        super().__init__('Action outcome unknown', failure_code=failure_code)
         self.command_id = command_id
 
     def public_error(self):
         return dict(schema=ERROR_SCHEMA, mode=MODE, type='adapter_error', source='adapter',
                     command_id=self.command_id, status='outcome_unknown', retryable=False,
-                    semantics='not_a_native_receipt')
+                    semantics='not_a_native_receipt',
+                    failure=detail(self.failure_code, 'send_or_receipt', 'unknown'))
 
 
 def token(value):
@@ -338,11 +340,14 @@ def visible_text(value, nullable=False):
 
 
 def parse(raw):
-    require(type(raw) is bytes and 0 < len(raw) <= MAX_PACKET)
+    ensure(type(raw) is bytes and 0 < len(raw) <= MAX_PACKET, 'transport_framing')
     try:
-        return strict_json(raw.decode('utf-8'))
+        obj = strict_json(raw.decode('utf-8'))
     except (ValueError, UnicodeError, RecursionError, TypeError):
-        raise Unavailable('Unavailable') from None
+        raise classified('parse_error') from None
+    if obj == {'schema': SCHEMA, 'mode': MODE, 'type': 'error', 'status': 'unavailable'}:
+        raise classified('native_unavailable_unspecified')
+    return obj
 
 
 def identity(obj):
@@ -1652,33 +1657,46 @@ class AgentControlClient:
     @contextmanager
     def exclusive(self):
         acquired = self.flight.acquire(blocking=False)
-        require(acquired)
+        ensure(acquired, 'concurrent_request')
         try:
-            require(self.channel is not None and self.state != 'CLOSED')
+            ensure(self.channel is not None and self.state != 'CLOSED', 'channel_closed')
             yield
         finally:
             self.flight.release()
 
+    def empty_packet_code(self):
+        # A zero-length SEQPACKET record is not itself evidence of peer EOF.
+        poller = select.poll()
+        hangup = select.POLLHUP | getattr(select, 'POLLRDHUP', 0)
+        poller.register(self.channel, select.POLLIN | hangup)
+        return 'transport_eof' if any(flags & hangup for _, flags in poller.poll(0)) else 'transport_framing'
+
     def packet(self, deadline):
-        require(self.channel is not None)
+        ensure(self.channel is not None, 'channel_closed')
         remaining = deadline - time.monotonic()
-        require(remaining > 0)
+        ensure(remaining > 0, 'transport_timeout')
         ready, _, _ = select.select([self.channel], [], [], remaining)
-        require(bool(ready) and time.monotonic() < deadline)
+        ensure(bool(ready) and time.monotonic() < deadline, 'transport_timeout')
         raw, ancillary, flags, _ = self.channel.recvmsg(MAX_PACKET + 1)
-        require(bool(raw) and len(raw) <= MAX_PACKET and not ancillary
-                and not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC))
+        if not raw: raise classified(self.empty_packet_code())
+        ensure(len(raw) <= MAX_PACKET and not ancillary and
+               not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC), 'transport_framing')
         return raw
 
     def exchange(self, request, timeout=None, *, before_send=None):
-        require(self.channel is not None and not select.select([self.channel], [], [], 0)[0])
+        ensure(self.channel is not None, 'channel_closed')
+        if select.select([self.channel], [], [], 0)[0]:
+            # Non-consuming metadata distinguishes EOF from unsolicited data.
+            peek = self.channel.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+            raise classified('unexpected_packet' if peek else self.empty_packet_code())
         deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
-        require(time.monotonic() < deadline)
+        ensure(time.monotonic() < deadline, 'transport_timeout')
         if before_send is not None:
             before_send()
-        require(self.channel.send(request) == len(request))
+        ensure(self.channel.send(request) == len(request), 'transport_io')
         raw = self.packet(deadline)
-        require(time.monotonic() < deadline and not select.select([self.channel], [], [], 0)[0])
+        ensure(time.monotonic() < deadline, 'transport_timeout')
+        ensure(not select.select([self.channel], [], [], 0)[0], 'unexpected_packet')
         return raw
 
     def observe(self):
@@ -1779,9 +1797,9 @@ class AgentControlClient:
                 self.capability_deadline = time.monotonic() + CAPABILITY_TTL
                 self.state = 'READY' if self.capability is not None else 'NEED_CONTEXT'
                 return obj
-            except FAILURES:
+            except FAILURES as failure:
                 self.close()
-                raise Unavailable('Unavailable') from None
+                raise classified(code_for(failure, 'validation_error')) from None
 
     def read_events(self, epoch, after, limit):
         validate_event_arguments(dict(epoch=epoch, after=after, limit=limit))
@@ -1803,13 +1821,16 @@ class AgentControlClient:
                 self.audio_status = obj['audio_status']
                 # No command-ledger admission, UI revision update or grant refresh/consumption.
                 return obj
-            except FAILURES:
+            except FAILURES as failure:
                 self.close()
-                raise Unavailable('Unavailable') from None
+                raise classified(code_for(failure, 'validation_error')) from None
 
     def execute(self, command_id, epoch, capability, revision, action, args):
         arguments = dict(command_id=command_id, epoch=epoch, capability=capability, revision=revision, action=action, args=args)
-        validate_action_arguments(arguments)
+        try:
+            validate_action_arguments(arguments)
+        except Unavailable:
+            raise classified('invalid_arguments') from None
         # Values are primitives. Copy the caller's mutable object before
         # compiling, and retain only immutable canonical bytes in the ledger.
         args = dict(args)
@@ -1818,21 +1839,24 @@ class AgentControlClient:
         with self.exclusive():
             previous = self.commands.get(command_id)
             if previous is not None:
-                require(previous['request'] == request)
+                ensure(previous['request'] == request, 'command_conflict')
                 return self._read_result(command_id)
-            require(self.state == 'READY' and epoch == self.epoch and capability == self.capability
-                    and revision == self.revision and action in self.available_actions
-                    and time.monotonic() < self.capability_deadline)
+            ensure(self.state == 'READY' and epoch == self.epoch and capability == self.capability
+                    and revision == self.revision
+                    and time.monotonic() < self.capability_deadline, 'stale_authority')
+            ensure(action in self.available_actions, 'action_not_offered')
+            def require_target(ok):
+                ensure(ok, 'target_not_offered')
             if action == 'move_cursor':
-                require(self.cursor_bounds is not None and args['x'] < self.cursor_bounds[0] and args['y'] < self.cursor_bounds[1])
+                require_target(self.cursor_bounds is not None and args['x'] < self.cursor_bounds[0] and args['y'] < self.cursor_bounds[1])
             elif action == 'select_difficulty':
-                require(args['value'] in self.difficulty_values)
+                require_target(args['value'] in self.difficulty_values)
             elif action == 'open_new_battle_choice':
-                require(args['control'] in self.choice_controls)
+                require_target(args['control'] in self.choice_controls)
             elif action == 'choose_visible_row':
-                require(args['row'] in self.visible_rows)
+                require_target(args['row'] in self.visible_rows)
             elif action == 'scroll_visible_list':
-                require(args['direction'] in self.scroll_directions)
+                require_target(args['direction'] in self.scroll_directions)
             elif action in ('change_production_quantity', 'change_purchase_quantity', 'change_craft_equipment', 'change_transfer_quantity'):
                 key = args['control'] if action == 'change_production_quantity' else args['row']
                 shown = (self.quantity_directions if action == 'change_production_quantity' else
@@ -1841,44 +1865,44 @@ class AgentControlClient:
                 operation = args['operation']
                 required = (STAFF_DIRECTIONS if operation == 'set' else
                             ('increase',) if operation == 'max' or (operation == 'adjust' and args['value'] > 0) else ('decrease',))
-                require(all((key, direction) in shown for direction in required))
+                require_target(all((key, direction) in shown for direction in required))
             elif ARGUMENT_KINDS[action] in ('outfitting_row', 'crew_assignment'):
-                require(args['row'] in self.outfitting_rows)
+                require_target(args['row'] in self.outfitting_rows)
             elif action == 'scroll_purchase':
-                require(args['direction'] in self.scroll_directions)
+                require_target(args['direction'] in self.scroll_directions)
             elif action == 'position_purchase_list':
-                require(args['target'] in self.purchase_targets)
+                require_target(args['target'] in self.purchase_targets)
             elif action == 'place_base_site':
-                require(self.viewport_bounds is not None)
-                require(args['x'] < self.viewport_bounds[0] and args['y'] < self.viewport_bounds[1]
+                require_target(self.viewport_bounds is not None)
+                require_target(args['x'] < self.viewport_bounds[0] and args['y'] < self.viewport_bounds[1]
                         and (args['x'], args['y']) in self.viewport_samples)
             elif action in ('map_primary', 'map_secondary'):
-                require(args['cell'] in self.grid_cells)
+                require_target(args['cell'] in self.grid_cells)
             elif action == 'center_enemy':
-                require(args['button'] in self.enemy_buttons)
+                require_target(args['button'] in self.enemy_buttons)
             elif action == 'open_hand_action_menu':
-                require(args['hand'] in self.hands)
+                require_target(args['hand'] in self.hands)
             elif action == 'choose_weapon_action':
-                require(args['row'] in self.weapon_actions)
+                require_target(args['row'] in self.weapon_actions)
             elif action == 'choose_grenade_timer':
-                require(args['timer'] in self.grenade_timers)
+                require_target(args['timer'] in self.grenade_timers)
             elif action == 'minimap_center':
-                require(args['target'] in self.minimap_targets)
+                require_target(args['target'] in self.minimap_targets)
             elif action == 'choose_dogfight_mode':
-                require(args['mode'] in self.dogfight_modes)
+                require_target(args['mode'] in self.dogfight_modes)
             elif action == 'choose_geoscape_speed':
-                require(args['speed'] in self.geoscape_speeds)
+                require_target(args['speed'] in self.geoscape_speeds)
             elif action == 'select_base':
-                require(args['target'] in self.base_targets)
+                require_target(args['target'] in self.base_targets)
             elif action in ('select_research_project', 'select_production_project'):
-                require(args['row'] in self.project_rows)
+                require_target(args['row'] in self.project_rows)
             elif action in ('adjust_scientists', 'adjust_engineers'):
-                require(args['direction'] in self.staff_directions)
+                require_target(args['direction'] in self.staff_directions)
             elif action in ('inventory_hover', 'inventory_activate'):
-                require(args['target'] in self.inventory_targets)
+                require_target(args['target'] in self.inventory_targets)
             if len(self.commands) >= MAX_COMMANDS:
                 self.close()
-                raise Unavailable('Unavailable')
+                raise classified('resource_limit')
             # Spend the grant and reserve the ID before the only send attempt.
             self.capability = None
             self.available_actions = frozenset()
@@ -1918,11 +1942,14 @@ class AgentControlClient:
                                       command_id, self.epoch)
                 require(obj['status'] in TERMINAL_STATUSES)
                 return self._accept_result(obj)
-            except FAILURES:
+            except FAILURES as failure:
                 self.close()
                 if attempted:
-                    raise ActionOutcomeUnknown(command_id) from None
-                raise Unavailable('Unavailable') from None
+                    raise ActionOutcomeUnknown(command_id, code_for(failure, 'validation_error')) from None
+                error = classified(code_for(failure, 'validation_error'))
+                error.failure_phase = 'pre_send'
+                error.failure_outcome = 'not_sent'
+                raise error from None
 
     def read_result(self, command_id):
         token(command_id)
@@ -1934,9 +1961,12 @@ class AgentControlClient:
         try:
             obj = validate_result(self.exchange(('S ' + command_id).encode('ascii')), command_id, self.epoch)
             return self._accept_result(obj)
-        except FAILURES:
+        except FAILURES as failure:
             self.close()
-            raise Unavailable('Unavailable') from None
+            error = classified(code_for(failure, 'validation_error'))
+            error.failure_phase = 'result_query'
+            error.failure_outcome = 'unknown'
+            raise error from None
 
     def _accept_result(self, obj):
         previous = self.commands[obj['command_id']]['result']

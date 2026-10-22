@@ -21,7 +21,9 @@ FILES = {'hud': ('snapshot.json', 'observer.lock'), 'cursor': ('cursor.json', 'c
 
 
 class Unavailable(ValueError):
-    pass
+    def __init__(self, *args, failure_code=None):
+        super().__init__(*args)
+        self.failure_code = failure_code
 
 
 def require(ok):

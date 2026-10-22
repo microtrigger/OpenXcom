@@ -504,15 +504,26 @@ class Server:
                 obj = self.agent_control.read_events(**arguments)
             else:
                 obj = self.agent_control.read_result(**arguments)
+            if name in ('execute_ui_action', 'read_ui_action_result') and obj.get('status') in ('unavailable', 'unknown_after_dispatch', 'unknown'):
+                from error_contract import detail
+                obj = dict(obj, failure=detail('native_result_'+obj['status'],
+                    'result_query' if name == 'read_ui_action_result' else 'send_or_receipt', 'unknown'))
             return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}],
                     'structuredContent': obj, 'isError': False}
         except ActionOutcomeUnknown as failure:
             obj = failure.public_error()
             return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}],
                     'structuredContent': obj, 'isError': True}
-        except Unavailable:
-            return {'content': [{'type': 'text', 'text': '{"error":"unavailable"}'}],
-                    'structuredContent': {'error': 'unavailable'}, 'isError': True}
+        except Unavailable as failure:
+            from error_contract import detail, code_for
+            phase = 'pre_send' if name == 'execute_ui_action' else 'result_query' if name == 'read_ui_action_result' else 'read'
+            if name == 'execute_ui_action' and code_for(failure) == 'legacy_unavailable': phase = 'unknown'
+            phase = getattr(failure, 'failure_phase', phase)
+            default_outcome = ('unknown' if code_for(failure) == 'legacy_unavailable' else 'not_sent') if name == 'execute_ui_action' else 'unknown' if name == 'read_ui_action_result' else 'not_applicable'
+            outcome = getattr(failure, 'failure_outcome', default_outcome)
+            obj = {'error': 'unavailable', 'failure': detail(code_for(failure), phase, outcome)}
+            return {'content': [{'type': 'text', 'text': json.dumps(obj, separators=(',', ':'))}],
+                    'structuredContent': obj, 'isError': True}
 
     def stance(self, name, arguments):
         from supervised_stance import (PUBLIC_CONTEXT_SCHEMA, PUBLIC_TACTICAL_CONTEXT_SCHEMA,

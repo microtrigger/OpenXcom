@@ -1331,7 +1331,9 @@ class McpTests(unittest.TestCase):
         obj = call(server, 'read_ui_state')['result']['structuredContent']
         reply = call(server, 'execute_ui_action', arguments(obj))['result']
         expected = dict(schema=a.ERROR_SCHEMA, mode=a.MODE, type='adapter_error', source='adapter',
-                        command_id=COMMAND, status='outcome_unknown', retryable=False, semantics='not_a_native_receipt')
+                        command_id=COMMAND, status='outcome_unknown', retryable=False, semantics='not_a_native_receipt',
+                        failure=dict(code='transport_timeout',category='transport',severity='critical',
+                                     phase='send_or_receipt',action_outcome='unknown',recovery='reconcile'))
         self.assertTrue(reply['isError']); self.assertEqual(reply['structuredContent'], expected)
         self.assertEqual(reply['content'], [dict(type='text', text=dump(expected).decode())])
         self.assertNotIn('observation', expected)
@@ -1343,8 +1345,10 @@ class McpTests(unittest.TestCase):
         class Failed:
             def observe(self): raise Unavailable('PRIVATE-SENTINEL')
         reply = call(adapter.Server(agent_control=Failed()), 'read_ui_state')['result']
-        self.assertEqual(reply, dict(content=[dict(type='text', text='{"error":"unavailable"}')],
-                                    structuredContent={'error': 'unavailable'}, isError=True))
+        expected={'error':'unavailable','failure':dict(code='legacy_unavailable',category='unknown',
+                  severity='error',phase='read',action_outcome='not_applicable',recovery='stop')}
+        self.assertEqual(reply, dict(content=[dict(type='text',text=dump(expected).decode())],
+                                    structuredContent=expected,isError=True))
         self.assertNotIn('PRIVATE', dump(reply).decode())
 
 
