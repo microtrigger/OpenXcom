@@ -23,7 +23,7 @@ import zlib
 from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 
-HELLO_SCHEMA = 'experimental-stance/1'
+HELLO_SCHEMA = 'experimental-stance/2'
 CONTEXT_SCHEMA = 'experimental-stance-context/1'
 TACTICAL_CONTEXT_SCHEMA = 'experimental-tactical-context/1'
 INVENTORY_VIEW_SCHEMA = 'experimental-inventory-view/1'
@@ -32,7 +32,7 @@ INVENTORY_GROUND_CONTEXT_SCHEMA = 'experimental-inventory-ground-context/1'
 INVENTORY_UNLOAD_CONTEXT_SCHEMA = 'experimental-inventory-unload-context/1'
 INVENTORY_CLICK_CONTEXT_SCHEMA = 'experimental-inventory-click-context/1'
 INVENTORY_RIGHT_CLICK_CONTEXT_SCHEMA = 'experimental-inventory-right-click-context/1'
-STATUS_SCHEMA = 'experimental-stance-status/1'
+STATUS_SCHEMA = 'experimental-stance-status/2'
 PUBLIC_CONTEXT_SCHEMA = 'openxcom-mcp-stance-context/1'
 PUBLIC_TACTICAL_CONTEXT_SCHEMA = 'openxcom-mcp-tactical-context/1'
 PUBLIC_INVENTORY_VIEW_SCHEMA = 'openxcom-mcp-inventory-view/1'
@@ -44,6 +44,7 @@ PUBLIC_INVENTORY_RIGHT_CLICK_CONTEXT_SCHEMA = 'openxcom-mcp-inventory-right-clic
 PUBLIC_STATUS_SCHEMA = 'openxcom-mcp-stance-status/1'
 MAX_PACKET = 128 * 1024
 MAX_COMMANDS = 64
+MAX_QUERY_SEQUENCE = (1 << 128) - 1
 WIDTH, HEIGHT = 320, 56
 RGB_BYTES = WIDTH * HEIGHT * 3
 TACTICAL_WIDTH, TACTICAL_HEIGHT = 320, 200
@@ -196,13 +197,19 @@ def validate_indexed_view(view):
     return rgb
 
 
-def validate_status(raw, command_id):
+def validate_status(raw, command_id, query_nonce=None):
     obj = parse(raw, 256)
-    exact(obj, 'schema command_id status')
+    exact(obj, 'schema command_id status query_nonce')
     require(obj['schema'] == STATUS_SCHEMA and obj['command_id'] == command_id
             and type(obj['status']) is str and obj['status'] in STATUSES)
     token(obj['command_id'])
-    return obj
+    if query_nonce is None:
+        require(obj['query_nonce'] is None)
+    else:
+        token(query_nonce)
+        require(query_nonce != '0' * 32 and obj['query_nonce'] == query_nonce)
+    # Correlation is private transport metadata, not a public receipt field.
+    return {key: obj[key] for key in ('schema', 'command_id', 'status')}
 
 
 def validate_arguments(arguments):
@@ -382,6 +389,7 @@ class StanceClient:
         # This is an unresolved I-or-V barrier, never a semantic branch hint.
         self.inventory_right_verification_required = False
         self.commands = {}
+        self._query_sequence = 0
         self.flight = threading.Lock()
 
     def close(self):
@@ -605,7 +613,12 @@ class StanceClient:
 
     def _status(self, command_id):
         try:
-            obj = validate_status(self.exchange(b'S' + command_id.encode('ascii'), 256), command_id)
+            # Never reuse or wrap a query nonce, including duplicate-action queries.
+            require(self._query_sequence < MAX_QUERY_SEQUENCE)
+            self._query_sequence += 1
+            nonce = f'{self._query_sequence:032x}'
+            obj = validate_status(self.exchange(('S' + command_id + nonce).encode('ascii'), 256),
+                                  command_id, nonce)
             return self._accept_status(obj)
         except FAILURES:
             self.close()

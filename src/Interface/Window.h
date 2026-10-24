@@ -51,6 +51,9 @@ private:
 	bool _contrast, _screen, _thinBorder;
 public:
 	static Sound *soundPopup[3];
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	bool agentPopupActive() const;
+#endif
 	/// Creates a new window with the specified size and position.
 	Window(State *state, int width, int height, int x = 0, int y = 0, WindowPopup popup = POPUP_NONE);
 	/// Cleans up the window.

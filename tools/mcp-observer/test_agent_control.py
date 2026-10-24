@@ -31,12 +31,21 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         message=None, view_level=None, grid=[dict(handle=f'g{i}',
             polygon=[dict(x=i*20,y=0),dict(x=i*20+16,y=0),dict(x=i*20+16,y=16),dict(x=i*20,y=16)],
             target=dict(x=i*20+8,y=8)) for i in range(2)], fragment_status='unavailable', fragments=[], truncated=False)
+    visible['tactical']['map_context'] = dict(scope='viewport', selected_position=dict(x=0,y=0,z=0),
+        cells=[dict(handle=f'g{i}', position=dict(x=i,y=0,z=0),
+                    parts=dict(floor='floor',west='unknown',north='unknown',object='unknown'),
+                    unit='own' if i == 0 else 'unknown') for i in range(2)], truncated=False)
     visible.update(hands=[dict(hand='left',ammo=6),dict(hand='right',ammo=None)],
                    enemy_buttons=[dict(handle='e0',number=1)],focus_target='g0',layers_indicator=None)
     ids = ['next_soldier', 'previous_soldier', 'kneel', 'open_pause_menu', 'end_turn',
            'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy', 'open_hand_action_menu', 'open_inventory']
     if screen in a.STATE_FIELDS:
         visible = {key: key.title() for key in a.STATE_FIELDS[screen]}; ids = sorted(a.STATE_ACTIONS[screen])
+        if screen == 'load_list':
+            visible['rows'] = [dict(handle='r0', cells=['MCP Test', '2026-10-24', '14:00'])]
+        elif screen == 'save_list':
+            visible.update(rows=[], new_save_name='MCP Test')
+            ids = [x for x in ids if x != 'select_new_save_slot']
     elif screen == 'inventory':
         visible = dict(close_label='Close inventory', **dict.fromkeys(a.INVENTORY_TEXT_FIELDS), held=None, targets=[])
         ids = ['close_inventory']
@@ -143,10 +152,25 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.INTERCEPTION_BUTTON_ACTIONS:
         visible=dict(buttons=[dict(id=key,label=key.title()) for key in a.INTERCEPTION_BUTTON_ACTIONS[screen].values()])
-        if screen == 'dogfight_error': visible.update(craft_name='BARRACUDA-1',message='Unable to engage')
+        if screen == 'monthly_report': visible.update(title='Monthly Report',month='Jan 1999',rating='Rating: OK',income='Income',maintenance='Maintenance',balance='Balance',description='Council report',failure=None)
+        elif screen == 'landing_confirmation': visible.update(message='SKYRANGER-1 ready to land near LANDING SITE-1',prompt='Begin Mission?')
+        elif screen == 'psi_training': visible.update(title='Psionic Training', bases=['Shown base'],rows=[dict(handle='r0',cells=['Shown base'])])
+        elif screen == 'commendations': visible.update(title='Medals', rows=[])
+        elif screen == 'promotions': visible.update(title='Promotions',headings=['Name','New Rank','Base'],rows=[])
+        elif screen == 'alien_base_discovered': visible.update(message='X-Com agents have located an alien base in Shown Region')
+        elif screen == 'ufo_lost': visible.update(message='UFO-1\nTracking lost')
+        elif screen == 'craft_error': visible.update(message='Not enough ammunition to rearm craft at base')
+        elif screen == 'craft_destination_selection': visible.update(title='SELECT DESTINATION', targets=[dict(row='r0', x=100, y=70, width=4, height=4)])
+        elif screen == 'geoscape_craft_navigation': visible.update(title='INTERCEPTOR-1',status='Status: Patrolling',redirect=None)
+        elif screen == 'craft_patrol': visible.update(message='INTERCEPTOR-1\nhas reached\nWAY POINT-1',patrolling='Now patrolling')
+        elif screen == 'low_fuel': visible.update(title='Low Fuel',message='INTERCEPTOR-1 is returning to base')
+        elif screen == 'dogfight_error': visible.update(craft_name='BARRACUDA-1',message='Unable to engage')
         elif screen == 'interception_confirm': visible['target']='UFO-1'
         else: visible.update(title='Select Craft',headings=[None]*4,rows=[dict(handle='r0',cells=['Shown']*4,selected=False)],scroll=dict(up=True,down=True))
         ids=sorted(a.STATE_ACTIONS[screen])
+        if screen == 'geoscape_craft_navigation':
+            ids=['cancel_craft_navigation','open_craft_destination']
+            visible['buttons']=[b for b in visible['buttons'] if b['id'] in ('cancel','target')]
     elif screen in a.TRANSFER_BUTTON_ACTIONS:
         visible = dict(title='Transfer', buttons=[dict(id=key,label=key.title()) for key in a.TRANSFER_BUTTON_ACTIONS[screen].values()])
         if screen == 'transfer_confirm': visible.update(cost='Cost',total='$1,000')
@@ -178,6 +202,8 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     if not ids:
         capability = None
     def action_label(action):
+        if action == 'choose_visible_craft_destination': return 'Select visible target'
+        if action == 'open_psi_training_base': return 'Open psi training base'
         if action == 'choose_dogfight_mode': return 'Choose dogfight mode'
         if screen in a.INTERCEPTION_BUTTON_ACTIONS:
             if action == 'choose_visible_row': return 'Choose visible row'
@@ -224,8 +250,8 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
     obj = state() if obj is None else obj
     if args is None:
         args = {'move_cursor': {'x':0,'y':0}, 'select_difficulty': {'value': 'beginner'}, 'set_ironman': {'value': False},
-                'replace_base_name': {'text': 'Alpha'}, 'place_base_site': {'x': 64, 'y': 80},
-                'open_new_battle_choice': {'control': 'mission'}, 'choose_visible_row': {'row': 'r0'},
+                'replace_base_name': {'text': 'Alpha'}, 'replace_new_save_name': {'text': 'MCP Test'}, 'load_saved_game': {'row': 'r0'}, 'place_base_site': {'x': 64, 'y': 80},
+                'open_new_battle_choice': {'control': 'mission'}, 'choose_visible_row': {'row': 'r0'}, 'open_psi_training_base': {'row': 'r0'}, 'choose_visible_craft_destination': {'row': 'r0'},
                 'scroll_visible_list': {'direction': 'down'}, 'scroll_article_text': {'direction': 'down'}, 'map_primary': {'cell':'g0'},
                 'map_secondary': {'cell':'g0'}, 'center_enemy': {'button':'e0'},
                 'open_hand_action_menu': {'hand':'left'}, 'choose_weapon_action': {'row':'a0'}, 'inventory_hover': {'target':'v0'},
@@ -240,7 +266,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_purchase': {'direction':'down','amount':'step'},
                 'position_purchase_list': {'target':'t0'},
-                'select_soldier': {'row':'r0'}, 'select_craft': {'row':'r0'},
+                'toggle_psi_training': {'row':'r0'}, 'select_soldier': {'row':'r0'}, 'select_craft': {'row':'r0'},
                 'open_craft_soldier_info': {'row':'r0'}, 'select_craft_armor_soldier': {'row':'r0'},
                 'select_soldier_armor': {'row':'r0'}, 'set_craft_soldier': {'row':'r0','assigned':True},
                 'change_craft_equipment': {'row':'r0','operation':'adjust','value':1}}.get(action, {})
@@ -257,12 +283,38 @@ def call(server, name, args=None):
     return server.handle(dict(jsonrpc='2.0', id=1, method='tools/call', params=dict(name=name, arguments={} if args is None else args)))
 
 
+FIXTURE_REASONS = frozenset((
+    'verification_epoch_capability', 'verification_revision_action',
+    'verification_duplicate', 'verification_arity', 'unexpected_request',
+    'worker_timeout', 'worker_os_error', 'worker_value_error', 'worker_assertion',
+    'worker_other', 'peer_close_failure', 'cleanup_worker_alive',
+    'cleanup_join_failure', 'cleanup_client_close_failure'))
+
+
+class FixtureFailure(AssertionError):
+    """Fixed synthetic-peer reason, never the original exception or payload."""
+    def __init__(self, reason):
+        self.reason = reason if type(reason) is str and reason in FIXTURE_REASONS else 'worker_other'
+        super().__init__(self.reason)
+
+
+def fixture_check(condition, reason):
+    if not condition:
+        raise FixtureFailure(reason)
+
+
 class NativeFixture:
     def __init__(self, *, hello=None, transform=None, timeout=0.15, screen='battlescape', transitions=None):
         parent, self.peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         self.client = a.AgentControlClient(parent, timeout=timeout, action_timeout=timeout, startup_timeout=timeout)
         self.peer.settimeout(1)
         self.requests, self.results, self.errors = [], {}, []
+        self.worker_phase = 'hello_send'
+        self.worker_failure_phase = None
+        self.worker_reason = None
+        self.worker_close = 'not_attempted'
+        self.worker_finished = False
+        self.cleanup_peer_close = 'not_attempted'
         self.transform, self.screen = transform, screen
         self.transitions = transitions or {}
         self.revision, self.sequence, self.counter = 1, 0, 10
@@ -290,29 +342,46 @@ class NativeFixture:
                 obj['actions'] = [item for item in obj['actions'] if item['id'] != 'confirm_base_name']
         return obj
 
+    def _record_failure(self, reason):
+        if not self.errors:
+            # Create but do not raise here: no original traceback/context retained.
+            failure = FixtureFailure(reason)
+            self.errors.append(failure)
+            self.worker_reason = failure.reason
+            self.worker_failure_phase = self.worker_phase
+
     def run(self):
         try:
+            self.worker_phase = 'hello_send'
             self.peer.send(dump(self.hello))
             while True:
+                self.worker_phase = 'receive'
                 raw = self.peer.recv(4096)
-                if not raw: return
+                if not raw:
+                    self.worker_reason = 'eof'
+                    return
+                self.worker_phase = 'decode'
                 self.requests.append(raw); command = raw.decode().split(' ')
                 if command == ['H', a.SCHEMA]:
+                    self.worker_phase = 'build_reply'
                     obj = dict(schema=a.SCHEMA, mode=a.MODE, status='ready')
                 elif command[0] == 'R' and len(command) == 2:
+                    self.worker_phase = 'build_reply'
                     self.counter += 1; self.sequence += 1
                     obj = self.observation(command[1], f'{self.counter:032x}')
                     self.latest = copy.deepcopy(obj)
                 elif command[0] == 'E' and len(command) >= 6:
                     _, ident, epoch, cap, revision, action = command[:6]
-                    assert epoch == EPOCH and cap == self.latest['capability']
-                    assert int(revision) == self.revision and action in [i['id'] for i in self.latest['actions']]
-                    assert ident not in self.results, 'Native action unexpectedly replayed'
+                    self.worker_phase = 'verify'
+                    fixture_check(epoch == EPOCH and cap == self.latest['capability'], 'verification_epoch_capability')
+                    fixture_check(int(revision) == self.revision and action in [i['id'] for i in self.latest['actions']], 'verification_revision_action')
+                    fixture_check(ident not in self.results, 'verification_duplicate')
                     kind = a.ARGUMENT_KINDS[action]
                     expected_count = 6 if kind == 'none' else 8 if kind in ('point', 'cursor_position', 'purchase_scroll', 'crew_assignment') else 7
                     if kind in ('production_quantity','purchase_quantity','equipment_quantity','transfer_quantity'):
                         expected_count = 9 if command[7] in ('adjust','set') else 8
-                    assert len(command) == expected_count
+                    fixture_check(len(command) == expected_count, 'verification_arity')
+                    self.worker_phase = 'build_reply'
                     if action == 'select_difficulty': self.difficulty = command[6]
                     elif action == 'set_ironman': self.ironman = command[6] == '1'
                     elif action == 'open_new_battle_choice': self.control = command[6]
@@ -323,6 +392,7 @@ class NativeFixture:
                                  observation=self.observation(None, None))
                     self.results[ident] = copy.deepcopy(obj)
                 elif command[0] == 'V' and len(command) == 5:
+                    self.worker_phase = 'build_reply'
                     _, challenge, epoch, after, limit = command
                     after, limit = int(after), int(limit)
                     newest = len(self.public_events); oldest = max(1, newest-a.EVENT_CAPACITY+1)
@@ -336,27 +406,71 @@ class NativeFixture:
                             after=after, oldest=oldest, newest=newest,
                             next_cursor=events[-1]['seq'] if events else after, gap=after+1<oldest, events=events)
                 elif command[0] == 'S' and len(command) == 2:
+                    self.worker_phase = 'build_reply'
                     obj = copy.deepcopy(self.results[command[1]])
                 else:
-                    raise AssertionError('Unexpected native request')
-                if self.transform is not None: obj = self.transform(command[0], obj)
-                if obj is not None: self.peer.send(obj if isinstance(obj, bytes) else dump(obj))
+                    raise FixtureFailure('unexpected_request')
+                if self.transform is not None:
+                    self.worker_phase = 'transform'
+                    obj = self.transform(command[0], obj)
+                if obj is not None:
+                    self.worker_phase = 'send_reply'
+                    self.peer.send(obj if isinstance(obj, bytes) else dump(obj))
         except (BrokenPipeError, ConnectionResetError):
-            pass
+            # Exception class only, not a claim about the peer's causal state.
+            self.worker_reason = 'broken_pipe_or_reset'
+            self.worker_failure_phase = self.worker_phase
         except BaseException as error:
-            self.errors.append(error)
+            reason = (error.reason if isinstance(error, FixtureFailure) else
+                      'worker_timeout' if isinstance(error, TimeoutError) else
+                      'worker_os_error' if isinstance(error, OSError) else
+                      'worker_value_error' if isinstance(error, ValueError) else
+                      'worker_assertion' if isinstance(error, AssertionError) else 'worker_other')
+            self._record_failure(reason)
+        finally:
+            try:
+                self.peer.close()
+                self.worker_close = 'closed'
+            except BaseException:
+                self.worker_close = 'failed'
+                self._record_failure('peer_close_failure')
+            self.worker_phase = 'exit'
+            self.worker_finished = True
 
     def close(self):
-        self.client.close(); self.thread.join(2); self.peer.close()
-        assert not self.thread.is_alive()
-        if self.errors: raise self.errors[0]
+        cleanup_reason = None
+        alive = False
+        try:
+            try:
+                self.client.close()
+            except BaseException:
+                cleanup_reason = 'cleanup_client_close_failure'
+            if cleanup_reason is None:
+                try:
+                    self.thread.join(2)
+                    alive = self.thread.is_alive()
+                except BaseException:
+                    cleanup_reason = 'cleanup_join_failure'
+        finally:
+            try:
+                self.peer.close() # Idempotent owned-endpoint fallback, no second wait.
+                self.cleanup_peer_close = 'closed'
+            except BaseException:
+                self.cleanup_peer_close = 'failed'
+                if cleanup_reason is None:
+                    cleanup_reason = 'peer_close_failure'
+        if cleanup_reason is not None:
+            raise FixtureFailure(cleanup_reason) from None
+        fixture_check(not alive, 'cleanup_worker_alive')
+        if self.errors:
+            raise FixtureFailure(self.errors[0].reason) from None
 
 
 class ValidationTests(unittest.TestCase):
     def test_exact_hello_and_version_identity(self):
         hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')
         self.assertEqual(a.validate_hello(dump(hello)), EPOCH)
-        for key, value in (('schema', 'experimental-stance/1'), ('mode', 'supervised'), ('epoch', 'A' * 32),
+        for key, value in (('schema', 'experimental-stance/1'), ('schema', 'experimental-stance/2'), ('mode', 'supervised'), ('epoch', 'A' * 32),
                            ('ledger_capacity', 256.0), ('ledger_capacity', True), ('extra', 'hidden')):
             with self.subTest(key=key, value=value), self.assertRaises(Unavailable):
                 a.validate_hello(dump(dict(hello, **{key: value})))
@@ -370,6 +484,10 @@ class ValidationTests(unittest.TestCase):
             obj = state(screen=screen)
             if screen in a.STATE_FIELDS:
                 obj['visible'] = dict.fromkeys(a.STATE_FIELDS[screen])
+                if screen in ('save_list', 'load_list'):
+                    obj['visible']['rows'] = []
+                    if screen == 'save_list': obj['visible']['new_save_name'] = None
+                    obj['actions'] = [x for x in obj['actions'] if x['id'] == 'cancel_menu']
                 if screen == 'new_battle':
                     obj['actions'] = [item for item in obj['actions'] if item['id'] != 'open_new_battle_choice']
             a.validate_state(obj, CHALLENGE, EPOCH)
@@ -440,10 +558,12 @@ class ValidationTests(unittest.TestCase):
             'new_battle': {'start_battle', 'cancel_menu', 'open_new_battle_choice'},
             'new_game': {'cancel_menu', 'select_difficulty', 'set_ironman', 'start_new_game'}, 'options_shell': {'cancel_menu'},
             'pause_menu': {'open_load_game', 'open_save_game', 'open_options', 'resume_game'},
-            'load_list': {'cancel_menu'}, 'save_list': {'cancel_menu'},
+            'load_list': {'cancel_menu', 'load_saved_game'},
+            'save_list': {'cancel_menu', 'select_new_save_slot', 'replace_new_save_name', 'save_new_game'},
+            'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 147); self.assertEqual(len(a.STATE_ACTIONS), 62)
+        self.assertEqual(len(a.ACTIONS), 172); self.assertEqual(len(a.STATE_ACTIONS), 77)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -471,6 +591,10 @@ class ValidationTests(unittest.TestCase):
         for screen, names in fields.items():
             self.assertEqual(a.STATE_FIELDS[screen], names)
             obj = state(screen=screen); obj['visible'] = dict.fromkeys(names)
+            if screen in ('save_list', 'load_list'):
+                obj['visible']['rows'] = []
+                if screen == 'save_list': obj['visible']['new_save_name'] = None
+                obj['actions'] = [x for x in obj['actions'] if x['id'] == 'cancel_menu']
             a.validate_state(obj, CHALLENGE, EPOCH)
             for value in (123, True, [], {}):
                 candidate = copy.deepcopy(obj); candidate['visible'][names[0]] = value
@@ -490,11 +614,11 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 147)
+        self.assertEqual(len(a.ACTIONS), 172)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
-            'replace_base_name': 'text', 'place_base_site': 'point',
-            'open_new_battle_choice': 'choice_control', 'choose_visible_row': 'visible_row',
+            'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
+            'open_new_battle_choice': 'choice_control', 'choose_visible_row': 'visible_row', 'open_psi_training_base': 'visible_row', 'choose_visible_craft_destination': 'visible_row',
             'scroll_visible_list': 'scroll_direction', 'scroll_article_text': 'scroll_direction', 'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
             'center_enemy': 'enemy_button', 'open_hand_action_menu': 'hand', 'choose_weapon_action': 'weapon_action',
             'inventory_hover': 'inventory_target', 'inventory_activate': 'inventory_target', 'choose_grenade_timer': 'grenade_timer',
@@ -504,7 +628,7 @@ class TypedValidationTests(unittest.TestCase):
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
             'change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
-            'select_soldier':'outfitting_row','select_craft':'outfitting_row',
+            'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
             'change_craft_equipment':'equipment_quantity'})
@@ -673,7 +797,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
     def test_mismatched_native_identity_closes_before_any_request(self):
-        for key, value in (('schema', 'experimental-stance/1'), ('mode', 'supervised')):
+        for key, value in (('schema', 'experimental-stance/1'), ('schema', 'experimental-stance/2'), ('mode', 'supervised')):
             hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output'); hello[key] = value
             native = self.fixture(hello=hello)
             with self.assertRaises(Unavailable): native.client.observe()

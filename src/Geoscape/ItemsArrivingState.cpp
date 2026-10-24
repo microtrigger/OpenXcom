@@ -104,7 +104,7 @@ ItemsArrivingState::ItemsArrivingState(GeoscapeState *state) : _state(state), _b
 	_lstTransfers->setBackground(_window);
 	_lstTransfers->setMargin(2);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-	_lstTransfers->agentEnableArrivalCells();
+	_lstTransfers->agentEnableArrivalLogicalCells();
 #endif
 
 	for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
@@ -207,7 +207,8 @@ bool ItemsArrivingState::agentUiState(Observer::AgentUiState &out) const
     using namespace Observer;
     if (!_game->isState(const_cast<ItemsArrivingState *>(this)) || _modal || !agentPaintHealthy() ||
         !_agentDestinationPaintFull || !agentDestinationFull() ||
-        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+        _agentStoredPaintRevisions != agentPaintRevisions() ||
+        !_lstTransfers->agentPresentationPaintedTo(_game->getScreen()->getSurface())) return false;
     out = AgentUiState();
     out.screen = "items_arriving";
     const auto painted = agentFlattenPaintOrder(_surfaces);
@@ -242,8 +243,9 @@ bool ItemsArrivingState::agentUiState(Observer::AgentUiState &out) const
     AgentListProjection list;
     // Only already painted UI rows are read. Arrivals were applied by the
     // ordinary constructor; projection never traverses or replays transfers.
-    if (!agentProjectArrivalList(_lstTransfers, _lstTransfers, painted, out, list, allowed)) return false;
-    out.context = {list.up ? 1u : 0u, list.down ? 1u : 0u};
+    const auto textAllowed = [this](const AgentUiState &part) { return _game->agentNonCursorOverlayClear(part); };
+    if (!agentProjectArrivalList(_lstTransfers, _lstTransfers, painted, out, list, allowed, textAllowed)) return false;
+    out.context.insert(out.context.begin(), {list.up ? 1u : 0u, list.down ? 1u : 0u});
     if (list.up || list.down)
         out.actions.emplace_back("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction");
     button(_btnOk, "ok", "dismiss_items_arriving");
@@ -267,7 +269,7 @@ bool ItemsArrivingState::agentDispatch(const Observer::AgentRequest &request)
     if (!agentUiState(current) || !current.offers(request.action)) return false;
     if (request.action == "dismiss_items_arriving") { btnOkClick(nullptr); return true; }
     if (request.action == "open_arrival_base") { btnGotoBaseClick(nullptr); return true; }
-    if (request.action == "scroll_visible_list" && current.context.size() == 2)
+    if (request.action == "scroll_visible_list" && current.context.size() == 7)
     {
         if (request.choice == "up" && current.context[0]) { _lstTransfers->scrollUp(false, false); return true; }
         if (request.choice == "down" && current.context[1]) { _lstTransfers->scrollDown(false, false); return true; }

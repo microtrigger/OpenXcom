@@ -36,6 +36,14 @@ class Waypoint;
 class GeoscapeCraftState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Waypoint *_agentWaypoint = nullptr;
+    std::weak_ptr<const void> _agentWaypointLifetime;
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Craft *_craft;
 	Globe *_globe;
 	Waypoint *_waypoint;
@@ -44,6 +52,11 @@ private:
 	Window *_window;
 	Text *_txtTitle, *_txtStatus, *_txtBase, *_txtSpeed, *_txtMaxSpeed, *_txtAltitude, *_txtFuel, *_txtDamage, *_txtW1Name, *_txtW1Ammo, *_txtW2Name, *_txtW2Ammo, *_txtRedirect, *_txtSoldier, *_txtHWP;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Geoscape Craft state.
 	GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *waypoint);
 	/// Cleans up the Geoscape Craft state.

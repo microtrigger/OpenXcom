@@ -18,6 +18,9 @@
  * along with OpenXcom.  If not, see <http:///www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <memory>
+#endif
 
 namespace OpenXcom
 {
@@ -36,6 +39,7 @@ class ConfirmDestinationState : public State
 {
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::weak_ptr<const void> _agentTargetLifetime;
     bool _agentDestinationPaintFull = false;
     bool agentDestinationFull() const;
     std::vector<std::uint64_t> _agentStoredPaintRevisions;

@@ -37,8 +37,8 @@ def context(challenge=CHALLENGE, capability=CAPABILITY, epoch=EPOCH, rgb=RGB):
             'panel': {'width': s.WIDTH, 'height': s.HEIGHT, 'rgb_hex': rgb.hex()}}
 
 
-def status(command_id=COMMAND, value='pending_confirmation'):
-    return {'schema': s.STATUS_SCHEMA, 'command_id': command_id, 'status': value}
+def status(command_id=COMMAND, value='pending_confirmation', query_nonce=None):
+    return {'schema': s.STATUS_SCHEMA, 'command_id': command_id, 'status': value, 'query_nonce': query_nonce}
 
 
 def arguments(capability=CAPABILITY, epoch=EPOCH, command_id=COMMAND,
@@ -90,7 +90,7 @@ class NativeFixture:
         if raw[:1] in (b'D', b'N'):
             return dump(status(raw[65:97].decode(), self.status))
         if raw[:1] == b'S':
-            return dump(status(raw[1:].decode(), self.status))
+            return dump(status(raw[1:33].decode(), self.status, raw[33:65].decode()))
         raise AssertionError('Unexpected request')
 
     def run(self):
@@ -140,7 +140,8 @@ class ValidationTests(unittest.TestCase):
         obj = context(epoch='a' * 32)
         self.assertEqual(s.validate_context(dump(obj), CHALLENGE), (obj, RGB))
         for value in s.STATUSES:
-            self.assertEqual(s.validate_status(dump(status(value=value)), COMMAND), status(value=value))
+            self.assertEqual(s.validate_status(dump(status(value=value)), COMMAND),
+                             {k: v for k, v in status(value=value).items() if k != 'query_nonce'})
         s.validate_arguments(arguments())
 
     def test_hello_shapes_and_values(self):
@@ -314,7 +315,7 @@ class ClientTests(unittest.TestCase):
         native.client.request(**args)
         native.status = 'dispatched'
         self.assertEqual(native.client.request(**args)['status'], 'dispatched')
-        self.assertEqual(native.requests[-1], b'S' + COMMAND.encode())
+        self.assertEqual(native.requests[-1], b'S' + COMMAND.encode() + f'{native.client._query_sequence:032x}'.encode())
         self.assertEqual(sum(r[:1] == b'D' for r in native.requests), 1)
         count = len(native.requests)
         for key, value in (('desired', 'stand'), ('observed', 'kneel'),

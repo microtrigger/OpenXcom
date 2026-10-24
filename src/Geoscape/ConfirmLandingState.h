@@ -18,6 +18,9 @@
  * along with OpenXcom.  If not, see <http:///www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <memory>
+#endif
 
 namespace OpenXcom
 {
@@ -26,6 +29,7 @@ class Window;
 class Text;
 class TextButton;
 class Craft;
+class Target;
 class Texture;
 
 /**
@@ -35,6 +39,14 @@ class Texture;
 class ConfirmLandingState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Target *_agentLandingDestination = nullptr; // Private constructor operand identity; never serialized.
+    std::weak_ptr<const void> _agentLandingLifetime;
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Craft *_craft;
 	Window *_window;
 	Texture *_texture;
@@ -42,6 +54,11 @@ private:
 	Text *_txtMessage, *_txtBegin;
 	TextButton *_btnYes, *_btnNo;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Confirm Landing state.
 	ConfirmLandingState(Craft *craft, Texture *texture, int shade);
 	/// Cleans up the Confirm Landing state.

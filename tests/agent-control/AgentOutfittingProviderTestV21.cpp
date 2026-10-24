@@ -64,6 +64,7 @@ struct Game {mutable Screen screen;SavedGame save;Mod mod;Language*lang=nullptr;
  Screen*getScreen()const{return &screen;}SavedGame*getSavedGame(){return &save;}Language*getLanguage(){return lang;}Mod*getMod(){return &mod;}
  bool isState(const void*p)const{return top==p;}void popState(){++pops;top=&parent;}template<class T>void pushState(T*p){++pushes;destination=p->kind;top=&parent;delete p;}
  bool agentOverlayClear(const AgentUiState&)const;
+ bool agentNonCursorOverlayClear(const AgentUiState&)const;
 };
 #include "CompletionOverlay.generated.inc"
 Game*active=nullptr;

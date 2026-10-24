@@ -40,6 +40,9 @@ private:
 	std::string _filename;
 	SaveType _type;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+#endif
 	/// Creates the Save Game state.
 	SaveGameState(OptionsOrigin origin, const std::string &filename, SDL_Color *palette);
 	/// Creates the Load Game state.

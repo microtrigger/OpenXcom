@@ -20,6 +20,9 @@
 #include <string>
 #include <vector>
 #include <yaml-cpp/yaml.h>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentTargetLifetime.h"
+#endif
 
 namespace OpenXcom
 {
@@ -34,6 +37,9 @@ class Craft;
  */
 class Target
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentTargetLifetime _agentLifetime;
+#endif
 protected:
 	double _lon, _lat;
 	int _id;
@@ -42,6 +48,9 @@ protected:
 	/// Creates a target.
 	Target();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::weak_ptr<const void> agentLifetime() const { return _agentLifetime.token(); }
+#endif
 	/// Cleans up the target.
 	virtual ~Target();
 	/// Loads the target from YAML.

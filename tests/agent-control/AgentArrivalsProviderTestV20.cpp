@@ -62,6 +62,7 @@ struct Game {
  void pushState(BasescapeState*p){++pushes;destination="base";destinationBase=p->base;destinationGlobe=p->globe;top=&parent;delete p;}
  void pushState(ManufactureState*p){++pushes;destination="manufacture";destinationBase=p->base;top=&parent;delete p;}
  bool agentOverlayClear(const AgentUiState&)const;
+ bool agentNonCursorOverlayClear(const AgentUiState&)const;
 };
 #include "CompletionOverlay.generated.inc"
 struct State:OpenXcom::State {using OpenXcom::State::_surfaces;using OpenXcom::State::_modal;Game*_game;GeoscapeState*_state;Base*_base;State(Game*g,GeoscapeState*s,Base*b):_game(g),_state(s),_base(b){g->top=this;}void blit() override;};

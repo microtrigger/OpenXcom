@@ -75,6 +75,9 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 	_view = new BaseView(192, 192, 0, 8);
 	_mini = new MiniBaseView(128, 16, 192, 41);
 	_edtBase = new TextEdit(this, 127, 17, 193, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_edtBase->agentEnableBasescapeName();
+#endif
 	_txtLocation = new Text(126, 9, 194, 16);
 	_txtFunds = new Text(126, 9, 194, 24);
 	_btnNewBase = new TextButton(128, 12, 192, 58);
@@ -554,17 +557,38 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
         return value!="null" && include(widget) ? value : "null";
     };
     std::string name="null",shown;
-    SDL_Rect nameInk;
-    if (_edtBase && _edtBase->agentRenderedText(shown) && shown.size()<=1024 && _edtBase->agentRenderedBounds(nameInk))
+    if (_edtBase)
     {
-        AgentUiState part; part.regions.push_back({nameInk.x,nameInk.y,nameInk.w,nameInk.h});
-        if (agentRegionsUncovered(part.regions,_edtBase,painted) && _game->agentOverlayClear(part))
+        SDL_Rect allocation;
+        std::uint64_t captureEpoch=0;
+        const bool captured=_edtBase->agentBasescapeName(logical,shown,allocation,captureEpoch);
+        out.widgets.push_back({_edtBase,_edtBase->agentInputRevision()});
+        // Keep full editor geometry in authority; only the observation strip
+        // excludes the native 17px allocation's bottom spare row.
+        out.context.insert(out.context.end(), {
+            captureEpoch,static_cast<std::uint64_t>(_edtBase->getX()),
+            static_cast<std::uint64_t>(_edtBase->getY()),
+            static_cast<std::uint64_t>(_edtBase->getWidth()),
+            static_cast<std::uint64_t>(_edtBase->getHeight())});
+        if (captured)
         {
-            const auto old=out.regions.size(); out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
-            if (agentRegionsDisjoint(out)) name=agentJsonString(shown); else out.regions.resize(old);
+            AgentUiState part;
+            const int observedHeight=allocation.h==17 ? 16 : allocation.h;
+            part.regions.push_back({allocation.x,allocation.y,allocation.w,observedHeight});
+            bool found=false,uncovered=true;
+            for (const Surface *later:painted)
+            {
+                if (later==_edtBase) { found=true; continue; }
+                if (!found || !later || !later->getVisible()) continue;
+                const auto &rect=part.regions.front();
+                if (rect.x<later->getX()+later->getWidth() && rect.x+rect.width>later->getX() &&
+                    rect.y<later->getY()+later->getHeight() && rect.y+rect.height>later->getY()) uncovered=false;
+            }
+            if (found && uncovered && _game->agentNonCursorOverlayClear(part)) name=agentJsonString(shown);
         }
+        // Logical name observation is not an outward action region. Existing
+        // button/slot cursor guards and all-surface authority bindings remain.
     }
-    if (_edtBase) out.widgets.push_back({_edtBase,_edtBase->agentInputRevision()});
     std::string slots="[";
     if (_mini)
     {

@@ -241,9 +241,27 @@ YAML::Node receive()
     try { return YAML::Load(std::string(b,n)); } catch(...) { require(false); } return YAML::Node();
 }
 void unavailable(const YAML::Node &n) { fields(n,{"error"}); require(n["error"].as<std::string>()=="unavailable"); }
+// Status/2 correlation is transport-only, independent of command identity.
+std::string statusQueryNonce(32, '0'), expectedStatusQueryNonce;
+void sendStatusQuery()
+{
+    require(expectedStatusQueryNonce.empty());
+    require(statusQueryNonce != std::string(32, 'f'));
+    const char *hex = "0123456789abcdef";
+    for (int i = 31; i >= 0; --i)
+    {
+        if (statusQueryNonce[i] == 'f') { statusQueryNonce[i] = '0'; continue; }
+        statusQueryNonce[i] = hex[std::string(hex).find(statusQueryNonce[i]) + 1]; break;
+    }
+    expectedStatusQueryNonce = statusQueryNonce;
+    sendPacket("S" + commandId + statusQueryNonce);
+}
 void status(const YAML::Node &n,const std::string &value)
 {
-    fields(n,{"schema","command_id","status"}); expect(RECEIPT,n["schema"].as<std::string>()=="experimental-stance-status/1"&&n["command_id"].as<std::string>()==commandId&&n["status"].as<std::string>()==value);
+    if (expectedStatusQueryNonce.empty()) require(n["query_nonce"].IsNull());
+    else require(n["query_nonce"].IsScalar() && n["query_nonce"].as<std::string>() == expectedStatusQueryNonce);
+    expectedStatusQueryNonce.clear();
+    fields(n,{"schema","command_id","status","query_nonce"}); expect(RECEIPT,n["schema"].as<std::string>()=="experimental-stance-status/2"&&n["command_id"].as<std::string>()==commandId&&n["status"].as<std::string>()==value);
 }
 std::vector<unsigned char> display()
 {
@@ -423,7 +441,7 @@ void prepare()
 void silence() { if(!enabled) return; Mix_HaltChannel(-1); Mix_HaltMusic(); Options::mute=true; quiet(); }
 bool loaded(Game *game)
 {
-    if(!enabled) return false; owner=game; quiet(); YAML::Node hello=receive(); fields(hello,{"schema","control_epoch"}); require(hello["schema"].as<std::string>()=="experimental-stance/1"); epoch=hello["control_epoch"].as<std::string>(); require(token(epoch)&&!available());
+    if(!enabled) return false; owner=game; quiet(); YAML::Node hello=receive(); fields(hello,{"schema","control_epoch"}); require(hello["schema"].as<std::string>()=="experimental-stance/2"); epoch=hello["control_epoch"].as<std::string>(); require(token(epoch)&&!available());
     running=true; started=Clock::now(); replacement(); Options::baseXResolution=320; Options::baseYResolution=200; game->getScreen()->resetDisplay(false); game->getCursor()->setVisible(true); game->getFpsCounter()->setVisible(false); return true;
 }
 void afterCleanup(Game *game)
@@ -499,7 +517,7 @@ std::vector<char> blockedReads()
 }
 bool denial() { return profile=="deny-held"||profile=="timeout"||profile=="unseen"||profile=="held-y"||profile=="held-mouse"||profile=="invalid-child-right"||profile=="invalid-child-x2"||profile=="domain"; }
 bool stale() { return profile.find("stale-")==0||profile=="capless-I"; }
-void queryStatus() { sendPacket("S"+commandId); stage=WAIT_CANCEL; }
+void queryStatus() { sendStatusQuery(); stage=WAIT_CANCEL; }
 void startBarrier() { barrier=0; request(blockedReads()[0]); stage=BARRIER_REPLY; }
 }
 void beforeEvents(Game *game)
@@ -602,7 +620,7 @@ void beforeEvents(Game *game)
     else if(stage==REPLAY) {
         commandId=commandPacket.substr(65,32);
         if(replay==0) sendPacket(commandPacket);
-        else if(replay==1) sendPacket("S"+commandId);
+        else if(replay==1) sendStatusQuery();
         else if(replay==2) { std::string conflict=commandPacket; conflict.replace(33,32,randomToken()); sendPacket(conflict); }
         else if(replay<int(otherCommands().size())+3) sendPacket(packet(otherCommands()[replay-3],commandId,capability));
         else { expect(LEDGER,shown==1); finish(); return; }
@@ -733,7 +751,7 @@ void afterFrame(Game *game)
         else { context(receive(),'H'); commandId=randomToken(); sendPacket(packet('X',commandId,capability)); stage=CROSS_REPLY; }
     } else if(stage==WAIT_POST&&available()) {
         context(receive(),postKind()); require(frameSerial>dispatchedFrame); dispatched(true);
-        if(clickSent) { sendPacket("S"+commandId); stage=WAIT_STATUS; } else afterView();
+        if(clickSent) { sendStatusQuery(); stage=WAIT_STATUS; } else afterView();
     }
 }
 void inventoryConstructed(InventoryState *who) { if(running&&!pendingSetup) { require(!inventory); inventory=who; ++constructed; } }

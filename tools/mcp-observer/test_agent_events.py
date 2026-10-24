@@ -18,10 +18,12 @@ def tactical(mode='map'):
     obj=copy.deepcopy(state()['visible']['tactical'])
     if mode=='map':
         obj['grid']=[dict(handle='g0',polygon=[dict(x=8,y=0),dict(x=16,y=8),dict(x=8,y=16),dict(x=0,y=8)],target=dict(x=8,y=8))]
+        obj['map_context']['cells']=obj['map_context']['cells'][:1]
         obj['fragment_status']='presented'
         obj['fragments']=[dict(handle='p0',kind='painted_fragment',classification=None,runs=[dict(x=5,y=6,width=3)])]
     else:
         obj.update(mode=mode,grid=[],fragments=[],fragment_status='unavailable',message='Hidden Movement' if mode=='hidden_movement' else None)
+        obj['map_context']=dict(scope='viewport',selected_position=None,cells=[],truncated=False)
         if mode=='unavailable': obj['viewport']=None
     return obj
 

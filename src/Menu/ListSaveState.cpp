@@ -17,6 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "ListSaveState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#include "../Interface/Text.h"
+#endif
 #include "../Engine/CrossPlatform.h"
 #include "../Engine/Game.h"
 #include "../Engine/Action.h"
@@ -65,20 +69,81 @@ ListSaveState::ListSaveState(OptionsOrigin origin) : ListGamesState(origin, 1, f
 	_edtSave->onKeyboardPress((ActionHandler)&ListSaveState::edtSaveKeyPress);
 
 	centerAllSurfaces();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _edtSave->agentEnableSaveName(); _btnSaveGame->agentTrackPresentation();
+#endif
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 bool ListSaveState::agentUiState(Observer::AgentUiState &out) const
 {
-    return agentListUiState(out, "save_list");
+    using namespace Observer;
+    bool popupPresentation=false;
+    if (!agentListUiState(out,"save_list",popupPresentation)) return false;
+    if(popupPresentation)
+    {out.visible.pop_back();out.visible+=",\"new_save_name\":null}";return true;}
+    out.context.push_back(static_cast<std::uint64_t>(_selectedRow+1));
+    out.widgets.emplace_back(_edtSave,_edtSave->agentInputRevision());
+    out.widgets.emplace_back(_edtSave,_edtSave->agentPresentationRevision());
+    std::string name="null";
+    // Hidden Cancel is the native ironman presentation; do not expose manual save.
+    if (_btnCancel->getVisible())
+    {
+        if (_selectedRow == -1)
+        {
+            for(size_t n=0;n<out.rows.size();++n) if(out.rows[n]==0)
+            {
+                std::vector<AgentOutfittingRow> rows;
+                if(!_lstSaves->agentSaveListRows(rows))return false;
+                for(const auto &row:rows)if(row.logicalIndex==0 && !row.cells.empty() && row.cells[0].known)
+                {
+                    const AgentUiRect rect={row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h};
+                    if(agentListRegion(_lstSaves,rect,false))
+                    { out.actions.emplace_back("select_new_save_slot",row.cells[0].text,"visible_text");out.regions.push_back(rect); }
+                }
+            }
+        }
+        if (_selectedRow == 0 && Options::keyboardMode == KEYBOARD_ON)
+        {
+            std::string shown; SDL_Rect rect={}; std::uint64_t epoch=0;
+            if(_edtSave->agentSaveName(_game->getScreen()->getSurface(),shown,rect,epoch) &&
+                agentListRegion(_edtSave,{rect.x,rect.y,rect.w,rect.h},true))
+            {
+                if(!_edtSave->agentSaveNameBinding(_game->getScreen()->getSurface(),out))return false;
+                name=agentJsonString(shown);
+                if(agentListRegion(_edtSave,{rect.x,rect.y,rect.w,rect.h},false))
+                {
+                    out.actions.emplace_back("replace_new_save_name","Replace save name","visible_control_semantics","text");
+                    out.regions.push_back({rect.x,rect.y,rect.w,rect.h});
+                }
+                if(!shown.empty() && shown.size()<=128 && shown.find_first_of("/\\") == std::string::npos)
+                    agentListButton(out,_btnSaveGame,"save_new_game");
+            }
+        }
+    }
+    out.visible.pop_back(); out.visible+=",\"new_save_name\":"+name+"}";
+    return agentRegionsDisjoint(out);
 }
 
-bool ListSaveState::agentDispatch(const std::string &action)
+bool ListSaveState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
-    if (action != "cancel_menu" || !agentUiState(current) || !current.offers(action)) return false;
-    btnCancelClick(nullptr);
-    return true;
+    if(!agentUiState(current) || !current.offers(request.action))return false;
+    if(request.action=="cancel_menu"){btnCancelClick(nullptr);return true;}
+    if(request.action=="select_new_save_slot")
+    {
+        if(_selectedRow!=-1 || !_lstSaves->agentSelectSaveListRow(0))return false;
+        SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+        Action action(&event,1.,1.,0,0);action.setSender(_lstSaves);lstSavesPress(&action);return true;
+    }
+    if(_selectedRow!=0)return false;
+    if(request.action=="replace_new_save_name")
+    {
+        if(request.text.size()>128 || request.text.find_first_of("/\\")!=std::string::npos)return false;
+        return _edtSave->agentReplaceSaveName(_game->getScreen()->getSurface(), request.text);
+    }
+    if(request.action=="save_new_game"){btnSaveGameClick(nullptr);return true;}
+    return false;
 }
 #endif
 

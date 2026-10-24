@@ -6,6 +6,8 @@
 #include <array>
 #include <string>
 #include <vector>
+#include <queue>
+#include <algorithm>
 #endif
 
 namespace OpenXcom
@@ -59,6 +61,29 @@ struct AgentCameraRect
     int x = 0, y = 0, width = 0, height = 0;
 };
 
+// Semantic facts admitted by the ordinary terrain draw, not pixel recognition.
+struct AgentMapPosition
+{
+    int x = 0, y = 0, z = 0;
+    bool operator==(const AgentMapPosition &o) const { return x == o.x && y == o.y && z == o.z; }
+};
+struct AgentMapCell
+{
+    AgentMapPosition position;
+    // unknown, empty, floor/wall/door/object. No raw terrain IDs or properties.
+    std::array<std::string, 4> parts = {{"unknown", "unknown", "unknown", "unknown"}};
+    std::string unit = "unknown"; // never infer absence from hidden occupancy
+    bool rendered = false; // private draw-branch witness
+    bool operator==(const AgentMapCell &o) const
+    { return position == o.position && parts == o.parts && unit == o.unit && rendered == o.rendered; }
+};
+inline std::string agentMapPart(bool discoveredContent, bool discoveredWall,
+    bool present, bool sprite, bool door, const char *kind)
+{
+    if (discoveredContent) return present ? (sprite ? (door ? "door" : kind) : "unknown") : "empty";
+    return discoveredWall && present && sprite && door ? "door" : "unknown";
+}
+
 struct AgentMapSnapshot
 {
     int x = 0, y = 0, width = 0, height = 0;
@@ -68,6 +93,9 @@ struct AgentMapSnapshot
     // It is not a semantic map field and must not be serialized.
     AgentCameraRect messageRegion;
     std::vector<AgentCameraGridTarget> grid;
+    std::vector<AgentMapCell> cells;
+    bool selectedPositionKnown = false;
+    AgentMapPosition selectedPosition;
     AgentCameraPoint focus = {0, 0}; // viewport-only ordinary centering activation point
 };
 
@@ -107,6 +135,18 @@ inline std::vector<AgentCameraGridTarget> cameraViewportGrid(const CameraProject
     const std::int64_t originY = std::int64_t(projection.offsetY) -
         std::int64_t(projection.viewLevel) * projection.levelStep() +
         projection.spriteWidth - projection.spriteHeight / 4;
+    const AgentCameraPoint focus = {width / 2 + half, height / 2 + projection.spriteWidth - projection.spriteHeight / 4};
+    const auto distance = [&](const AgentCameraGridTarget &a) {
+        const std::int64_t dx = std::int64_t(a.target.x) - focus.x, dy = std::int64_t(a.target.y) - focus.y;
+        return dx * dx + dy * dy;
+    };
+    const auto closer = [&](const AgentCameraGridTarget &a, const AgentCameraGridTarget &b) {
+        if (distance(a) != distance(b)) return distance(a) < distance(b);
+        return a.target.y != b.target.y ? a.target.y < b.target.y : a.target.x < b.target.x;
+    };
+    // Geometry-only top128. The heap never holds more than128 candidates,
+    // including the smallest supported sprite/maximum viewport combination.
+    std::priority_queue<AgentCameraGridTarget, std::vector<AgentCameraGridTarget>, decltype(closer)> nearest(closer);
     const int firstY = quarter + int(cameraPositiveMod(originY - quarter, quarter));
     for (int y = firstY; y + quarter < height; y += quarter)
     {
@@ -114,14 +154,20 @@ inline std::vector<AgentCameraGridTarget> cameraViewportGrid(const CameraProject
         const int firstX = half + int(cameraPositiveMod(originX + row * half - half, projection.spriteWidth));
         for (int x = firstX; x + half < width; x += projection.spriteWidth)
         {
-            if (result.size() == 128) { truncated = true; return result; }
             AgentCameraGridTarget target;
-            target.handle = "g" + std::to_string(result.size());
             target.target = {x, y};
             target.polygon = {{{x, y - quarter}, {x + half, y}, {x, y + quarter}, {x - half, y}}};
-            result.push_back(target);
+            if (nearest.size() < 128) nearest.push(target);
+            else
+            {
+                truncated = true;
+                if (closer(target, nearest.top())) { nearest.pop(); nearest.push(target); }
+            }
         }
     }
+    while (!nearest.empty()) { result.push_back(nearest.top()); nearest.pop(); }
+    std::sort(result.begin(), result.end(), closer);
+    for (std::size_t i = 0; i < result.size(); ++i) result[i].handle = "g" + std::to_string(i);
     return result;
 }
 

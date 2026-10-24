@@ -223,8 +223,8 @@ public:
     static bool agentCursorWindowPoint(int x, int y, int width, int height,
         double scaleX, double scaleY, int left, int top, int &windowX, int &windowY);
     bool agentOverlayClear(const Observer::AgentUiState &ui) const;
-    // Observation-only contact title: cosmetic cursor is not a text policy gate.
-    // Action regions continue to use agentOverlayClear's unchanged default.
+    // Both semantic text and action regions ignore the cosmetic cursor.
+    // Retained separate entry point for existing observation-only callers; FPS still gates.
     bool agentNonCursorOverlayClear(const Observer::AgentUiState &ui) const;
     void agentRecordAdmissionFailure(bool provider, bool disjoint, bool overlayClear) const;
 #endif

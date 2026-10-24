@@ -35,12 +35,23 @@ class AlienBase;
 class AlienBaseState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	GeoscapeState *_state;
 	AlienBase *_base;
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Alien Base Detected state.
 	AlienBaseState(AlienBase *base, GeoscapeState *state);
 	/// Cleans up the Alien Base Detected state.

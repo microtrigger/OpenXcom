@@ -56,15 +56,39 @@ ListLoadState::ListLoadState(OptionsOrigin origin) : ListGamesState(origin, 0, t
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 bool ListLoadState::agentUiState(Observer::AgentUiState &out) const
 {
-    return agentListUiState(out, "load_list");
+    using namespace Observer;
+    bool popupPresentation=false;
+    if(!agentListUiState(out,"load_list",popupPresentation))return false;
+    if(popupPresentation)return true;
+    std::vector<AgentOutfittingRow> projected;
+    if(!_lstSaves->agentSaveListRows(projected))return false;
+    bool any=false;
+    for(size_t index:out.rows) for(const auto &row:projected)if(row.logicalIndex==index)
+    {
+        const AgentUiRect rect={row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h};
+        if(agentListRegion(_lstSaves,rect,false)){out.regions.push_back(rect);any=true;}
+    }
+    if(any)out.actions.emplace_back("load_saved_game","Load selected saved game","visible_control_semantics","visible_row");
+    return agentRegionsDisjoint(out);
 }
-
-bool ListLoadState::agentDispatch(const std::string &action)
+bool ListLoadState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
-    if (action != "cancel_menu" || !agentUiState(current) || !current.offers(action)) return false;
-    btnCancelClick(nullptr);
-    return true;
+    if(!agentUiState(current)||!current.offers(request.action))return false;
+    if(request.action=="cancel_menu"){btnCancelClick(nullptr);return true;}
+    if(request.action=="load_saved_game")for(size_t n=0;n<current.rows.size();++n)
+        if(request.choice=="r"+std::to_string(n))
+        {
+            const size_t index=current.rows[n];
+            std::vector<AgentOutfittingRow> projected;if(!_lstSaves->agentSaveListRows(projected))return false;
+            bool admitted=false;
+            for(const auto &row:projected)if(row.logicalIndex==index)
+                admitted=agentListRegion(_lstSaves,{row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h},false);
+            if(!admitted||!_lstSaves->agentSelectSaveListRow(index))return false;
+            SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+            Action action(&event,1.,1.,0,0);action.setSender(_lstSaves);lstSavesPress(&action);return true;
+        }
+    return false;
 }
 #endif
 

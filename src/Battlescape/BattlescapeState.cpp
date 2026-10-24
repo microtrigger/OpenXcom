@@ -2699,14 +2699,17 @@ void BattlescapeState::autosave()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 namespace OpenXcom {
 namespace {
-// This lattice is read-only camera geometry. It is not a visible-tile,
-// passability, discovery, enemy or target-eligibility claim.
-std::string agentTacticalJson(const Map *map, const Game *game, const std::vector<Surface *> &paintOrder, Observer::AgentUiState &ui, std::string &focus)
+// Camera geometry and a separately bounded semantic engine context. Neither
+// terrain presence nor an activation target promises passability or action success.
+std::string agentTacticalJson(const Map *map, const Game *game, const std::vector<Surface *> &paintOrder, Observer::AgentUiState &ui, std::string &focus, std::string &mapContext)
 {
     AgentMapSnapshot view; focus = "null";
-    const std::string unavailable = "{\"mode\":\"unavailable\",\"viewport\":null,\"message\":null,\"view_level\":null,\"grid\":[],\"fragment_status\":\"unavailable\",\"fragments\":[],\"truncated\":false}";
+    const std::string emptyContext = "{\"scope\":\"viewport\",\"selected_position\":null,\"cells\":[],\"truncated\":false}";
+    mapContext = emptyContext;
+    const std::string unavailable = "{\"mode\":\"unavailable\",\"viewport\":null,\"message\":null,\"view_level\":null,\"grid\":[],\"fragment_status\":\"unavailable\",\"fragments\":[],\"map_context\":" + emptyContext + ",\"truncated\":false}";
+    const auto reject = [&]() { ui.points.clear(); mapContext = emptyContext; return unavailable; };
     if (!map || !map->agentMapSnapshot(view) || view.x < 0 || view.x > 4095 || view.y < 0 || view.y > 4095 ||
-        view.width <= 0 || view.width > 640 || view.height <= 0 || view.height > 400) return unavailable;
+        view.width <= 0 || view.width > 640 || view.height <= 0 || view.height > 400) return reject();
     const auto clear = [&](int x, int y, int width, int height) -> bool
     {
         Observer::AgentUiState footprint;
@@ -2717,7 +2720,10 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
     if (view.hiddenMovement && !view.hiddenMovementLabel.empty() &&
         clear(view.messageRegion.x, view.messageRegion.y, view.messageRegion.width, view.messageRegion.height))
         label = Observer::agentJsonString(view.hiddenMovementLabel);
-    std::string grid = "[";
+    const auto positionJson = [](const AgentMapPosition &p) {
+        return std::string("{\"x\":") + std::to_string(p.x) + ",\"y\":" + std::to_string(p.y) + ",\"z\":" + std::to_string(p.z) + "}";
+    };
+    std::string grid = "[", cells = "[";
     unsigned count = 0;
     bool truncated = view.gridTruncated;
     if (!view.hiddenMovement)
@@ -2733,16 +2739,37 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
                 item += "{\"x\":" + std::to_string(cell.polygon[i].x) + ",\"y\":" + std::to_string(cell.polygon[i].y) + "}";
             }
             item += "],\"target\":{\"x\":" + std::to_string(cell.target.x) + ",\"y\":" + std::to_string(cell.target.y) + "}}";
-            if (count == 128 || grid.size() + item.size() > 23500) { truncated = true; break; }
+            const std::size_t sourceIndex = &cell - &view.grid.front();
+            if (sourceIndex >= view.cells.size()) return reject();
+            const AgentMapCell &fact = view.cells[sourceIndex];
+            if (fact.position.x < -1 || fact.position.y < -1 || fact.position.z < 0) return reject();
+            std::string semantic = "{\"handle\":\"g" + std::to_string(count) + "\",\"position\":" + positionJson(fact.position) + ",\"parts\":{";
+            const char *names[] = {"floor", "west", "north", "object"};
+            for (unsigned part = 0; part < 4; ++part)
+            {
+                if (part) semantic += ",";
+                semantic += Observer::agentJsonString(names[part]) + ":" + Observer::agentJsonString(fact.parts[part]);
+            }
+            semantic += "},\"unit\":" + Observer::agentJsonString(fact.unit) + "}";
+            // Exact compact serialized array lengths, including closing brackets/commas.
+            if (count == 128 || grid.size() + cells.size() + item.size() + semantic.size() + 2 + (count ? 2 : 0) > 23500)
+            { truncated = true; break; }
             if (cell.target == view.focus) focus = Observer::agentJsonString("g" + std::to_string(count));
             ui.points.push_back(std::make_pair(view.x + cell.target.x, view.y + cell.target.y));
-            if (count++) grid += ",";
-            grid += item;
+            if (count++) { grid += ","; cells += ","; }
+            grid += item; cells += semantic;
         }
-    grid += "]";
+    grid += "]"; cells += "]";
+    if (!view.hiddenMovement)
+    {
+        if (view.selectedPositionKnown && (view.selectedPosition.x < 0 || view.selectedPosition.y < 0 || view.selectedPosition.z < 0)) return reject();
+        mapContext = "{\"scope\":\"viewport\",\"selected_position\":" +
+            (view.selectedPositionKnown ? positionJson(view.selectedPosition) : std::string("null")) +
+            ",\"cells\":" + cells + ",\"truncated\":" + (truncated ? "true" : "false") + "}";
+    }
     // A private draw branch cannot survive complete public occlusion. A
     // missing/clipped/covered message must not disclose Hidden Movement.
-    if (!agentMapModeAdmitted(view, label != "null", count)) return unavailable;
+    if (!agentMapModeAdmitted(view, label != "null", count)) { mapContext = emptyContext; return reject(); }
     if (!view.hiddenMovement)
     {
         const auto admitted = [&](int x, int y) { return clear(x, y, 1, 1); };
@@ -2756,7 +2783,7 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
         "\",\"viewport\":{\"x\":" + std::to_string(view.x) + ",\"y\":" + std::to_string(view.y) +
         ",\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +
         "},\"message\":" + label + ",\"view_level\":null,\"grid\":" + grid +
-        ",\"fragment_status\":\"unavailable\",\"fragments\":[],\"truncated\":" + (truncated ? "true" : "false") + "}";
+        ",\"fragment_status\":\"unavailable\",\"fragments\":[],\"map_context\":" + mapContext + ",\"truncated\":" + (truncated ? "true" : "false") + "}";
 }
 }
 std::string BattlescapeState::agentViewportControls(Observer::AgentUiState &out) const
@@ -2844,8 +2871,8 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         ",\"kneel_indicator\":" + (stance ? Observer::agentJsonString(_agentShownKneeled ? "kneeling" : "standing") : "null") + "}";
     // Only admitted camera-grid points carry map-action authority.
     // Keep unrelated tactical animation outside the control binding.
-    std::string focus;
-    const std::string tactical = agentTacticalJson(_map, _game, _surfaces, out, focus);
+    std::string focus, mapContext;
+    const std::string tactical = agentTacticalJson(_map, _game, _surfaces, out, focus, mapContext);
     out.visible.pop_back();
     out.visible += ",\"layers_indicator\":" + agentViewportControls(out) + ",\"hands\":[";
     InteractiveSurface *hands[] = {_btnLeftHandItem, _btnRightHandItem};
@@ -2885,6 +2912,7 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     }
     out.visible += "],\"focus_target\":" + focus + "}";
     out.controlVisible = out.visible;
+    out.controlVisible.pop_back(); out.controlVisible += ",\"map_context\":" + mapContext + "}";
     out.visible.pop_back(); out.visible += ",\"tactical\":" + tactical + "}";
     // Geometry and ordinary input context bind targets; animation/audio do not.
     out.widgets.push_back(std::make_pair(_map->getCamera(), _map->getCamera()->agentViewRevision()));

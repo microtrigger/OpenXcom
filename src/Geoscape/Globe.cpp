@@ -304,6 +304,9 @@ Globe::Globe(Game* game, int cenX, int cenY, int width, int height, int x, int y
 
 	_countries = new Surface(width, height, x, y);
 	_markers = new Surface(width, height, x, y);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _markers->agentTrackPresentation();
+#endif
 	_radars = new Surface(width, height, x, y);
 	_clipper = new FastLineClip(x, x+width, y, y+height);
 
@@ -1604,6 +1607,30 @@ void Globe::drawTarget(Target *target, Surface *surface)
 		marker->blit(surface);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 		agentCoverRect(surface,marker);
+        if (surface == _markers && marker->agentBlitEnabled() && !_agentMarkerPixels.empty())
+        {
+            const SDL_Surface *source=marker->getSurface(), *layer=surface->getSurface();
+            const SDL_Rect crop=*marker->getCrop();
+            const int sx=(crop.w || crop.h) ? crop.x : 0, sy=(crop.w || crop.h) ? crop.y : 0;
+            const int sw=(crop.w || crop.h) ? crop.w : source->w, sh=(crop.w || crop.h) ? crop.h : source->h;
+            // Mirror SDL source-crop/destination-clip intersection. Only actual
+            // nontransparent writes update provenance; attempts leave no history.
+            const int left=std::max(std::max(0,int(layer->clip_rect.x)),marker->getX()+std::max(0,-sx));
+            const int top=std::max(std::max(0,int(layer->clip_rect.y)),marker->getY()+std::max(0,-sy));
+            const int right=std::min(std::min(_agentMarkerWidth,int(layer->clip_rect.x)+layer->clip_rect.w),marker->getX()+std::min(sw,source->w-sx));
+            const int bottom=std::min(std::min(_agentMarkerHeight,int(layer->clip_rect.y)+layer->clip_rect.h),marker->getY()+std::min(sh,source->h-sy));
+            const bool transparentAlpha=(source->flags & SDL_SRCALPHA) && source->format->alpha==0;
+            const auto lifetime=_agentTargetCandidates ? target->agentLifetime() : std::weak_ptr<const void>();
+            for (int py=top; !transparentAlpha && py<bottom; ++py)
+                for (int px=left; px<right; ++px)
+                {
+                    const auto pixel=marker->getPixel(sx+px-marker->getX(),sy+py-marker->getY());
+                    if ((source->flags & SDL_SRCCOLORKEY) && pixel==source->format->colorkey) continue;
+                    auto &owner=_agentMarkerPixels[py*_agentMarkerWidth+px];
+                    owner.target=_agentTargetCandidates ? target : nullptr;
+                    owner.lifetime=lifetime;
+                }
+        }
 #endif
 	}
 }
@@ -1616,6 +1643,22 @@ void Globe::drawMarkers()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentBlitReady=false; _agentProjection.clearLayer(4);
+    _agentTargetCandidates=false;
+    _agentMarkerWidth=_markers->getWidth(); _agentMarkerHeight=_markers->getHeight();
+    _agentMarkerPixels.clear();
+    bool formatEligible=_markers->getSurface()->format->BytesPerPixel==1;
+    // Resource eligibility is independent of which hidden targets exist/draw.
+    // Modified image frames can be truecolor; this narrow observer handles only
+    // indexed marker resources with binary alpha, without changing native paint.
+    for (const auto &frame:*_markerSet->getFrames())
+    {
+        const SDL_Surface *pixels=frame.second ? frame.second->getSurface() : nullptr;
+        if (!pixels || pixels->format->BytesPerPixel!=1 || pixels->format->BitsPerPixel!=8 ||
+            ((pixels->flags & SDL_SRCALPHA) && pixels->format->alpha!=0 && pixels->format->alpha!=255))
+            formatEligible=false;
+    }
+    if (formatEligible && _agentMarkerWidth>0 && _agentMarkerWidth<=640 && _agentMarkerHeight>0 && _agentMarkerHeight<=400)
+        _agentMarkerPixels.resize(_agentMarkerWidth*_agentMarkerHeight);
 #endif
 	_markers->clear();
 
@@ -1625,6 +1668,9 @@ void Globe::drawMarkers()
 		drawTarget(*i, _markers);
 	}
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentTargetCandidates=true;
+#endif
 	// Draw the waypoint markers
 	for (std::vector<Waypoint*>::iterator i = _game->getSavedGame()->getWaypoints()->begin(); i != _game->getSavedGame()->getWaypoints()->end(); ++i)
 	{
@@ -1649,6 +1695,9 @@ void Globe::drawMarkers()
 		drawTarget(*i, _markers);
 	}
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentTargetCandidates=false;
+#endif
 	// Draw the craft markers
 	for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
 	{
@@ -2040,6 +2089,52 @@ void Globe::agentCoverRect(Surface *layer,const Surface *painted)
 {
     _agentProjection.rect(layer==_radars ? 1 : layer==_countries ? 2 : 4,
         painted->getX(),painted->getY(),painted->getWidth(),painted->getHeight());
+}
+std::string Globe::agentDestinationTargets(Observer::AgentUiState &ui,
+    const std::vector<Surface *> &overlays, std::vector<Target *> &targets) const
+{
+    using namespace Observer;
+    targets.clear();
+    const Surface *destination=_game->getScreen()->getSurface();
+    if (!_agentBlitReady || _agentMarkerPixels.empty() || _agentShownViewRevision!=_agentViewRevision ||
+        !agentPaintHealthy() || !agentWidgetVisible(this) || !agentWidgetVisible(_markers) ||
+        !_markers->agentPresentationPaintedTo(destination) || _isMouseScrolling || _isMouseScrolled ||
+        _rotLon || _rotLat || getX()!=0 || getY()!=0 ||
+        _agentMarkerWidth!=_markers->getWidth() || _agentMarkerHeight!=_markers->getHeight()) return "[]";
+    const SDL_Surface *layer=_markers->getSurface();
+    if ((layer->flags & SDL_SRCALPHA) && layer->format->alpha==0) return "[]";
+    std::string rows="[";
+    std::vector<std::weak_ptr<const void> > admitted;
+    for (std::size_t n=0; n<_agentMarkerPixels.size() && targets.size()<32; ++n)
+    {
+        const auto &owner=_agentMarkerPixels[n];
+        if (!owner.target || owner.lifetime.expired()) continue;
+        bool duplicate=false;
+        for (const auto &prior:admitted)
+            if (!prior.owner_before(owner.lifetime) && !owner.lifetime.owner_before(prior)) { duplicate=true; break; }
+        if (duplicate) continue;
+        const int x=n%_agentMarkerWidth, y=n/_agentMarkerWidth;
+        // Source palette conversion may yield the layer's transparent key.
+        // Witnesses must survive the actual final layer, not merely its input.
+        if ((layer->flags & SDL_SRCCOLORKEY) && _markers->getPixel(x,y)==layer->format->colorkey) continue;
+        if (y<28 || x>=getWidth() || y>=getHeight() || x>=destination->getWidth() || y>=destination->getHeight()) continue;
+        bool covered=false;
+        for (const Surface *o:overlays)
+            if (o && o->getVisible() && x>=o->getX() && x<o->getX()+o->getWidth() &&
+                y>=o->getY() && y<o->getY()+o->getHeight()) { covered=true; break; }
+        AgentUiState part; part.regions.push_back({x,y,1,1});
+        if (covered || !_game->agentOverlayClear(part) || !agentRegionVisible(part.regions.front())) continue;
+        const std::size_t index=targets.size();
+        if (!index) ui.context.push_back(_agentViewRevision);
+        if (index) rows+=",";
+        rows+="{\"row\":\"r"+std::to_string(index)+"\",\"x\":"+std::to_string(x)+
+            ",\"y\":"+std::to_string(y)+",\"width\":1,\"height\":1}";
+        targets.push_back(owner.target); admitted.push_back(owner.lifetime); ui.rows.push_back(index);
+        ui.targetLifetimes.push_back(owner.lifetime);
+        ui.context.push_back(reinterpret_cast<std::uintptr_t>(owner.target));
+        ui.regions.push_back(part.regions.front());
+    }
+    return rows+"]";
 }
 std::string Globe::agentGeography(Observer::AgentUiState &ui,const std::vector<Surface *> &overlays) const
 {

@@ -28,6 +28,9 @@ namespace OpenXcom
 {
 
 class Timer;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace Observer { struct AgentUiState; }
+#endif
 enum TextEditConstraint { TEC_NONE, TEC_NUMERIC_POSITIVE, TEC_NUMERIC };
 
 /**
@@ -51,6 +54,17 @@ private:
 	bool _agentCaretPainted = false;
 	SDL_Rect _agentCaretBounds = {};
 	std::uint64_t _agentInputRevision = 0;
+	// BaseInfo-only current painted child caption; not the stored edit value.
+	bool _agentSaveNameEnabled = false;
+	bool _agentBaseInfoNameEnabled = false, _agentBaseInfoNameHealthy = false;
+	bool _agentBaseInfoNameEpochExhausted = false;
+	std::uint64_t _agentBaseInfoNameDrawEpoch = 0;
+	const Text *_agentBaseInfoNameChild = nullptr;
+	std::uint64_t _agentBaseInfoNameTextRevision = 0, _agentBaseInfoNameChildRevision = 0;
+	std::uint64_t _agentBaseInfoNameInputRevision = 0;
+	SDL_Rect _agentBaseInfoNameChildGeometry = {}, _agentBaseInfoNameGeometry = {};
+	std::string _agentBaseInfoNameShown;
+	void agentCaptureBaseInfoName();
 #endif
 	/// Native insertion shared by physical keyboard and bounded replacement.
 	bool insertInputCharacter(UCode c);
@@ -80,6 +94,18 @@ public:
 	/// Gets the text edit's string.
 	std::string getText() const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	/// Screen-only opt-in; never enables editing or reads the stored/model name.
+	// Separate screen opt-in; shares the bounded painted-child capture only.
+	void agentEnableSaveName();
+	bool agentSaveName(const Surface *destination, std::string &shown, SDL_Rect &allocation, std::uint64_t &captureEpoch) const;
+	bool agentSaveNameBinding(const Surface *destination, Observer::AgentUiState &out) const;
+	bool agentReplaceSaveName(const Surface *destination, const std::string &text);
+	void agentEnableBasescapeName();
+	bool agentBasescapeName(const Surface *destination, std::string &shown,
+		SDL_Rect &allocation, std::uint64_t &captureEpoch) const;
+	void agentEnableBaseInfoName();
+	bool agentBaseInfoName(const Surface *destination, std::string &shown,
+		SDL_Rect &allocation, std::uint64_t &captureEpoch) const;
 	/// Reads only the complete currently rendered child text.
 	bool agentRenderedText(std::string &text) const;
     // Complete visible editor text ink, excluding transparent allocation padding.

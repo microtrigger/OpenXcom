@@ -18,6 +18,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#include <utility>
 
 namespace OpenXcom
 {
@@ -33,12 +34,25 @@ class Base;
 class PsiTrainingState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::pair<TextButton *, Base *> > _agentConstructorBasePairs;
+    bool agentBasePairsCurrent() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle;
 	std::vector<TextButton*> _btnBases;
 	std::vector<Base*> _bases;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Psi Training state.
 	PsiTrainingState();
 	/// Cleans up the Psi Training state.

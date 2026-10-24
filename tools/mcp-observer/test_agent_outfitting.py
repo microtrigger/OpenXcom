@@ -13,7 +13,7 @@ from snapshots import Unavailable
 from test_agent_control import NativeFixture, state, arguments, result, dump, call, EPOCH, CHALLENGE, COMMAND
 from test_agent_events import page, validate
 
-STATES = ('soldiers', 'soldier_info', 'crafts', 'craft_info', 'craft_soldiers',
+STATES = ('allocate_psi_training', 'soldiers', 'soldier_info', 'crafts', 'craft_info', 'craft_soldiers',
           'craft_equipment', 'craft_armor', 'soldier_armor')
 NEW_ACTIONS = ('open_soldiers', 'select_soldier', 'close_soldiers', 'previous_personnel',
                'next_personnel', 'open_soldier_armor', 'close_soldier_info', 'open_crafts',
@@ -22,7 +22,7 @@ NEW_ACTIONS = ('open_soldiers', 'select_soldier', 'close_soldiers', 'previous_pe
                'open_craft_soldier_info', 'close_craft_crew', 'change_craft_equipment',
                'close_craft_equipment', 'select_craft_armor_soldier', 'close_craft_armor',
                'select_soldier_armor', 'cancel_soldier_armor')
-ROWS = {'soldiers': (3, 3), 'crafts': (5, 5), 'craft_soldiers': (3, 3),
+ROWS = {'allocate_psi_training': (4, 4), 'soldiers': (3, 3), 'crafts': (5, 5), 'craft_soldiers': (3, 3),
         'craft_equipment': (2, 3), 'craft_armor': (3, 3), 'soldier_armor': (2, 2)}
 
 
@@ -73,7 +73,7 @@ class OutfittingContractTests(unittest.TestCase):
 
     def test_closed_wire_catalog_and_four_tools(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/26')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (147, 62, 4))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (172, 77, 4))
         self.assertEqual(set(a.OUTFITTING_FIELDS), set(STATES))
         self.assertEqual(a.OUTFITTING_LISTS, ROWS)
         self.assertEqual(len(NEW_ACTIONS), 23)
@@ -84,7 +84,7 @@ class OutfittingContractTests(unittest.TestCase):
             obj = state(screen='soldiers'); obj['schema'] = f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable): checked(obj)
 
-    def test_all_eight_exact_shapes_and_all_actions_validate(self):
+    def test_all_admitted_exact_shapes_and_all_actions_validate(self):
         for screen in STATES:
             obj = state(screen=screen); expected = copy.deepcopy(obj)
             self.assertEqual(checked(obj), expected)

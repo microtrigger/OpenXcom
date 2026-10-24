@@ -25,7 +25,7 @@ class BodyValidationTests(unittest.TestCase):
 
     def test_version_and_unchanged_authority_surface(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/26')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (147, 62, 4))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (172, 77, 4))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertEqual(a.MAX_PACKET, 49152)
         self.assertEqual(a.MAX_REQUEST, 512)

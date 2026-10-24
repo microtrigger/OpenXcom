@@ -44,6 +44,9 @@ namespace OpenXcom
  */
 ConfirmDestinationState::ConfirmDestinationState(Craft *craft, Target *target) : _craft(craft), _target(target)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_target) _agentTargetLifetime=_target->agentLifetime();
+#endif
 	Waypoint *w = dynamic_cast<Waypoint*>(_target);
 	_screen = false;
 
@@ -86,6 +89,10 @@ ConfirmDestinationState::ConfirmDestinationState(Craft *craft, Target *target) :
 	{
 		_txtTarget->setText(tr("STR_TARGET").arg(_target->getName(_game->getLanguage())));
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *widget:std::vector<Surface*>{_window,_txtTarget,_btnOk,_btnCancel})
+        widget->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -140,7 +147,9 @@ bool ConfirmDestinationState::agentDestinationFull() const
 
 std::vector<std::uint64_t> ConfirmDestinationState::agentPaintRevisions() const
 {
-    return {_txtTarget->agentTextRevision(), _btnOk->agentLabelRevision(), _btnCancel->agentLabelRevision()};
+    return {_window->agentPresentationRevision(), _txtTarget->agentPresentationRevision(), _txtTarget->agentTextRevision(),
+        _btnOk->agentPresentationRevision(), _btnOk->agentLabelRevision(),
+        _btnCancel->agentPresentationRevision(), _btnCancel->agentLabelRevision()};
 }
 
 void ConfirmDestinationState::blit()
@@ -156,30 +165,44 @@ void ConfirmDestinationState::blit()
 bool ConfirmDestinationState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (!_game->isState(const_cast<ConfirmDestinationState *>(this)) || _modal || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentDestinationFull() ||
+    if (!_game->isState(const_cast<ConfirmDestinationState *>(this)) || _modal || _agentTargetLifetime.expired() || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentDestinationFull() ||
         _agentStoredPaintRevisions != agentPaintRevisions()) return false;
     out = AgentUiState(); out.actor = _craft;
-    const auto painted = agentFlattenPaintOrder(_surfaces);
-    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
-    const auto include = [&](const Surface *widget) -> bool {
-        if (!agentWidgetUncovered(widget,painted)) return false;
-        AgentUiState part; agentIncludeWidget(part,widget);
-        if (part.regions.empty() || !allowed(part)) return false;
-        const auto before=out.regions.size();
-        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+    out.targetLifetimes.push_back(_agentTargetLifetime);
+    const Surface *destination=_game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination)) return false;
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    const auto include=[&](const Surface *widget,bool observationOnly)->bool {
+        if (!widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget)) return false;
+        AgentUiState part; part.regions.push_back({widget->getX(),widget->getY(),widget->getWidth(),widget->getHeight()});
+        bool found=false;
+        for (const Surface *later:painted)
+        {
+            if (later==widget) { found=true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &r=part.regions.front();
+            if (r.x<later->getX()+later->getWidth() && r.x+r.width>later->getX() &&
+                r.y<later->getY()+later->getHeight() && r.y+r.height>later->getY()) return false;
+        }
+        if (!found || !(observationOnly ? _game->agentNonCursorOverlayClear(part) : _game->agentOverlayClear(part))) return false;
+        if (observationOnly) return true;
+        const auto old=out.regions.size();out.regions.push_back(part.regions.front());
         if (agentRegionsDisjoint(out)) return true;
-        out.regions.resize(before); return false;
+        out.regions.resize(old);return false;
     };
-    const auto text = [&](const Text *widget) -> std::string {
-        out.widgets.emplace_back(widget, widget->agentTextRevision());
-        const auto value=agentTextJson(widget);
-        return value!="null" && (widget->getText().empty() || include(widget)) ? value : "null";
+    const auto text=[&](const Text *widget)->std::string {
+        out.widgets.emplace_back(widget,widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget,widget->agentTextRevision());
+        out.context.insert(out.context.end(),{static_cast<std::uint64_t>(widget->getX()),static_cast<std::uint64_t>(widget->getY()),
+            static_cast<std::uint64_t>(widget->getWidth()),static_cast<std::uint64_t>(widget->getHeight())});
+        return widget->getText().size()<=1024 && include(widget,true) ? agentJsonString(widget->getText()) : "null";
     };
     std::string buttons="[";
-    const auto button = [&](TextButton *widget,const char *id,const char *action) {
-        out.widgets.emplace_back(widget, widget->agentLabelRevision());
-        const auto label=agentButtonLabel(widget);
-        if (label.empty() || label.size()>1024 || !include(widget)) return;
+    const auto button=[&](TextButton *widget,const char *id,const char *action) {
+        out.widgets.emplace_back(widget,widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget,widget->agentLabelRevision());
+        const std::string label=widget->getText();
+        if (label.empty() || label.size()>1024 || !include(widget,false)) return;
         if (buttons.size()>1) buttons+=",";
         buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";
         out.actions.emplace_back(action,label,"visible_text");

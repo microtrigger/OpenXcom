@@ -16,6 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Game.h"
+#include "../Engine/Screen.h"
+#include "../Observer/AgentUi.h"
+#endif
 #include "ListGamesState.h"
 #include <algorithm>
 #include <functional>
@@ -148,37 +153,127 @@ ListGamesState::ListGamesState(OptionsOrigin origin, int firstValidRow, bool aut
 	_sortDate->onMouseClick((ActionHandler)&ListGamesState::sortDateClick);
 
 	updateArrows();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstSaves->agentEnableSaveListCells(firstValidRow == 1);
+    for (Surface *w : std::vector<Surface *>{_window,_btnCancel,_txtTitle,_txtName,_txtDate,_txtDetails}) w->agentTrackPresentation();
+#endif
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-bool ListGamesState::agentListUiState(Observer::AgentUiState &out, const char *screen) const
+void ListGamesState::blit()
 {
-    if (_modal) return false;
-    out = Observer::AgentUiState(); out.screen = screen;
-    const struct { const Text *widget; const char *key; } texts[] = {
-        {_txtTitle, "title"}, {_txtName, "name_heading"}, {_txtDate, "date_heading"}, {_txtDetails, "details"}
-    };
-    out.visible = "{";
-    for (unsigned i = 0; i < sizeof(texts) / sizeof(texts[0]); ++i)
+    _agentListPaintHealthy = false;
+    const auto previousCatalog = _agentPaintCatalog;
+    _agentPaintCatalog.clear();
+    State::blit();
+    std::vector<AgentOutfittingRow> rows;
+    if (!_lstSaves->agentSaveListRows(rows) || _agentCatalogEpoch == UINT64_MAX) return;
+    for (const auto &row : rows)
     {
-        if (i) out.visible += ",";
-        const bool visible = Observer::agentWidgetUncovered(texts[i].widget, _surfaces);
-        out.visible += Observer::agentJsonString(texts[i].key) + ":" +
-            (visible ? Observer::agentTextJson(texts[i].widget) : "null");
-        if (visible) Observer::agentIncludeWidget(out, texts[i].widget);
+        if (row.logicalIndex < _firstValidRow) continue;
+        const size_t index = row.logicalIndex - _firstValidRow;
+        if (index >= _saves.size()) return;
+        _agentPaintCatalog.emplace_back(index, _saves[index].fileName);
     }
-    out.visible += "}";
-    // No _saves enumeration, row data, filename or editable value projection.
-    if (Observer::agentWidgetUncovered(_btnCancel, _surfaces))
+    if (!_agentCatalogEpoch || previousCatalog != _agentPaintCatalog) ++_agentCatalogEpoch;
+    _agentListPaintHealthy = true;
+}
+
+bool ListGamesState::agentListRegion(const Surface *widget, const Observer::AgentUiRect &rect, bool observation) const
+{
+    using namespace Observer;
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!widget || !widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget) ||
+        !agentRegionVisible(rect)) return false;
+    const auto paint = agentFlattenPaintOrder(_surfaces);
+    bool found = false;
+    for (const Surface *later : paint)
     {
-        const std::string label = Observer::agentButtonLabel(_btnCancel);
-        if (!label.empty())
+        if (later == widget) { found = true; continue; }
+        if (!found || !later || !later->getVisible()) continue;
+        if (rect.x < later->getX()+later->getWidth() && rect.x+rect.width > later->getX() &&
+            rect.y < later->getY()+later->getHeight() && rect.y+rect.height > later->getY()) return false;
+    }
+    AgentUiState part; part.regions.push_back(rect);
+    return found && (observation ? _game->agentNonCursorOverlayClear(part) : _game->agentOverlayClear(part));
+}
+
+bool ListGamesState::agentListButton(Observer::AgentUiState &out, TextButton *button, const char *action, const char *kind) const
+{
+    using namespace Observer;
+    out.widgets.emplace_back(button,button->agentPresentationRevision());
+    out.widgets.emplace_back(button,button->agentLabelRevision());
+    const AgentUiRect r={button->getX(),button->getY(),button->getWidth(),button->getHeight()};
+    if (!agentListRegion(button,r,false) || button->getText().empty() || button->getText().size()>1024) return false;
+    out.actions.emplace_back(action,button->getText(),"visible_text",kind);
+    out.regions.push_back(r); return true;
+}
+
+bool ListGamesState::agentListUiState(Observer::AgentUiState &out, const char *screen, bool &popupPresentation) const
+{
+    using namespace Observer;
+    popupPresentation = false;
+    if (!_game->isState(const_cast<ListGamesState*>(this)) || _modal || !agentPaintHealthy() ||
+        !_window->agentPresentationPaintedTo(_game->getScreen()->getSurface())) return false;
+    if (_window->agentPopupActive())
+    {
+        // A currently painted ordinary popup is presentation, not catalog authority.
+        const AgentUiRect r={_window->getX(),_window->getY(),_window->getWidth(),_window->getHeight()};
+        if (!agentWidgetVisible(_window) || !agentRegionVisible(r)) return false;
+        bool found=false;
+        for (const Surface *later:agentFlattenPaintOrder(_surfaces))
         {
-            out.actions.push_back(Observer::AgentUiAction("cancel_menu", label, "visible_text"));
-            Observer::agentIncludeWidget(out, _btnCancel);
+            if(later==_window){found=true;continue;}
+            // Exact native blit visibility: hidden popup children do not occlude.
+            if(!found || !later || !later->agentBlitEnabled())continue;
+            if(r.x<later->getX()+later->getWidth() && r.x+r.width>later->getX() &&
+               r.y<later->getY()+later->getHeight() && r.y+r.height>later->getY())return false;
         }
+        AgentUiState footprint;footprint.regions.push_back(r);
+        if(!found || !_game->agentNonCursorOverlayClear(footprint))return false;
+        out=AgentUiState();out.screen=screen;out.actor=this;
+        out.widgets.emplace_back(_window,_window->agentPresentationRevision());
+        out.visible="{\"title\":null,\"name_heading\":null,\"date_heading\":null,\"details\":null,\"rows\":[]}";
+        popupPresentation=true;return true;
     }
-    return true;
+    if (!_agentListPaintHealthy) return false;
+    for (const auto &pair : _agentPaintCatalog)
+        if (pair.first >= _saves.size() || _saves[pair.first].fileName != pair.second) return false;
+    out=AgentUiState(); out.screen=screen; out.actor=this;
+    out.context.push_back(_agentCatalogEpoch);
+    out.widgets.emplace_back(_lstSaves,_lstSaves->agentListRevision());
+    out.widgets.emplace_back(_lstSaves,_lstSaves->agentPresentationRevision());
+    const auto caption=[&](Text *w) {
+        out.widgets.emplace_back(w,w->agentPresentationRevision());
+        out.widgets.emplace_back(w,w->agentTextRevision());
+        const AgentUiRect rect={w->getX(),w->getY(),w->getWidth(),w->getHeight()};
+        return agentListRegion(w,rect,true) && w->getText().size()<=1024 ? agentJsonString(w->getText()) : std::string("null");
+    };
+    out.visible="{\"title\":"+caption(_txtTitle)+",\"name_heading\":"+caption(_txtName)+
+        ",\"date_heading\":"+caption(_txtDate)+",\"details\":"+caption(_txtDetails)+",\"rows\":[";
+    std::vector<AgentOutfittingRow> rows;
+    if (!_lstSaves->agentPresentationPaintedTo(_game->getScreen()->getSurface()) || !_lstSaves->agentSaveListRows(rows)) return false;
+    for (const auto &row : rows)
+    {
+        bool hasName=false; std::string cells="[";
+        for (size_t c=0;c<row.cells.size();++c)
+        {
+            const auto &cell=row.cells[c]; bool known=cell.known && !cell.regions.empty();
+            for (const auto &r:cell.regions)
+                known=known && agentListRegion(_lstSaves,{r.x,r.y,r.w,r.h},true);
+            if(c) cells+=",";
+            cells+=known ? agentJsonString(cell.text) : "null";
+            if(c==0) hasName=known;
+        }
+        cells+="]";
+        if (!hasName) continue; // No target from an entirely occluded/absent caption.
+        if(!out.rows.empty())out.visible+=",";
+        out.visible+="{\"handle\":"+agentJsonString("r"+std::to_string(out.rows.size()))+",\"cells\":"+cells+"}";
+        out.rows.push_back(row.logicalIndex);
+    }
+    out.visible+="]}";
+    agentListButton(out,_btnCancel,"cancel_menu");
+    return agentRegionsDisjoint(out);
 }
 #endif
 

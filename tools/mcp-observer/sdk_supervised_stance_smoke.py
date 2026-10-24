@@ -52,13 +52,17 @@ def synthetic_producer():
                 reply = {'schema': stance.STATUS_SCHEMA, 'command_id': request[65:97].decode(),
                          'status': 'pending_confirmation'}
             elif request[:1] == b'S':
-                assert len(request) == 33
+                if len(request) != 65: raise RuntimeError('Invalid status query')
+                nonce = request[33:65].decode('ascii'); stance.token(nonce)
+                if nonce == '0' * 32: raise RuntimeError('Invalid status query')
                 polls += 1
                 value = 'pending_confirmation' if polls == 1 else (
                     'dispatched' if commands == 1 else 'unavailable')
-                reply = {'schema': stance.STATUS_SCHEMA, 'command_id': request[1:].decode(), 'status': value}
+                reply = {'schema': stance.STATUS_SCHEMA, 'command_id': request[1:33].decode(), 'status': value}
             else:
                 raise AssertionError('Unexpected protocol packet')
+            if reply.get('schema') == stance.STATUS_SCHEMA:
+                reply['query_nonce'] = nonce if request[:1] == b'S' else None
             peer.send(json.dumps(reply, separators=(',', ':')).encode())
 
 

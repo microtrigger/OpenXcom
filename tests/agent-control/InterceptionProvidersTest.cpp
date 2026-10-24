@@ -5,10 +5,11 @@
 #include <cstdlib>
 #include <iostream>
 #include "Observer/AgentUi.h"
+#include "Observer/AgentTargetLifetime.h"
 namespace OpenXcom {
 struct SDL_Rect { int x,y,w,h; };
 struct SDL_Surface {int w=320,h=200;SDL_Rect clip_rect={0,0,320,200};};
-class Surface {public:SDL_Surface native;SDL_Surface *getSurface()const{return const_cast<SDL_Surface*>(&native);}int x=0,y=0,w=2,h=1;bool visible=true,covered=false;virtual ~Surface(){} int getX()const{return x;}int getY()const{return y;}int getWidth()const{return w;}int getHeight()const{return h;}bool getVisible()const{return visible;} };
+class Surface {public:std::uint64_t agentPresentationRevision()const{return 1;}bool agentPresentationPaintedTo(const Surface*)const{return visible&&!covered;}SDL_Surface native;SDL_Surface *getSurface()const{return const_cast<SDL_Surface*>(&native);}int x=0,y=0,w=2,h=1;bool visible=true,covered=false;virtual ~Surface(){} int getX()const{return x;}int getY()const{return y;}int getWidth()const{return w;}int getHeight()const{return h;}bool getVisible()const{return visible;} };
 class Text:public Surface {public:std::uint64_t revision=1;std::uint64_t agentTextRevision()const{return revision;}std::uint64_t agentLabelRevision()const{return revision;}std::string value="Text";const std::string &getText()const{return value;} };
 class TextButton:public Text {};
 struct AgentListRow {size_t logicalIndex=0;std::vector<std::string> cells={"CRAFT","READY","BASE","2/0/0"};bool selected=false,completeText=true;std::vector<SDL_Rect> regions,labelRegions;SDL_Rect bounds={0,100,200,9};};
@@ -40,26 +41,28 @@ using namespace Observer;
 struct Action {};
 struct State {std::function<void()> paintHook;virtual ~State(){} void blit(){if(paintHook)paintHook();} };
 struct Globe {double x=0,y=0;int centers=0;void center(double a,double b){x=a;y=b;++centers;}};struct GeoscapeState {Globe globe;int resets=0;void timerReset(){++resets;}Globe *getGlobe(){return &globe;}};
-struct Target {virtual ~Target(){} };struct Ufo:Target {double getLongitude(){return 1.25;}double getLatitude(){return 2.5;}};struct Waypoint:Target{int id=0;static int deleted;~Waypoint(){++deleted;}int getId(){return id;}void setId(int n){id=n;}};int Waypoint::deleted=0;
+struct Target {AgentTargetLifetime lifetime;std::weak_ptr<const void>agentLifetime()const{return lifetime.token();}virtual ~Target(){} };struct Ufo:Target {double getLongitude(){return 1.25;}double getLatitude(){return 2.5;}};struct Waypoint:Target{int id=0;static int deleted;~Waypoint(){++deleted;}int getId(){return id;}void setId(int n){id=n;}};int Waypoint::deleted=0;
 struct Craft {std::string status="STR_READY";bool low=false,complete=false;Target*destination=nullptr;std::string getStatus(){return status;}bool getLowFuel(){return low;}bool getMissionComplete(){return complete;}void setDestination(Target*t){destination=t;}void setStatus(std::string s){status=s;}};
 namespace Options {bool craftLaunchAlways=false;}
 struct SavedGame {int ids=0;std::vector<Waypoint*> waypoints;int getId(const char*){return ++ids;}std::vector<Waypoint*>*getWaypoints(){return &waypoints;}};
 struct Screen {Surface logical;Surface *getSurface(){return &logical;} };
 struct Game {Screen screen;Screen *getScreen(){return &screen;}const void*top=nullptr;bool clear=true;int pops=0;SavedGame save;std::vector<State*> pushed;
- ~Game(){for(auto*s:pushed)delete s;}bool isState(const void*s)const{return top==s;}bool agentOverlayClear(const AgentUiState&)const{return clear;}void popState(){++pops;}void pushState(State*s){pushed.push_back(s);}SavedGame*getSavedGame(){return &save;}};
+ ~Game(){for(auto*s:pushed)delete s;}bool isState(const void*s)const{return top==s;}bool agentOverlayClear(const AgentUiState&)const{return clear;}bool agentNonCursorOverlayClear(const AgentUiState&)const{return clear;}void popState(){++pops;}void pushState(State*s){pushed.push_back(s);}SavedGame*getSavedGame(){return &save;}};
 struct Common:State {
  Game game;Game *_game=&game;void *_modal=nullptr;std::vector<Surface*>_surfaces;int token=0;void *_base=&token,*_globe=&token;
  Target target;Target *_target=&target;Craft craft;Craft *_craft=&craft;
+ Surface window;Surface*_window=&window;
  Text title,status,base,weapons,craftName;TextButton ok,cancel,go;TextList list;
  Text *_txtTitle=&title,*_txtTarget=&title,*_txtCraft=&craftName,*_txtStatus=&status,*_txtBase=&base,*_txtWeapons=&weapons;
  TextButton *_btnOk=&ok,*_btnCancel=&cancel,*_btnGotoBase=&go;TextList *_lstCrafts=&list;
  bool _agentDestinationPaintFull=false;std::vector<std::uint64_t>_agentStoredPaintRevisions;
- Common(){int y=1;for(Surface*s:std::vector<Surface*>{&title,&status,&base,&weapons,&craftName,&ok,&cancel,&go,&list}){s->y=y;y+=3;_surfaces.push_back(s);}}
+ Common(){_surfaces.push_back(&window);int y=1;for(Surface*s:std::vector<Surface*>{&title,&status,&base,&weapons,&craftName,&ok,&cancel,&go,&list}){s->y=y;y+=3;_surfaces.push_back(s);}}
 };
 struct SelectDestinationState:State {Craft*craft;void*globe;SelectDestinationState(Craft*c,void*g):craft(c),globe(g){}};
 struct BasescapeState:State {BasescapeState(void*,void*){}};
 struct ConfirmDestinationState:Common {
- ConfirmDestinationState(Craft*c=nullptr,Target*t=nullptr){if(c)_craft=c;if(t)_target=t;game.top=this;blit();}
+ std::weak_ptr<const void>_agentTargetLifetime;
+ ConfirmDestinationState(Craft*c=nullptr,Target*t=nullptr){if(c)_craft=c;if(t)_target=t;_agentTargetLifetime=_target->agentLifetime();game.top=this;blit();}
  bool agentDestinationFull()const;std::vector<std::uint64_t>agentPaintRevisions()const;void blit();bool agentUiState(AgentUiState&)const;bool agentDispatch(const AgentRequest&);void btnOkClick(Action*);void btnCancelClick(Action*);
 };
 struct InterceptState:Common {

@@ -80,10 +80,14 @@ class TransferTests(unittest.TestCase):
         for screen,actions in a.STATE_ACTIONS.items():
             if screen in a.TRANSFER_BUTTON_ACTIONS:scenarios.update(dict.fromkeys(actions,screen))
         for action,screen in scenarios.items():
-            peer=self.fixture(screen=screen);obj=peer.client.observe()
-            self.assertEqual(peer.client.execute(**arguments(obj,action=action))['status'],'dispatched')
-            self.assertFalse(peer.client.transfer_rows or peer.client.visible_rows or peer.client.scroll_directions)
-            self.assertIsNone(peer.client.capability)
+            peer=NativeFixture(screen=screen)
+            try:
+                obj=peer.client.observe()
+                self.assertEqual(peer.client.execute(**arguments(obj,action=action))['status'],'dispatched')
+                self.assertFalse(peer.client.transfer_rows or peer.client.visible_rows or peer.client.scroll_directions)
+                self.assertIsNone(peer.client.capability)
+            finally:
+                peer.close()
 
     def test_direction_gate_and_unoffered_rows_before_send(self):
         for controls in (['increase'],['decrease'],['increase','decrease']):
@@ -91,12 +95,16 @@ class TransferTests(unittest.TestCase):
                 if op=='R':obj['visible']['rows'][0]['controls']=controls
                 return obj
             for args,required in [(dict(operation='max'),{'increase'}),(dict(operation='clear'),{'decrease'}),(dict(operation='set',value=0),{'increase','decrease'}),(dict(operation='adjust',value=-1),{'decrease'})]:
-                peer=self.fixture(screen='transfer_items',transform=transform);obj=peer.client.observe()
-                kwargs=arguments(obj,action='change_transfer_quantity',args=dict(row='r0',**args))
-                if required<=set(controls):self.assertEqual(peer.client.execute(**kwargs)['status'],'dispatched')
-                else:
-                    with self.assertRaises(Unavailable):peer.client.execute(**kwargs)
-                    self.assertFalse(any(x.startswith(b'E ') for x in peer.requests))
+                peer=NativeFixture(screen='transfer_items',transform=transform)
+                try:
+                    obj=peer.client.observe()
+                    kwargs=arguments(obj,action='change_transfer_quantity',args=dict(row='r0',**args))
+                    if required<=set(controls):self.assertEqual(peer.client.execute(**kwargs)['status'],'dispatched')
+                    else:
+                        with self.assertRaises(Unavailable):peer.client.execute(**kwargs)
+                        self.assertFalse(any(x.startswith(b'E ') for x in peer.requests))
+                finally:
+                    peer.close()
         peer=self.fixture(screen='transfer_items');old=peer.client.observe();fresh=peer.client.observe()
         for obj,row in ((old,'r0'),(fresh,'r31')):
             with self.assertRaises(Unavailable):peer.client.execute(**arguments(obj,action='change_transfer_quantity',args=dict(row=row,operation='max')))

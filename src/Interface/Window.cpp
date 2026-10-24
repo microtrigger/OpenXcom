@@ -62,6 +62,13 @@ Window::Window(State *state, int width, int height, int x, int y, WindowPopup po
 	}
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool Window::agentPopupActive() const
+{
+    return _popup != POPUP_NONE && _timer->isRunning();
+}
+#endif
+
 /**
  * Deletes timers.
  */

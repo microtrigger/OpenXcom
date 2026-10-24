@@ -38,6 +38,12 @@ class Soldier;
 class MonthlyReportState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	TextButton *_btnOk, *_btnBigOk;
 	Window *_window;
 	Text *_txtTitle, *_txtMonth, *_txtRating;
@@ -51,6 +57,11 @@ private:
 	/// Builds a country list string.
 	std::string countryList(const std::vector<std::string> &countries, const std::string &singular, const std::string &plural);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Monthly Report state.
 	MonthlyReportState(bool psi, Globe *globe);
 	/// Cleans up the Monthly Report state.

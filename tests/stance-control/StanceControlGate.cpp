@@ -241,10 +241,28 @@ YAML::Node receive()
     try { return YAML::Load(std::string(bytes, n)); } catch (...) { require(false); }
     return YAML::Node();
 }
+// Status/2 correlation is transport-only, independent of command identity.
+std::string statusQueryNonce(32, '0'), expectedStatusQueryNonce;
+void sendStatusQuery()
+{
+    require(expectedStatusQueryNonce.empty());
+    require(statusQueryNonce != std::string(32, 'f'));
+    const char *hex = "0123456789abcdef";
+    for (int i = 31; i >= 0; --i)
+    {
+        if (statusQueryNonce[i] == 'f') { statusQueryNonce[i] = '0'; continue; }
+        statusQueryNonce[i] = hex[std::string(hex).find(statusQueryNonce[i]) + 1]; break;
+    }
+    expectedStatusQueryNonce = statusQueryNonce;
+    sendPacket("S" + commandId + statusQueryNonce);
+}
 void status(const YAML::Node &n, const std::string &value)
 {
-    fields(n, {"schema", "command_id", "status"});
-    require(n["schema"].as<std::string>() == "experimental-stance-status/1" &&
+    if (expectedStatusQueryNonce.empty()) require(n["query_nonce"].IsNull());
+    else require(n["query_nonce"].IsScalar() && n["query_nonce"].as<std::string>() == expectedStatusQueryNonce);
+    expectedStatusQueryNonce.clear();
+    fields(n, {"schema", "command_id", "status", "query_nonce"});
+    require(n["schema"].as<std::string>() == "experimental-stance-status/2" &&
         n["command_id"].as<std::string>() == commandId && n["status"].as<std::string>() == value);
 }
 std::vector<unsigned char> panel()
@@ -565,7 +583,7 @@ bool loaded(Game *game)
     owner = game; quiet(); alternateSurfaceOracle();
     require(Options::language == "en-US" && !Options::playIntro);
     YAML::Node hello = receive(); fields(hello, {"schema", "control_epoch"});
-    require(hello["schema"].as<std::string>() == "experimental-stance/1");
+    require(hello["schema"].as<std::string>() == "experimental-stance/2");
     epoch = hello["control_epoch"].as<std::string>(); require(token(epoch) && !available());
     running = true; started = Clock::now(); replacement(game);
     Options::baseXResolution = 320; Options::baseYResolution = 200; game->getScreen()->resetDisplay(false);
@@ -727,7 +745,7 @@ void beforeEvents(Game *game)
     } else if (stage == CHECK_REPLAY) {
         // Replays are sent after local consent and dispatch; no second consent.
         if (replayStep == 0) sendPacket(commandPacket);
-        else if (replayStep == 1) sendPacket("S" + commandId);
+        else if (replayStep == 1) sendStatusQuery();
         else if (replayStep == 2) { std::string conflict = commandPacket; conflict.back() = 's'; sendPacket(conflict); }
         else if (replayStep == 3) { commandId = randomToken(); std::string replay = commandPacket; replay.replace(65,32,commandId); sendPacket(replay); }
         else { compare(before,snapshot()); finishWorld(); return; }
@@ -738,7 +756,7 @@ void beforeEvents(Game *game)
     } else if (stage == WAIT_REJECTED && available() && (adversary() != SELECT_RACE || samePanel)) {
         status(receive(),"unavailable"); rejectedUnchanged();
     } else if (stage == WAIT_BLOCKED_INPUT && inputs.empty()) {
-        require(callbacks == 0); sendPacket("S" + commandId); stage = WAIT_BLOCKED_STATUS;
+        require(callbacks == 0); sendStatusQuery(); stage = WAIT_BLOCKED_STATUS;
     } else if (stage == WAIT_BLOCKED_STATUS && available()) {
         status(receive(),"unavailable"); require(callbacks == 0); compare(before,snapshot());
         if (!game->isState(state)) key(SDLK_ESCAPE);
@@ -841,9 +859,9 @@ void afterEvents(Game *game)
             if (world < 4) stage = WAIT_MANUAL_PANEL;
             else finishWorld();
         }
-        else sendPacket("S" + commandId);
+        else sendStatusQuery();
     } else if (stage == WAIT_HELD_INPUT) stage = REQUEST_CONTEXT;
-    else if (stage == WAIT_CANCELLED && peer >= 0) sendPacket("S" + commandId);
+    else if (stage == WAIT_CANCELLED && peer >= 0) sendStatusQuery();
     else if (stage == WAIT_POST_OVERLAY) {
         require(!game->isState(state) && callbacks == 1);
         challenge = randomToken(); sendPacket("O" + challenge); stage = WAIT_FAILED_POST;

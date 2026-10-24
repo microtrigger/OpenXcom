@@ -77,14 +77,55 @@ namespace OpenXcom
 bool Map::agentMapSnapshot(AgentMapSnapshot &out) const
 {
     out = AgentMapSnapshot();
-    if (!_agentDrawSnapshotReady || !agentContextVisible() || !Observer::agentPaintHealthy() ||
+    if (_redraw || !_agentDrawSnapshotReady || _save->getDebugMode() || !agentContextVisible() || !Observer::agentPaintHealthy() ||
         !_camera || _agentDrawViewRevision != _camera->agentViewRevision() ||
         _agentDrawSnapshot.x != getX() || _agentDrawSnapshot.y != getY() ||
         _agentDrawSnapshot.width != getWidth() || _agentDrawSnapshot.height != _visibleMapHeight ||
         _agentDrawSurfaceHeight != getHeight()) return false;
+    BattleUnit *selected = _save->getSelectedUnit();
+    if (selected != _agentContextActor) return false;
+    if (_agentContextOwnPosition && (!selected || selected->getFaction() != FACTION_PLAYER ||
+        selected->getPosition() != Position(_agentContextPosition.x, _agentContextPosition.y, _agentContextPosition.z))) return false;
+    for (const AgentMapCell &cell : _agentDrawSnapshot.cells)
+        if (cell.rendered && !(agentDescribeTerrain(_save->getTile(Position(cell.position.x, cell.position.y, cell.position.z)), cell.position) == cell)) return false;
     out = _agentDrawSnapshot;
     return true;
 }
+
+AgentMapCell Map::agentDescribeTerrain(Tile *tile, const AgentMapPosition &position) const
+{
+    AgentMapCell cell; cell.position = position;
+    if (!tile) return cell;
+    cell.rendered = true;
+    const bool known = tile->isDiscovered(2);
+    for (int i = 0; i < 4; ++i)
+    {
+        const TilePart part = static_cast<TilePart>(i);
+        const MapData *data = tile->getMapData(part);
+        const bool wall = part == O_WESTWALL || part == O_NORTHWALL;
+        const bool drawn = part == O_FLOOR || !tile->isVoid();
+        const bool sprite = drawn && tile->getSprite(i);
+        cell.parts[i] = agentMapPart(known, wall && tile->isDiscovered(part == O_WESTWALL ? 0 : 1),
+            data != nullptr, sprite, wall && data && (data->isDoor() || data->isUFODoor()),
+            part == O_FLOOR ? "floor" : (wall ? "wall" : "object"));
+    }
+    BattleUnit *unit = tile->getUnit();
+    // Conservative stationary origin-only subset of ordinary drawUnit.
+    // Multi-tile secondary pieces and units seen from below remain unknown.
+    // No absence, hostile faction, hidden identity or unit attributes are exported.
+    if (unit && unit->getVisible() &&
+        unit->getPosition() == Position(position.x, position.y, position.z) && unit->getStatus() != STATUS_WALKING &&
+        unit->getStatus() != STATUS_FLYING && unit->getCache(0))
+        cell.unit = unit->getFaction() == FACTION_PLAYER ? "own" : "visible";
+    return cell;
+}
+void Map::agentRecordTerrain(Tile *tile, const Position &position)
+{
+    for (AgentMapCell &cell : _agentTerrainCells)
+        if (cell.position.x == position.x && cell.position.y == position.y && cell.position.z == position.z)
+            cell = agentDescribeTerrain(tile, cell.position);
+}
+
 #endif
 
 /**
@@ -212,6 +253,23 @@ void Map::draw()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentDrawSnapshotReady = false;
     bool hiddenMovement = false;
+    _agentTerrainCells.clear();
+    _agentTerrainViewRevision = _camera->agentViewRevision();
+    const AgentMapSnapshot initial = _camera->agentViewportSnapshot(getX(), getY(), false, std::string());
+    for (const AgentCameraGridTarget &target : initial.grid)
+    {
+        AgentMapCell cell;
+        _camera->convertScreenToMap(target.target.x, target.target.y + _spriteHeight / 4, &cell.position.x, &cell.position.y);
+        cell.position.z = _camera->getViewLevel();
+        _agentTerrainCells.push_back(cell);
+    }
+    _agentContextActor = _save->getSelectedUnit();
+    _agentContextOwnPosition = _agentContextActor && _agentContextActor->getFaction() == FACTION_PLAYER;
+    if (_agentContextOwnPosition)
+    {
+        const Position p = _agentContextActor->getPosition();
+        _agentContextPosition.x = p.x; _agentContextPosition.y = p.y; _agentContextPosition.z = p.z;
+    }
 #endif
 
 	// normally we'd call for a Surface::draw();
@@ -274,9 +332,17 @@ void Map::draw()
     _agentDrawSnapshot = _camera->agentViewportSnapshot(getX(), getY(), hiddenMovement,
         hiddenMovement ? _message->agentPaintedLabel(getWidth(), _visibleMapHeight, messageRegion) : std::string());
     _agentDrawSnapshot.messageRegion = messageRegion;
+    if (!hiddenMovement)
+    {
+        _agentDrawSnapshot.cells = _agentTerrainCells;
+        _agentDrawSnapshot.selectedPositionKnown = _agentContextOwnPosition;
+        _agentDrawSnapshot.selectedPosition = _agentContextPosition;
+    }
     _agentDrawViewRevision = _camera->agentViewRevision();
     _agentDrawSurfaceHeight = getHeight();
     _agentDrawSnapshotReady = Observer::agentPaintHealthy() &&
+        _agentTerrainViewRevision == _camera->agentViewRevision() &&
+        (hiddenMovement || _agentDrawSnapshot.grid.size() == _agentDrawSnapshot.cells.size()) &&
         _agentDrawSnapshot.x >= 0 && _agentDrawSnapshot.x <= 4095 &&
         _agentDrawSnapshot.y >= 0 && _agentDrawSnapshot.y <= 4095 &&
         _agentDrawSnapshot.width == getWidth() && _agentDrawSnapshot.height == _visibleMapHeight &&
@@ -704,6 +770,9 @@ void Map::drawTerrain(Surface *surface)
 					tile = _save->getTile(mapPosition);
 
 					if (!tile) continue;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    agentRecordTerrain(tile, mapPosition);
+#endif
 
 					if (tile->isDiscovered(2))
 					{

@@ -40,6 +40,12 @@
 #include "../Menu/SaveGameState.h"
 #include "../Mod/RuleInterface.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#endif
+
 namespace OpenXcom
 {
 /**
@@ -226,6 +232,10 @@ MonthlyReportState::MonthlyReportState(bool psi, Globe *globe) : _psi(psi), _gam
 	ss5 << countryList(_pactList, "STR_COUNTRY_HAS_SIGNED_A_SECRET_PACT", "STR_COUNTRIES_HAVE_SIGNED_A_SECRET_PACT");
 
 	_txtDesc->setText(ss5.str());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *widget : std::vector<Surface *>{_window, _txtTitle, _txtMonth, _txtRating, _txtIncome, _txtMaintenance, _txtBalance, _txtDesc, _txtFailure, _btnOk, _btnBigOk})
+        widget->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -428,5 +438,137 @@ std::string MonthlyReportState::countryList(const std::vector<std::string> &coun
 	}
 	return ss.str();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool MonthlyReportState::agentDestinationFull() const
+{
+    const SDL_Surface *destination = _game->getScreen()->getSurface()->getSurface();
+    return destination && destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> MonthlyReportState::agentPaintRevisions() const
+{
+    return {_window->agentPresentationRevision(),
+        _txtTitle->agentPresentationRevision(), _txtTitle->agentTextRevision(),
+        _txtMonth->agentPresentationRevision(), _txtMonth->agentTextRevision(),
+        _txtRating->agentPresentationRevision(), _txtRating->agentTextRevision(),
+        _txtIncome->agentPresentationRevision(), _txtIncome->agentTextRevision(),
+        _txtMaintenance->agentPresentationRevision(), _txtMaintenance->agentTextRevision(),
+        _txtBalance->agentPresentationRevision(), _txtBalance->agentTextRevision(),
+        _txtDesc->agentPresentationRevision(), _txtDesc->agentTextRevision(),
+        _txtFailure->agentPresentationRevision(), _txtFailure->agentTextRevision(),
+        _btnOk->agentPresentationRevision(), _btnOk->agentLabelRevision(),
+        _btnBigOk->agentPresentationRevision(), _btnBigOk->agentLabelRevision()};
+}
+
+void MonthlyReportState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool MonthlyReportState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<MonthlyReportState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState();
+    out.screen = "monthly_report";
+    out.actor = _globe; // Private callback target identity, never serialized.
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto include = [&](const Surface *widget, bool observationOnly) -> bool {
+        if (!widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget)) return false;
+        AgentUiState part;
+        part.regions.push_back({widget->getX(), widget->getY(), widget->getWidth(), widget->getHeight()});
+        // Native rows reserve one shared spare row (17px title, 9px metrics).
+        // Fixed allocation strips, never current font/text/fit/line count.
+        if (observationOnly && widget == _txtTitle && widget->getHeight() == 17)
+            part.regions.front().height = 16;
+        if (observationOnly && widget->getHeight() == 9 &&
+            (widget == _txtMonth || widget == _txtRating || widget == _txtIncome ||
+             widget == _txtMaintenance || widget == _txtBalance))
+            part.regions.front().height = 8;
+        bool found = false;
+        for (const Surface *later : painted)
+        {
+            if (later == widget) { found = true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &rect = part.regions.front();
+            if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+                rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return false;
+        }
+        if (!found || !(observationOnly ? _game->agentNonCursorOverlayClear(part) : _game->agentOverlayClear(part))) return false;
+        if (observationOnly) return true;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    // These are current active UI captions, not a glyph-pixel readability test.
+    // Hidden, geometrically absent, occluded or stale widgets contribute no value.
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        out.context.insert(out.context.end(), {
+            static_cast<std::uint64_t>(widget->getX()), static_cast<std::uint64_t>(widget->getY()),
+            static_cast<std::uint64_t>(widget->getWidth()), static_cast<std::uint64_t>(widget->getHeight())});
+        // Active logical captions: glyph/ink completeness and pointer overlap
+        // are not text admission criteria. Resource bound is not a layout test.
+        if (widget->getText().size() > 1024 || !include(widget, true)) return "null";
+        return agentJsonString(widget->getText());
+    };
+    const auto title = text(_txtTitle);
+    const auto month = text(_txtMonth);
+    const auto rating = text(_txtRating);
+    const auto income = text(_txtIncome);
+    const auto maintenance = text(_txtMaintenance);
+    const auto balance = text(_txtBalance);
+    const auto description = text(_txtDesc);
+    const auto failure = text(_txtFailure);
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const std::string label = widget->getText();
+        if (label.empty() || label.size() > 1024 || !include(widget, false)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    // Only the normal report control is admitted. The similarly labelled
+    // large failure-panel button is a separate, unimplemented continuation.
+    // Use current widget mode, never private _gameOver for admission.
+    out.widgets.emplace_back(_btnBigOk, _btnBigOk->agentPresentationRevision());
+    out.widgets.emplace_back(_btnBigOk, _btnBigOk->agentLabelRevision());
+    if (!_btnBigOk->getVisible() && !_txtFailure->getVisible())
+        button(_btnOk, "ok", "acknowledge_monthly_report");
+    buttons += "]";
+    out.visible = "{\"title\":" + title + ",\"month\":" + month + ",\"rating\":" + rating + ",\"income\":" + income + ",\"maintenance\":" + maintenance + ",\"balance\":" + balance + ",\"description\":" + description + ",\"failure\":" + failure + ",\"buttons\":" + buttons + "}";
+    const std::string payload = out.payload();
+    if (payload.size() > 9000) return false;
+    std::size_t asciiBytes = 0;
+    for (unsigned char c : payload)
+        if ((asciiBytes += c < 128 ? 1 : 6) > 30000) return false;
+    return agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
+}
+
+bool MonthlyReportState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "acknowledge_monthly_report") { btnOkClick(nullptr); return true; }
+    return false;
+}
+#endif
+
+
 
 }

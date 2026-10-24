@@ -94,7 +94,7 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(native.client.state, 'PENDING')
             native.status = 'dispatched'
             self.assertEqual(native.client.read_status(args['command_id'])['status'], 'dispatched')
-            self.assertEqual(native.requests[-1], b'S' + args['command_id'].encode())
+            self.assertEqual(native.requests[-1], b'S' + args['command_id'].encode() + f'{native.client._query_sequence:032x}'.encode())
             self.assertEqual(native.client.state, 'NEED_CONTEXT')
             native.status = 'pending_confirmation'
 
@@ -104,7 +104,7 @@ class ClientTests(unittest.TestCase):
         for value in ('pending_confirmation', 'dispatched', 'dispatched'):
             native.status = value
             self.assertEqual(native.client.request_selection(**args)['status'], value)
-            self.assertEqual(native.requests[-1], b'S' + COMMAND.encode())
+            self.assertEqual(native.requests[-1], b'S' + COMMAND.encode() + f'{native.client._query_sequence:032x}'.encode())
         self.assertEqual([r[:1] for r in native.requests], [b'O', b'N', b'S', b'S', b'S'])
         native.observe()
         capability = native.client.capability
@@ -366,8 +366,8 @@ import json, os, socket
 assert os.environ['OPENXCOM_SELECTION_ENABLED'] == '1'
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_STANCE_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-epoch, command, counter, selections = '1' * 32, '3' * 32, 1, 0
-send(dict(schema='experimental-stance/1', control_epoch=epoch))
+epoch, command, counter, selections, query_counter = '1' * 32, '3' * 32, 1, 0, 0
+send(dict(schema='experimental-stance/2', control_epoch=epoch))
 while True:
     raw = channel.recv(4096)
     if not raw: break
@@ -380,10 +380,11 @@ while True:
         assert raw == ('N' + epoch + f'{2:032x}' + command + 'p0').encode()
         selections += 1
         assert selections == 1
-        send(dict(schema='experimental-stance-status/1', command_id=command, status='pending_confirmation'))
+        send(dict(schema='experimental-stance-status/2', command_id=command, status='pending_confirmation', query_nonce=None))
     else:
-        assert raw == ('S' + command).encode() and selections == 1
-        send(dict(schema='experimental-stance-status/1', command_id=command, status='dispatched'))
+        query_counter += 1
+        assert raw == ('S' + command + f'{query_counter:032x}').encode() and selections == 1
+        send(dict(schema='experimental-stance-status/2', command_id=command, status='dispatched', query_nonce=raw[33:65].decode()))
 '''
         initialize = {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {
             'protocolVersion': adapter.PROTOCOL, 'capabilities': {},

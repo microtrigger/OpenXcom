@@ -151,6 +151,8 @@ public:
 	/// Gets the surface's visibility.
     bool getVisible() const;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Native blit visibility only; does not relax presentation/freshness guards.
+    bool agentBlitEnabled() const { return _visible && !_hidden; }
     bool agentPresentationPaintedTo(const Surface *destination) const;
     void agentForgetPresentationPaint() { _agentPresentationPainted = false; }
     void agentTrackPresentation() { _agentPresentationTracked = true; }

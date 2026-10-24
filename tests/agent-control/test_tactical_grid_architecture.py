@@ -24,8 +24,8 @@ class TacticalGridArchitectureTest(unittest.TestCase):
             self.assertNotIn(forbidden, code)
         self.assertIn('width > 640', code)
         self.assertIn('height > 400', code)
-        self.assertIn('result.size() == 128', code)
-        self.assertIn('"g" + std::to_string(result.size())', code)
+        self.assertIn('nearest.size() < 128', code)
+        self.assertIn('"g" + std::to_string(i)', code)
         self.assertLess(code.index('for (int y'), code.index('for (int x'))
         self.assertIn('y + quarter < height', code)
         self.assertIn('x + half < width', code)
@@ -44,9 +44,10 @@ class TacticalGridArchitectureTest(unittest.TestCase):
         self.assertIn('if (hiddenMovement) snapshot.hiddenMovementLabel = paintedMessage;', capture)
         self.assertIn('else snapshot.grid = cameraViewportGrid(', capture)
 
-    def test_snapshot_reads_no_hidden_state_and_fails_closed_when_stale(self):
+    def test_snapshot_revalidates_public_context_and_fails_closed_when_stale(self):
         code = body('Battlescape/Map.cpp', 'Map::agentMapSnapshot')
-        for forbidden in ('_save', 'getUnit', 'getTile', 'getSelectedUnit', 'getSide', 'getViewLevel'):
+        # Engine-backed context now revalidates only admitted public semantic facts.
+        for forbidden in ('getSide', 'getViewLevel', 'getArmor', 'getAI'):
             self.assertNotIn(forbidden, code)
         self.assertIn('out = AgentMapSnapshot()', code)
         self.assertIn('!agentContextVisible()', code)
@@ -84,7 +85,7 @@ class TacticalGridArchitectureTest(unittest.TestCase):
             self.assertNotIn('++_agentViewRevision', body('Battlescape/Camera.cpp', 'Camera::' + method))
         self.assertNotIn('_mapsize', body('Battlescape/Camera.cpp', 'Camera::agentViewportSnapshot'))
 
-    def test_snapshot_data_contains_no_world_identity_or_actions(self):
+    def test_snapshot_data_contains_no_hidden_identity_or_actions(self):
         code = read('Battlescape/CameraProjection.h')
         snapshot = code.split('struct AgentMapSnapshot', 1)[1].split('};', 1)[0]
         for forbidden in ('mapX', 'mapY', 'mapZ', 'viewLevel', 'actor', 'revision', 'valid', 'passable'):

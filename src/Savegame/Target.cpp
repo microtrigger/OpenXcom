@@ -37,6 +37,9 @@ Target::Target() : _lon(0.0), _lat(0.0), _id(0)
  */
 Target::~Target()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLifetime.invalidate();
+#endif
 	std::vector<Craft*> followers = getCraftFollowers();
 	for (std::vector<Craft*>::iterator i = followers.begin(); i != followers.end(); ++i)
 	{

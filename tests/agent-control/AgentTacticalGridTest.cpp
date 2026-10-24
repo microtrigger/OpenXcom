@@ -79,10 +79,22 @@ int main()
             cell.polygon[2].x == cell.target.x && cell.polygon[2].y == cell.target.y + 8 &&
             cell.polygon[3].x == cell.target.x - 16 && cell.polygon[3].y == cell.target.y,
             "ordered four-point camera diamond");
-        if (i) check(cell.target.y > grid[i-1].target.y ||
-            (cell.target.y == grid[i-1].target.y && cell.target.x > grid[i-1].target.x),
-            "deterministic viewport row-major order");
+        const auto distance = [](const AgentCameraGridTarget &c) { const std::int64_t dx=c.target.x-176,dy=c.target.y-92;return dx*dx+dy*dy; };
+        if (i) check(distance(grid[i-1]) < distance(cell) || (distance(grid[i-1]) == distance(cell) &&
+            (cell.target.y > grid[i-1].target.y || (cell.target.y == grid[i-1].target.y && cell.target.x > grid[i-1].target.x))),
+            "deterministic focus-distance then public y/x order");
     }
+    const auto centered = cameraMapSnapshot(CameraProjectionMath(32,40,160,70,0),0,0,320,140,false,"");
+    check(centered.grid.size()==128 && centered.grid[0].target==centered.focus,"ordinary centered focus survives cap first");
+    const int adjacent[8][2]={{16,8},{16,-8},{-16,8},{-16,-8},{32,0},{-32,0},{0,16},{0,-16}};
+    for (const auto &delta : adjacent)
+    {
+        const AgentCameraPoint wanted={centered.focus.x+delta[0],centered.focus.y+delta[1]};
+        check(std::any_of(centered.grid.begin(),centered.grid.begin()+32,[&](const AgentCameraGridTarget&c){return c.target==wanted;}),"adjacent centered lattice cell retained in prefix32");
+    }
+    // Conservative bound for current fixed ASCII keys/enums, signed32 xyz,
+    // viewport<=640x400: each grid+semantic pair is below512 bytes.
+    check(32*512+4<23500,"center neighborhood prefix fits unchanged paired wire budget");
     const auto repeat = cameraViewportGrid(origin, 320, 140, truncated);
     check(grid == repeat, "repeat same projection has identical grid");
     auto shifted = cameraViewportGrid(CameraProjectionMath(32, 40, 1, 0, 0), 320, 140, truncated);

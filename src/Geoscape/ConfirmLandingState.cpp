@@ -38,6 +38,12 @@
 #include "../Engine/Options.h"
 #include "../Mod/AlienDeployment.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#endif
+
 namespace OpenXcom
 {
 
@@ -93,6 +99,12 @@ ConfirmLandingState::ConfirmLandingState(Craft *craft, Texture *texture, int sha
 	std::ostringstream ss;
 	ss << Unicode::TOK_COLOR_FLIP << tr("STR_BEGIN_MISSION");
 	_txtBegin->setText(ss.str());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLandingDestination = _craft->getDestination();
+    if (_agentLandingDestination) _agentLandingLifetime = _agentLandingDestination->agentLifetime();
+    for (Surface *widget : std::vector<Surface *>{_window, _txtMessage, _txtBegin, _btnYes, _btnNo})
+        widget->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -170,5 +182,120 @@ void ConfirmLandingState::btnNoClick(Action *)
 	_craft->returnToBase();
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ConfirmLandingState::agentDestinationFull() const
+{
+    const SDL_Surface *destination = _game->getScreen()->getSurface()->getSurface();
+    return destination && destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> ConfirmLandingState::agentPaintRevisions() const
+{
+    return {_window->agentPresentationRevision(),
+        _txtMessage->agentPresentationRevision(), _txtMessage->agentTextRevision(),
+        _txtBegin->agentPresentationRevision(), _txtBegin->agentTextRevision(),
+        _btnYes->agentPresentationRevision(), _btnYes->agentLabelRevision(),
+        _btnNo->agentPresentationRevision(), _btnNo->agentLabelRevision()};
+}
+
+void ConfirmLandingState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool ConfirmLandingState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<ConfirmLandingState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState();
+    out.screen = "landing_confirmation";
+    out.actor = _craft; // Private callback target identity, never serialized.
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto include = [&](const Surface *widget, bool observationOnly) -> bool {
+        if (!widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget)) return false;
+        AgentUiState part;
+        part.regions.push_back({widget->getX(), widget->getY(), widget->getWidth(), widget->getHeight()});
+        // Allocation geometry only: do not require glyph-ink evidence for text.
+        bool found = false;
+        for (const Surface *later : painted)
+        {
+            if (later == widget) { found = true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &rect = part.regions.front();
+            if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+                rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return false;
+        }
+        if (!found || !(observationOnly ? _game->agentNonCursorOverlayClear(part) : _game->agentOverlayClear(part))) return false;
+        if (observationOnly) return true;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    // These are current active UI captions, not a glyph-pixel readability test.
+    // Hidden, geometrically absent, occluded or stale widgets contribute no value.
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        out.context.insert(out.context.end(), {
+            static_cast<std::uint64_t>(widget->getX()), static_cast<std::uint64_t>(widget->getY()),
+            static_cast<std::uint64_t>(widget->getWidth()), static_cast<std::uint64_t>(widget->getHeight())});
+        // Active logical captions: glyph/ink completeness and pointer overlap
+        // are not text admission criteria. Resource bound is not a layout test.
+        if (widget->getText().size() > 1024 || !include(widget, true)) return "null";
+        return agentJsonString(widget->getText());
+    };
+    const auto message = text(_txtMessage);
+    const auto prompt = text(_txtBegin);
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const std::string label = widget->getText();
+        if (label.empty() || label.size() > 1024 || !include(widget, false)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    // A replacement native destination must not reuse the displayed landing choice.
+    // Identity only: no mission eligibility or hidden target attributes are inspected.
+    if (!_agentLandingLifetime.expired() && _agentLandingDestination && _craft->getDestination() == _agentLandingDestination)
+    {
+        button(_btnYes, "yes", "accept_landing_begin_mission");
+        if (out.offers("accept_landing_begin_mission"))
+            out.targetLifetimes.push_back(_agentLandingLifetime);
+    }
+    button(_btnNo, "no", "decline_landing_return_to_base");
+    buttons += "]";
+    out.visible = "{\"message\":" + message + ",\"prompt\":" + prompt + ",\"buttons\":" + buttons + "}";
+    const std::string payload = out.payload();
+    if (payload.size() > 9000) return false;
+    std::size_t asciiBytes = 0;
+    for (unsigned char c : payload)
+        if ((asciiBytes += c < 128 ? 1 : 6) > 30000) return false;
+    return !out.regions.empty() && agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
+}
+
+bool ConfirmLandingState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "accept_landing_begin_mission") { btnYesClick(nullptr); return true; }
+    if (request.action == "decline_landing_return_to_base") { btnNoClick(nullptr); return true; }
+    return false;
+}
+#endif
+
 
 }

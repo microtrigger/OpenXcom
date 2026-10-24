@@ -187,7 +187,7 @@ class ClientTests(unittest.TestCase):
         for value in ('pending_confirmation', 'dispatched', 'dispatched'):
             native.status = value
             self.assertEqual(native.client.request_map_left_click(**args)['status'], value)
-            self.assertEqual(native.requests[-1], b'S' + COMMAND.encode())
+            self.assertEqual(native.requests[-1], b'S' + COMMAND.encode() + f'{native.client._query_sequence:032x}'.encode())
         native.observe_tactical(); capability = native.client.capability
         native.client.request_map_left_click(**args)
         self.assertEqual(native.client.capability, capability); self.assertEqual(native.client.state, 'READY')
@@ -241,19 +241,19 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(len(native.client.commands), 64); self.assertIn('0' * 32, native.client.commands)
         native.observe_tactical(); grant = native.client.capability
         native.client.request_map_left_click(**first)
-        self.assertEqual(native.requests[-1], b'S' + b'0' * 32)
+        self.assertEqual(native.requests[-1], b'S' + b'0' * 32 + f'{native.client._query_sequence:032x}'.encode())
         self.assertEqual(native.client.capability, grant); self.assertEqual(native.client.state, 'READY')
         with self.assertRaises(Unavailable): native.client.request_map_left_click(**native.left_args(command_id='f' * 32))
         self.assert_closed_no_retry(native)
         self.assertEqual(sum(r[:1] in (b'D', b'N', b'R', b'L') for r in native.requests), 64)
 
     def test_malformed_initial_dispatched_or_extra_receipt_closes(self):
-        for response in (b'{}', b'\xff', b'x' * 257, dump(status(value='dispatched')),
+        for case_ordinal, response in enumerate((b'{}', b'\xff', b'x' * 257, dump(status(value='dispatched')),
                          dump(status(command_id='a' * 32)), dump(dict(status(), busy=True)),
-                         [dump(status()), dump(status())]):
+                         [dump(status()), dump(status())]), 1):
             native = self.fixture(); native.observe_tactical()
             native.response = lambda raw, fixture, response=response: response
-            with self.assertRaises(Unavailable): native.client.request_map_left_click(**native.left_args())
+            with self.assertRaises(Unavailable, msg="receipt_case_" + str(case_ordinal)): native.client.request_map_left_click(**native.left_args())
             self.assert_closed_no_retry(native)
             self.assertEqual(sum(r[:1] == b'L' for r in native.requests), 1)
 
@@ -520,8 +520,8 @@ check(os.environ['OPENXCOM_MAP_LEFT_CLICK_ENABLED'] == '1')
 check(os.environ['OPENXCOM_TURN_ENABLED'] == '1')
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_STANCE_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-epoch, counter, known = '1' * 32, 1, {}
-send(dict(schema='experimental-stance/1', control_epoch=epoch))
+epoch, counter, known, query_counter = '1' * 32, 1, {}, 0
+send(dict(schema='experimental-stance/2', control_epoch=epoch))
 expected = iter(['V', 'L', 'S', 'V', 'S', 'R', 'S', 'O', 'N', 'S', 'O', 'D', 'S']
     if mode == 'interop' else ['V', 'R' if mode == 'delay_r' else 'L', 'S', 'V'])
 while True:
@@ -541,14 +541,15 @@ while True:
         except BrokenPipeError: break
     else:
         if kind == 'S':
-            check(len(raw) == 33); cid = raw[1:].decode(); check(cid in known)
+            query_counter += 1
+            cid = raw[1:33].decode(); check(cid in known and raw == ('S' + cid + f'{query_counter:032x}').encode())
             value = 'dispatched' if cid == '3' * 32 else 'unavailable'
         else:
             cid = raw[65:97].decode(); check(cid not in known)
             payload = '016040' if kind in ('L', 'R') else ('p0' if kind == 'N' else 'sk')
             check(raw == (kind + epoch + f'{counter:032x}' + cid + payload).encode())
             known[cid] = kind; value = 'pending_confirmation'
-        send(dict(schema='experimental-stance-status/1', command_id=cid, status=value))
+        send(dict(schema='experimental-stance-status/2', command_id=cid, status=value, query_nonce=raw[33:65].decode() if kind == 'S' else None))
 '''
 
 

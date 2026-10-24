@@ -36,6 +36,11 @@
 #include "ConfirmCydoniaState.h"
 #include "../Engine/Options.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#endif
+
 namespace OpenXcom
 {
 
@@ -143,6 +148,10 @@ SelectDestinationState::SelectDestinationState(Craft *craft, Globe *globe) : _cr
 		_globe->setCraftRange(_craft->getLongitude(), _craft->getLatitude(), _craft->getBaseRange());
 		_globe->invalidate();
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *widget : std::vector<Surface *>{_window, _txtTitle, _btnCancel})
+        widget->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -354,5 +363,131 @@ void SelectDestinationState::resize(int &dX, int &dY)
 		}
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool SelectDestinationState::agentDestinationFull() const
+{
+    const SDL_Surface *destination = _game->getScreen()->getSurface()->getSurface();
+    return destination && destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> SelectDestinationState::agentPaintRevisions() const
+{
+    return {_window->agentPresentationRevision(),
+        _txtTitle->agentPresentationRevision(), _txtTitle->agentTextRevision(),
+        _btnCancel->agentPresentationRevision(), _btnCancel->agentLabelRevision()};
+}
+
+void SelectDestinationState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool SelectDestinationState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<SelectDestinationState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState();
+    out.screen = "craft_destination_selection";
+    out.actor = _globe; // Private callback target identity, never serialized.
+    out.context.push_back(reinterpret_cast<std::uintptr_t>(_craft));
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto include = [&](const Surface *widget, bool observationOnly) -> bool {
+        if (!widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget)) return false;
+        AgentUiState part;
+        part.regions.push_back({widget->getX(), widget->getY(), widget->getWidth(), widget->getHeight()});
+        bool found = false;
+        for (const Surface *later : painted)
+        {
+            if (later == widget) { found = true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &rect = part.regions.front();
+            if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+                rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return false;
+        }
+        if (!found || !(observationOnly ? _game->agentNonCursorOverlayClear(part) : _game->agentOverlayClear(part))) return false;
+        if (observationOnly) return true;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    // These are current active UI captions, not a glyph-pixel readability test.
+    // Hidden, geometrically absent, occluded or stale widgets contribute no value.
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        out.context.insert(out.context.end(), {
+            static_cast<std::uint64_t>(widget->getX()), static_cast<std::uint64_t>(widget->getY()),
+            static_cast<std::uint64_t>(widget->getWidth()), static_cast<std::uint64_t>(widget->getHeight())});
+        // Active logical captions: glyph/ink completeness and pointer overlap
+        // are not text admission criteria. Resource bound is not a layout test.
+        if (widget->getText().size() > 1024 || !include(widget, true)) return "null";
+        return agentJsonString(widget->getText());
+    };
+    const auto title = text(_txtTitle);
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const std::string label = widget->getText();
+        if (label.empty() || label.size() > 1024 || !include(widget, false)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    button(_btnCancel, "cancel", "cancel_craft_destination");
+    buttons += "]";
+    std::vector<Target *> visibleTargets;
+    const std::string targets = _globe->agentDestinationTargets(out, painted, visibleTargets);
+    if (!visibleTargets.empty())
+        out.actions.emplace_back("choose_visible_craft_destination", "Select visible target",
+            "visible_control_semantics", "visible_row");
+    out.visible = "{\"title\":" + title + ",\"buttons\":" + buttons + ",\"targets\":" + targets + "}";
+    const std::string payload = out.payload();
+    if (payload.size() > 9000) return false;
+    std::size_t asciiBytes = 0;
+    for (unsigned char c : payload)
+        if ((asciiBytes += c < 128 ? 1 : 6) > 30000) return false;
+    return !out.regions.empty() && agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
+}
+
+bool SelectDestinationState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "cancel_craft_destination") { btnCancelClick(nullptr); return true; }
+    if (request.action == "choose_visible_craft_destination")
+    {
+        Observer::AgentUiState projection;
+        std::vector<Target *> targets;
+        _globe->agentDestinationTargets(projection, Observer::agentFlattenPaintOrder(_surfaces), targets);
+        for (std::size_t i=0; i<targets.size(); ++i)
+            if (request.choice == "r" + std::to_string(i))
+            {
+                if (i>=current.targetLifetimes.size() || projection.targetLifetimes[i].expired() ||
+                    current.targetLifetimes[i].expired() ||
+                    projection.targetLifetimes[i].owner_before(current.targetLifetimes[i]) ||
+                    current.targetLifetimes[i].owner_before(projection.targetLifetimes[i])) return false;
+                // Semantic selection of this already painted target, not a coordinate
+                // search. Hidden nearby targets never participate in admission.
+                _game->pushState(new MultipleTargetsState(std::vector<Target *>{targets[i]}, _craft, 0));
+                return true;
+            }
+    }
+    return false;
+}
+#endif
+
 
 }

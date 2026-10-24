@@ -68,8 +68,8 @@ class RightFixture(ClickFixture):
     def reply(self, raw):
         if self.response is not None: return self.response(raw, self)
         kind = raw[:1]
-        if kind == b'S' and raw[1:].decode() in self.right_commands and self.status == 'dispatched':
-            command = raw[1:].decode()
+        if kind == b'S' and raw[1:33].decode() in self.right_commands and self.status == 'dispatched':
+            command = raw[1:33].decode()
             if command not in self.verified_commands:
                 self.required = self.destination
                 self.verified_commands.add(command)

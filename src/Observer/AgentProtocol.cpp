@@ -40,7 +40,8 @@ bool agentActionId(const std::string &value)
         value == "cancel_menu" || value == "dismiss_error" || value == "select_difficulty" ||
         value == "set_ironman" || value == "start_new_game" || value == "place_base_site" ||
         value == "replace_base_name" || value == "confirm_base_name" ||
-        value == "open_new_battle_choice" || value == "choose_visible_row" || value == "scroll_visible_list" ||
+        value == "load_saved_game" || value == "select_new_save_slot" || value == "replace_new_save_name" || value == "save_new_game" ||
+        value == "open_new_battle_choice" || value == "choose_visible_row" || value == "open_psi_training_base" || value == "choose_visible_craft_destination" || value == "scroll_visible_list" ||
         value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn" || value == "acknowledge_message" || value == "map_primary" || value == "map_secondary" ||
         value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
         value == "choose_weapon_action" || value == "choose_grenade_timer" || value == "cancel_grenade_timer" || value == "cancel_weapon_action" || value == "close_debriefing" ||
@@ -64,6 +65,11 @@ bool agentActionId(const std::string &value)
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
         value == "dismiss_production_complete" || value == "open_production_destination" ||
+        value == "accept_landing_begin_mission" || value == "decline_landing_return_to_base" || value == "toggle_psi_training" || value == "close_psi_training_allocation" || value == "close_psi_training" || value == "close_commendations" || value == "close_promotions" || value == "acknowledge_alien_base_discovery" || value == "acknowledge_ufo_lost" || value == "acknowledge_monthly_report" || value == "acknowledge_craft_error" || value == "acknowledge_craft_error_5_seconds" ||
+        value == "open_craft_destination" || value == "cancel_craft_destination" ||
+        value == "redirect_patrolling_craft" || value == "cancel_craft_navigation" || value == "return_craft_to_base" ||
+        value == "patrol_craft_current_position" || value == "go_to_craft_last_known_position" ||
+        value == "acknowledge_craft_patrol" || value == "acknowledge_low_fuel" || value == "acknowledge_low_fuel_5_seconds" ||
         value == "dismiss_ufo_contact" || value == "continue_pursuit" || value == "return_interceptor_to_base" ||
         value == "open_soldiers" ||
         value == "select_soldier" ||
@@ -107,7 +113,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "choose_dogfight_mode") return "dogfight_mode";
     if (action == "set_craft_soldier") return "crew_assignment";
     if (action == "change_craft_equipment") return "equipment_quantity";
-    if (action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
+    if (action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "change_purchase_quantity") return "purchase_quantity";
@@ -127,11 +133,11 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "camera_pan") return "camera_direction";
     if (action == "minimap_center") return "minimap_target";
     if (action == "open_new_battle_choice") return "choice_control";
-    if (action == "choose_visible_row") return "visible_row";
+    if (action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
     if (action == "scroll_visible_list" || action == "scroll_article_text") return "scroll_direction";
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
-    if (action == "replace_base_name") return "text";
+    if (action == "replace_base_name" || action == "replace_new_save_name") return "text";
     if (action == "place_base_site") return "point";
     return agentActionId(action) ? "none" : "unsupported";
 }

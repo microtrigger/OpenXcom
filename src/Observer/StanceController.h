@@ -132,7 +132,7 @@ class StanceController {
     bool sendPacket(const std::string &packet);
     bool connected() const;
     bool bindingCurrent(bool modal = false) const;
-    void replyStatus(const std::string &id);
+    void replyStatus(const std::string &id, const std::string &queryNonce = std::string());
     void unavailable();
 public:
     StanceController(Game *game, const char *descriptor);

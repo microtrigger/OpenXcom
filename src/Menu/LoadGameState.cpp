@@ -17,6 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "LoadGameState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#include "../Observer/AgentUi.h"
+#endif
 #include <sstream>
 #include "../Engine/Logger.h"
 #include "../Savegame/SavedBattleGame.h"
@@ -97,6 +101,9 @@ void LoadGameState::buildUi(SDL_Color *palette)
 
 	// Create objects
 	_txtStatus = new Text(320, 17, 0, 92);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _txtStatus->agentTrackPresentation();
+#endif
 
 	// Set palette
 	setPalette(palette);
@@ -217,5 +224,24 @@ void LoadGameState::error(const std::string &msg, SavedGame *save)
 	else
 		delete save;
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool LoadGameState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<LoadGameState*>(this)) || _modal || !agentPaintHealthy() ||
+        !_txtStatus->agentPresentationPaintedTo(_game->getScreen()->getSurface())) return false;
+    out=AgentUiState();out.screen="load_in_progress";out.actor=this;
+    out.widgets.emplace_back(_txtStatus,_txtStatus->agentPresentationRevision());
+    out.widgets.emplace_back(_txtStatus,_txtStatus->agentTextRevision());
+    const AgentUiRect r={_txtStatus->getX(),_txtStatus->getY(),_txtStatus->getWidth(),_txtStatus->getHeight()};
+    AgentUiState region;region.regions.push_back(r);
+    const bool shown=agentWidgetVisible(_txtStatus) && agentRegionVisible(r) &&
+        agentRegionsUncovered({r},_txtStatus,agentFlattenPaintOrder(_surfaces)) &&
+        _game->agentNonCursorOverlayClear(region) && _txtStatus->getText().size()<=1024;
+    out.visible="{\"message\":"+(shown?agentJsonString(_txtStatus->getText()):std::string("null"))+"}";
+    return true; // Observation only; completion is determined by later actual UI.
+}
+#endif
 
 }

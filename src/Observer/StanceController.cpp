@@ -187,7 +187,7 @@ StanceController::StanceController(Game *game, const char *descriptor) : _game(g
     ::close(fd);
     const int flags = fcntl(_fd, F_GETFL);
     if (flags < 0 || fcntl(_fd, F_SETFL, flags | O_NONBLOCK) || !randomToken(_epoch)) { close(); return; }
-    sendPacket("{\"schema\":\"experimental-stance/1\",\"control_epoch\":\"" + _epoch + "\"}");
+    sendPacket("{\"schema\":\"experimental-stance/2\",\"control_epoch\":\"" + _epoch + "\"}");
 }
 StanceController::~StanceController() { close(); }
 void StanceController::close()
@@ -501,11 +501,13 @@ bool StanceController::bindingCurrent(bool modal) const
     }
     return true;
 }
-void StanceController::replyStatus(const std::string &id)
+void StanceController::replyStatus(const std::string &id, const std::string &queryNonce)
 {
+    if (!queryNonce.empty() && (!token(queryNonce) || queryNonce == std::string(32, '0'))) { unavailable(); close(); return; }
     const auto i = _commands.find(id);
     if (i == _commands.end()) { unavailable(); return; }
-    sendPacket("{\"schema\":\"experimental-stance-status/1\",\"command_id\":\"" + id + "\",\"status\":\"" + i->second.status + "\"}");
+    sendPacket("{\"schema\":\"experimental-stance-status/2\",\"command_id\":\"" + id + "\",\"status\":\"" + i->second.status + "\",\"query_nonce\":" +
+        (queryNonce.empty() ? "null" : "\"" + queryNonce + "\"") + "}");
 }
 void StanceController::unavailable() { sendPacket("{\"error\":\"unavailable\"}"); }
 void StanceController::poll()
@@ -668,7 +670,9 @@ void StanceController::poll()
         _challengeState = state; _challenge = request.substr(1); return;
     }
 #endif
-    if (n == 33 && request[0] == 'S' && token(request.substr(1))) { replyStatus(request.substr(1)); return; }
+    if (n == 65 && request[0] == 'S' && token(request.substr(1, 32)) &&
+        token(request.substr(33, 32)) && request.substr(33, 32) != std::string(32, '0'))
+    { replyStatus(request.substr(1, 32), request.substr(33, 32)); return; }
     const bool stance = n == 99 && request[0] == 'D' &&
         (request[97] == 'k' || request[97] == 's') && (request[98] == 'k' || request[98] == 's');
     const bool selection = _selectionEnabled && n == 99 && request[0] == 'N' &&
@@ -731,7 +735,7 @@ void StanceController::poll()
     if (prior != _commands.end())
     {
         if (prior->second.request == request) replyStatus(id);
-        else sendPacket("{\"schema\":\"experimental-stance-status/1\",\"command_id\":\"" + id + "\",\"status\":\"unavailable\"}");
+        else sendPacket("{\"schema\":\"experimental-stance-status/2\",\"command_id\":\"" + id + "\",\"status\":\"unavailable\",\"query_nonce\":null}");
         return;
     }
     // Never evict entries: eviction would turn command IDs into replay tokens.

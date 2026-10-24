@@ -50,7 +50,15 @@ protected:
 	bool _autoquick, _sortable;
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-    bool agentListUiState(Observer::AgentUiState &out, const char *screen) const;
+    bool agentListUiState(Observer::AgentUiState &out, const char *screen, bool &popupPresentation) const;
+    bool agentListRegion(const Surface *widget, const Observer::AgentUiRect &rect, bool observation) const;
+    bool agentListButton(Observer::AgentUiState &out, TextButton *button, const char *action, const char *kind = "none") const;
+    std::vector<std::pair<size_t, std::string> > _agentPaintCatalog;
+    bool _agentListPaintHealthy = false;
+    std::uint64_t _agentCatalogEpoch = 0;
+public:
+    void blit() override;
+protected:
 #endif
 	void updateArrows();
 public:

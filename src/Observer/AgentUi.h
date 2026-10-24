@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <functional>
+#include <memory>
 namespace OpenXcom {
 class Surface; class Text; class TextButton; class TextList;
 namespace Observer {
@@ -44,6 +45,8 @@ struct AgentUiState {
     std::vector<std::pair<const void *, std::uint64_t> > widgets;
     std::vector<std::size_t> rows;
     std::vector<std::pair<int, int> > points;
+    // Private lifetime identities for already painted targets; never serialized.
+    std::vector<std::weak_ptr<const void> > targetLifetimes;
     std::vector<std::uint64_t> context; // private gameplay freshness only
     std::uint64_t actorRevision = 0, selectionRevision = 0, uiRevision = 0;
     std::string payload() const;
@@ -70,7 +73,8 @@ bool agentProjectInterceptList(const TextList *list, const Surface *owner, const
 // Explicit arrivals-only nullable three-cell projection; legacy lists unchanged.
 bool agentProjectArrivalList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     AgentUiState &ui, AgentListProjection &projection,
-    const std::function<bool(const AgentUiState &)> &regionAllowed);
+    const std::function<bool(const AgentUiState &)> &regionAllowed,
+    const std::function<bool(const AgentUiState &)> &textAllowed);
 bool agentProjectOutfittingList(const TextList *list, const std::vector<Surface *> &paintOrder,
     unsigned columns, bool equipment, AgentUiState &ui, AgentListProjection &projection,
     const std::function<bool(const AgentUiState &)> &regionAllowed);

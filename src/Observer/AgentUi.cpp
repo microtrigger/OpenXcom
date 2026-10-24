@@ -32,6 +32,11 @@ std::string AgentUiState::authorityPayload() const
 }
 bool AgentUiState::sameBinding(const AgentUiState &o) const
 {
+    if (targetLifetimes.size() != o.targetLifetimes.size()) return false;
+    for (std::size_t i=0; i<targetLifetimes.size(); ++i)
+        if (targetLifetimes[i].expired() || o.targetLifetimes[i].expired() ||
+            targetLifetimes[i].owner_before(o.targetLifetimes[i]) ||
+            o.targetLifetimes[i].owner_before(targetLifetimes[i])) return false;
     return actor == o.actor && save == o.save && actorRevision == o.actorRevision &&
         selectionRevision == o.selectionRevision && uiRevision == o.uiRevision && widgets == o.widgets &&
         rows == o.rows && points == o.points && context == o.context && regions == o.regions && authorityPayload() == o.authorityPayload();
@@ -176,79 +181,60 @@ bool agentProjectInterceptList(const TextList *list, const Surface *owner, const
 }
 bool agentProjectArrivalList(const TextList *list, const Surface *owner, const std::vector<Surface *> &paintOrder,
     AgentUiState &ui, AgentListProjection &projection,
-    const std::function<bool(const AgentUiState &)> &regionAllowed)
+    const std::function<bool(const AgentUiState &)> &regionAllowed,
+    const std::function<bool(const AgentUiState &)> &textAllowed)
 {
     projection = AgentListProjection();
     std::vector<AgentArrivalRow> rows;
-    if (!list || !owner || !agentWidgetVisible(list) || !list->agentArrivalRows(rows)) return false;
+    std::uint64_t captureEpoch = 0;
+    if (!list || !owner || !agentWidgetVisible(list) ||
+        !list->agentArrivalLogicalRows(rows, captureEpoch) || rows.size() > 32) return false;
     ui.widgets.emplace_back(list, list->agentListRevision());
-    // Only certified cell masks may share unchanged glyph pixels. Test the
-    // full mask against later widgets/overlays before unioning those pixels.
-    // Other widgets, headings and controls are never included in this union.
-    std::vector<AgentUiRect> arrivalInk;
-    size_t work = 0;
-    bool healthy = true;
-    const auto order = [](const AgentUiRect &a, const AgentUiRect &b) {
-        return a.y != b.y ? a.y < b.y : a.x < b.x;
-    };
-    const auto includeCell = [&](const std::vector<AgentUiRect> &regions) -> bool {
-        if (!healthy || regions.empty() || regions.size() > 8192 ||
-            !agentRegionsUncovered(regions, owner, paintOrder)) return false;
-        AgentUiState part; part.regions = regions;
-        if (regionAllowed && !regionAllowed(part)) return false;
-        std::vector<AgentUiRect> additions;
-        for (const AgentUiRect &run : regions)
-        {
-            if (++work > 2 * 1024 * 1024 || run.height != 1 || run.width <= 0 ||
-                run.x < 0 || run.y < 0 || run.x + run.width > 640 || run.y >= 400)
-            { healthy = false; return false; }
-            int left = run.x, right = run.x + run.width;
-            auto prior = std::lower_bound(arrivalInk.begin(), arrivalInk.end(), run.y,
-                [](const AgentUiRect &r, int y) { return r.y < y; });
-            for (; prior != arrivalInk.end() && prior->y == run.y && left < right; ++prior)
-            {
-                if (++work > 2 * 1024 * 1024) { healthy = false; return false; }
-                if (prior->x + prior->width <= left) continue;
-                if (prior->x >= right) break;
-                if (prior->x > left) additions.push_back({left, run.y, prior->x-left, 1});
-                left = std::max(left, prior->x + prior->width);
-            }
-            if (left < right) additions.push_back({left, run.y, right-left, 1});
-            if (additions.size() + arrivalInk.size() > 8192) { healthy = false; return false; }
-        }
-        const auto before = ui.regions.size();
-        ui.regions.insert(ui.regions.end(), additions.begin(), additions.end());
-        if (!agentRegionsDisjoint(ui)) { ui.regions.resize(before); return false; }
-        arrivalInk.insert(arrivalInk.end(), additions.begin(), additions.end());
-        std::sort(arrivalInk.begin(), arrivalInk.end(), order);
-        return true;
-    };
+    ui.widgets.emplace_back(list, list->agentPresentationRevision());
+    // Private authority only. Preserve this prefix when the provider adds its
+    // two scroll flags; never serialize capture epochs or allocation geometry.
+    ui.context.insert(ui.context.end(), {captureEpoch,
+        static_cast<std::uint64_t>(list->getX()), static_cast<std::uint64_t>(list->getY()),
+        static_cast<std::uint64_t>(list->getWidth()), static_cast<std::uint64_t>(list->getHeight())});
     projection.rows = "[";
     unsigned count = 0;
     int lastY = -1;
     for (const AgentArrivalRow &row : rows)
     {
-        if (count == 32) break;
         if (row.bounds.y <= lastY) return false;
         lastY = row.bounds.y;
-        const auto before = ui.regions.size();
-        const auto priorInk = arrivalInk;
         bool meaningful = false;
         std::string cells = "[";
         for (unsigned column = 0; column < 3; ++column)
         {
             if (column) cells += ",";
             const AgentPurchaseCell &cell = row.cells[column];
-            std::vector<AgentUiRect> regions;
-            for (const SDL_Rect &r : cell.regions) regions.push_back({r.x, r.y, r.w, r.h});
-            const bool known = cell.known && cell.text.size() <= 1024 &&
-                (regions.empty() || includeCell(regions));
-            if (!healthy) return false;
+            if (cell.regions.size() > 4) return false;
+            bool known = cell.known && cell.text.size() <= 1024 && !cell.regions.empty();
+            AgentUiState part;
+            for (const SDL_Rect &r : cell.regions)
+            {
+                if (r.w == 0 || r.h == 0 || r.x < 0 || r.y < 0 ||
+                    r.x + r.w > 640 || r.y + r.h > 400) return false;
+                part.regions.push_back({r.x, r.y, r.w, r.h});
+            }
+            bool found = false;
+            for (const Surface *later : paintOrder)
+            {
+                if (later == owner) { found = true; continue; }
+                if (!found || !later || !later->getVisible()) continue;
+                for (const AgentUiRect &r : part.regions)
+                    if (r.x < later->getX() + later->getWidth() && r.x + r.width > later->getX() &&
+                        r.y < later->getY() + later->getHeight() && r.y + r.height > later->getY()) known = false;
+            }
+            known = known && found && (!textAllowed || textAllowed(part));
+            // Observation-only strips are not action regions: cosmetic cursor
+            // must not reintroduce a text readability gate at Game admission.
             cells += known ? agentJsonString(cell.text) : "null";
-            meaningful = meaningful || (known && !cell.text.empty() && !regions.empty());
+            meaningful = meaningful || (known && !cell.text.empty());
         }
         cells += "]";
-        if (!meaningful) { ui.regions.resize(before); arrivalInk = priorInk; continue; }
+        if (!meaningful) continue;
         if (count) projection.rows += ",";
         projection.rows += "{\"handle\":\"r" + std::to_string(count++) + "\",\"cells\":" + cells + ",\"selected\":false}";
         ui.rows.push_back(row.logicalIndex);

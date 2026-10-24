@@ -58,11 +58,15 @@ def synthetic_producer():
                 known[command_id] = action
                 reply = {'schema': stance.STATUS_SCHEMA, 'command_id': command_id, 'status': 'pending_confirmation'}
             elif action == b'S':
-                check(len(request) == 33)
-                command_id = request[1:].decode(); check(command_id in known)
+                check(len(request) == 65)
+                nonce = request[33:65].decode('ascii'); stance.token(nonce)
+                check(nonce != '0' * 32)
+                command_id = request[1:33].decode(); check(command_id in known)
                 reply = {'schema': stance.STATUS_SCHEMA, 'command_id': command_id,
                          'status': 'dispatched' if known[command_id] == b'L' else 'unavailable'}
             else: raise RuntimeError('Unexpected protocol request')
+            if reply.get('schema') == stance.STATUS_SCHEMA:
+                reply['query_nonce'] = nonce if request[:1] == b'S' else None
             peer.send(json.dumps(reply, separators=(',', ':')).encode())
 
 

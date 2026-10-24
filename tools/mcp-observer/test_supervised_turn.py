@@ -341,10 +341,10 @@ class ClientTests(unittest.TestCase):
         native.client.request_turn(**args)
         for value in ('pending_confirmation', 'dispatched', 'dispatched'):
             native.status = value; self.assertEqual(native.client.request_turn(**args)['status'], value)
-            self.assertEqual(native.requests[-1], b'S' + COMMAND.encode())
+            self.assertEqual(native.requests[-1], b'S' + COMMAND.encode() + f'{native.client._query_sequence:032x}'.encode())
         native.observe_tactical(); native.observe(); capability = native.client.capability
         native.client.request_turn(**args)
-        self.assertEqual(native.requests[-1], b'S' + COMMAND.encode())
+        self.assertEqual(native.requests[-1], b'S' + COMMAND.encode() + f'{native.client._query_sequence:032x}'.encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(native.client.capability, capability)
         self.assertFalse(native.client.tactical_verification_required)
         self.assertEqual(sum(r[:1] == b'R' for r in native.requests), 1)
@@ -606,11 +606,11 @@ assert os.environ['OPENXCOM_TURN_ENABLED'] == '1'
 assert os.environ['OPENXCOM_SELECTION_ENABLED'] == '1'
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_STANCE_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-epoch, command, counter = '1' * 32, '3' * 32, 1
+epoch, command, counter, query_counter = '1' * 32, '3' * 32, 1, 0
 rng = random.Random(17)
 palette = b''.join(rng.randbytes(3) for _ in range(256))
 indices = bytes(range(256)) + rng.randbytes(64000 - 256)
-send(dict(schema='experimental-stance/1', control_epoch=epoch))
+send(dict(schema='experimental-stance/2', control_epoch=epoch))
 expected = iter(['V', 'R', 'S', 'V', 'S', 'R', 'O', 'N', 'S'])
 while True:
     raw = channel.recv(4096)
@@ -635,8 +635,9 @@ while True:
             assert raw == ('N' + epoch + f'{counter:032x}' + cid + 'p0').encode()
             value = 'pending_confirmation'
         else:
-            cid = raw[1:].decode(); assert len(raw) == 33; value = 'dispatched'
-        send(dict(schema='experimental-stance-status/1', command_id=cid, status=value))
+            query_counter += 1
+            cid = raw[1:33].decode(); assert raw == ('S' + cid + f'{query_counter:032x}').encode(); value = 'dispatched'
+        send(dict(schema='experimental-stance-status/2', command_id=cid, status=value, query_nonce=raw[33:65].decode() if kind == 'S' else None))
 '''
         first = turn_arguments(capability=f'{2:032x}', x=16, y=40)
         calls = [('read_tactical_context', {}), ('request_turn', first), ('read_tactical_context', {}),
@@ -664,7 +665,7 @@ while True:
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_STANCE_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='experimental-stance/1', control_epoch='1' * 32))
+send(dict(schema='experimental-stance/2', control_epoch='1' * 32))
 raw = channel.recv(4096)
 assert raw[:1] == b'V'
 obj = dict(schema='experimental-tactical-context/1', challenge=raw[1:].decode(), control_epoch='1' * 32,

@@ -1,0 +1,13 @@
+# Promotions: read-only title and headings
+
+The `promotions` state exposes exactly `title: string|null` and `headings: [string|null, string|null, string|null]`, taken only from the active `_txtTitle`, `_txtName`, `_txtRank`, and `_txtBase` Text widgets. Empty strings remain empty. No buttons, report rows, soldier/base identity, ranks, promotion flags, totals, selection, or model reconstruction are exposed. The three-column report remains an explicit open follow-on requiring separate privacy design review.
+
+This increment adds **no semantic action**. The ordinary visible OK is not an MCP capability, and no dispatch override is introduced; inherited dispatch refuses requests. The pre-existing independent global cursor-motion capability remains governed by its existing policy, not this provider. Do not infer a close, continuation, acknowledgment, or promotion mutation from reading this state.
+
+The native constructor calls `Soldier::isPromoted()`, which consumes `_recentlyPromoted`, while filling the ordinary list. That existing effect happens before observation. The provider never traverses soldiers, bases, lists or diary/model objects and never calls the getter again. The ordinary native OK handler remains unchanged and outside this capability slice.
+
+Current active/top/modal authority, destination paint, widget revisions, full widget viewport ownership and actual later-widget/FPS occlusion remain required. Text is the current logical widget value, not an ink/glyph/fit test; cosmetic cursor overlap does not null it. The native heading allocation is9px high at y32 while the list begins at y40. Its observation region is a fixed8px strip when the heading allocation is9px; the spare bottom row is excluded structurally, independent of font choice, caption length or glyph coverage. Title uses its full allocation. Long/multiline/missing-glyph text remains logical text when the widget is otherwise admitted. This does not promise every character is pixel-visible.
+
+Each caption has a separate1024-byte UTF-8 resource limit (overbound null, never truncated). Existing total payload9000-byte and conservative ASCII30000 budgets remain fail-closed. Hidden/unpainted/occluded text yields null; stale destination or captured revisions refuse the provider. No runtime readability policy is weakened globally.
+
+Qualification is code/native only: extracted actual constructor/provider and native widgets with explicit domain/render seams, including constructor flag consumption followed by repeated reads without further consumption. No tactical setup, gameplay/UI run or live applicability is claimed. Broader historical transport/safety errors remain unresolved independently of this read-only slice.

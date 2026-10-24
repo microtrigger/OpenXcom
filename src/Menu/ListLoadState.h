@@ -33,7 +33,7 @@ private:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentUiState(Observer::AgentUiState &out) const override;
-    bool agentDispatch(const std::string &action) override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
 #endif
 	/// Creates the Load Game state.
 	ListLoadState(OptionsOrigin origin);

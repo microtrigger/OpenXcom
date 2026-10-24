@@ -34,11 +34,22 @@ class Text;
 class UfoLostState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle;
 	std::string _id;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Ufo Lost state.
 	UfoLostState(const std::string &id);
 	/// Cleans up the Ufo Lost state.

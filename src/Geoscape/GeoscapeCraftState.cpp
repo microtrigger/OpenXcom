@@ -38,6 +38,12 @@
 #include "../Engine/Unicode.h"
 #include "Globe.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#endif
+
 namespace OpenXcom
 {
 
@@ -248,6 +254,12 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 		_txtSoldier->setVisible(false);
 	if (_craft->getRules()->getVehicles() == 0)
 		_txtHWP->setVisible(false);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentWaypoint = _waypoint;
+    if (_waypoint) _agentWaypointLifetime = _waypoint->agentLifetime();
+    for (Surface *widget : std::vector<Surface *>{_window, _txtTitle, _txtStatus, _txtRedirect, _btnBase, _btnPatrol, _btnTarget, _btnCancel})
+        widget->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -307,5 +319,154 @@ void GeoscapeCraftState::btnCancelClick(Action *)
 	// Cancel
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool GeoscapeCraftState::agentDestinationFull() const
+{
+    const SDL_Surface *destination = _game->getScreen()->getSurface()->getSurface();
+    return destination && destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> GeoscapeCraftState::agentPaintRevisions() const
+{
+    return {_window->agentPresentationRevision(),
+        _txtTitle->agentPresentationRevision(), _txtTitle->agentTextRevision(),
+        _txtStatus->agentPresentationRevision(), _txtStatus->agentTextRevision(),
+        _txtRedirect->agentPresentationRevision(), _txtRedirect->agentTextRevision(),
+        _btnBase->agentPresentationRevision(), _btnBase->agentLabelRevision(),
+        _btnPatrol->agentPresentationRevision(), _btnPatrol->agentLabelRevision(),
+        _btnTarget->agentPresentationRevision(), _btnTarget->agentLabelRevision(),
+        _btnCancel->agentPresentationRevision(), _btnCancel->agentLabelRevision()};
+}
+
+void GeoscapeCraftState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool GeoscapeCraftState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    // Pair the visible native mode with its constructor-owned callback target.
+    // No target coordinates or eligibility are inspected or serialized.
+    if (_waypoint != _agentWaypoint) return false;
+    const bool redirect = _waypoint != nullptr;
+    if (redirect && _agentWaypointLifetime.expired()) return false;
+    if (_txtRedirect->getVisible() != redirect ||
+        _btnCancel->getText() != std::string(_game->getLanguage()->getString(
+            redirect ? "STR_GO_TO_LAST_KNOWN_UFO_POSITION" : "STR_CANCEL_UC"))) return false;
+    if (redirect && _txtRedirect->getText() != std::string(_game->getLanguage()->getString("STR_REDIRECT_CRAFT"))) return false;
+    if (!_game->isState(const_cast<GeoscapeCraftState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState();
+    out.screen = "geoscape_craft_navigation";
+    if (redirect) out.targetLifetimes.push_back(_agentWaypointLifetime);
+    out.actor = _globe; // Private callback target identity, never serialized.
+    out.context.push_back(reinterpret_cast<std::uintptr_t>(_craft));
+    out.context.push_back(reinterpret_cast<std::uintptr_t>(_waypoint));
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto include = [&](const Surface *widget, bool observationOnly) -> bool {
+        if (!widget->agentPresentationPaintedTo(destination) || !agentWidgetVisible(widget)) return false;
+        AgentUiState part;
+        part.regions.push_back({widget->getX(), widget->getY(), widget->getWidth(), widget->getHeight()});
+        // Native REDIRECT text allocation covers the first row of the Base
+        // button. Admit only the remaining actual unobscured hitbox; keep the
+        // text occluder's full rectangle (no ink/transparency inference).
+        if (!observationOnly && redirect && widget == _btnBase &&
+            widget->getX() == 22 && widget->getY() == 124 &&
+            widget->getWidth() == 212 && widget->getHeight() == 12 &&
+            _txtRedirect->getX() == 13 && _txtRedirect->getY() == 108 &&
+            _txtRedirect->getWidth() == 230 && _txtRedirect->getHeight() == 17)
+        {
+            ++part.regions.front().y;
+            --part.regions.front().height;
+        }
+        // Both native caption allocations are 17px with a shared spare row.
+        // Use their fixed 16px structural strip, not the selected font: Text
+        // may auto-switch font according to content. Never inspect fitting,
+        // glyph ink, line count or character completeness for caption admission.
+        if (observationOnly && widget->getHeight() == 17)
+            part.regions.front().height = 16;
+        bool found = false;
+        for (const Surface *later : painted)
+        {
+            if (later == widget) { found = true; continue; }
+            if (!found || !later || !later->getVisible()) continue;
+            const auto &rect = part.regions.front();
+            if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+                rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return false;
+        }
+        if (!found || !(observationOnly ? _game->agentNonCursorOverlayClear(part) : _game->agentOverlayClear(part))) return false;
+        if (observationOnly) return true;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before);
+        return false;
+    };
+    // These are current active UI captions, not a glyph-pixel readability test.
+    // Hidden, geometrically absent, occluded or stale widgets contribute no value.
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        out.context.insert(out.context.end(), {
+            static_cast<std::uint64_t>(widget->getX()), static_cast<std::uint64_t>(widget->getY()),
+            static_cast<std::uint64_t>(widget->getWidth()), static_cast<std::uint64_t>(widget->getHeight())});
+        // Active logical captions: glyph/ink completeness and pointer overlap
+        // are not text admission criteria. Resource bound is not a layout test.
+        if (widget->getText().size() > 1024 || !include(widget, true)) return "null";
+        return agentJsonString(widget->getText());
+    };
+    const auto title = text(_txtTitle), message = text(_txtStatus);
+    const auto redirectCaption = redirect ? text(_txtRedirect) : std::string("null");
+    if (redirect && redirectCaption == "null") return false;
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentLabelRevision());
+        const std::string label = widget->getText();
+        if (label.empty() || label.size() > 1024 || !include(widget, false)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    if (redirect)
+    {
+        button(_btnBase, "base", "return_craft_to_base");
+        button(_btnPatrol, "patrol", "patrol_craft_current_position");
+    }
+    button(_btnTarget, "target", "open_craft_destination");
+    if (redirect) button(_btnCancel, "last_known", "go_to_craft_last_known_position");
+    else button(_btnCancel, "cancel", "cancel_craft_navigation");
+    buttons += "]";
+    out.visible = "{\"title\":" + title + ",\"status\":" + message + ",\"redirect\":" + redirectCaption + ",\"buttons\":" + buttons + "}";
+    const std::string payload = out.payload();
+    if (payload.size() > 9000) return false;
+    std::size_t asciiBytes = 0;
+    for (unsigned char c : payload)
+        if ((asciiBytes += c < 128 ? 1 : 6) > 30000) return false;
+    return !out.regions.empty() && agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
+}
+
+bool GeoscapeCraftState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "open_craft_destination") { btnTargetClick(nullptr); return true; }
+    if (request.action == "return_craft_to_base") { btnBaseClick(nullptr); return true; }
+    if (request.action == "patrol_craft_current_position") { btnPatrolClick(nullptr); return true; }
+    if (request.action == "go_to_craft_last_known_position") { btnCancelClick(nullptr); return true; }
+    if (request.action == "cancel_craft_navigation") { btnCancelClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

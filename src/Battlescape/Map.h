@@ -66,6 +66,13 @@ class Map : public InteractiveSurface
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     AgentMapSnapshot _agentDrawSnapshot;
+    std::vector<AgentMapCell> _agentTerrainCells;
+    std::uint64_t _agentTerrainViewRevision = 0;
+    BattleUnit *_agentContextActor = nullptr;
+    bool _agentContextOwnPosition = false;
+    AgentMapPosition _agentContextPosition;
+    AgentMapCell agentDescribeTerrain(Tile *tile, const AgentMapPosition &position) const;
+    void agentRecordTerrain(Tile *tile, const Position &position);
     Observer::AgentProjectileWitness _agentProjectileWitness, _agentImpactWitness, _agentCollapseWitness,
         _agentThrownItemWitness, _agentLargeExplosionWitness;
     Observer::AgentProjectileRaster _agentProjectileRaster;

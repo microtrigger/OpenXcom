@@ -41,6 +41,7 @@ int main()
     check(!parseAgentRequest("H openxcom-agent-control/2", r), "v2 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/3", r), "v3 mismatch rejected");
     check(!parseAgentRequest("H experimental-stance/1", r), "supervised mismatch rejected");
+    check(!parseAgentRequest("H experimental-stance/2", r), "supervised v2 mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/1", r), "archived version mismatch rejected");
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/19\n", r), "newline rejected");

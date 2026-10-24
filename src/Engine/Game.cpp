@@ -2723,16 +2723,9 @@ bool Game::agentMoveCursor(int x, int y, State *expected)
 
 bool Game::agentOverlayClear(const Observer::AgentUiState &ui) const
 {
-    const Surface *overlays[] = {_cursor, _fpsCounter};
-    for (const Surface *overlay : overlays)
-    {
-        if (!overlay || !overlay->getVisible()) continue;
-        for (const auto &rect : ui.regions)
-            if (overlay->getX() < rect.x + rect.width && overlay->getX() + overlay->getWidth() > rect.x &&
-                overlay->getY() < rect.y + rect.height && overlay->getY() + overlay->getHeight() > rect.y)
-                return false;
-    }
-    return true;
+    // The ordinary pointer does not hide semantic UI or block its controls.
+    // Real overlays (including FPS), provider windows and freshness remain gates.
+    return agentNonCursorOverlayClear(ui);
 }
 bool Game::agentNonCursorOverlayClear(const Observer::AgentUiState &ui) const
 {

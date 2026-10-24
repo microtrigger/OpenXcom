@@ -123,6 +123,76 @@ private:
 	std::vector<AgentPurchaseRow> _agentDrawPurchaseRows, _agentPaintPurchaseRows;
 	std::vector<AgentArrivalRow> _agentDrawArrivalRows, _agentPaintArrivalRows;
 	bool _agentArrivalCells = false;
+	// ItemsArrivingState-only logical current viewport; no row action authority.
+	struct AgentArrivalLogicalCapture
+	{
+		AgentArrivalRow row;
+		const Text *cells[3];
+		std::uint64_t textRevisions[3], presentationRevisions[3];
+		SDL_Rect geometry[3];
+	};
+	bool _agentArrivalLogicalCells = false, _agentArrivalLogicalCaptureHealthy = true;
+	bool _agentArrivalLogicalEpochExhausted = false;
+	std::uint64_t _agentArrivalLogicalDrawEpoch = 0, _agentArrivalLogicalPaintEpoch = 0;
+	std::vector<AgentArrivalLogicalCapture> _agentDrawArrivalLogicalRows, _agentPaintArrivalLogicalRows;
+	SDL_Rect _agentArrivalLogicalClip = {};
+	const Surface *_agentArrivalLogicalDestination = nullptr;
+	void agentCaptureArrivalLogicalRow(size_t logicalIndex, int y);
+
+	// AllocatePsiTrainingState-only logical UI readout; independent of ink witnesses.
+	struct AgentPsiCapture
+	{
+		AgentOutfittingRow row;
+		const Text *cells[4];
+		std::uint64_t textRevisions[4], presentationRevisions[4];
+		SDL_Rect geometry[4];
+	};
+	// CommendationState-only logical viewport, with no selection/action authority.
+	struct AgentCommendationCapture
+	{
+		AgentOutfittingRow row;
+		const Text *cells[2];
+		std::uint64_t textRevisions[2], presentationRevisions[2];
+		SDL_Rect geometry[2];
+	};
+	bool _agentCommendationCells = false, _agentCommendationCaptureHealthy = true;
+	std::vector<AgentCommendationCapture> _agentDrawCommendationRows, _agentPaintCommendationRows;
+	SDL_Rect _agentCommendationClip = {};
+	const Surface *_agentCommendationDestination = nullptr;
+	void agentCaptureCommendationRow(size_t logicalIndex, int y);
+	// PromotionsState-only logical viewport, with no selection/action authority.
+	struct AgentPromotionCapture
+	{
+		AgentOutfittingRow row;
+		const Text *cells[3];
+		std::uint64_t textRevisions[3], presentationRevisions[3];
+		SDL_Rect geometry[3];
+	};
+	bool _agentPromotionCells = false, _agentPromotionCaptureHealthy = true;
+	std::vector<AgentPromotionCapture> _agentDrawPromotionRows, _agentPaintPromotionRows;
+	SDL_Rect _agentPromotionClip = {};
+	const Surface *_agentPromotionDestination = nullptr;
+	void agentCapturePromotionRow(size_t logicalIndex, int y);
+	// Save-list-only logical viewport, with no selection/action authority.
+	struct AgentSaveListCapture
+	{
+		AgentOutfittingRow row;
+		const Text *cells[3];
+		std::uint64_t textRevisions[3], presentationRevisions[3];
+		SDL_Rect geometry[3];
+	};
+	bool _agentSaveListNewSlot = false;
+	bool _agentSaveListCells = false, _agentSaveListCaptureHealthy = true;
+	std::vector<AgentSaveListCapture> _agentDrawSaveListRows, _agentPaintSaveListRows;
+	SDL_Rect _agentSaveListClip = {};
+	const Surface *_agentSaveListDestination = nullptr;
+	void agentCaptureSaveListRow(size_t logicalIndex, int y);
+	bool _agentPsiTrainingCells = false;
+	std::vector<AgentPsiCapture> _agentDrawPsiRows, _agentPaintPsiRows;
+	SDL_Rect _agentPsiClip = {};
+	const Surface *_agentPsiSelector = nullptr;
+	std::uint64_t _agentPsiSelectorRevision = 0;
+	void agentCapturePsiRow(size_t logicalIndex, int y);
 	unsigned _agentOutfittingColumns = 0;
 	bool _agentOutfittingEquipment = false, _agentOutfittingCrew = false;
 	std::vector<AgentOutfittingRow> _agentDrawOutfittingRows, _agentPaintOutfittingRows;
@@ -146,9 +216,22 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
 	void agentEnableOutfitting(unsigned columns, bool equipment = false, bool crew = false);
+	// Narrow opt-in: current four UI cells, not glyph completeness or model data.
+	void agentEnableCommendationCells();
+	bool agentCommendationRows(std::vector<AgentOutfittingRow> &rows) const;
+	void agentEnableSaveListCells(bool newSlot);
+	bool agentSaveListRows(std::vector<AgentOutfittingRow> &rows) const;
+	bool agentSelectSaveListRow(size_t logicalIndex);
+	void agentEnablePromotionCells();
+	bool agentPromotionRows(std::vector<AgentOutfittingRow> &rows) const;
+	void agentEnablePsiTrainingCells();
+	bool agentPsiTrainingRows(std::vector<AgentOutfittingRow> &rows) const;
+	bool agentSelectPsiTrainingRow(size_t logicalIndex);
 	bool agentOutfittingRows(std::vector<AgentOutfittingRow> &rows) const;
 	bool agentSelectOutfittingRow(size_t logicalIndex);
 	// Explicitly enabled only by ItemsArrivingState before ordinary painting.
+	void agentEnableArrivalLogicalCells();
+	bool agentArrivalLogicalRows(std::vector<AgentArrivalRow> &rows, std::uint64_t &captureEpoch) const;
 	void agentEnableArrivalCells();
 	bool agentArrivalRows(std::vector<AgentArrivalRow> &rows) const;
 	// Purchase-only, independent text witnesses and exact painted row arrows.

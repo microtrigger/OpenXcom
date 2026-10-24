@@ -35,6 +35,12 @@ class Globe;
 class CraftPatrolState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Craft *_craft;
 	Globe *_globe;
 
@@ -42,6 +48,11 @@ private:
 	Window *_window;
 	Text *_txtDestination, *_txtPatrolling;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Geoscape Craft state.
 	CraftPatrolState(Craft *craft, Globe *globe);
 	/// Cleans up the Geoscape Craft state.

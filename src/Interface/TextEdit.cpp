@@ -312,6 +312,15 @@ void TextEdit::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentCaretPainted = false;
+	if (_agentBaseInfoNameEnabled)
+	{
+		_agentBaseInfoNameHealthy = false; _agentBaseInfoNameShown.clear();
+		// A direct draw is not proof that its new contents reached the screen.
+		agentForgetPresentationPaint();
+		if (_agentBaseInfoNameDrawEpoch == UINT64_MAX) _agentBaseInfoNameEpochExhausted = true;
+		else ++_agentBaseInfoNameDrawEpoch;
+		if (_text) _text->agentTrackPresentation();
+	}
 #endif
 	Surface::draw();
 	UString newValue = _value;
@@ -379,6 +388,9 @@ void TextEdit::draw()
 #endif
 		}
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	agentCaptureBaseInfoName();
+#endif
 }
 
 /**
@@ -447,6 +459,102 @@ bool TextEdit::insertInputCharacter(UCode c)
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void TextEdit::agentEnableSaveName()
+{ _agentSaveNameEnabled = true; agentEnableBaseInfoName(); }
+bool TextEdit::agentSaveName(const Surface *destination, std::string &shown, SDL_Rect &allocation, std::uint64_t &captureEpoch) const
+{ return _agentSaveNameEnabled && agentBaseInfoName(destination, shown, allocation, captureEpoch); }
+bool TextEdit::agentSaveNameBinding(const Surface *destination, Observer::AgentUiState &out) const
+{
+    std::string shown; SDL_Rect allocation; std::uint64_t captureEpoch;
+    if (!agentSaveName(destination, shown, allocation, captureEpoch)) return false;
+    // Bind logical identity, not the decorative draw epoch or the child paint
+    // generation (native draw calls setText even for an unchanged caret blink).
+    // All current child/parent paint checks above remain mandatory on each sample.
+    out.widgets.emplace_back(_agentBaseInfoNameChild, _agentBaseInfoNameTextRevision);
+    out.widgets.emplace_back(destination, destination->agentPresentationRevision());
+    return true;
+}
+
+bool TextEdit::agentReplaceSaveName(const Surface *destination, const std::string &text)
+{
+    std::string shown; SDL_Rect allocation; std::uint64_t captureEpoch;
+    if (!_isFocused || Options::keyboardMode != KEYBOARD_ON ||
+        !agentSaveName(destination, shown, allocation, captureEpoch) ||
+        !Observer::agentInputText(text)) return false;
+    const UString previous = _value;
+    const size_t previousCaret = _caretPos;
+    _value.clear(); _caretPos = 0;
+    for (UCode c : Unicode::convUtf8ToUtf32(text))
+        if (!insertInputCharacter(c)) { _value = previous; _caretPos = previousCaret; return false; }
+    _blink = true; _redraw = true; ++_agentInputRevision;
+    // Ordinary input constraints above, no pixel/glyph readability gate. Fresh
+    // presentation is required by the provider before subsequent Save dispatch.
+    return true;
+}
+
+void TextEdit::agentEnableBasescapeName()
+{
+	agentEnableBaseInfoName();
+}
+
+bool TextEdit::agentBasescapeName(const Surface *destination, std::string &shown,
+	SDL_Rect &allocation, std::uint64_t &captureEpoch) const
+{
+	return agentBaseInfoName(destination, shown, allocation, captureEpoch);
+}
+
+void TextEdit::agentEnableBaseInfoName()
+{
+	if (!_agentBaseInfoNameEnabled)
+	{
+		_agentBaseInfoNameEnabled = true; _redraw = true;
+		agentTrackPresentation();
+		if (_text) _text->agentTrackPresentation();
+	}
+}
+
+void TextEdit::agentCaptureBaseInfoName()
+{
+	if (!_agentBaseInfoNameEnabled || _agentBaseInfoNameEpochExhausted ||
+		!_agentBaseInfoNameDrawEpoch || !_text || !_text->agentPresentationPaintedTo(this) ||
+		getWidth() <= 0 || getWidth() > 640 || getHeight() <= 0 || getHeight() > 400 ||
+		_text->getX() != 0 || _text->getY() != 0 ||
+		_text->getWidth() != getWidth() || _text->getHeight() != getHeight() ||
+		_text->getText().size() > 1024) return;
+	_agentBaseInfoNameChild = _text;
+	_agentBaseInfoNameTextRevision = _text->agentTextRevision();
+	_agentBaseInfoNameChildRevision = _text->agentPresentationRevision();
+	_agentBaseInfoNameInputRevision = _agentInputRevision;
+	_agentBaseInfoNameChildGeometry = {static_cast<Sint16>(_text->getX()), static_cast<Sint16>(_text->getY()),
+		static_cast<Uint16>(_text->getWidth()), static_cast<Uint16>(_text->getHeight())};
+	_agentBaseInfoNameGeometry = {static_cast<Sint16>(getX()), static_cast<Sint16>(getY()),
+		static_cast<Uint16>(getWidth()), static_cast<Uint16>(getHeight())};
+	// Includes native keyboard-off preview exactly when the child painted it.
+	_agentBaseInfoNameShown = _text->getText();
+	_agentBaseInfoNameHealthy = true;
+}
+
+bool TextEdit::agentBaseInfoName(const Surface *destination, std::string &shown,
+	SDL_Rect &allocation, std::uint64_t &captureEpoch) const
+{
+	shown.clear(); allocation = {}; captureEpoch = 0;
+	if (!_agentBaseInfoNameEnabled || !_agentBaseInfoNameHealthy || _agentBaseInfoNameEpochExhausted ||
+		!_agentBaseInfoNameDrawEpoch || !destination || !Observer::agentWidgetVisible(this) ||
+		!agentPresentationPaintedTo(destination) || !_text || _text != _agentBaseInfoNameChild ||
+		!_text->agentPresentationPaintedTo(this) || _agentInputRevision != _agentBaseInfoNameInputRevision ||
+		_text->agentTextRevision() != _agentBaseInfoNameTextRevision ||
+		_text->agentPresentationRevision() != _agentBaseInfoNameChildRevision ||
+		_agentBaseInfoNameShown.size() > 1024) return false;
+	const SDL_Rect &c = _agentBaseInfoNameChildGeometry, &g = _agentBaseInfoNameGeometry;
+	if (_text->getX() != c.x || _text->getY() != c.y || _text->getWidth() != c.w || _text->getHeight() != c.h ||
+		getX() != g.x || getY() != g.y || getWidth() != g.w || getHeight() != g.h ||
+		getWidth() <= 0 || getWidth() > 640 || getHeight() <= 0 || getHeight() > 400 ||
+		getX() < 0 || getY() < 0 || getX()+getWidth() > destination->getWidth() ||
+		getY()+getHeight() > destination->getHeight()) return false;
+	shown = _agentBaseInfoNameShown; allocation = g; captureEpoch = _agentBaseInfoNameDrawEpoch;
+	return true;
+}
+
 bool TextEdit::agentRenderedText(std::string &text) const
 {
 	if (!Observer::agentWidgetVisible(this) || !_text || !_text->getFont() ||

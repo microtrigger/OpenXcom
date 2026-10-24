@@ -27,6 +27,10 @@
 #include "../Observer/AgentUi.h"
 #endif
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <memory>
+#endif
+
 namespace OpenXcom
 {
 
@@ -51,6 +55,13 @@ private:
 	Observer::AgentGlobeProjection _agentProjection;
 	std::uint64_t _agentViewRevision = 0, _agentShownViewRevision = 0;
 	bool _agentBlitReady = false;
+    struct AgentPaintedTarget {
+        Target *target;
+        std::weak_ptr<const void> lifetime;
+    };
+    std::vector<AgentPaintedTarget> _agentMarkerPixels;
+    int _agentMarkerWidth = 0, _agentMarkerHeight = 0;
+    bool _agentTargetCandidates = false;
 	void agentCoverRect(Surface *layer, const Surface *painted);
 #endif
 	static const int NUM_LANDSHADES = 48;
@@ -128,6 +139,8 @@ public:
 	void agentRecordOccluders(const std::vector<Surface *> &paintOrder, bool safe = true);
 	std::string agentGeography(Observer::AgentUiState &ui, const std::vector<Surface *> &overlays) const;
 	std::uint64_t agentViewRevision() const { return _agentViewRevision; }
+    std::string agentDestinationTargets(Observer::AgentUiState &ui,
+        const std::vector<Surface *> &overlays, std::vector<Target *> &targets) const;
 #endif
 	/// Creates a new globe at the specified position and size.
 	Globe(Game* game, int cenX, int cenY, int width, int height, int x = 0, int y = 0);

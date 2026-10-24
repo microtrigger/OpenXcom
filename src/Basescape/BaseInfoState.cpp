@@ -62,6 +62,9 @@ BaseInfoState::BaseInfoState(Base *base, BasescapeState *state) : _base(base), _
 	_btnStores = new TextButton(80, 14, 132, 180);
 	_btnMonthlyCosts = new TextButton(92, 14, 218, 180);
 	_edtBase = new TextEdit(this, 127, 16, 8, 8);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	_edtBase->agentEnableBaseInfoName();
+#endif
 
 	_txtPersonnel = new Text(300, 9, 8, 30);
 	_txtSoldiers = new Text(114, 9, 8, 41);
@@ -482,18 +485,40 @@ bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
         const auto value=agentTextJson(widget);
         return value!="null" && include(widget) ? value : "null";
     };
+    // This field observes the actual painted editor child, including native
+    // preview text. It is not an edit capability or a glyph/ink witness.
     std::string name="null",shown;
-    SDL_Rect nameInk;
-    if (_edtBase && _edtBase->agentRenderedText(shown) && shown.size()<=1024 && _edtBase->agentRenderedBounds(nameInk))
+    if (_edtBase)
     {
-        AgentUiState part; part.regions.push_back({nameInk.x,nameInk.y,nameInk.w,nameInk.h});
-        if (agentRegionsUncovered(part.regions,_edtBase,painted) && _game->agentOverlayClear(part))
+        SDL_Rect allocation;
+        std::uint64_t captureEpoch=0;
+        const bool captured=_edtBase->agentBaseInfoName(
+            _game->getScreen()->getSurface(),shown,allocation,captureEpoch);
+        out.widgets.push_back({_edtBase,_edtBase->agentInputRevision()});
+        out.widgets.push_back({_edtBase,_edtBase->agentPresentationRevision()});
+        out.context.insert(out.context.end(), {
+            captureEpoch,static_cast<std::uint64_t>(_edtBase->getX()),
+            static_cast<std::uint64_t>(_edtBase->getY()),
+            static_cast<std::uint64_t>(_edtBase->getWidth()),
+            static_cast<std::uint64_t>(_edtBase->getHeight())});
+        if (captured)
         {
-            const auto old=out.regions.size(); out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
-            if (agentRegionsDisjoint(out)) name=agentJsonString(shown); else out.regions.resize(old);
+            AgentUiState part;
+            part.regions.push_back({allocation.x,allocation.y,allocation.w,allocation.h});
+            bool found=false,uncovered=true;
+            for (const Surface *later:painted)
+            {
+                if (later==_edtBase) { found=true; continue; }
+                if (!found || !later || !later->getVisible()) continue;
+                const auto &rect=part.regions.front();
+                if (rect.x<later->getX()+later->getWidth() && rect.x+rect.width>later->getX() &&
+                    rect.y<later->getY()+later->getHeight() && rect.y+rect.height>later->getY()) uncovered=false;
+            }
+            if (found && uncovered && _game->agentNonCursorOverlayClear(part)) name=agentJsonString(shown);
         }
+        // Observation-only allocation stays out of outward control regions.
+        // Actual buttons and base slots retain their full cursor guards.
     }
-    if (_edtBase) out.widgets.push_back({_edtBase,_edtBase->agentInputRevision()});
     std::string slots="[";
     if (_mini)
     {

@@ -40,6 +40,9 @@ private:
 	Text *_txtStatus;
 	std::string _filename;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+#endif
 	/// Creates the Load Game state.
 	LoadGameState(OptionsOrigin origin, const std::string &filename, SDL_Color *palette);
 	/// Creates the Load Game state.
