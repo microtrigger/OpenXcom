@@ -30,6 +30,7 @@ class AgentController {
     bool sample(AgentUiState &out) const;
     bool focused() const;
     void unavailable();
+    void readExpired(const std::string &challenge);
     std::string statePacket(const AgentUiState &ui, const std::string &challenge, bool grant);
     std::string resultPacket(const std::string &id, const std::string &status, const std::string &observation = "null") const;
     void receipt(const std::string &id);

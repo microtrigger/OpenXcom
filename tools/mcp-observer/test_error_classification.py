@@ -48,9 +48,9 @@ class ErrorClassificationTests(unittest.TestCase):
         self.assertEqual(n.client.state,'CLOSED')
     def test_read_timeout_is_not_unknown_action(self):
         n,s=self.fixture(transform=lambda op,obj:None if op=='R' else obj)
-        obj=self.error(s);self.assertEqual(obj['failure']['code'],'transport_timeout')
+        obj=self.error(s);self.assertEqual(obj['failure']['code'],'read_recovery_required')
         self.assertEqual(obj['failure']['action_outcome'],'not_applicable')
-        self.assertEqual(n.client.state,'CLOSED');self.assertFalse(any(r.startswith(b'E ') for r in n.requests))
+        self.assertEqual(n.client.state,'READ_RECOVERY_REQUIRED');self.assertFalse(any(r.startswith(b'E ') for r in n.requests))
     def test_read_parse_and_validation_faults_are_distinct(self):
         for bad,code in [(b'{PRIVATE','parse_error'),(b'{"PRIVATE":"hidden"}','validation_error')]:
             with self.subTest(code=code):

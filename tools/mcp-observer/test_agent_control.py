@@ -155,6 +155,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         if screen == 'monthly_report': visible.update(title='Monthly Report',month='Jan 1999',rating='Rating: OK',income='Income',maintenance='Maintenance',balance='Balance',description='Council report',failure=None)
         elif screen == 'landing_confirmation': visible.update(message='SKYRANGER-1 ready to land near LANDING SITE-1',prompt='Begin Mission?')
         elif screen == 'psi_training': visible.update(title='Psionic Training', bases=['Shown base'],rows=[dict(handle='r0',cells=['Shown base'])])
+        elif screen == 'lost_in_service': visible.update(title='Lost in Service')
         elif screen == 'commendations': visible.update(title='Medals', rows=[])
         elif screen == 'promotions': visible.update(title='Promotions',headings=['Name','New Rank','Base'],rows=[])
         elif screen == 'alien_base_discovered': visible.update(message='X-Com agents have located an alien base in Shown Region')
@@ -563,7 +564,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 172); self.assertEqual(len(a.STATE_ACTIONS), 77)
+        self.assertEqual(len(a.ACTIONS), 176); self.assertEqual(len(a.STATE_ACTIONS), 78)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -614,7 +615,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 172)
+        self.assertEqual(len(a.ACTIONS), 176)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',

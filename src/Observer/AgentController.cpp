@@ -134,6 +134,11 @@ void AgentController::unavailable()
 {
     sendPacket(agentEnvelope() + ",\"type\":\"error\",\"status\":\"unavailable\"}");
 }
+void AgentController::readExpired(const std::string &challenge)
+{
+    sendPacket(agentEnvelope() + ",\"type\":\"read_error\",\"read_error_schema\":\"openxcom-agent-read-error/1\",\"epoch\":" +
+        agentJsonString(_epoch) + ",\"challenge\":" + agentJsonString(challenge) + ",\"reason\":\"read_expired\"}");
+}
 std::string AgentController::statePacket(const AgentUiState &ui, const std::string &challenge, bool grant)
 {
     _capability.clear(); _boundTop = 0;
@@ -211,7 +216,10 @@ void AgentController::poll()
     if (_queued.active() && (_queued.expired(now()) || !_queued.generationMatches(_generation))) rejectQueued();
     if (_fd < 0) return;
     if (!_readChallenge.empty() && now() - _readTime > 1000)
-    { _readChallenge.clear(); invalidate(); unavailable(); }
+    {
+        const std::string challenge = _readChallenge;
+        _readChallenge.clear(); invalidate(); readExpired(challenge);
+    }
     if (!_pendingId.empty() && now() - _dispatchTime > 8000)
     {
         const std::string id = _pendingId; _pendingId.clear(); invalidate();

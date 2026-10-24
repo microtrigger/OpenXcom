@@ -2,6 +2,7 @@
 """Closed, public failure classifications. Never include exception text or payloads."""
 CODES = {
     'transport_timeout': ('transport', 'error', 'stop'),
+    'read_recovery_required': ('transport', 'warning', 'refresh_observation'),
     'transport_eof': ('transport', 'error', 'stop'),
     'transport_framing': ('protocol', 'error', 'stop'),
     'transport_io': ('transport', 'error', 'stop'),
