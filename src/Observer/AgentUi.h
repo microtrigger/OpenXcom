@@ -3,6 +3,7 @@
 #include "AgentProtocol.h"
 #include "AgentProjectileWitness.h"
 #include <vector>
+#include <array>
 #include <utility>
 #include <functional>
 #include <memory>
@@ -20,6 +21,8 @@ struct AgentUiRect {
     { return x == o.x && y == o.y && width == o.width && height == o.height; }
 };
 struct AgentUiState {
+    // Diagnostic-only copy of the already-public, point-paired map positions.
+    std::vector<std::array<int,3>> mapTargetPositions;
     std::string screen = "unsupported", visible = "{}";
     // Public logical-canvas cursor only; no desktop coordinates or world state.
     std::string cursor = "null";

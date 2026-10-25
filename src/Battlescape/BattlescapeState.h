@@ -48,6 +48,7 @@ class BattleItem;
 class Timer;
 class WarningMessage;
 class BattlescapeGame;
+namespace Observer { class AgentMapInputTrace; }
 #ifdef OPENXCOM_EXPERIMENTAL_HUD_OBSERVER
 namespace Observer { class HudFileObserver; }
 #endif
@@ -59,6 +60,7 @@ class BattlescapeState : public State
 {
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentMapInputTrace *_agentMapInputTrace = nullptr;
     BattleUnit *_agentShownActor = 0;
     bool _agentShownKneeled = false;
     std::uint64_t _agentUiRevision = 0;

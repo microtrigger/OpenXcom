@@ -1,3 +1,6 @@
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentMapInputTrace.h"
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_INVENTORY_OPEN_CONTROL_GATE
 #include "../../tests/inventory-open-control/InventoryOpenControlGate.h"
 #endif
@@ -893,7 +896,13 @@ bool BattlescapeState::cancelMapAction(Uint8 button)
 void BattlescapeState::activateMapButton(Uint8 button)
 {
 	// don't accept leftclicks if there is no cursor or there is an action busy
-	if (_map->getCursorType() == CT_NONE || _battleGame->isBusy()) return;
+	if (_map->getCursorType() == CT_NONE || _battleGame->isBusy())
+    {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (_agentMapInputTrace) _agentMapInputTrace->emit("guarded");
+#endif
+        return;
+    }
 
 	Position pos;
 	_map->getSelectorPosition(&pos);
@@ -909,6 +918,9 @@ void BattlescapeState::activateMapButton(Uint8 button)
 	{
 		if ((button == SDL_BUTTON_RIGHT || (button == SDL_BUTTON_LEFT && (SDL_GetModState() & KMOD_ALT) != 0)) && playableUnitSelected())
 		{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (_agentMapInputTrace) _agentMapInputTrace->emit("secondary",true,pos.x,pos.y,pos.z);
+#endif
 			_battleGame->secondaryAction(pos);
 #ifdef OPENXCOM_EXPERIMENTAL_TURN_CONTROL_GATE
             TurnControlGate::mapClicked(this);
@@ -919,6 +931,9 @@ void BattlescapeState::activateMapButton(Uint8 button)
 		}
 		else if (button == SDL_BUTTON_LEFT)
 		{
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            if (_agentMapInputTrace) _agentMapInputTrace->emit("primary",true,pos.x,pos.y,pos.z);
+#endif
 			_battleGame->primaryAction(pos);
 #ifdef OPENXCOM_EXPERIMENTAL_MAP_LEFT_CLICK_CONTROL_GATE
             MapLeftClickControlGate::mapClicked(this);
@@ -2756,6 +2771,7 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
             { truncated = true; break; }
             if (cell.target == view.focus) focus = Observer::agentJsonString("g" + std::to_string(count));
             ui.points.push_back(std::make_pair(view.x + cell.target.x, view.y + cell.target.y));
+            ui.mapTargetPositions.push_back({{fact.position.x,fact.position.y,fact.position.z}});
             if (count++) { grid += ","; cells += ","; }
             grid += item; cells += semantic;
         }
@@ -3043,11 +3059,17 @@ bool BattlescapeState::agentDispatch(const Observer::AgentRequest &request)
     {
         const unsigned cell = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
         if (cell >= shown.points.size()) return false;
-        _map->setSelectorPosition(shown.points[cell].first, shown.points[cell].second);
+        const bool tracedPosition = shown.mapTargetPositions.size() == shown.points.size();
+        const std::array<int,3> expected = tracedPosition ? shown.mapTargetPositions[cell] : std::array<int,3>{{0,0,0}};
+        Observer::AgentMapInputTrace trace(_agentMapInputTrace, cell, tracedPosition, expected[0], expected[1], expected[2],
+            shown.points[cell].first, shown.points[cell].second, _map->getX(), _map->getY());
+        // Shown points are canvas-absolute; native selector input is map-relative.
+        _map->setSelectorPosition(shown.points[cell].first - _map->getX(), shown.points[cell].second - _map->getY());
         const Uint8 button = request.action == "map_primary" ? SDL_BUTTON_LEFT : SDL_BUTTON_RIGHT;
         // The fresh admitted target already proves viewport routing. The parked
         // human pointer's HUD hover latch is not authority for this target.
         if (!cancelMapAction(button)) activateMapButton(button);
+        else trace.emit("cancelled");
         return true;
     }
     if (request.action == "center_enemy")
