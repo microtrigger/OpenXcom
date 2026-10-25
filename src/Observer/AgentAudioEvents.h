@@ -10,15 +10,17 @@ namespace OpenXcom { namespace Observer {
 class AgentAudioEvents
 {
 public:
+    enum { FramesPerWindow = 2205, FrameBytes = 4, WindowBytes = FramesPerWindow * FrameBytes, RingCapacity = 32,
+           MaxCallbackBytes = 262144 };
     struct Event {
         enum Kind { Window, Gap, Status } kind = Window;
         enum State { Pending, Active, Unavailable } state = Pending;
         bool nonzero = false;
+        std::uint64_t pcmSequence = 0;
+        Uint8 pcm[WindowBytes] = {};
         std::uint64_t droppedWindows = 0;
         bool partialWindowDiscarded = false;
     };
-    enum { FramesPerWindow = 2205, FrameBytes = 4, RingCapacity = 32,
-           MaxCallbackBytes = 262144 };
     AgentAudioEvents();
     ~AgentAudioEvents();
     // Only this aggregate is published by the resource-loading thread.
@@ -33,13 +35,14 @@ public:
     void close();
 private:
     typedef std::chrono::steady_clock Clock;
-    struct Summary { std::uint64_t sequence; bool nonzero; };
+    struct Summary { std::uint64_t sequence; bool nonzero; Uint8 pcm[WindowBytes]; };
     enum { Slots = RingCapacity + 1 };
     std::atomic<unsigned> _catalog, _read, _write, _failed;
     std::atomic<std::uint64_t> _produced;
     Summary _ring[Slots];
     // Audio-callback-only fields until synchronized hook detachment.
     std::uint64_t _sequence;
+    Uint8 _partialPcm[WindowBytes];
     unsigned _partialBytes;
     bool _partialNonzero, _skipFirst;
     // Main-thread-only fields; no callback accesses controller/game state.

@@ -66,7 +66,7 @@ struct ConfirmDestinationState:Common {
  bool agentDestinationFull()const;std::vector<std::uint64_t>agentPaintRevisions()const;void blit();bool agentUiState(AgentUiState&)const;bool agentDispatch(const AgentRequest&);void btnOkClick(Action*);void btnCancelClick(Action*);
 };
 struct InterceptState:Common {
- std::vector<Craft*>_crafts;InterceptState(void*g=nullptr,void*b=nullptr,Target*t=nullptr){if(g)_globe=g;if(b)_base=b;if(t)_target=t;_crafts.push_back(&craft);game.top=this;blit();}
+ const bool _agentTargetless;std::vector<Craft*>_crafts;InterceptState(void*g=nullptr,void*b=nullptr,Target*t=nullptr,bool targetless=false):_agentTargetless(targetless){if(g)_globe=g;if(b)_base=b;if(t)_target=t;if(targetless)_target=nullptr;_crafts.push_back(&craft);game.top=this;blit();}
  bool agentDestinationFull()const;std::vector<std::uint64_t>agentPaintRevisions()const;void blit();bool agentUiState(AgentUiState&)const;bool agentDispatch(const AgentRequest&);void btnCancelClick(Action*);void btnGotoBaseClick(Action*);void lstCraftsLeftClick(Action*);
 };
 struct UfoDetectedState {Game game;Game*_game=&game;GeoscapeState geo;GeoscapeState*_state=&geo;Ufo ufo;Ufo*_ufo=&ufo;void btnInterceptClick(Action*);};
@@ -99,6 +99,14 @@ int main(){
   if(eligible){auto*c=dynamic_cast<ConfirmDestinationState*>(t.game.pushed[0]);check(c&&c->_craft==&t.craft&&c->_target==&t.target,"preselected target preserved");}
  }
  {InterceptState t;t._target=nullptr;t.lstCraftsLeftClick(nullptr);check(dynamic_cast<SelectDestinationState*>(t.game.pushed[0])!=nullptr,"ordinary no target branch preserved outside MCP");}
+ {InterceptState t(nullptr,nullptr,nullptr,true);t.list.rows={row};t.go.visible=false;Options::craftLaunchAlways=false;
+  AgentUiState before,after;check(t.agentUiState(before)&&before.context.size()==3&&before.context[2]==1,"explicit constructor targetless mode bound privately");guards(t);
+  ++t.list.revision;check(!t.agentUiState(after),"targetless stale list requires paint");t.blit();check(t.agentUiState(after)&&!before.sameBinding(after),"targetless fresh row binding changes");
+  t._target=&t.target;check(!t.agentUiState(after)&&!t.agentDispatch(req("choose_visible_row","r0")),"targetless cannot become targeted");t._target=nullptr;
+  Surface up;up.x=200;up.y=150;t.list.up=&up;check(t.agentDispatch(req("scroll_visible_list","up"))&&t.list.ups==1,"targetless context3 scroll remains operational");
+  check(t.agentDispatch(req("choose_visible_row","r0")),"targetless visible row dispatched");auto*picker=dynamic_cast<SelectDestinationState*>(t.game.pushed.at(0));check(picker&&picker->craft==&t.craft&&picker->globe==t._globe,"ordinary targetless picker gets selected craft");
+ }
+ {InterceptState t(nullptr,nullptr,nullptr,true);t.list.rows={row};t.craft.status="STR_REPAIRS";Options::craftLaunchAlways=false;check(t.agentDispatch(req("choose_visible_row","r0"))&&t.game.pushed.empty()&&t.game.pops==0,"targetless native not-ready no-op not launch");check(t.agentDispatch(req("cancel_interception"))&&t.game.pops==1,"targetless cancel native pop");}
  ConfirmDestinationState c;check(c.agentUiState(u)&&u.screen=="interception_confirm"&&u.offers("confirm_interception"),"confirmation provider");guards(c);c.ok.covered=true;check(!c.agentDispatch(req("confirm_interception")),"covered confirm denied");c.ok.covered=false;check(c.agentDispatch(req("confirm_interception"))&&c.craft.destination==&c.target&&c.craft.status=="STR_OUT"&&c.game.pops==2,"ordinary target confirmation commit");
  {ConfirmDestinationState t;check(t.agentDispatch(req("cancel_interception_confirmation"))&&t.game.pops==1&&t.craft.destination==nullptr&&t.craft.status=="STR_READY","cancel existing target no mutation");}
  {Waypoint w;ConfirmDestinationState t(nullptr,&w);t.btnOkClick(nullptr);check(w.id==1&&t.game.save.waypoints.size()==1&&t.craft.destination==&w,"new waypoint registers once");}

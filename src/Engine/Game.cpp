@@ -1,3 +1,6 @@
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentSoundPlayback.h"
+#endif
 // Fork modification 2026-10-11: default-off supervised stance pilot; GPL-3.0-or-later.
 /*
  * Copyright 2010-2016 OpenXcom Developers.
@@ -1876,7 +1879,8 @@ void Game::run()
         _stanceController.poll();
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-        _agentAudioEvents.poll(_agentController.enabled());
+        Observer::AgentSoundPlayback::instance().poll(_agentController.enabled());
+        _agentAudioEvents.poll(_agentController.enabled() && !Observer::AgentSoundPlayback::primaryMode());
         _agentController.poll();
 #endif
         // Process rendering
@@ -2280,6 +2284,7 @@ SavedGame *Game::getSavedGame() const
 void Game::setSavedGame(SavedGame *save)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::AgentSoundPlayback::instance().boundary(false);
     _agentController.invalidate(false);
 #endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
@@ -2573,6 +2578,7 @@ void Game::loadEpochLanguages(ResourceEpoch &epoch)
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 void Game::resetAgentAudioEvents(bool resourceReload)
 {
+    Observer::AgentSoundPlayback::instance().boundary(true);
     _agentAudioEvents.beforeAudioReset(resourceReload);
 }
 #endif

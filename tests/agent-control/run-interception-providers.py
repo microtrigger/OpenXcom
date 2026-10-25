@@ -24,6 +24,10 @@ def main():
     paths = [source/('src/Geoscape/'+name+'State.cpp') for name in ('Intercept','ConfirmDestination')]
     ui = source/'src/Observer/AgentUi.cpp'
     fixture = source/'tests/agent-control/InterceptionProvidersTest.cpp'
+    header=(source/'src/Geoscape/InterceptState.h').read_text()
+    native=paths[0].read_text()
+    if 'const bool _agentTargetless;' not in header or '_agentTargetless(target == nullptr)' not in native:
+        raise RuntimeError('constructor mode invariant changed')
     bodies=[]
     for path in paths:
         cls=path.stem
@@ -36,7 +40,7 @@ def main():
     binary = out/'interception-providers'
     cmd = ['c++','-std=c++11','-Wall','-Wextra','-pedantic','-I'+str(out),'-I'+str(source/'src'),str(fixture),'-o',str(binary)]
     cmd += ['-O1','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all'] if a.sanitize else ['-O2']
-    files = paths+[source/'src/Geoscape/UfoDetectedState.cpp',ui,fixture,source/'src/Observer/AgentUi.h',pathlib.Path(__file__).resolve()]
+    files = paths+[source/'src/Geoscape/InterceptState.h',source/'src/Geoscape/UfoDetectedState.cpp',ui,fixture,source/'src/Observer/AgentUi.h',pathlib.Path(__file__).resolve()]
     result = dict(passed=False, live_acceptance=False, game_executed=False, mcp_dispatch_tested=False,
                   coverage='Actual interception providers, four-column projector, dispatch and ordinary handlers with explicit paint/widget/game seams; no final pixels or socket controller',
                   seams=['Widget rendered labels/masks and list rows', 'paint coverage and overlay predicates', 'game ownership', 'ordinary callback counters and quantity deltas'],

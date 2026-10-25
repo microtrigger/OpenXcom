@@ -22,6 +22,9 @@
 #include "../../tests/battle-observer/BattlefieldAudioGate.h"
 #endif
 #include "Sound.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentSoundPlayback.h"
+#endif
 #include "Exception.h"
 #include "Options.h"
 #include "Logger.h"
@@ -84,6 +87,9 @@ void Sound::play(int channel, int angle, int distance) const
 	if (!Options::mute && _sound != 0)
  	{
 		int chan = Mix_PlayChannel(channel, _sound, 0);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        bool positionApplied = false;
+#endif
 		if (chan == -1)
 		{
 			Log(LOG_WARNING) << Mix_GetError();
@@ -94,7 +100,13 @@ void Sound::play(int channel, int angle, int distance) const
 			{
 				Log(LOG_WARNING) << Mix_GetError();
 			}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+            else positionApplied = true;
+#endif
 		}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        Observer::AgentSoundPlayback::instance().observe(_sound, chan, false, positionApplied, angle, distance);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_BATTLEFIELD_AUDIO_GATE
 		BattlefieldAudioGate::played(this, chan);
 #endif
@@ -124,6 +136,9 @@ void Sound::loop()
 		{
 			Log(LOG_WARNING) << Mix_GetError();
 		}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        Observer::AgentSoundPlayback::instance().observe(_sound, chan, true, false, 0, 0);
+#endif
 	}
 }
 

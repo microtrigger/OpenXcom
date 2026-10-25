@@ -11,6 +11,7 @@ namespace {
 void (*production)(void *, Uint8 *, int) = nullptr;
 void *productionContext = nullptr;
 std::atomic<unsigned> produced(0), errors(0);
+Uint8 expectedPcm[64][AgentAudioEvents::WindowBytes];
 bool expected[64], skip = true, nonzero = false;
 unsigned frames = 0, checks = 0;
 Uint8 before[AgentAudioEvents::MaxCallbackBytes];
@@ -31,6 +32,9 @@ void oracle(void *, Uint8 *stream, int len)
         {
             const unsigned left = unsigned(stream[i]) | unsigned(stream[i + 1]) << 8;
             const unsigned right = unsigned(stream[i + 2]) | unsigned(stream[i + 3]) << 8;
+            const unsigned slot = produced.load(std::memory_order_relaxed);
+            if (slot >= 64) { errors.store(2); return; }
+            std::memcpy(expectedPcm[slot] + frames * 4, stream + i, 4);
             nonzero = nonzero || left || right;
             if (++frames != 2205) continue;
             const unsigned index = produced.load(std::memory_order_relaxed);
@@ -76,6 +80,7 @@ void scenario(Mix_Chunk *chunk, unsigned kind)
         {
             check(event.kind == AgentAudioEvents::Event::Window, "no unexpected summary loss");
             check(consumed < produced.load(std::memory_order_acquire), "oracle observed same completed window");
+            check(event.pcmSequence == consumed + 1 && std::memcmp(event.pcm, expectedPcm[consumed], AgentAudioEvents::WindowBytes) == 0, "exact production PCM equals final buffer oracle");
             check(event.nonzero == expected[consumed++], "production summary equals independent final-output oracle");
             check(event.nonzero == (kind == 1), "post-volume/post-effect output fact");
         }

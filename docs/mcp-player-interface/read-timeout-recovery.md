@@ -23,3 +23,9 @@ The response carries no capability, command outcome or UI state. Other generic n
 The private player driver recognizes only the exact read-only classification and offers an explicit recovery-only `observe`/`finish` decision without stale gameplay controls. Other tool errors and every unknown mutation remain terminal. A post-dispatch read failure does not erase its already received dispatch receipt or replay the preceding action. Normal play resumes only from a fresh observation; saving still requires an actually offered save control and ordinary fresh authority.
 
 Focused tests use deterministic packet/clock seams and actual driver/evidence wrappers. A synthetic offered-save dispatch is not proof of persisted game data. Native expiry fixtures and the current build are separately qualified. This feature does not guarantee recovery from a continuously stalled game, successful saving, or a passing full regression suite.
+
+### Correlated expiry received during a normal read
+
+An exact `openxcom-agent-read-error/1` response with reason `read_expired`, matching the current epoch and read challenge, can also produce `read_recovery_required` after a normal read exchange. The response has already been consumed and validated; the private pending context marks that fact. An explicit subsequent observation does **not** drain or wait for that response again: it sends one fresh read with a different challenge under the same existing recovery budget. The complete-handshake and empty-or-all-dispatched ledger restrictions still apply. The expired read grants no semantic authority.
+
+Malformed, uncorrelated, generic, extra or duplicate packets remain fail-closed. Another expiry during the fresh recovery read is terminal, not recursive recovery. No action is replayed and no transport timeout is increased. This addresses a source-proven contract gap; it does not identify the unrecorded response responsible for the earlier restored-session read60 failure.

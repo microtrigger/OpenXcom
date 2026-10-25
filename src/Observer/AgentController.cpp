@@ -3,6 +3,7 @@
 #include "AgentController.h"
 #include "DiagnosticProfile.h"
 #include "AgentAudioEvents.h"
+#include "AgentSoundPlayback.h"
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
 #include "../../tests/agent-report-fixture/AgentReportFixture.h"
 #endif
@@ -73,7 +74,7 @@ AgentController::AgentController(Game *game) : _game(game)
     _fixtureHelloSent = true;
 #endif
     sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
-        ",\"ledger_capacity\":256,\"audio_history\":\"mixed_output\"}");
+        ",\"ledger_capacity\":256,\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\"}");
 }
 AgentController::~AgentController() { close(); }
 void AgentController::close()
@@ -97,6 +98,7 @@ bool AgentController::focused() const
 }
 void AgentController::invalidate(bool publicChange)
 {
+    AgentSoundPlayback::instance().invalidateCamera();
     _capability.clear(); _boundTop = 0;
     if (++_generation == 0) close();
     if (publicChange && ++_revision >= 9007199254740992ULL) close();
@@ -172,28 +174,43 @@ void AgentController::eventPage(const AgentRequest &request)
     if (!_publicEvents.read(request.epoch, request.after, request.limit, page)) { unavailable(); return; }
     std::string packet = agentEnvelope() + ",\"type\":\"events\",\"challenge\":" +
         agentJsonString(request.challenge) + ",\"epoch\":" + agentJsonString(_epoch) +
-        ",\"audio_history\":\"mixed_output\",\"audio_status\":" +
-        agentJsonString(audioStatusName(_game->agentAudioEvents().status())) + ",\"after\":" + std::to_string(request.after) +
+        ",\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\",\"audio_status\":" +
+        agentJsonString(AgentSoundPlayback::primaryMode() ? "unavailable" : audioStatusName(_game->agentAudioEvents().status())) + ",\"after\":" + std::to_string(request.after) +
         ",\"oldest\":" + std::to_string(page.oldest) + ",\"newest\":" + std::to_string(page.newest) +
         ",\"next_cursor\":" + std::to_string(page.next) + ",\"gap\":" + (page.gap ? "true" : "false") +
         ",\"events\":[";
     for (std::size_t i = 0; i < page.events.size(); ++i)
     { if (i) packet += ","; packet += page.events[i].json; }
-    sendPacket(packet + "]}");
+    sendPacket(packet + "],\"sound_playback\":" + AgentSoundPlayback::instance().currentJson() + "}");
 }
 void AgentController::drainAudioEvents()
 {
+    AgentSoundPlayback::Event sound;
+    for (unsigned i=0;i<66 && AgentSoundPlayback::instance().take(sound);++i)
+        if (!_publicEvents.append(AgentSoundPlayback::eventBody(sound))) { close(); return; }
+    if (AgentSoundPlayback::primaryMode()) return;
     AgentAudioEvents::Event event;
     // Independent of R/V request frequency. Audio has no control authority.
     for (unsigned i = 0; i < 64 && _game->agentAudioEvents().take(event); ++i)
     {
+        // Main-thread encoding only; callback retains fixed postmix bytes, no metadata.
+        std::string pcmHex;
+        if (event.kind == AgentAudioEvents::Event::Window)
+        {
+            static const char digits[] = "0123456789abcdef";
+            pcmHex.reserve(AgentAudioEvents::WindowBytes * 2);
+            for (unsigned i = 0; i < AgentAudioEvents::WindowBytes; ++i)
+            { pcmHex += digits[event.pcm[i] >> 4]; pcmHex += digits[event.pcm[i] & 15]; }
+        }
         const std::string body = event.kind == AgentAudioEvents::Event::Status ?
             "\"kind\":\"audio_status\",\"status\":" + agentJsonString(audioStatusName(event.state)) +
                 ",\"partial_window_discarded\":" + (event.partialWindowDiscarded ? "true" : "false") :
             event.kind == AgentAudioEvents::Event::Gap ?
                 "\"kind\":\"audio_gap\",\"dropped_windows\":" + std::to_string(event.droppedWindows) :
                 std::string("\"kind\":\"audio_output\",\"duration_ms\":100,\"nonzero\":") +
-                    (event.nonzero ? "true" : "false") + ",\"source\":null,\"sound\":null,\"position\":null";
+                    (event.nonzero ? "true" : "false") + ",\"source\":null,\"sound\":null,\"position\":null" +
+                    ",\"pcm_sequence\":" + std::to_string(event.pcmSequence) +
+                    ",\"profile\":\"s16le-stereo-22050\",\"pcm_hex\":\"" + pcmHex + "\"";
         if (!_publicEvents.append(body)) { close(); return; }
     }
 }
@@ -206,7 +223,7 @@ void AgentController::poll()
     {
         _fixtureHelloSent = true;
         if (!sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
-            ",\"ledger_capacity\":256,\"audio_history\":\"mixed_output\"}")) return;
+            ",\"ledger_capacity\":256,\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\"}")) return;
     }
 #endif
     drainAudioEvents();
@@ -349,6 +366,7 @@ void AgentController::presented()
     if (_frameTop != _game->agentTopState() || _frameGeneration != _generation || !sample(ui))
     { invalidate(); rejectQueued(); return; }
     if (++_presentationSerial == 0) { close(); return; }
+    AgentSoundPlayback::instance().camera(ui.publicCameraKnown, ui.publicCamera.x, ui.publicCamera.y, ui.publicCamera.width, ui.publicCamera.height, _presentationSerial, ui.publicCameraRevision);
     const std::string publicState = ui.payload();
     if (publicState != _lastPublic)
     {

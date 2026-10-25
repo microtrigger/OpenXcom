@@ -53,6 +53,9 @@ private:
 	Base *_base;
 	Target *_target;
 	std::vector<Craft*> _crafts;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    const bool _agentTargetless; // Constructor mode, never inferred from a later missing target.
+#endif
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     void blit() override;

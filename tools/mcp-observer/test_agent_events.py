@@ -33,7 +33,7 @@ def presentation(seq=1,screen='battlescape'):
 
 
 def audio(seq=1,nonzero=True):
-    return dict(seq=seq,kind='audio_output',duration_ms=100,nonzero=nonzero,source=None,sound=None,position=None)
+    return dict(seq=seq,kind='audio_output',duration_ms=100,nonzero=nonzero,source=None,sound=None,position=None,pcm_sequence=seq,profile='s16le-stereo-22050',pcm_hex=('0100'+'0000'*4409) if nonzero else '0000'*4410)
 
 
 def page(events=(),after=0,newest=None,history='mixed_output',challenge=CHALLENGE):
@@ -41,6 +41,7 @@ def page(events=(),after=0,newest=None,history='mixed_output',challenge=CHALLENG
     oldest=max(1,newest-a.EVENT_CAPACITY+1)
     return dict(schema=a.SCHEMA,mode=a.MODE,type='events',challenge=challenge,epoch=EPOCH,audio_history=history,
         audio_status='active' if history=='mixed_output' else 'unavailable',
+        sound_playback=dict(playback_epoch=0,status='inactive'),
         after=after,oldest=oldest,newest=newest,next_cursor=events[-1]['seq'] if events else after,
         gap=after+1<oldest,events=events)
 

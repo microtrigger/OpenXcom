@@ -541,6 +541,8 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 		const std::string label = Observer::agentButtonLabel(buttons[i]);
 		if (label.empty() || !includeDisjoint(buttons[i])) continue;
 		out.widgets.push_back(std::make_pair(buttons[i], buttons[i]->agentSelectionRevision()));
+		if (buttons[i] == _btnIntercept)
+			out.actions.push_back(Observer::AgentUiAction("open_interception", label, "visible_text"));
 		if (buttons[i] == _btnBases)
 			out.actions.push_back(Observer::AgentUiAction("open_bases", label, "visible_text"));
 		if (buttons[i] == _btnOptions)
@@ -563,6 +565,7 @@ bool GeoscapeState::agentDispatch(const std::string &action)
 	Observer::AgentUiState current;
 	if (!agentUiState(current) || !current.offers(action)) return false;
 	if (action == "open_funding") { btnFundingClick(nullptr); return true; }
+	if (action == "open_interception") { btnInterceptClick(nullptr); return true; }
 	if (action == "open_bases") { btnBasesClick(nullptr); return true; }
 	if (action == "open_pause_menu") { btnOptionsClick(nullptr); return true; }
 	return false;

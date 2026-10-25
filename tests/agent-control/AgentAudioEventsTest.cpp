@@ -75,8 +75,11 @@ int main()
         }
         check(bytes == original, "postmix input unchanged");
         check(audio.take(event) && event.kind == AgentAudioEvents::Event::Window && event.nonzero, "first digital-nonzero window");
+        check(event.pcmSequence == 1 && std::memcmp(event.pcm, original.data() + window * 0, window) == 0, "exact immutable PCM and sequence");
         check(audio.take(event) && event.kind == AgentAudioEvents::Event::Window && !event.nonzero, "second exact digital-zero window");
+        check(event.pcmSequence == 2 && std::memcmp(event.pcm, original.data() + window * 1, window) == 0, "exact immutable PCM and sequence");
         check(audio.take(event) && event.kind == AgentAudioEvents::Event::Window && event.nonzero, "third digital-nonzero window");
+        check(event.pcmSequence == 3 && std::memcmp(event.pcm, original.data() + window * 2, window) == 0, "exact immutable PCM and sequence");
         check(!audio.take(event), "partial window not emitted");
         const unsigned before = detaches;
         audio.beforeAudioReset(true);
@@ -134,6 +137,7 @@ int main()
         check(!audio.take(event), "overflow gap emitted once");
         feedWindows(1, true);
         check(audio.take(event) && event.kind == AgentAudioEvents::Event::Window && event.nonzero, "capture continues after gap");
+        check(event.pcmSequence == AgentAudioEvents::RingCapacity + 8 && event.pcm[AgentAudioEvents::WindowBytes-1] == 0x80, "sequence spans dropped windows and PCM retained");
         check(!audio.take(event), "no false gap after recovery");
     }
     {

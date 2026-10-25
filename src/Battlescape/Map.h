@@ -116,6 +116,7 @@ public:
     // Draw provenance only. The owning state must additionally qualify final
     // presentation and later overlays before exporting this viewport.
     bool agentMapSnapshot(AgentMapSnapshot &out) const;
+    std::uint64_t agentPaintedViewRevision() const { return _agentDrawViewRevision; }
     Observer::AgentProjectileFact agentProjectileFact(const Screen *screen,
         const std::function<bool(int, int)> &pixelAdmitted,
         Observer::AgentRendererRole role = Observer::AgentRendererRole::Projectile) const;

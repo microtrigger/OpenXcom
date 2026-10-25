@@ -1,0 +1,15 @@
+# Retained public audio
+
+Agent control retains actual 100 ms game mixed-output PCM windows from its sole existing SDL_mixer postmix callback. The supported internal format is signed16 little-endian stereo at22050Hz as checked by Mix_QuerySpec; a44100Hz output device does not change that internal contract. There is no second mixer hook and no source-callsite identity attribution.
+
+Native audio_output records add required pcm_sequence, profile and pcm_hex fields. The exact100ms payload is8820bytes/17640lowercase hex characters; nonzero agrees with the bytes. PCM sequence gaps disclose lost windows independently of public event-ring gaps. Old records missing these fields fail closed. Audio-status reset/partial-discard boundaries are not joined. The retained event count remains256 and a native page remains byte-bounded; at most two PCM records fit in an ordinary page.
+
+`read_public_events` returns metadata without raw pcm_hex. `read_public_audio(epoch,after,limit)` uses the same exclusive event cursor and returns canonical WAV MCP AudioContent alongside metadata. Limit is1..8 windows, at most800ms; up to eight native pages are visited without sleeps, stopping at the first page's newest cutoff. Deferred backlog and expired-history gaps are explicit. At most eight existing2s native exchanges can be attempted (not a2s total-tool latency promise); failures retain the existing fail-closed behavior. No gameplay action, command-ledger entry, capability refresh or grant consumption is performed.
+
+Segments concatenate only sequential PCM windows and split at gaps or audio-status events. The beginning of a read has unknown prior continuity; callers must compare sequence ranges before carrying signal history across reads. No sound is inferred in missing history. Sequence/sample order is not a video timestamp, trace receipt time or proof of physical speaker audibility.
+
+Raw PCM, playback, metadata and interpretation are distinct. MCP AudioContent must reach a supported listener or a separately qualified local waveform classifier to inform decisions. A saved clip or nonzero=true alone is not perception. A classifier may report conservative acoustic-template hints/confidence or unknown; it must not turn them into hidden source/actor/location, hit, death or hostile-identity claims. A mute/silent clip must not be called a sound; unavailable/pending history must not be presented as complete hearing. Visible renderer episodes and sound similarity have no automatic causal association.
+
+## Bounded page budget
+
+`read_public_audio` accepts optional `page_budget` (integer 1–8, default 8). Required epoch/after/limit and response shape are unchanged. A budget of one issues at most one existing native event-page exchange; deferred history remains explicit. This does not change a per-RPC timeout or guarantee a filesystem/CPU wall-time bound. Consumers can preserve a bounded short history instead of treating every deferred page as stale; skipped history must remain an explicit gap, never silence. Read observation timestamps are not sample emission or action timestamps.

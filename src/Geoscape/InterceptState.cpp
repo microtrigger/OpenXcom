@@ -48,6 +48,9 @@ namespace OpenXcom
  * @param target Pointer to target to intercept (NULL to ask user for target).
  */
 InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _globe(globe), _base(base), _target(target)
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    , _agentTargetless(target == nullptr)
+#endif
 {
 	_screen = false;
 
@@ -243,7 +246,7 @@ void InterceptState::blit()
 bool InterceptState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (!_game->isState(const_cast<InterceptState *>(this)) || _modal || !_target || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentDestinationFull() ||
+    if (!_game->isState(const_cast<InterceptState *>(this)) || _modal || (_agentTargetless != (_target == nullptr)) || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentDestinationFull() ||
         _agentStoredPaintRevisions != agentPaintRevisions()) return false;
     out = AgentUiState(); out.actor = _base; out.save = _target;
     const auto painted = agentFlattenPaintOrder(_surfaces);
@@ -278,7 +281,7 @@ bool InterceptState::agentUiState(Observer::AgentUiState &out) const
     button(_btnGotoBase,"base","open_intercept_base"); buttons+="]";
     AgentListProjection list;
     if (!agentProjectInterceptList(_lstCrafts,_lstCrafts,painted,out,list,allowed)) return false;
-    out.context={list.up?1u:0u,list.down?1u:0u};
+    out.context={list.up?1u:0u,list.down?1u:0u,_agentTargetless?1u:0u};
     out.visible="{\"title\":"+title+",\"headings\":["+craft+","+status+","+base+","+weapons+"],\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+buttons+"}";
     if (!out.rows.empty()) out.actions.emplace_back("choose_visible_row","Choose visible row","visible_control_semantics","visible_row");
     if (list.up || list.down) out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
@@ -290,7 +293,7 @@ bool InterceptState::agentDispatch(const Observer::AgentRequest &request)
     if (!agentUiState(current) || !current.offers(request.action)) return false;
     if (request.action=="cancel_interception") { btnCancelClick(nullptr); return true; }
     if (request.action=="open_intercept_base") { btnGotoBaseClick(nullptr); return true; }
-    if (request.action=="scroll_visible_list" && current.context.size()==2) {
+    if (request.action=="scroll_visible_list" && current.context.size()==3) {
         if (request.choice=="up" && current.context[0]) { _lstCrafts->scrollUp(false,false); return true; }
         if (request.choice=="down" && current.context[1]) { _lstCrafts->scrollDown(false,false); return true; }
     }

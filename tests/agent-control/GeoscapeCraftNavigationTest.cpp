@@ -141,6 +141,7 @@ int main(int argc,char **argv){
  check(!state.agentUiState(ui),"prepaint rejected");state.blit();check(!state.agentUiState(ui),"animation rejected");state.finishPopup();state.blit();
  check(state.agentUiState(ui)&&ui.screen=="geoscape_craft_navigation","actual constructor admitted");
  check(ui.actions.size()==2&&ui.offers("cancel_craft_navigation")&&ui.offers("open_craft_destination"),"target and ordinary cancel exposed");
+ std::cout << "NATIVE_NAVIGATION_PAYLOAD " << "{" << ui.payload() << "}" << "\n";
  auto visible=YAML::Load(ui.visible);check(visible.size()==4&&visible["redirect"].IsNull()&&visible["title"].as<std::string>()=="VISIBLE CRAFT"&&visible["buttons"].size()==2&&visible["buttons"][0]["id"].as<std::string>()=="target"&&visible["buttons"][1]["id"].as<std::string>()=="cancel","exact UI DTO");
  craft.name="UNDISPLAYED MODEL";check(state.agentUiState(ui)&&YAML::Load(ui.visible)["title"].as<std::string>()=="VISIBLE CRAFT","no model reconstruction");
  game.cursorVisible=true;game.cursor={33,21,4,4};check(state.agentUiState(ui)&&ui.offers("cancel_craft_navigation"),"caption cursor ignored");game.cursor={23,173,4,4};request.action="cancel_craft_navigation";check(!state.agentDispatch(request)&&game.pops==0,"button cursor refusal");game.cursorVisible=false;
@@ -176,6 +177,7 @@ int main(int argc,char **argv){
    auto*wp=new Fixture::Waypoint;const int deleted=Fixture::waypointDeletes, pops=game.pops, pushes=game.pushes, ids=game.save.idCalls;
    Fixture::GeoscapeCraftState modal(&rc,&globe,wp);game.top=&modal;modal.finishPopup();modal.blit();
    bool admitted=modal.agentUiState(ui);std::cerr<<"REDIRECT_DIAG admitted="<<admitted<<" actions=";for(const auto&a:ui.actions)std::cerr<<a.id<<",";std::cerr<<" base="<<modal._btnBase->getX()<<","<<modal._btnBase->getY()<<","<<modal._btnBase->getWidth()<<","<<modal._btnBase->getHeight()<<" redirect="<<modal._txtRedirect->getX()<<","<<modal._txtRedirect->getY()<<","<<modal._txtRedirect->getWidth()<<","<<modal._txtRedirect->getHeight()<<"\n";check(admitted&&ui.actions.size()==4,"redirect constructor four visible choices");
+ std::cout << "NATIVE_NAVIGATION_PAYLOAD " << "{" << ui.payload() << "}" << "\n";
    bool baseRegion=false;for(const auto&r:ui.regions)if(r.x==22&&r.y==125&&r.width==212&&r.height==11)baseRegion=true;check(baseRegion,"Base control admitted only in actual unobscured eleven-pixel hitbox");
    Surface interior(2,2,23,125);interior.setPalette(palette);interior.clear(80);modal._surfaces.push_back(&interior);modal.blit();check(modal.agentUiState(ui)&&!ui.offers("return_craft_to_base"),"remaining Base interior overlay withholds action");modal._surfaces.pop_back();modal.blit();
    game.cursorVisible=true;game.cursor={23,125,2,2};check(modal.agentUiState(ui)&&!ui.offers("return_craft_to_base"),"remaining Base cursor overlap withholds action");game.cursorVisible=false;

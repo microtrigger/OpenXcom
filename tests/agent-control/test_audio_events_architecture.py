@@ -21,7 +21,7 @@ class AudioEventsArchitectureTest(unittest.TestCase):
         self.assertIn('FramesPerWindow = 2205', h)
         self.assertIn('FrameBytes = 4', h)
         self.assertIn('RingCapacity = 32', h)
-        self.assertIn('struct Summary { std::uint64_t sequence; bool nonzero; };', h)
+        self.assertIn('struct Summary { std::uint64_t sequence; bool nonzero; Uint8 pcm[WindowBytes]; };', h)
         for forbidden in ('BattleUnit', 'Position', 'Sound *', 'Music *', 'channelId', 'timestamp'):
             self.assertNotIn(forbidden, h)
     def test_qualification_and_single_owner(self):

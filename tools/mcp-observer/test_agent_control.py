@@ -27,6 +27,7 @@ def dump(obj):
 
 def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence=1, screen='battlescape'):
     visible = dict(selected_name='Jane', time_units=58, energy=62, health=33, morale=100, kneel_indicator='standing')
+    visible['input_context'] = dict(mode='normal', selected_action='none', cursor='normal')
     visible['tactical'] = dict(mode='map', viewport=dict(x=0, y=0, width=320, height=140),
         message=None, view_level=None, grid=[dict(handle=f'g{i}',
             polygon=[dict(x=i*20,y=0),dict(x=i*20+16,y=0),dict(x=i*20+16,y=16),dict(x=i*20,y=16)],
@@ -79,7 +80,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         visible = {field: field.title() for field in a.GEOSCAPE_FIELDS}
         visible['buttons'] = [dict(id=value, label=value.title()) for value in a.GEOSCAPE_BUTTONS]
         visible.update(speed=None, speeds=[])
-        ids = ['open_funding']
+        ids = ['open_funding','open_interception']
     elif screen in ('basescape', 'base_info'):
         visible = dict(base_name='Base',base_slots=[dict(handle='b0',selected=True),dict(handle='b1',selected=False)],
                        buttons=[dict(id=key,label=key.title()) for key in a.BASE_BUTTONS[screen]])
@@ -233,7 +234,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         if screen=='purchase_category' and action in ('choose_visible_row','scroll_visible_list','close_dropdown'):
             return {'choose_visible_row':'Choose visible row','scroll_visible_list':'Scroll visible list','close_dropdown':'Close choices'}[action]
         if action == 'select_base': return 'Select base'
-        mapping = ({'open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if screen=='geoscape'
+        mapping = ({'open_interception':'intercept','open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if screen=='geoscape'
                    else a.BASE_BUTTON_ACTIONS.get(screen,a.PROJECT_BUTTON_ACTIONS.get(screen,{})))
         if screen=='new_research' and action=='select_research_project':return 'Select research project'
         if action==a.PROJECT_SELECTION_ACTIONS.get(screen):return visible['rows'][0]['cells'][0]
@@ -404,6 +405,7 @@ class NativeFixture:
                         obj = dict(schema=a.SCHEMA, mode=a.MODE, type='events', challenge=challenge, epoch=epoch,
                             audio_history=self.hello['audio_history'],
                             audio_status=self.audio_status if self.hello['audio_history']=='mixed_output' else 'unavailable',
+                            sound_playback=getattr(self,'sound_playback',dict(playback_epoch=0,status='inactive')),
                             after=after, oldest=oldest, newest=newest,
                             next_cursor=events[-1]['seq'] if events else after, gap=after+1<oldest, events=events)
                 elif command[0] == 'S' and len(command) == 2:
@@ -564,7 +566,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 176); self.assertEqual(len(a.STATE_ACTIONS), 78)
+        self.assertEqual(len(a.ACTIONS), 177); self.assertEqual(len(a.STATE_ACTIONS), 78)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -615,7 +617,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 176)
+        self.assertEqual(len(a.ACTIONS), 177)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
@@ -745,7 +747,7 @@ class TypedValidationTests(unittest.TestCase):
 
     def test_geoscape_funding_only_visible_labels_no_hidden_model(self):
         obj = state(screen='geoscape'); a.validate_state(obj, CHALLENGE, EPOCH)
-        self.assertEqual([item['id'] for item in obj['actions']], ['open_funding'])
+        self.assertEqual([item['id'] for item in obj['actions']], ['open_funding','open_interception'])
         cases = []
         for key, value in (('hour', 3), ('seconds_elapsed', 99), ('ufos', []), ('bases', []), ('time_paused', True)):
             changed = copy.deepcopy(obj); changed['visible'][key] = value; cases.append(changed)
@@ -1096,7 +1098,7 @@ class TypedClientTests(unittest.TestCase):
         for index, (action, args, destination) in enumerate(sequence):
             receipt = native.client.execute(**arguments(native.client.observe(), command_id=f'{index:032x}', action=action, args=args))
             self.assertEqual(receipt['observation']['state'], destination)
-        final = native.client.observe(); self.assertEqual([item['id'] for item in final['actions']], ['open_funding'])
+        final = native.client.observe(); self.assertEqual([item['id'] for item in final['actions']], ['open_funding','open_interception'])
         count = len(native.requests)
         with self.assertRaises(Unavailable): native.client.execute(**arguments(action='open_pause_menu'))
         self.assertEqual(len(native.requests), count)
@@ -1136,7 +1138,7 @@ class TypedClientTests(unittest.TestCase):
         native = self.fixture(screen='geoscape'); server = adapter.Server(agent_control=native.client)
         output = call(server, 'read_ui_state')['result']
         self.assertEqual([item['type'] for item in output['content']], ['text'])
-        self.assertEqual([item['id'] for item in output['structuredContent']['actions']], ['open_funding'])
+        self.assertEqual([item['id'] for item in output['structuredContent']['actions']], ['open_funding','open_interception'])
 
 
 class ListValidationTests(unittest.TestCase):

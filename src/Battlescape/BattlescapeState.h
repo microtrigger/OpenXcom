@@ -63,6 +63,7 @@ private:
     bool _agentShownKneeled = false;
     std::uint64_t _agentUiRevision = 0;
     bool _agentEnemyPainted[10] = {};
+    std::string agentInputContext(bool mapAvailable) const;
     std::string agentViewportControls(Observer::AgentUiState &out) const;
     bool agentViewportDispatch(const Observer::AgentRequest &request, const Observer::AgentUiState &shown);
 #endif

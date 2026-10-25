@@ -390,7 +390,7 @@ class Server:
                                           self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled,
                                           self.supervised_inventory_unload_enabled, self.agent_control is not None)}
         elif (method == 'tools/call' and self.agent_control is not None
-                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events')):
+                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio')):
             from agent_control import token, validate_action_arguments, validate_event_arguments
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
@@ -401,6 +401,9 @@ class Server:
                     validate_action_arguments(arguments)
                 elif params['name'] == 'read_public_events':
                     validate_event_arguments(arguments)
+                elif params['name'] == 'read_public_audio':
+                    from public_audio import validate_arguments
+                    validate_arguments(arguments)
                 elif params['name'] == 'read_ui_action_result':
                     exact(arguments, 'command_id'); token(arguments['command_id'])
                 else:
@@ -501,7 +504,11 @@ class Server:
             elif name == 'execute_ui_action':
                 obj = self.agent_control.execute(**arguments)
             elif name == 'read_public_events':
-                obj = self.agent_control.read_events(**arguments)
+                from public_audio import metadata_page
+                obj = metadata_page(self.agent_control.read_events(**arguments))
+            elif name == 'read_public_audio':
+                from public_audio import read_audio
+                return read_audio(self.agent_control, **arguments)
             else:
                 obj = self.agent_control.read_result(**arguments)
             if name in ('execute_ui_action', 'read_ui_action_result') and obj.get('status') in ('unavailable', 'unknown_after_dispatch', 'unknown'):

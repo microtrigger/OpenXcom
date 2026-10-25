@@ -2779,6 +2779,12 @@ std::string agentTacticalJson(const Map *map, const Game *game, const std::vecto
         ui.thrownItemFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::ThrownItem);
         ui.largeExplosionFact = map->agentProjectileFact(game->getScreen(), admitted, Observer::AgentRendererRole::LargeExplosion);
     }
+    if (!view.hiddenMovement)
+    {
+        ui.publicCameraKnown = true;
+        ui.publicCamera = {view.x, view.y, view.width, view.height};
+        ui.publicCameraRevision = map->agentPaintedViewRevision();
+    }
     return std::string("{\"mode\":\"") + (view.hiddenMovement ? "hidden_movement" : "map") +
         "\",\"viewport\":{\"x\":" + std::to_string(view.x) + ",\"y\":" + std::to_string(view.y) +
         ",\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +
@@ -2843,6 +2849,49 @@ bool BattlescapeState::agentViewportDispatch(const Observer::AgentRequest &reque
         return !_isMouseScrolling && !_isMouseScrolled && _map->getCamera()->agentScrollStep(request.choice);
     else return false;
     return true;
+}
+// Public meaning of ordinary map input, not a promise of movement or hit.
+// Only the selected player's current control is disclosed; no target/weapon data.
+std::string BattlescapeState::agentInputContext(bool mapAvailable) const
+{
+    const std::string unavailable = "{\"mode\":\"unavailable\",\"selected_action\":null,\"cursor\":null}";
+    if (!mapAvailable || _save->getDebugMode() || _save->getSide() != FACTION_PLAYER)
+        return unavailable;
+    BattleUnit *selected = _save->getSelectedUnit();
+    const BattleAction *current = _battleGame->getCurrentAction();
+    if (!selected || selected->getFaction() != FACTION_PLAYER || current->actor != selected)
+        return unavailable;
+    if (_battleGame->isBusy())
+        return "{\"mode\":\"busy\",\"selected_action\":null,\"cursor\":null}";
+    const char *action = "none";
+    if (current->targeting)
+    {
+        switch (current->type)
+        {
+        case BA_SNAPSHOT: action = "snap"; break;
+        case BA_AIMEDSHOT: action = "aimed"; break;
+        case BA_AUTOSHOT: action = "auto"; break;
+        case BA_THROW: action = "throw"; break;
+        case BA_LAUNCH: action = "launch"; break;
+        case BA_PANIC: action = "psi_panic"; break;
+        case BA_MINDCONTROL: action = "psi_control"; break;
+        case BA_USE: action = "use"; break;
+        default: action = "other"; break;
+        }
+    }
+    const char *cursor = "other";
+    switch (_map->getCursorType())
+    {
+    case CT_NORMAL: cursor = "normal"; break;
+    case CT_AIM: cursor = "aim"; break;
+    case CT_THROW: cursor = "throw"; break;
+    case CT_WAYPOINT: cursor = "waypoint"; break;
+    case CT_PSI: cursor = "psi"; break;
+    case CT_NONE: cursor = "none"; break;
+    default: break;
+    }
+    return std::string("{\"mode\":\"") + (current->targeting ? "targeting" : "normal") +
+        "\",\"selected_action\":\"" + action + "\",\"cursor\":\"" + cursor + "\"}";
 }
 bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
 {
@@ -2911,6 +2960,8 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         out.regions.insert(out.regions.end(), region.begin(), region.end());
     }
     out.visible += "],\"focus_target\":" + focus + "}";
+    out.visible.pop_back();
+    out.visible += ",\"input_context\":" + agentInputContext(tactical.find("{\"mode\":\"map\",") == 0) + "}";
     out.controlVisible = out.visible;
     out.controlVisible.pop_back(); out.controlVisible += ",\"map_context\":" + mapContext + "}";
     out.visible.pop_back(); out.visible += ",\"tactical\":" + tactical + "}";

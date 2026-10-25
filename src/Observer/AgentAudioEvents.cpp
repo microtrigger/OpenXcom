@@ -88,6 +88,7 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
         // source reconstruction, playback request, or game identity is read.
         for (unsigned i = 0; !_partialNonzero && i < count; ++i)
             if (stream[offset + i]) _partialNonzero = true;
+        std::memcpy(_partialPcm + _partialBytes, stream + offset, count);
         _partialBytes += count;
         offset += count;
         if (_partialBytes != windowBytes) continue;
@@ -98,7 +99,9 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
         const unsigned next = (write + 1) % Slots;
         if (next != _read.load(std::memory_order_acquire))
         {
-            _ring[write] = {_sequence, _partialNonzero};
+            _ring[write].sequence = _sequence;
+            _ring[write].nonzero = _partialNonzero;
+            std::memcpy(_ring[write].pcm, _partialPcm, WindowBytes);
             _write.store(next, std::memory_order_release);
         }
         // Publish after the optional ring write. When the ring is full this
@@ -169,6 +172,8 @@ bool AgentAudioEvents::take(Event &event)
     if (summary.sequence != _expected)
     { _failed.store(1, std::memory_order_release); return false; }
     event.nonzero = summary.nonzero;
+    event.pcmSequence = summary.sequence;
+    std::memcpy(event.pcm, summary.pcm, WindowBytes);
     _expected = summary.sequence + 1;
     return true;
 }

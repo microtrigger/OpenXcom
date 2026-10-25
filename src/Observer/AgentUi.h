@@ -23,6 +23,10 @@ struct AgentUiState {
     std::string screen = "unsupported", visible = "{}";
     // Public logical-canvas cursor only; no desktop coordinates or world state.
     std::string cursor = "null";
+    // Already-admitted public viewport, copied only after successful presentation.
+    bool publicCameraKnown = false;
+    AgentUiRect publicCamera = {0,0,0,0};
+    std::uint64_t publicCameraRevision = 0;
     // Read-only tactical presentation is not an action target in /5.
     // A provider may bind control authority to its separate visible controls.
     std::string controlVisible;
