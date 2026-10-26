@@ -543,12 +543,10 @@ bool MonthlyReportState::agentUiState(Observer::AgentUiState &out) const
         buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
         out.actions.emplace_back(action, label, "visible_text");
     };
-    // Only the normal report control is admitted. The similarly labelled
-    // large failure-panel button is a separate, unimplemented continuation.
-    // Use current widget mode, never private _gameOver for admission.
-    out.widgets.emplace_back(_btnBigOk, _btnBigOk->agentPresentationRevision());
-    out.widgets.emplace_back(_btnBigOk, _btnBigOk->agentLabelRevision());
-    if (!_btnBigOk->getVisible() && !_txtFailure->getVisible())
+    // Distinct native continuation, admitted by painted widget mode only.
+    if (_btnBigOk->getVisible() && !_btnOk->getVisible())
+        button(_btnBigOk, "failure_ok", "acknowledge_monthly_failure");
+    else if (!_btnBigOk->getVisible() && !_txtFailure->getVisible())
         button(_btnOk, "ok", "acknowledge_monthly_report");
     buttons += "]";
     out.visible = "{\"title\":" + title + ",\"month\":" + month + ",\"rating\":" + rating + ",\"income\":" + income + ",\"maintenance\":" + maintenance + ",\"balance\":" + balance + ",\"description\":" + description + ",\"failure\":" + failure + ",\"buttons\":" + buttons + "}";
@@ -564,7 +562,7 @@ bool MonthlyReportState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
-    if (request.action == "acknowledge_monthly_report") { btnOkClick(nullptr); return true; }
+    if (request.action == "acknowledge_monthly_report" || request.action == "acknowledge_monthly_failure") { btnOkClick(nullptr); return true; }
     return false;
 }
 #endif

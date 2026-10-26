@@ -33,6 +33,13 @@ class Timer;
 class SlideshowState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::uint64_t _agentSlideRevision = 0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	const SlideshowHeader &_slideshowHeader;
 	const std::vector<SlideshowSlide> *_slideshowSlides;
 	bool _wasLetterboxed;
@@ -41,6 +48,11 @@ private:
 	int _curScreen;
 	Timer *_transitionTimer;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Slideshow state.
 	SlideshowState(const SlideshowHeader &slideshowHeader, const std::vector<SlideshowSlide> *slideshowRule);
 	/// Cleans up the Slideshow state.

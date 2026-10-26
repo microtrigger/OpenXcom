@@ -37,7 +37,7 @@ class MonthlyReportTests(unittest.TestCase):
             with self.assertRaises(Unavailable): self.checked(candidate)
 
     def test_explicit_choices_require_own_shown_button_and_exact_label(self):
-        for action, button in a.INTERCEPTION_BUTTON_ACTIONS['monthly_report'].items():
+        for action, button in {'acknowledge_monthly_report':'ok'}.items():
             obj = state(screen='monthly_report')
             obj['visible']['buttons'] = [b for b in obj['visible']['buttons'] if b['id'] != button]
             with self.assertRaises(Unavailable): self.checked(obj)

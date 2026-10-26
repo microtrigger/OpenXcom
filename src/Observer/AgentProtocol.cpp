@@ -65,7 +65,7 @@ bool agentActionId(const std::string &value)
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
         value == "dismiss_production_complete" || value == "open_production_destination" ||
-        value == "accept_landing_begin_mission" || value == "decline_landing_return_to_base" || value == "toggle_psi_training" || value == "close_psi_training_allocation" || value == "close_psi_training" || value == "close_commendations" || value == "acknowledge_lost_in_service" || value == "close_promotions" || value == "acknowledge_alien_base_discovery" || value == "acknowledge_ufo_lost" || value == "acknowledge_monthly_report" || value == "acknowledge_craft_error" || value == "acknowledge_craft_error_5_seconds" ||
+        value == "accept_landing_begin_mission" || value == "decline_landing_return_to_base" || value == "toggle_psi_training" || value == "close_psi_training_allocation" || value == "close_psi_training" || value == "close_commendations" || value == "acknowledge_lost_in_service" || value == "close_promotions" || value == "acknowledge_alien_base_discovery" || value == "acknowledge_ufo_lost" || value == "acknowledge_monthly_report" || value == "acknowledge_monthly_failure" || value == "advance_slideshow" || value == "close_statistics" || value == "acknowledge_craft_error" || value == "acknowledge_craft_error_5_seconds" ||
         value == "open_craft_destination" || value == "cancel_craft_destination" ||
         value == "redirect_patrolling_craft" || value == "cancel_craft_navigation" || value == "return_craft_to_base" ||
         value == "patrol_craft_current_position" || value == "go_to_craft_last_known_position" ||

@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -16,6 +17,7 @@ def main():
     parser.add_argument('--data', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--sanitize', action='store_true')
+    parser.add_argument('--master', choices=('xcom1','xcom2','both'), default='both')
     args = parser.parse_args()
     source, sdk, data, output = [p.resolve() for p in (args.source, args.sdk, args.data, args.output)]
     output.mkdir(parents=True, exist_ok=False)
@@ -42,17 +44,30 @@ def main():
         'bool State::isScreen(', 'void State::toggleScreen(', 'void State::hideAll(', 'void State::showAll(',
     ]))
     fixture = source / 'tests/agent-control/MonthlyReportProviderTest.cpp'
-    files = list((source / 'src').rglob('*.cpp')) + list((source / 'src').rglob('*.h'))
+    # Seal only actual translation units, extracted methods and transitive headers.
+    files = [source / ('src/' + u + '.cpp') for u in ['Observer/AgentSoundPlayback'] + support.UNITS]
+    files += [source / n for n in ('src/Geoscape/MonthlyReportState.cpp','src/Engine/Game.cpp','src/Engine/State.cpp')]
+    pending = files + [fixture]
+    seen = set()
+    while pending:
+        path = pending.pop().resolve()
+        if path in seen: continue
+        seen.add(path)
+        for name in re.findall(r'^\s*#include\s+"([^"\n]+)"', path.read_text(), re.M):
+            child = (path.parent / name).resolve()
+            if child.is_file() and source in child.parents: pending.append(child)
+    files = list(seen)
     files += [fixture, helper, Path(__file__).resolve(), data / 'common/Language/Font.dat']
     files += [source / ('bin/standard/' + game + '/Language/en-US.yml') for game in ('xcom1', 'xcom2')]
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     hashes = {str(p): sha(p) for p in files}
-    asset_roots = [(data / name).resolve(strict=True) for name in ('common', 'UFO', 'TFTD')]
+    resource_names = ('common','UFO','TFTD') if args.master == 'both' else ('common','UFO' if args.master == 'xcom1' else 'TFTD')
+    asset_roots = [(data / name).resolve(strict=True) for name in resource_names]
     asset_hashes = {str(p): sha(p) for root in asset_roots for p in root.rglob('*') if p.is_file()}
     if not asset_hashes:
         raise RuntimeError('No runtime assets sealed')
     result = {'all_passed': False, 'source_sha256': hashes, 'live_acceptance': False,
-              'game_executed': False, 'runtime_asset_sha256': asset_hashes, 'limitations': [
+              'game_executed': False, 'master': args.master, 'runtime_asset_sha256': asset_hashes, 'limitations': [
                   'Actual source constructor/provider/callbacks and native SDL widgets.',
                   'Game, Mod, calculateChanges/countryList/financials/soldier-diary and queued-state classes/rendering are explicit seams.',
                   'Literal monthly OK/init branch ordering; domain counters and queue capture are not economic/full-game qualification.',
@@ -67,7 +82,7 @@ def main():
     library = sdk / 'lib/x86_64-linux-gnu'
     env = dict(os.environ, LD_LIBRARY_PATH=str(library) + ':' + os.environ.get('LD_LIBRARY_PATH', ''),
                ASAN_OPTIONS='detect_leaks=0')
-    result['compile_command'] = flags + [str(fixture)] + [str(source / ('src/' + u + '.cpp')) for u in support.UNITS] + [
+    result['compile_command'] = flags + [str(fixture)] + [str(source / ('src/' + u + '.cpp')) for u in (['Observer/AgentSoundPlayback'] + support.UNITS)] + [
         '-Wl,--gc-sections', '-L' + str(library), '-lSDL', '-lSDL_gfx', '-lSDL_image', '-lSDL_mixer', '-lyaml-cpp', '-o', str(output / 'test')]
     save()
     syntax = subprocess.run(flags + ['-fsyntax-only', str(source / 'src/Geoscape/MonthlyReportState.cpp')], env=env, capture_output=True, text=True)
@@ -82,7 +97,7 @@ def main():
     save()
     if build.returncode:
         raise SystemExit(build.stderr)
-    test = subprocess.run([str(output / 'test'), str(source)], cwd=data / 'common', env=env, capture_output=True, text=True)
+    test = subprocess.run([str(output / 'test'), str(source), args.master], cwd=data / 'common', env=env, capture_output=True, text=True)
     (output / 'test.log').write_text(test.stdout + test.stderr)
     result['test_exit'] = test.returncode
     result['inputs_unchanged'] = all(sha(Path(p)) == h for p, h in hashes.items()) and all(sha(Path(p)) == h for p,h in asset_hashes.items())

@@ -28,6 +28,10 @@
 #include "../Mod/Mod.h"
 #include "../Engine/Options.h"
 #include "../Interface/Cursor.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#endif
 
 namespace OpenXcom
 {
@@ -44,6 +48,9 @@ SlideshowState::SlideshowState(const SlideshowHeader &slideshowHeader,
 		InteractiveSurface *slide =
 			new InteractiveSurface(Screen::ORIGINAL_WIDTH, Screen::ORIGINAL_HEIGHT, 0, 0);
 		slide->loadImage(FileMap::getFilePath(it->imagePath));
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        slide->agentTrackPresentation();
+#endif
 		slide->onMouseClick((ActionHandler)&SlideshowState::screenClick);
 		slide->onKeyboardPress((ActionHandler)&SlideshowState::screenClick, Options::keyOk);
 		slide->onKeyboardPress((ActionHandler)&SlideshowState::screenSkip, Options::keyCancel);
@@ -55,6 +62,10 @@ SlideshowState::SlideshowState(const SlideshowHeader &slideshowHeader,
 		// initialize with default rect; may get overridden by
 		// category/id definition
 		Text *caption = new Text(it->w, it->h, it->x, it->y);
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        caption->agentTrackPresentation();
+#endif
 		caption->setColor(it->color);
 		caption->setText(tr(it->caption));
 		caption->setAlign(it->align);
@@ -103,6 +114,10 @@ void SlideshowState::think()
  */
 void SlideshowState::screenClick(Action *action)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentSlideRevision;
+    _agentDestinationPaintFull = false;
+#endif
 	if (_curScreen >= 0)
 	{
 		_slides[_curScreen]->setVisible(false);
@@ -140,5 +155,90 @@ void SlideshowState::screenSkip(Action *)
 	CutsceneState::resetDisplay(_wasLetterboxed);
 	_game->popState();
 }
+
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool SlideshowState::agentDestinationFull() const
+{
+    const SDL_Surface *destination = _game->getScreen()->getSurface()->getSurface();
+    return destination && destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+
+std::vector<std::uint64_t> SlideshowState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions = {_agentSlideRevision};
+    // Bind only the active presentation. No queued slide data becomes public.
+    for (const Surface *surface : _surfaces)
+        revisions.push_back(surface->agentPresentationRevision());
+    if (_curScreen >= 0 && static_cast<std::size_t>(_curScreen) < _captions.size())
+        revisions.push_back(_captions[_curScreen]->agentTextRevision());
+    return revisions;
+}
+
+void SlideshowState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+
+bool SlideshowState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<SlideshowState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() ||
+        _agentStoredPaintRevisions != agentPaintRevisions() || _curScreen < 0 ||
+        static_cast<std::size_t>(_curScreen) >= _slides.size() ||
+        static_cast<std::size_t>(_curScreen) >= _captions.size()) return false;
+    const InteractiveSurface *slide = _slides[_curScreen];
+    const Text *caption = _captions[_curScreen];
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!agentWidgetVisible(slide) || !slide->agentPresentationPaintedTo(destination)) return false;
+    out = AgentUiState();
+    out.screen = "slideshow";
+    out.actor = slide; // Private current native input target, never serialized.
+    out.uiRevision = _agentSlideRevision;
+    out.regions.push_back({slide->getX(), slide->getY(), slide->getWidth(), slide->getHeight()});
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    bool found = false;
+    for (const Surface *later : painted)
+    {
+        if (later == slide) { found = true; continue; }
+        // The current caption is deliberate content on the clickable slide, not
+        // another interactive control. Any other later visible overlap blocks.
+        if (!found || !later || !later->getVisible() || later == caption) continue;
+        const auto &rect = out.regions.front();
+        if (rect.x < later->getX() + later->getWidth() && rect.x + rect.width > later->getX() &&
+            rect.y < later->getY() + later->getHeight() && rect.y + rect.height > later->getY()) return false;
+    }
+    if (!found || !agentRegionsDisjoint(out) || !_game->agentOverlayClear(out)) return false;
+    out.widgets.emplace_back(slide, slide->agentPresentationRevision());
+    out.widgets.emplace_back(caption, caption->agentPresentationRevision());
+    out.widgets.emplace_back(caption, caption->agentTextRevision());
+    std::string text = "null";
+    if (agentWidgetVisible(caption) && caption->agentPresentationPaintedTo(destination) &&
+        caption->getText().size() <= 1024 && agentRegionsUncovered(
+            {{caption->getX(), caption->getY(), caption->getWidth(), caption->getHeight()}}, caption, painted))
+    {
+        AgentUiState captionRegion;
+        captionRegion.regions.push_back({caption->getX(), caption->getY(), caption->getWidth(), caption->getHeight()});
+        if (_game->agentNonCursorOverlayClear(captionRegion)) text = agentJsonString(caption->getText());
+    }
+    out.visible = "{\"caption\":" + text + ",\"buttons\":[{\"id\":\"advance\",\"label\":\"Advance current slide\"}]}";
+    out.actions.emplace_back("advance_slideshow", "Advance current slide", "visible_control_semantics");
+    return true;
+}
+
+bool SlideshowState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "advance_slideshow") { screenClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

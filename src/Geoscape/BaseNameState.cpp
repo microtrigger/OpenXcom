@@ -28,6 +28,9 @@
 #include "../Savegame/Base.h"
 #include "../Basescape/PlaceLiftState.h"
 #include "../Engine/Options.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentProtocol.h"
+#endif
 
 namespace OpenXcom
 {
@@ -153,8 +156,11 @@ bool BaseNameState::agentDispatch(const Observer::AgentRequest &request)
 	if (!agentUiState(current) || !current.offers(action)) return false;
 	if (action == "replace_base_name")
 	{
-		if (!_edtName->agentReplaceText(request.text)) return false;
-		applyNameChange(false);
+		if (!Observer::agentInputText(request.text)) return false;
+		// The currently offered editor was invoked. Native text constraints may
+		// reject the replacement atomically; this is a dispatched no-op, not
+		// an unavailable action. Only accepted text updates the base model.
+		if (_edtName->agentReplaceText(request.text)) applyNameChange(false);
 		return true;
 	}
 	if (action == "confirm_base_name") { btnOkClick(nullptr); return true; }

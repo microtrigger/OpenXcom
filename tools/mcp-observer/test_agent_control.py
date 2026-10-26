@@ -157,6 +157,8 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         elif screen == 'landing_confirmation': visible.update(message='SKYRANGER-1 ready to land near LANDING SITE-1',prompt='Begin Mission?')
         elif screen == 'psi_training': visible.update(title='Psionic Training', bases=['Shown base'],rows=[dict(handle='r0',cells=['Shown base'])])
         elif screen == 'lost_in_service': visible.update(title='Lost in Service')
+        elif screen == 'statistics': visible.update(title='Defeat')
+        elif screen == 'slideshow': visible.update(caption='Current caption',buttons=[dict(id='advance',label='Advance current slide')])
         elif screen == 'commendations': visible.update(title='Medals', rows=[])
         elif screen == 'promotions': visible.update(title='Promotions',headings=['Name','New Rank','Base'],rows=[])
         elif screen == 'alien_base_discovered': visible.update(message='X-Com agents have located an alien base in Shown Region')
@@ -170,6 +172,8 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         elif screen == 'interception_confirm': visible['target']='UFO-1'
         else: visible.update(title='Select Craft',headings=[None]*4,rows=[dict(handle='r0',cells=['Shown']*4,selected=False)],scroll=dict(up=True,down=True))
         ids=sorted(a.STATE_ACTIONS[screen])
+        if screen == 'monthly_report':
+            ids=['acknowledge_monthly_report'];visible['buttons']=[dict(id='ok',label='Ok')]
         if screen == 'geoscape_craft_navigation':
             ids=['cancel_craft_navigation','open_craft_destination']
             visible['buttons']=[b for b in visible['buttons'] if b['id'] in ('cancel','target')]
@@ -566,7 +570,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 179); self.assertEqual(len(a.STATE_ACTIONS), 78)
+        self.assertEqual(len(a.ACTIONS), 182); self.assertEqual(len(a.STATE_ACTIONS), 80)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -617,7 +621,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 179)
+        self.assertEqual(len(a.ACTIONS), 182)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
