@@ -5,7 +5,13 @@
 namespace ResearchPopup {
 using State=Outfitting::State;using Base=Outfitting::Base;
 struct RuleResearch {std::string name,lookup;const std::string& getName()const{return name;}const std::string&getLookup()const{return lookup;}};
-struct RuleManufacture {};struct RuleItem {};struct MissionSite {};struct GeoscapeState {};
+struct RuleManufacture {};struct RuleItem {};
+// Explicit model/owning seams; only unchanged callback control flow is tested.
+struct MissionSite {double getLongitude()const{return 0.25;}double getLatitude()const{return 0.5;}};
+struct Globe {unsigned centers=0;double lon=0,lat=0;void center(double x,double y){++centers;lon=x;lat=y;}};
+struct GeoscapeState {Globe globe;unsigned resets=0;void timerReset(){++resets;}Globe*getGlobe(){return &globe;}};
+struct InterceptState:State {static MissionSite*target;static Globe*globe;InterceptState(Globe*g,int,MissionSite*m){kind="mission_intercept";target=m;globe=g;}};
+MissionSite*InterceptState::target=nullptr;Globe*InterceptState::globe=nullptr;
 struct ResearchState:State{ResearchState(Base*b):State(b){kind="research";}};
 struct ManufactureState:State{ManufactureState(Base*b):State(b){kind="manufacture";}};
 struct Ufopaedia {static std::vector<std::string> opened;static void openArticle(Outfitting::Game*g,const std::string&name){opened.push_back(name);++g->commands;}};
@@ -195,7 +201,19 @@ void popupTests(Font&big,Font&small,Language&lang,const std::string&source,const
  {Paint p(big,small,lang,source,game,"geoResearch");ResearchPopup::NewPossibleResearchState s;popupSetup(s,p);common(s,p,s._txtTitle,s._btnOk,nullptr,"new_possible_research",{{"dismiss_new_research",""},{"open_research_allocation",""}});noticeProof(s,p,"new_possible_research");paintedFailure(s,p);}
  {Paint p(big,small,lang,source,game,"geoManufacture");ResearchPopup::NewPossibleManufactureState s;popupSetup(s,p);common(s,p,s._txtTitle,s._btnOk,nullptr,"new_possible_manufacture",{{"dismiss_new_manufacture",""},{"open_manufacture_allocation",""}});noticeProof(s,p,"new_possible_manufacture");paintedFailure(s,p);}
  {Paint p(big,small,lang,source,game,"geoResearchRequired");ResearchPopup::ResearchRequiredState s;popupSetup(s,p);common(s,p,s._txtTitle,s._btnOk,nullptr,"research_required",{{"dismiss_research_required",""}});paintedFailure(s,p);}
- {Paint p(big,small,lang,source,game,"terrorSite");ResearchPopup::MissionDetectedState s;popupSetup(s,p);common(s,p,s._txtTitle,s._btnCancel,nullptr,"mission_alert",{{"dismiss_mission_alert",""}});AgentUiState ui;check(s.agentUiState(ui)&&ui.actions.size()==1,"mission intercept and center display only");paintedFailure(s,p);}
+ {Paint p(big,small,lang,source,game,"terrorSite");ResearchPopup::MissionDetectedState s;popupSetup(s,p);ResearchPopup::MissionSite mission;ResearchPopup::GeoscapeState geo;s._mission=&mission;s._state=&geo;
+ const auto pushes=g.pushes,pops=g.pops;
+ common(s,p,s._txtTitle,s._btnCancel,nullptr,"mission_alert",{{"intercept_mission_alert",""},{"center_mission_alert",""},{"dismiss_mission_alert",""}});
+ AgentUiState ui;check(s.agentUiState(ui)&&ui.actions.size()==3,"mission visible buttons have three actions");
+ check(geo.resets==2&&geo.globe.centers==2,"intercept and center reset timer and center once each; duplicates inert");
+ check(g.pushes==pushes+1&&g.pops==pops+2,"intercept pushes selection; center and cancel pop once");
+ check(ResearchPopup::InterceptState::target==&mission&&ResearchPopup::InterceptState::globe==&geo.globe,"ordinary intercept keeps exact existing mission binding");
+ for(const auto& item:std::vector<std::pair<TextButton*,std::string>>{{s._btnIntercept,"intercept_mission_alert"},{s._btnCenter,"center_mission_alert"}}){
+  item.first->setVisible(false);p.draw();check(s.agentUiState(ui)&&!ui.offers(item.second),"hidden mission button has no authority");
+  AgentRequest req;req.action=item.second;const auto mutations=g.pushes+g.pops+geo.resets;check(!s.agentDispatch(req)&&mutations==g.pushes+g.pops+geo.resets,"hidden button dispatch fails without callback");
+  item.first->setVisible(true);p.draw();
+ }
+ paintedFailure(s,p);}
 }
 }
 int main(int argc,char**argv){check(argc==2,"source root");check(!SDL_Init(0)&&!SDL_GetVideoSurface(),"offscreen only");Options::baseXResolution=320;Options::baseYResolution=200;noticeTransport();Font big,small;for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}for(const std::string game:{"xcom1","xcom2"}){Language lang;lang.loadFile(std::string(argv[1])+"/bin/standard/"+game+"/Language/en-US.yml");popupTests(big,small,lang,argv[1],game);}std::string json="[";for(auto&r:records){if(json.size()>1)json+=",";json+=r;}const char*d=getenv("OPENXCOM_AGENT_TEST_PACKET_DIR");std::ofstream out(std::string(d)+"/case-records.json");out<<json<<"]";check(bool(out),"case records saved");check(agentPaintHealthy()&&!SDL_GetVideoSurface(),"no GUI or paint failure");std::cout<<"PASS "<<checks<<" checks\n";}

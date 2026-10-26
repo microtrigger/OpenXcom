@@ -101,6 +101,8 @@ bool agentActionId(const std::string &value)
         value == "dismiss_new_manufacture" ||
         value == "open_manufacture_allocation" ||
         value == "dismiss_research_required" ||
+        value == "intercept_mission_alert" ||
+        value == "center_mission_alert" ||
         value == "dismiss_mission_alert" ||
         value == "close_ufopaedia_article" ||
         value == "previous_ufopaedia_article" ||

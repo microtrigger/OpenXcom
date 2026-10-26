@@ -74,7 +74,7 @@ ACTIONS = ('move_cursor', 'next_soldier', 'previous_soldier', 'kneel', 'stand', 
            'open_craft_armor', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
            'close_craft_crew', 'change_craft_equipment', 'close_craft_equipment', 'select_craft_armor_soldier',
            'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor',
-           'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'dismiss_mission_alert')
+           'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -192,7 +192,7 @@ RESEARCH_COMPLETION_BUTTON_ACTIONS = {'research_complete': {'dismiss_research_co
  'ufopaedia_article': {'close_ufopaedia_article': 'ok',
                        'previous_ufopaedia_article': 'previous',
                        'next_ufopaedia_article': 'next'},
- 'mission_alert': {'dismiss_mission_alert': 'cancel'}}
+ 'mission_alert': {'intercept_mission_alert': 'intercept', 'center_mission_alert': 'center', 'dismiss_mission_alert': 'cancel'}}
 RESEARCH_COMPLETION_ACTION_ORDER = {'research_complete': ('dismiss_research_complete', 'view_research_reports'),
  'new_possible_research': ('dismiss_new_research', 'open_research_allocation', 'scroll_visible_list'),
  'new_possible_manufacture': ('dismiss_new_manufacture',
@@ -203,7 +203,7 @@ RESEARCH_COMPLETION_ACTION_ORDER = {'research_complete': ('dismiss_research_comp
                        'previous_ufopaedia_article',
                        'next_ufopaedia_article',
                        'scroll_article_text'),
- 'mission_alert': ('dismiss_mission_alert',)}
+ 'mission_alert': ('intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')}
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
@@ -318,7 +318,7 @@ STATE_ACTIONS = {
     'new_possible_manufacture': frozenset(('dismiss_new_manufacture', 'open_manufacture_allocation', 'scroll_visible_list')),
     'research_required': frozenset(('dismiss_research_required',)),
     'ufopaedia_article': frozenset(('close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text')),
-    'mission_alert': frozenset(('dismiss_mission_alert',)),
+    'mission_alert': frozenset(('intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')),
     'unsupported': frozenset(),
 }
 GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year', 'funds', 'speed')

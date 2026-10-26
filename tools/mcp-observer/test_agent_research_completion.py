@@ -30,7 +30,7 @@ MAPPING = {
     'new_possible_manufacture': {'dismiss_new_manufacture':'ok','open_manufacture_allocation':'allocate'},
     'research_required': {'dismiss_research_required':'ok'},
     'ufopaedia_article': {'close_ufopaedia_article':'ok','previous_ufopaedia_article':'previous','next_ufopaedia_article':'next'},
-    'mission_alert': {'dismiss_mission_alert':'cancel'},
+    'mission_alert': {'intercept_mission_alert':'intercept','center_mission_alert':'center','dismiss_mission_alert':'cancel'},
 }
 NOTICES = ('new_possible_research','new_possible_manufacture')
 NEW = tuple(action for mapping in MAPPING.values() for action in mapping) + ('scroll_article_text',)
@@ -66,11 +66,11 @@ class ResearchCompletionContract(unittest.TestCase):
 
     def test_exact_catalog_and_old_wires(self):
         self.assertEqual(a.SCHEMA,'openxcom-agent-control/26')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(177,78,5))
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(179,78,5))
         self.assertEqual(a.RESEARCH_COMPLETION_FIELDS,FIELDS)
         self.assertEqual(a.RESEARCH_COMPLETION_BUTTONS,BUTTONS)
         self.assertEqual(a.RESEARCH_COMPLETION_BUTTON_ACTIONS,MAPPING)
-        self.assertEqual(len(NEW),12)
+        self.assertEqual(len(NEW),14)
         self.assertEqual((a.MAX_REQUEST,a.MAX_TEXT_PACKET,a.MAX_PACKET,a.MAX_EVENTS,a.MAX_COMMANDS),(512,32768,49152,16,256))
         for v in range(1,26):
             obj=state(screen='research_complete');obj['schema']=f'openxcom-agent-control/{v}'
@@ -159,9 +159,15 @@ class ResearchCompletionContract(unittest.TestCase):
                 obj=copy.deepcopy(original);obj['actions'].reverse()
                 with self.assertRaises(Unavailable): checked(obj)
 
-    def test_mission_intercept_center_are_display_only(self):
-        obj=state(screen='mission_alert');self.assertEqual([d['id'] for d in obj['actions']],['dismiss_mission_alert'])
-        obj['visible']['buttons']=obj['visible']['buttons'][:2];obj.update(actions=[],capability=None);checked(obj)
+    def test_mission_visible_actions_and_no_target_arguments(self):
+        obj=state(screen='mission_alert')
+        self.assertEqual([d['id'] for d in obj['actions']],
+                         ['intercept_mission_alert','center_mission_alert','dismiss_mission_alert'])
+        for action in MAPPING['mission_alert']:
+            a.validate_action_arguments(arguments(action=action,args={}))
+            for args in ({'mission_id': 7}, {'longitude': 1}, {'target':'hidden'}):
+                with self.assertRaises(Unavailable):
+                    a.validate_action_arguments(arguments(action=action,args=args))
         for action in ('intercept','center','intercept_mission','center_mission','center_enemy','open_bases'):
             bad=copy.deepcopy(obj);bad['actions']=[dict(id=action,label='Intercept',label_source='visible_text',argument_kind='none')]
             with self.subTest(action=action),self.assertRaises(Unavailable):checked(bad)

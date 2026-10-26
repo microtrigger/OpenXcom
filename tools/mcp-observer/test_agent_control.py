@@ -566,7 +566,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 177); self.assertEqual(len(a.STATE_ACTIONS), 78)
+        self.assertEqual(len(a.ACTIONS), 179); self.assertEqual(len(a.STATE_ACTIONS), 78)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -617,7 +617,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 177)
+        self.assertEqual(len(a.ACTIONS), 179)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',

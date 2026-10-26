@@ -195,8 +195,8 @@ bool MissionDetectedState::agentUiState(Observer::AgentUiState &out) const
     };
     const auto title = text(_txtTitle);
     const auto city = text(_txtCity);
-    button(_btnIntercept, "intercept", nullptr);
-    button(_btnCenter, "center", nullptr);
+    button(_btnIntercept, "intercept", "intercept_mission_alert");
+    button(_btnCenter, "center", "center_mission_alert");
     button(_btnCancel, "cancel", "dismiss_mission_alert");
     buttons += "]";
     out.visible = "{\"title\":" + title + ",\"city\":" + city + ",\"buttons\":" + buttons + "}";
@@ -214,6 +214,8 @@ bool MissionDetectedState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if (request.action == "intercept_mission_alert") { btnInterceptClick(nullptr); return true; }
+    if (request.action == "center_mission_alert") { btnCenterClick(nullptr); return true; }
     if (request.action == "dismiss_mission_alert") { btnCancelClick(nullptr); return true; }
     return false;
 }
