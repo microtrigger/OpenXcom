@@ -66,7 +66,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         visible = dict(title='Set Timer', timers=[dict(handle='t0', label='0'), dict(handle='t1', label='3')])
         ids = sorted(a.STATE_ACTIONS[screen])
     elif screen == 'debriefing':
-        visible = dict(title='Mission complete', rating='Rating> Good', stats_label='Stats', table_status='unavailable')
+        visible = dict(title='Mission complete', rating='Rating> Good', stats_label='Stats', table_status='unavailable',tables={k:dict(status='unavailable',rows=[]) for k in ('stats','recovery','total')})
         ids = ['close_debriefing']
     elif screen == 'new_game':
         visible = dict(title='Select Difficulty', ironman_note='One life', ironman=False,
@@ -156,7 +156,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         if screen == 'monthly_report': visible.update(title='Monthly Report',month='Jan 1999',rating='Rating: OK',income='Income',maintenance='Maintenance',balance='Balance',description='Council report',failure=None)
         elif screen == 'landing_confirmation': visible.update(message='SKYRANGER-1 ready to land near LANDING SITE-1',prompt='Begin Mission?')
         elif screen == 'psi_training': visible.update(title='Psionic Training', bases=['Shown base'],rows=[dict(handle='r0',cells=['Shown base'])])
-        elif screen == 'lost_in_service': visible.update(title='Lost in Service')
+        elif screen == 'lost_in_service': visible.update(title='Lost in Service',table_status='shown',rows=[dict(cells=['Shown name','','Rookie','','Kills: 0'])])
         elif screen == 'statistics': visible.update(title='Defeat')
         elif screen == 'slideshow': visible.update(caption='Current caption',buttons=[dict(id='advance',label='Advance current slide')])
         elif screen == 'commendations': visible.update(title='Medals', rows=[])

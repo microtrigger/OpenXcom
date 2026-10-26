@@ -97,7 +97,7 @@ static void check(bool ok,const char *message){
     ++checks;if(!ok){std::cerr<<"FAIL "<<message<<'\n';std::exit(1);}
 }
 int main(int argc,char **argv){
-    check(argc==3,"source and isolated native log arguments");
+    check(argc==4,"source, isolated native log, master arguments");
     Logger::logFile()=argv[2];
     check(SDL_Init(0)==0&&!SDL_GetVideoSurface(),"offscreen SDL only");
     FileMap::load("common","./",false);
@@ -121,7 +121,7 @@ int main(int argc,char **argv){
         for(const std::string extra:{" extra"," r0"," true"," 0","\n"})
             check(!parseAgentRequest(prefix+action+extra,request),"nonempty argument rejected");
     }
-    for(const std::string gameName:{"xcom1","xcom2"}){
+    for(const std::string gameName:std::vector<std::string>{argv[3]}){
         Language language;language.loadFile(std::string(argv[1])+"/bin/standard/"+gameName+"/Language/en-US.yml");
         Fixture::Game game;game.screen.surface=&canvas;game.mod.background=&background;
         game.language=&language;game.big=&big;game.small=&small;game.palette=palette;
@@ -138,10 +138,17 @@ int main(int argc,char **argv){
             state.finishPopup();state.blit();
             check(state.agentUiState(ui)&&ui.screen=="lost_in_service","actual constructor popup admitted");
             auto visible=YAML::Load(ui.visible);
-            check(visible.size()==2&&visible["title"].as<std::string>()==message,"only current UI captions projected");
+            check(visible.size()==4&&visible["title"].as<std::string>()==message,"only current UI captions projected");
+            check(visible["table_status"].as<std::string>()=="shown"&&visible["rows"].size()==2,"painted casualty and medal rows admitted");
+            check(visible["rows"][0]["cells"].size()==5&&visible["rows"][0]["cells"][0].as<std::string>()==soldier.name,"displayed name from flooding row");
+            check(visible["rows"][0]["cells"][2].as<std::string>()==std::string(language.getString("STR_ROOKIE")),"painted rank retained");
+            const std::string displayedRows=YAML::Dump(visible["rows"]);
             check(ui.actions.size()==1&&ui.offers("acknowledge_lost_in_service"),"one explicit acknowledgement");
             check(visible["buttons"][0]["id"].as<std::string>()=="ok"&&visible["buttons"].size()==1,"ordinary button order");
             soldier.name="UNDISPLAYED CHANGED SOLDIER";medal.type="UNDISPLAYED CHANGED MEDAL";check(state.agentUiState(ui)&&YAML::Load(ui.visible)["title"].as<std::string>()==message,"projection reads current UI text not constructor identifier model");
+            check(YAML::Dump(YAML::Load(ui.visible)["rows"])==displayedRows,"mutated soldier/diary identifiers never queried by provider");
+            state._lstSoldiers->setVisible(false);state.blit();check(state.agentUiState(ui)&&YAML::Load(ui.visible)["table_status"].as<std::string>()=="unavailable"&&YAML::Load(ui.visible)["rows"].size()==0,"hidden table no rows");
+            state._lstSoldiers->setVisible(true);state.blit();
             request.action="acknowledge_craft_error";check(!state.agentDispatch(request)&&game.pops==0,"neighbour action rejected");
             request.action="unknown";check(!state.agentDispatch(request)&&game.pops==0,"unknown action no mutation");
             game.cursorVisible=true;game.cursor={49,10,8,8};
@@ -201,7 +208,7 @@ int main(int argc,char **argv){
             check(!state.agentDispatch(request)&&game.pops==1,"no replay after popup closed");
             game.pops=0;state.release();
             game.mod.rules.clear();Fixture::CommendationLateState empty({});game.top=&empty;empty.finishPopup();empty.blit();
-            check(empty.agentUiState(ui)&&YAML::Load(ui.visible).size()==2&&YAML::Load(ui.visible)["title"].as<std::string>()==message,"zero report exports same title and buttons only");
+            check(empty.agentUiState(ui)&&YAML::Load(ui.visible).size()==4&&YAML::Load(ui.visible)["title"].as<std::string>()==message,"zero report exports title, empty rows/status and buttons");
             check(ui.actions.size()==1&&ui.offers("acknowledge_lost_in_service")&&ui.visible.find("PRIVATE")==std::string::npos,"no diary rows criteria or IDs exposed");
             empty.release();
         }

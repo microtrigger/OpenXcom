@@ -174,6 +174,7 @@ CommendationLateState::CommendationLateState(std::vector<Soldier*> soldiersMedal
 		} // END COMMS LOOPS
 	} // END SOLDIER LOOP
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstSoldiers->agentEnableReportCells(5);
     for (Surface *widget : std::vector<Surface *>{_window, _txtTitle, _btnOk, _lstSoldiers})
         widget->agentTrackPresentation();
 #endif
@@ -273,9 +274,39 @@ bool CommendationLateState::agentUiState(Observer::AgentUiState &out) const
     out.context.insert(out.context.end(), {static_cast<std::uint64_t>(_lstSoldiers->getX()),
         static_cast<std::uint64_t>(_lstSoldiers->getY()), static_cast<std::uint64_t>(_lstSoldiers->getWidth()),
         static_cast<std::uint64_t>(_lstSoldiers->getHeight())});
-    // This increment exposes only the painted title and ordinary OK control.
-    // The five-column memorial/medals list is deliberately not reconstructed
-    // from Soldier or Diary objects. Constructor makeOld effects are unchanged.
+    // Only current drawn widget cells, never Soldier/Diary reconstruction.
+    std::vector<AgentOutfittingRow> projected;
+    std::uint64_t captureEpoch = 0;
+    bool tableShown = _lstSoldiers->agentPresentationPaintedTo(destination) &&
+        _lstSoldiers->agentReportRows(projected, captureEpoch) && projected.size() <= 128;
+    std::string rows = "[";
+    if (tableShown)
+    {
+        out.context.push_back(captureEpoch);
+        for (const auto &row : projected)
+        {
+            if (row.cells.size() != 5) return false;
+            std::string rowJson = "{\"cells\":[";
+            bool anyAdmitted = false;
+            for (std::size_t c = 0; c < 5; ++c)
+            {
+                if (c) rowJson += ",";
+                const auto &cell = row.cells[c];
+                bool admitted = cell.known && !cell.regions.empty() && cell.text.size() <= 1024;
+                AgentUiState part;
+                for (const auto &rect : cell.regions)
+                    part.regions.push_back({rect.x, rect.y, rect.w, rect.h});
+                admitted = admitted && agentRegionsUncovered(part.regions, _lstSoldiers, painted) &&
+                    _game->agentNonCursorOverlayClear(part);
+                anyAdmitted = anyAdmitted || admitted;
+                rowJson += admitted ? agentJsonString(cell.text) : "null";
+            }
+            rowJson += "]}";
+            // A fully covered row contributes no hidden row count.
+            if (anyAdmitted) { if (rows.size() > 1) rows += ","; rows += rowJson; }
+        }
+    }
+    rows += "]";
     std::string buttons = "[";
     const auto button = [&](TextButton *widget, const char *id, const char *action) {
         out.widgets.emplace_back(widget, widget->agentPresentationRevision());
@@ -288,7 +319,7 @@ bool CommendationLateState::agentUiState(Observer::AgentUiState &out) const
     };
     button(_btnOk, "ok", "acknowledge_lost_in_service");
     buttons += "]";
-    out.visible = "{\"title\":" + title + ",\"buttons\":" + buttons + "}";
+    out.visible = "{\"title\":" + title + ",\"table_status\":" + agentJsonString(tableShown ? "shown" : "unavailable") + ",\"rows\":" + rows + ",\"buttons\":" + buttons + "}";
     const std::string payload = out.payload();
     if (payload.size() > 9000) return false;
     std::size_t asciiBytes = 0;

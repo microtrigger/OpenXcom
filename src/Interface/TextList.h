@@ -173,6 +173,21 @@ private:
 	SDL_Rect _agentPromotionClip = {};
 	const Surface *_agentPromotionDestination = nullptr;
 	void agentCapturePromotionRow(size_t logicalIndex, int y);
+	// ReportsState-only logical viewport, with no selection/action authority.
+	struct AgentReportCapture
+	{
+		AgentOutfittingRow row;
+		const Text *cells[5];
+		std::uint64_t textRevisions[5], presentationRevisions[5];
+		SDL_Rect geometry[5];
+	};
+	unsigned _agentReportColumns = 0;
+	bool _agentReportCells = false, _agentReportCaptureHealthy = true, _agentReportEpochExhausted = false;
+	std::uint64_t _agentReportDrawEpoch = 0, _agentReportPaintEpoch = 0;
+	std::vector<AgentReportCapture> _agentDrawReportRows, _agentPaintReportRows;
+	SDL_Rect _agentReportClip = {};
+	const Surface *_agentReportDestination = nullptr;
+	void agentCaptureReportRow(size_t logicalIndex, int y);
 	// Save-list-only logical viewport, with no selection/action authority.
 	struct AgentSaveListCapture
 	{
@@ -222,6 +237,8 @@ public:
 	void agentEnableSaveListCells(bool newSlot);
 	bool agentSaveListRows(std::vector<AgentOutfittingRow> &rows) const;
 	bool agentSelectSaveListRow(size_t logicalIndex);
+	void agentEnableReportCells(unsigned columns);
+	bool agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const;
 	void agentEnablePromotionCells();
 	bool agentPromotionRows(std::vector<AgentOutfittingRow> &rows) const;
 	void agentEnablePsiTrainingCells();

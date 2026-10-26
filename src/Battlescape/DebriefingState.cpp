@@ -22,6 +22,9 @@
 #include "CannotReequipState.h"
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Engine/Screen.h"
+#endif
 #include "../Engine/LocalizedText.h"
 #include "../Interface/TextButton.h"
 #include "../Interface/Text.h"
@@ -180,6 +183,11 @@ DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(tru
 
 	_lstTotal->setColumns(2, 254, 64);
 	_lstTotal->setDot(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstStats->agentEnableReportCells(3);
+    _lstRecovery->agentEnableReportCells(3);
+    _lstTotal->agentEnableReportCells(2);
+#endif
 
 	// Second page
 	_txtSoldier->setText(tr("STR_NAME_UC"));
@@ -683,8 +691,8 @@ bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
         !Observer::agentWidgetVisible(_window)) return false;
     out = Observer::AgentUiState();
     out.screen = "debriefing";
-    // Lists participate only as occluders. Their dotted cells are deliberately
-    // not projected: this provider does not claim score/recovery/stat coverage.
+    // Only already-painted score/recovery/total widget cells are observed.
+    // The soldier-stat page, model statistics and recomputation remain excluded.
     const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
     const auto text = [&](const Text *widget) -> std::string
     {
@@ -704,8 +712,62 @@ bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
             Observer::agentIncludeWidget(out, _btnStats);
         }
     }
+    const Surface *destination = _game->getScreen()->getSurface();
+    unsigned shownTables = 0;
+    const auto table = [&](const TextList *list, unsigned columns) -> std::string
+    {
+        const std::string unavailable = "{\"status\":\"unavailable\",\"rows\":[]}";
+        std::vector<AgentOutfittingRow> rows;
+        std::uint64_t epoch = 0;
+        if (!list->agentPresentationPaintedTo(destination) ||
+            !list->agentReportRows(rows, epoch) || rows.size() > 128) return unavailable;
+        std::string values = "[";
+        for (const auto &row : rows)
+        {
+            if (row.cells.size() != columns) return unavailable;
+            std::string rowJson = "{\"cells\":[";
+            bool rowWitness = false;
+            for (unsigned column = 0; column < columns; ++column)
+            {
+                if (column) rowJson += ",";
+                const auto &cell = row.cells[column];
+                bool known = cell.known && cell.text.size() <= 1024 && !cell.regions.empty();
+                bool bandVisible = !cell.regions.empty();
+                for (const SDL_Rect &band : cell.regions)
+                {
+                    Observer::AgentUiState part;
+                    part.regions.push_back({band.x, band.y, band.w, band.h});
+                    if (!Observer::agentRegionsUncovered(part.regions, list, painted) ||
+                        !_game->agentNonCursorOverlayClear(part)) { known = false; bandVisible = false; }
+                }
+                rowWitness = rowWitness || bandVisible;
+                rowJson += known ? Observer::agentJsonString(cell.text) : "null";
+            }
+            rowJson += "]}";
+            // No placeholder revealing how many fully occluded rows exist.
+            if (!rowWitness) continue;
+            if (values.size() > 1) values += ",";
+            values += rowJson;
+            // Refuse an oversized projection rather than silently truncating it.
+            if (values.size() > 9000) return unavailable;
+            std::size_t asciiBytes = 0;
+            for (unsigned char c : values)
+                if ((asciiBytes += c < 128 ? 1 : 6) > 9000) return unavailable;
+        }
+        values += "]";
+        out.widgets.emplace_back(list, list->agentListRevision());
+        out.widgets.emplace_back(list, list->agentPresentationRevision());
+        out.context.push_back(epoch);
+        ++shownTables;
+        return "{\"status\":\"shown\",\"rows\":" + values + "}";
+    };
+    const std::string report = table(_lstStats, 3);
+    const std::string recovery = table(_lstRecovery, 3);
+    const std::string total = table(_lstTotal, 2);
+    const char *tableStatus = shownTables == 3 ? "shown" : shownTables ? "partial" : "unavailable";
     out.visible = "{\"title\":" + title + ",\"rating\":" + rating +
-        ",\"stats_label\":" + stats + ",\"table_status\":\"unavailable\"}";
+        ",\"stats_label\":" + stats + ",\"table_status\":" + Observer::agentJsonString(tableStatus) +
+        ",\"tables\":{\"stats\":" + report + ",\"recovery\":" + recovery + ",\"total\":" + total + "}}";
     if (Observer::agentWidgetUncovered(_btnOk, painted))
     {
         const std::string label = Observer::agentButtonLabel(_btnOk);

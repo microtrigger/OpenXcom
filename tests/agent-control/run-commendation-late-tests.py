@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
+sys.dont_write_bytecode=True
 
 
 def main():
@@ -16,6 +18,7 @@ def main():
     parser.add_argument('--data', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--sanitize', action='store_true')
+    parser.add_argument('--master', choices=('xcom1','xcom2'), required=True)
     args = parser.parse_args()
     source, sdk, data, output = [p.resolve() for p in (args.source, args.sdk, args.data, args.output)]
     output.mkdir(parents=True, exist_ok=False)
@@ -44,10 +47,10 @@ def main():
     fixture = source / 'tests/agent-control/CommendationLateProviderTest.cpp'
     files = list((source / 'src').rglob('*.cpp')) + list((source / 'src').rglob('*.h'))
     files += [fixture, helper, Path(__file__).resolve(), data / 'common/Language/Font.dat']
-    files += [source / ('bin/standard/' + game + '/Language/en-US.yml') for game in ('xcom1', 'xcom2')]
+    files += [source / ('bin/standard/' + game + '/Language/en-US.yml') for game in (args.master,)]
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     hashes = {str(p): sha(p) for p in files}
-    asset_roots = [(data / name).resolve(strict=True) for name in ('common', 'UFO', 'TFTD')]
+    asset_roots = [(data / name).resolve(strict=True) for name in ('common', 'UFO' if args.master=='xcom1' else 'TFTD')]
     asset_hashes = {str(p): sha(p) for root in asset_roots for p in root.rglob('*') if p.is_file()}
     if not asset_hashes:
         raise RuntimeError('No runtime assets sealed')
@@ -67,7 +70,7 @@ def main():
     library = sdk / 'lib/x86_64-linux-gnu'
     env = dict(os.environ, LD_LIBRARY_PATH=str(library) + ':' + os.environ.get('LD_LIBRARY_PATH', ''),
                ASAN_OPTIONS='detect_leaks=0')
-    result['compile_command'] = flags + [str(fixture)] + [str(source / ('src/' + u + '.cpp')) for u in support.UNITS] + [
+    result['compile_command'] = flags + [str(fixture)] + [str(source / ('src/' + u + '.cpp')) for u in ['Observer/AgentSoundPlayback']+support.UNITS] + [
         '-Wl,--gc-sections', '-L' + str(library), '-lSDL', '-lSDL_gfx', '-lSDL_image', '-lSDL_mixer', '-lyaml-cpp', '-o', str(output / 'test')]
     save()
     syntax = subprocess.run(flags + ['-fsyntax-only', str(source / 'src/Battlescape/CommendationLateState.cpp')], env=env, capture_output=True, text=True)
@@ -82,7 +85,7 @@ def main():
     save()
     if build.returncode:
         raise SystemExit(build.stderr)
-    test = subprocess.run([str(output / 'test'), str(source), str(output / 'native.log')], cwd=data / 'common', env=env, capture_output=True, text=True)
+    test = subprocess.run([str(output / 'test'), str(source), str(output / 'native.log'),args.master], cwd=data / 'common', env=env, capture_output=True, text=True)
     (output / 'test.log').write_text(test.stdout + test.stderr)
     result['test_exit'] = test.returncode
     result['inputs_unchanged'] = all(sha(Path(p)) == h for p, h in hashes.items()) and all(sha(Path(p)) == h for p,h in asset_hashes.items())

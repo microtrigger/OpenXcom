@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Current title/button only, no diary/roster rows or guaranteed successor."""
+"""Current presented report rows, no model query or guaranteed successor."""
 import copy,json,unittest
 import agent_control as a
 from snapshots import Unavailable
@@ -13,7 +13,7 @@ class LostInServiceTests(unittest.TestCase):
         self.assertEqual(a.ARGUMENT_KINDS[ACTION],'none')
         for title in (None,'','Lost in Service','é'*512):
             obj=state(screen='lost_in_service');obj['visible']['title']=title;self.checked(obj)
-        for key in ('rows','soldiers','kills','rank','diary','total','selected','success'):
+        for key in ('soldiers','kills','rank','diary','total','selected','success'):
             obj=state(screen='lost_in_service');obj['visible'][key]=[]
             with self.assertRaises(Unavailable):self.checked(obj)
         for title in (True,1,{},'x'*1025):

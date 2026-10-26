@@ -38,7 +38,7 @@ class DebriefProjectionTests(unittest.TestCase):
                 with self.subTest(field=field, value=repr(value)[:25]), self.assertRaises(Unavailable):
                     a.validate_state(obj, CHALLENGE, EPOCH)
 
-    def test_table_always_unavailable(self):
+    def test_invalid_table_status_rejected(self):
         for value in ('presented', 'supported', '', None, True, 0, [], {}):
             obj = state(screen='debriefing'); obj['visible']['table_status'] = value
             with self.subTest(value=value), self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
