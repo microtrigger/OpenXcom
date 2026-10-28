@@ -7,6 +7,8 @@
 #include "../Savegame/Base.h"
 #include "../Savegame/BaseFacility.h"
 #include "../Savegame/Soldier.h"
+#include "../Savegame/SoldierDiary.h"
+#include "../Savegame/SoldierDeath.h"
 #include "../Savegame/Craft.h"
 #include "../Savegame/CraftWeapon.h"
 #include "../Savegame/Vehicle.h"
@@ -99,7 +101,12 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
                 if(Craft*c=t->getCraft())craftIds[c]=identify("craft",c,c->agentLifetime(),true);
             }
         }
-        std::size_t total=0;std::set<std::string> recordIds;
+        if(save->getDeadSoldiers()->size()>MaxRecords)throw std::runtime_error("record_limit");
+        for(Soldier *s:*save->getDeadSoldiers()){
+            if(!s || !s->getDeath() || soldierIds.count(s))throw std::runtime_error("invalid_base_data");
+            soldierId(s);
+        }
+        std::size_t total=0, historyWork=0;std::set<std::string> recordIds;
         const auto emit=[&](const std::string &id,const Object &object){
             const auto json=object.end();if(json.size()>MaxRecordBytes || records.size()>=MaxRecords || total+json.size()>MaxTotalBytes)throw std::runtime_error("record_limit");
             if(!recordIds.insert(id).second)throw std::runtime_error("invalid_base_data");total+=json.size();records.push_back(json);
@@ -125,11 +132,37 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
         const auto soldier=[&](Soldier *s,const std::string &base,const std::string &transfer){
             if(!s || !s->getRules() || !s->getArmor())throw std::runtime_error("invalid_base_data");const auto id=soldierIds.at(s);
             const auto craft=craftIds.find(s->getCraft());
+            const SoldierDeath *death=s->getDeath();
+            if((base.empty() && (!death || s->getCraft() || !transfer.empty())) || (!base.empty() && death))throw std::runtime_error("invalid_base_data");
+            std::string deathJson="null";
+            if(death){
+                const auto *t=death->getTime();if(!t)throw std::runtime_error("invalid_base_data");
+                Object date;date.n("year",t->getYear()).n("month",t->getMonth()).n("day",t->getDay()).n("hour",t->getHour()).n("minute",t->getMinute()).n("second",t->getSecond());
+                // The memorial UI uses presence only for KIA/MIA. Never inspect
+                // the cause's enemy identity, tactical ID, mission or turn.
+                deathJson=Object().s("status",death->getCause()?"kia":"mia").raw("time",date.end()).end();
+            }
             emit(id,record("soldier",id,base).n("native_id",s->getId()).s("type",s->getRules()->getType()).s("name",s->getName(false))
                 .s("rank",s->getRankString()).n("rank_value",int(s->getRank())).s("armor",s->getArmor()->getType()).n("gender",int(s->getGender())).n("look",int(s->getLook()))
                 .n("missions",s->getMissions()).n("kills",s->getKills()).n("recovery_days",s->getWoundRecovery()).b("psi_training",s->isInPsiTraining())
                 .n("psi_improvement",s->getImprovement()).n("psi_strength_improvement",s->getPsiStrImprovement()).nullable("craft_id",craft==craftIds.end()?"":craft->second)
-                .s("location",transfer.empty()?"home":"in_transit").nullable("transfer_id",transfer).raw("initial_stats",stats(s->getInitStats())).raw("current_stats",stats(s->getCurrentStats())));
+                .s("location",base.empty()?"memorial":(transfer.empty()?"home":"in_transit")).nullable("transfer_id",transfer).raw("initial_stats",stats(s->getInitStats())).raw("current_stats",stats(s->getCurrentStats()))
+                .b("recently_promoted",s->getRecentlyPromoted()).raw("death",deathJson));
+            SoldierDiary *diary=s->getDiary();if(!diary)throw std::runtime_error("invalid_base_data");
+            const auto &kills=diary->getKills();const auto *medals=diary->getSoldierCommendations();
+            if(!medals || kills.size()>MaxRecords || medals->size()>MaxRecords || diary->getMissionIdList().size()>MaxRecords)throw std::runtime_error("record_limit");
+            const auto work=kills.size()+medals->size()+diary->getMissionIdList().size();
+            if(work>MaxRecords || historyWork>MaxRecords-work)throw std::runtime_error("record_limit");historyWork+=work;
+            for(const auto *kill:kills)if(!kill)throw std::runtime_error("invalid_base_data");
+            const auto did="soldier_diary_"+std::to_string(s->getId());
+            const auto fired=diary->getShotsFiredTotal(),landed=diary->getShotsLandedTotal();
+            emit(did,record("soldier_diary",did,base).s("soldier_id",id).n("missions",diary->getMissionTotal()).n("months_service",diary->getMonthsService())
+                .n("days_wounded",diary->getDaysWoundedTotal()).n("shots_fired",fired).n("shots_landed",landed).n("accuracy",fired?100LL*landed/fired:0)
+                .n("kills",diary->getKillTotal()).n("stuns",diary->getStunTotal()).n("panics",diary->getPanickTotal()).n("mind_controls",diary->getControlTotal()));
+            for(const SoldierCommendations *medal:*medals){
+                if(!medal)throw std::runtime_error("invalid_base_data");const auto mid=identify("soldier_commendation",medal);
+                emit(mid,record("soldier_commendation",mid,base).s("soldier_id",id).s("type",medal->getType()).n("decoration_level",medal->getDecorationLevelInt()).b("is_new",medal->isNew()));
+            }
             if(s->getEquipmentLayout()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(EquipmentLayoutItem *e:*s->getEquipmentLayout()){
                 if(!e)throw std::runtime_error("invalid_base_data");const auto eid=identify("equipment_layout",e);
@@ -185,6 +218,7 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
                 if(t->getSoldier())soldier(t->getSoldier(),bid,id);if(t->getCraft())craft(t->getCraft(),bid,id);
             }
         }
+        for(Soldier *s:*save->getDeadSoldiers())soldier(s,"","");
         std::sort(records.begin(),records.end());
         for(auto i=_identities.begin();i!=_identities.end();)if(!_seen.count(i->first))i=_identities.erase(i);else ++i;
         return true;

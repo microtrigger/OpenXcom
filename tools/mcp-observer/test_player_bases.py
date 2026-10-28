@@ -10,7 +10,8 @@ TOKEN='a'*32
 def sample(kind, index=0):
  r=dict(kind=kind,id=f'{kind}-{index}',base_id='base-0')
  for key in b.FIELDS[kind].split():
-  if key=='time' and kind=='campaign':r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
+  if key=='death':r[key]=None
+  elif key=='time' and kind=='campaign':r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
   elif key=='personnel':r[key]={x:0 for x in 'soldiers scientists engineers available_soldiers available_scientists available_engineers allocated_scientists allocated_engineers'.split()}
   elif key=='capacities':r[key]={x:dict(capacity=0,used=0,free=0) if kind=='base' else 0 for x in b.CAPS.split()}
   elif key=='maintenance':r[key]={x:0 for x in ('craft','personnel','facilities','total')}
@@ -32,7 +33,8 @@ def page(records=None,offset=0,total=None):
  return dict(schema=b.SCHEMA,type='player_bases',epoch=EPOCH,challenge=CHALLENGE,campaign_epoch='b'*32,status='ok',reason=None,snapshot=TOKEN,generation=1,offset=offset,next_offset=offset+len(records),total=total,complete=offset+len(records)==total,records=records)
 
 class Peer:
- def __init__(self):
+ def __init__(self,records=None):
+  self.records=records
   parent,self.sock=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET);self.client=a.AgentControlClient(parent,timeout=.3,startup_timeout=.3);self.requests=[];self.errors=[];self.sock.settimeout(2);self.t=threading.Thread(target=self.run);self.t.start()
  def run(self):
   try:
@@ -42,7 +44,7 @@ class Peer:
     if not raw:return
     self.requests.append(raw);parts=raw.decode().split()
     if parts[0]=='H':o=dict(schema=a.SCHEMA,mode=a.MODE,status='ready')
-    elif parts[0]=='B':o=page();o['challenge']=parts[1]
+    elif parts[0]=='B':o=page(self.records);o['challenge']=parts[1]
     elif parts[0]=='R':o=state();o['challenge']=parts[1]
     else:raise RuntimeError('unexpected mutation')
     self.sock.send(dump(o))
@@ -73,6 +75,41 @@ class BasesTests(unittest.TestCase):
   b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
   p['complete']=True
   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
+ def test_history_schema_and_closed_nested_fields(self):
+  self.assertEqual(b.SCHEMA,'openxcom-player-bases/2')
+  old=page();old['schema']='openxcom-player-bases/1'
+  with self.assertRaises(Unavailable):b.page(dump(old),CHALLENGE,EPOCH,None,0,16)
+  for kind in ('soldier','soldier_diary','soldier_commendation'):
+   for key in ('enemy_type','noun','kill_records','mission_ids','target_id','position','capability','actions'):
+    bad=sample(kind);bad[key]='private'
+    with self.assertRaises(Unavailable):b.record(bad)
+  for key in ('recently_promoted',):
+   for value in (0,1,None,'true'):
+    bad=sample('soldier');bad[key]=value
+    with self.assertRaises(Unavailable):b.record(bad)
+  for kind,key in (('soldier_diary','shots_fired'),('soldier_commendation','decoration_level')):
+   for value in (True,1.5,'1',None):
+    bad=sample(kind);bad[key]=value
+    with self.assertRaises(Unavailable):b.record(bad)
+  bad=sample('soldier_commendation');bad['is_new']=1
+  with self.assertRaises(Unavailable):b.record(bad)
+ def test_memorial_and_death_timestamp_without_cause_details(self):
+  dead=sample('soldier');dead.update(base_id='',location='memorial',craft_id=None,transfer_id=None,
+    death=dict(status='kia',time=dict(year=1999,month=1,day=2,hour=3,minute=4,second=5)))
+  for status in ('kia','mia'):
+   dead['death']['status']=status;b.record(dead)
+  for key,value in (('base_id','base-0'),('location','home'),('craft_id','craft-0'),('transfer_id','transfer-0'),('death',None)):
+   bad=copy.deepcopy(dead);bad[key]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  for key,value in (('status','enemy_killed'),('cause',{}),('killer_id','hidden'),('time',{})):
+   bad=copy.deepcopy(dead);bad['death'][key]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  live=sample('soldier');live['death']=copy.deepcopy(dead['death'])
+  with self.assertRaises(Unavailable):b.record(live)
+  for kind in ('soldier_diary','soldier_commendation'):
+   r=sample(kind);r['base_id']='';b.record(r)
+  bad=sample('base');bad['base_id']=''
+  with self.assertRaises(Unavailable):b.record(bad)
  def test_arguments_no_authority_or_bad_pagination(self):
   b.arguments({});b.arguments(dict(snapshot=TOKEN,offset=16,limit=1))
   for args in ({'offset':1},{'limit':0},{'limit':17},{'snapshot':'x'},{'offset':True},{'capability':TOKEN},{'execute':True}):
@@ -94,12 +131,14 @@ class BasesTests(unittest.TestCase):
    self.assertIsNone(peer.client.capability);self.assertEqual(peer.client.commands,{})
   finally:peer.close()
  def test_read_preserves_existing_ui_grant_and_ledger(self):
-  peer=Peer()
+  peer=Peer([sample('soldier'),sample('soldier_diary'),sample('soldier_commendation')])
   try:
    peer.client.observe();cap=peer.client.capability;revision=peer.client.revision;available=peer.client.available_actions
    first=peer.client.read_player_bases();second=peer.client.read_player_bases()
    self.assertEqual((first['snapshot'],first['generation']),(second['snapshot'],second['generation']))
    self.assertEqual((peer.client.capability,peer.client.revision,peer.client.available_actions),(cap,revision,available))
    self.assertEqual(peer.client.commands,{})
+   self.assertEqual([r['kind'] for r in first['records']],['soldier','soldier_diary','soldier_commendation'])
+   self.assertFalse(any(p.startswith(b'E ') for p in peer.requests))
   finally:peer.close()
 if __name__=='__main__':unittest.main()

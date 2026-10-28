@@ -2,7 +2,7 @@
 """Explicit user-authorized strategic ownership read model. Never UI action authority."""
 import math
 from snapshots import Unavailable, exact
-SCHEMA='openxcom-player-bases/1'
+SCHEMA='openxcom-player-bases/2'
 LIMIT=100000
 CAPS='quarters stores laboratories workshops hangars psi_labs containment'
 STATS='tu stamina health bravery reactions firing throwing strength psi_strength psi_skill melee'
@@ -10,7 +10,9 @@ FIELDS={
  'campaign':'funds time',
  'base':'name longitude latitude grid_size personnel capacities maintenance defense short_range_detection long_range_detection',
  'facility':'type x y size build_days_remaining build_days_total build_cost monthly_cost capacities radar_range radar_chance defense hit_ratio lift hyperwave mind_shield grav_shield',
- 'soldier':'native_id type name rank armor rank_value gender look missions kills recovery_days psi_improvement psi_strength_improvement psi_training craft_id location transfer_id initial_stats current_stats',
+ 'soldier':'native_id type name rank armor rank_value gender look missions kills recovery_days psi_improvement psi_strength_improvement psi_training craft_id location transfer_id initial_stats current_stats recently_promoted death',
+ 'soldier_diary':'soldier_id missions months_service days_wounded shots_fired shots_landed accuracy kills stuns panics mind_controls',
+ 'soldier_commendation':'soldier_id type decoration_level is_new',
  'craft':'native_id type name status location transfer_id longitude latitude speed fuel fuel_max damage damage_max speed_max soldier_capacity vehicle_capacity item_capacity space_used space_available monthly_cost weapon_slot_count weapon_capacity low_fuel mission_complete crew',
  'research':'type progress assigned spent cost',
  'production':'type category amount_total amount_produced time_spent assigned_engineers unit_time unit_cost required_space infinite sell required_items produced_items',
@@ -21,7 +23,7 @@ FIELDS={
  'equipment_layout':'soldier_id item_type slot ammo_item x y fuse_timer',
 }
 STRINGS=set('name type rank armor status progress category owner_id owner_kind craft_id soldier_id item_type slot ammo_item launcher_item clip_item transfer_id location transfer_type'.split())
-BOOLS=set('lift hyperwave mind_shield grav_shield psi_training low_fuel mission_complete infinite sell rearming'.split())
+BOOLS=set('lift hyperwave mind_shield grav_shield psi_training low_fuel mission_complete infinite sell rearming recently_promoted is_new'.split())
 NULLABLE={'craft_id','soldier_id','item_type','transfer_id'}
 def need(ok):
  if not ok:raise Unavailable('Unavailable')
@@ -39,11 +41,15 @@ def record(r):
  need(type(r)is dict and type(r.get('kind'))is str and r['kind']in FIELDS)
  k=r['kind'];exact(r,'kind id base_id '+FIELDS[k]);ident(r['id']);
  if k=='campaign':need(r['id']=='campaign_0' and r['base_id']=='')
+ elif k in ('soldier','soldier_diary','soldier_commendation') and r['base_id']=='':pass
  else:ident(r['base_id'])
  if k=='base':need(r['id']==r['base_id'] and r['grid_size']==6)
  for key,v in r.items():
   if key in ('kind','id','base_id'):continue
-  if key=='time' and k=='campaign':objnums(v,'year month day hour minute second')
+  if key=='death':
+   if v is not None:
+    exact(v,'status time');need(v['status'] in ('kia','mia'));objnums(v['time'],'year month day hour minute second')
+  elif key=='time' and k=='campaign':objnums(v,'year month day hour minute second')
   elif key=='personnel':objnums(v,'soldiers scientists engineers available_soldiers available_scientists available_engineers allocated_scientists allocated_engineers')
   elif key=='capacities':
    exact(v,CAPS)
@@ -64,7 +70,11 @@ def record(r):
   elif key in STRINGS and not(key=='slot' and k=='weapon'):string(v,key in NULLABLE and k in ('transfer','soldier','craft'))
   else:integer(v)
  if k=='craft':need(r['location']in ('home_roster','in_transit'))
- if k=='soldier':need(r['location']in ('home','in_transit'))
+ if k=='soldier':
+  need(r['location'] in ('home','in_transit','memorial'))
+  need((r['base_id']=='') == (r['location']=='memorial'))
+  need((r['death'] is not None) == (r['location']=='memorial'))
+  if r['location']=='memorial':need(r['craft_id'] is None and r['transfer_id'] is None)
  if k=='transfer':need(r['transfer_type']in ('item','craft','soldier','scientist','engineer'))
  return r
 
@@ -98,6 +108,6 @@ def page(raw,challenge,epoch,snapshot,offset,limit):
  return o
 
 def definition():
- return {'name':'read_player_bases','description':'Read all player-owned bases and their facilities, personnel, craft, stock, transfers, research and manufacturing independently of the open UI, focus or paint. User-authorized strategic ownership data only: no tactical/enemy state. This grants no mutation or construction authority. First call omits snapshot with offset0; follow returned snapshot and next_offset until complete. Pages belong to a frozen content generation. New first reads sample current data; unchanged data retain generation. Unavailable/expired snapshots are explicit, never empty-success or silent truncation. Mutations still require ordinary fresh UI controls.',
+ return {'name':'read_player_bases','description':'Read all player-owned bases and their facilities, personnel, own-soldier service aggregates, commendations and memorial, craft, stock, transfers, research and manufacturing independently of the open UI, focus or paint. User-authorized strategic ownership data only: no tactical/enemy state. This grants no mutation or construction authority. First call omits snapshot with offset0; follow returned snapshot and next_offset until complete. Pages belong to a frozen content generation. New first reads sample current data; unchanged data retain generation. Unavailable/expired snapshots are explicit, never empty-success or silent truncation. Mutations still require ordinary fresh UI controls.',
  'inputSchema':{'type':'object','properties':{'snapshot':{'type':'string','pattern':'^[0-9a-f]{32}$'},'offset':{'type':'integer','minimum':0,'maximum':LIMIT},'limit':{'type':'integer','minimum':1,'maximum':16}},'additionalProperties':False},
  'annotations':{'readOnlyHint':True,'destructiveHint':False,'idempotentHint':True,'openWorldHint':False}}

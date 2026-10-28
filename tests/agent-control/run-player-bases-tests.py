@@ -5,7 +5,7 @@ from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--source',required=True,type=Path);p.add_argument('--build',required=True,type=Path);p.add_argument('--sdk',required=True,type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();s,build,sdk,out=[x.resolve() for x in (a.source,a.build,a.sdk,a.output)];out.mkdir(parents=True,exist_ok=False)
 flags=['c++','-std=c++11','-O0','-DOPENXCOM_EXPERIMENTAL_AGENT_CONTROL','-DOPENXCOM_EXPERIMENTAL_OBSERVER_DIAGNOSTICS','-DOPENXCOM_LOADING_PRESENTATION_HELPERS','-D__NO_OPENGL','-I'+str(sdk/'include/SDL'),'-I'+str(sdk/'include')]
 lib=sdk/'lib/x86_64-linux-gnu';env=dict(os.environ,LD_LIBRARY_PATH=str(lib)+':'+os.environ.get('LD_LIBRARY_PATH',''));sha=lambda x:hashlib.sha256(Path(x).read_bytes()).hexdigest()
-files=[s/'src/Observer/AgentPlayerBases.cpp',s/'src/Observer/AgentPlayerBases.h',s/'tests/agent-control/AgentPlayerBasesTest.cpp',Path(__file__).resolve()]
+files=[s/'src/Observer/AgentPlayerBases.cpp',s/'src/Observer/AgentPlayerBases.h',s/'tests/agent-control/AgentPlayerBasesTest.cpp',Path(__file__).resolve(),s/'src/Savegame/Soldier.h']
 result={'all_passed':False,'game_executed':False,'live_acceptance':False,'source_sha256':{str(x):sha(x) for x in files},'limitations':['Actual native models/collector, synthetic in-memory rules injected through test-only private access.','No Game/window/campaign-load/player-save execution. Full build object closure reused and sealed below.','Non-Target entity IDs track observed live bindings; unseen deletion/address reuse between captures is not distinguishable. IDs never authorize mutations.']}
 def store():(out/'RESULT.json').write_text(json.dumps(result,indent=2)+'\n')
 def run(name,cmd):

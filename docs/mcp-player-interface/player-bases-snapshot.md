@@ -15,7 +15,7 @@ transfers. In-transit owned soldiers/craft are included. The schema uses positiv
 field allowlists, not recursive save-game dumps. Enemy retaliation/detection
 state and enemy destination graphs are excluded.
 
-Pages use `openxcom-player-bases/1`, a connection epoch, a campaign epoch,
+Pages use `openxcom-player-bases/2`, a connection epoch, a campaign epoch,
 content generation and a frozen snapshot token. A new first page captures
 current state; continuation pages belong to that same detached snapshot.
 Changed captures replace the snapshot; expired continuation tokens fail
@@ -34,7 +34,9 @@ on-screen text.
 | `campaign` | Funds and campaign date/time. |
 | `base` | Name, longitude/latitude, grid size; total and available soldiers/scientists/engineers, allocated scientists/engineers; capacity/used/free for quarters, stores, laboratories, workshops, hangars, psi labs and containment; craft/personnel/facility/total maintenance; defense and short-/long-range detection capability. |
 | `facility` | Type, x/y, size, remaining/total construction days, build/monthly cost; quarters/stores/laboratories/workshops/hangars/psi-lab/containment capacities; radar range/chance, defense, hit ratio, lift/hyperwave/mind-shield/grav-shield flags. |
-| `soldier` | Native ID, type, name, rank identifier/value, armor, gender/look, missions/kills, recovery days, psi-training flag and improvement values; craft reference; home/in-transit location and transfer reference; initial/current stats. Stats contain TU, stamina, health, bravery, reactions, firing, throwing, strength, psi strength/skill and melee. |
+| `soldier` | Native ID, type, name, rank identifier/value, armor, gender/look, missions/kills, recovery days, psi-training flag and improvement values; craft reference; home/in-transit location and transfer reference; initial/current stats, a non-consuming recent-promotion flag, and nullable death status/time. Stats contain TU, stamina, health, bravery, reactions, firing, throwing, strength, psi strength/skill and melee. |
+| `soldier_diary` | Soldier reference; own aggregate missions, service months, wounded days, shots fired/landed, accuracy, kills, stuns, panics and mind controls. No individual kill or mission records. |
+| `soldier_commendation` | Soldier reference, award type, decoration level and unconsumed new-award flag. No enemy-specific award noun. |
 | `equipment_layout` | Soldier reference, item type, slot, slot x/y, ammo item and fuse timer. This is the saved equipment layout, not tactical inventory. |
 | `craft` | Native ID, type, name, status, home-roster/in-transit location and transfer reference; weapon-slot count/capacity; own longitude/latitude/speed; fuel/max fuel, damage/max damage, maximum speed; soldier/vehicle/item capacities and used/available space; monthly cost, low-fuel and mission-complete flags; crew references. |
 | `stock` | Owner reference/kind, item type and quantity; separate records for base and craft stores. |
@@ -53,8 +55,14 @@ completion forecast.
 ## Scope and identity limits
 
 This is an explicit field allowlist, not an exhaustive serialization of every
-owned object's internals. Soldier diaries, commendations, death records and the
-recent-promotion notification flag are not collected. Reads must not consume
+owned object's internals. Own diary aggregates, award type/level/new flags and the recent-promotion flag
+are read without consuming notifications. Campaign memorial soldiers are
+explicitly separate from base rosters: they have an empty `base_id` and
+`location=memorial`, since their former base is not retained reliably. Their
+death timestamp and KIA/MIA status use only the same cause-presence distinction
+as the memorial UI; cause contents are not inspected. Individual kill records,
+mission IDs/locations, enemy identities and enemy-specific award nouns are
+not collected. Reads must not consume
 promotion flags, advance simulation, change allocations/funds, invoke RNG or
 serialize tactical objects. Craft destinations, enemy retaliation/detection state,
 battle-state graphs and fog-of-war information are excluded. Radar capability
@@ -116,3 +124,19 @@ current code:
 
 These comparisons establish matching outcomes for the named samples, not that
 all tests pass or that every other regression has been excluded.
+
+Schema 2 adds the owned-soldier history slice. Its native fixture passes 156
+checks with a frozen unchanged input closure, including native death transition,
+MIA/KIA, stable memorial identities, unconsumed promotion/award flags and
+exclusion canaries. The strict adapter accepts all 28 fixture records and all 27
+post-transition records; nine focused adapter tests pass normally and optimized.
+The production build passes.
+
+Short UFO and TFTD live runs each read 60 records, including eight soldiers and
+eight diary aggregates. Snapshot content and generation stayed unchanged across
+Basescape, facility selection, General Stores preview and Cancel/Close. New
+campaigns have no medals or memorial entries: those populated-history cases
+are native-fixture qualification, not live death/award acceptance. Gameplay used
+MCP with passive video. One read-only visual diagnostic in TFTD identified
+missing visibly displayed facility rows; no visual gameplay action was used.
+That list-projection gap remains open and is separate from the history read.

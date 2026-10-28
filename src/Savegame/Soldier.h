@@ -112,6 +112,8 @@ public:
 	UnitStats *getCurrentStats();
 	/// Get whether the unit was recently promoted.
 	bool isPromoted();
+	/// Observes promotion without consuming the ordinary UI notification.
+	bool getRecentlyPromoted() const { return _recentlyPromoted; }
 	/// Gets the soldier armor.
 	Armor *getArmor() const;
 	/// Sets the soldier armor.

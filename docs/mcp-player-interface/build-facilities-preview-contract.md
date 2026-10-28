@@ -20,7 +20,10 @@ a qualified visible-grid action target and ordinary placement route are still
 necessary for mutations. Choosing a row or seeing a
 preview is not a completed construction.
 
-Focused native (78 checks), adapter and production-build checks pass. Live
-preview qualification remains pending: this stage was paused to prioritize the
-separately authorized all-base read interface. The wider regression suite is
+Focused native (78 checks), adapter and production-build checks pass. Short UFO/TFTD live runs qualify the General Stores selection, displayed
+cost/time/maintenance and Cancel/Close route, with unchanged base snapshots.
+A TFTD visual diagnostic identified a real completeness gap: some visibly shown
+facility rows, including the highlighted selection after Cancel, are omitted
+by the projection. Full list coverage is not qualified; correct this witness
+before claiming complete selection or proceeding to placement. The wider regression suite is
 not fully passing; those existing failures are not waived by focused checks.
