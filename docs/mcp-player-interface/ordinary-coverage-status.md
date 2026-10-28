@@ -36,3 +36,9 @@ selected window and never substitutes for a visible action grant.
 
 The full regression suite is not yet passing. Exact baseline diagnostic
 comparisons in individual contracts do not waive unresolved failures.
+
+A bounded [freshness-fixture repair](freshness-fixture-repair.md) fixes shown
+button-caption and paired-grid setup defects without changing production
+validators. All 67 focused tests pass normally and optimized; full discovery
+removes nine errors with no new diagnostics, but still has 14 failures, seven
+errors and seven skips. This is not a replacement for live scenario coverage.

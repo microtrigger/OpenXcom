@@ -18,7 +18,7 @@ NEW_STATES = ('basescape','base_info','base_stores','base_transfers')
 
 def descriptors(obj, ids):
     buttons={x['id']:x['label'] for x in obj['visible'].get('buttons',[])}
-    mapping=({'open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if obj['state']=='geoscape'
+    mapping=({'open_interception':'intercept','open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if obj['state']=='geoscape'
              else a.BASE_BUTTON_ACTIONS.get(obj['state'],{}))
     def label(action):
         if action=='choose_geoscape_speed':return obj['visible']['speeds'][0]['label']
@@ -125,6 +125,16 @@ class GeoscapeContractTests(unittest.TestCase):
         for action in ('open_bases','open_pause_menu','choose_geoscape_speed'):
             obj=descriptors(geo(),[action]);obj['actions'][0]['label']='Inferred'
             with self.assertRaises(Unavailable):checked(obj)
+
+    def test_interception_caption_is_actual_button_not_inferred_action_name(self):
+        obj=descriptors(geo(),['open_interception']);checked(obj)
+        shown=next(b['label'] for b in obj['visible']['buttons'] if b['id']=='intercept')
+        self.assertEqual(obj['actions'][0]['label'],shown)
+        for wrong in ('Open Interception',shown+' inferred'):
+            bad=copy.deepcopy(obj);bad['actions'][0]['label']=wrong
+            with self.assertRaises(Unavailable):checked(bad)
+        obj['visible']['buttons']=[b for b in obj['visible']['buttons'] if b['id']!='intercept']
+        with self.assertRaises(Unavailable):checked(obj)
 
     def test_geoscape_unknown_model_and_old_field_limits(self):
         for key in ('base_id','bases','hidden_exists','time_paused','time_speed','elapsed_ticks'):

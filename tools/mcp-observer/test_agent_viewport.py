@@ -105,10 +105,39 @@ class ViewportValidationTests(unittest.TestCase):
 
     def test_camera_pan_requires_current_nonempty_map_grid(self):
         obj=state();obj['actions'].append(descriptor('camera_pan','battlescape'));validate_state(obj)
-        obj['visible']['tactical']['grid']=[];obj['visible']['focus_target']=None
+        # Native projection emits paired grid/context cells. Make a coherent
+        # empty viewport so this test reaches the camera-authority predicate.
+        obj['visible']['tactical']['grid']=[]
+        obj['visible']['tactical']['map_context']['cells']=[]
+        obj['visible']['focus_target']=None
         obj['actions']=[x for x in obj['actions'] if x['id'] not in ('map_primary','map_secondary')]
         with self.assertRaises(Unavailable): validate_state(obj)
         obj['actions']=[x for x in obj['actions'] if x['id']!='camera_pan'];validate_state(obj)
+
+    def test_map_context_must_match_current_grid_even_without_camera_action(self):
+        obj=state()
+        obj['actions']=[x for x in obj['actions'] if x['id']!='camera_pan']
+        validate_state(obj)
+        mismatched=copy.deepcopy(obj)
+        mismatched['visible']['tactical']['map_context']['cells']=[]
+        with self.assertRaises(Unavailable): validate_state(mismatched)
+        mismatched=copy.deepcopy(obj)
+        mismatched['visible']['tactical']['grid']=[]
+        mismatched['visible']['focus_target']=None
+        mismatched['actions']=[x for x in mismatched['actions'] if x['id'] not in ('map_primary','map_secondary')]
+        with self.assertRaises(Unavailable): validate_state(mismatched)
+
+    def test_map_context_handles_follow_current_grid_order(self):
+        obj=state();tactical=obj['visible']['tactical']
+        # A known-valid native-shaped fixture has multiple corresponding cells.
+        self.assertGreaterEqual(len(tactical['grid']),2)
+        validate_state(obj)
+        tactical['map_context']['cells'].reverse()
+        with self.assertRaises(Unavailable): validate_state(obj)
+        tactical['map_context']['cells'].reverse()
+        validate_state(obj)
+        tactical['map_context']['cells'][0]['handle']='g127'
+        with self.assertRaises(Unavailable): validate_state(obj)
 
     def test_new_actions_are_semantic_descriptors_only_and_screen_scoped(self):
         for screen,actions in [('battlescape',BATTLE_ACTIONS),('minimap',MINIMAP_ACTIONS)]:
