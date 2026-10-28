@@ -1,6 +1,6 @@
 # Visible diary branches
 
-UI schema 39 extends the living-soldier diary with ordinary Combat and Awards
+UI schema 40 retains the living-soldier diary with ordinary Combat and Awards
 navigation and a bounded mission-detail route. The prior overview/performance
 contract remains distinct from these additional branches.
 
@@ -43,3 +43,8 @@ and the complete player-equivalent interface remain open.
 The scoped empty-list correction is native-fixture qualified in both games,
 including overlay, stale-paint and added-row negatives. It is not a new populated
 live-history acceptance claim.
+
+Archived-soldier routes use explicit `memorial_soldier_diary` and
+`memorial_soldier_diary_performance` states under the separate Memorial contract.
+They retain native reverse-order arrow dispatch and current dead-roster identity
+guards rather than weakening the living-base authority check.

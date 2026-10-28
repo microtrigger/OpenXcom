@@ -61,6 +61,9 @@ private:
 	TextButton *_group;
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::vector<std::pair<Soldier *, int> > _agentDeadRoster;
+    size_t _agentDeadOrdinal = 0;
+    bool agentDeadRosterValid() const;
     bool _agentDestinationPaintFull = false;
     bool agentDestinationFull() const;
     std::vector<std::uint64_t> _agentStoredPaintRevisions;

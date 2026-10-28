@@ -92,12 +92,14 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         else: visible.update(personnel_heading='Personnel',space_heading='Space',metrics=[dict(label='Soldiers',value='10:20')])
         ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.DIARY_BUTTON_ACTIONS:
-        visible=dict(title='Soldier Diary',rows=[dict(handle='r0',cells=['Mission','Good','1','Jan','1999'],selected=False)] if screen=='soldier_diary' else [dict(cells=['Missions','1'])] if screen=='soldier_diary_performance' else [dict(cells=['Killed','Alien','Rifle'])],scroll=dict(up=True,down=True),buttons=[dict(id=x,label=x.title()) for x in a.DIARY_BUTTON_ACTIONS[screen].values()])
-        if screen=='soldier_diary':visible['headings']=['Mission','Rating','Date']
-        elif screen=='soldier_diary_performance':visible.update(totals=[dict(cells=['Missions','1','Wins','1'])],mode='missions',headings=[None,None],description=None)
+        diary_screen={'memorial_soldier_diary':'soldier_diary','memorial_soldier_diary_performance':'soldier_diary_performance','soldier_memorial':'soldier_diary'}.get(screen,screen)
+        visible=dict(title='Soldier Diary',rows=[dict(handle='r0',cells=['Mission','Good','1','Jan','1999'],selected=False)] if diary_screen=='soldier_diary' else [dict(cells=['Missions','1'])] if diary_screen=='soldier_diary_performance' else [dict(cells=['Killed','Alien','Rifle'])],scroll=dict(up=True,down=True),buttons=[dict(id=x,label=x.title()) for x in a.DIARY_BUTTON_ACTIONS[screen].values()])
+        if diary_screen=='soldier_diary':visible['headings']=['Mission','Rating','Date']
+        elif diary_screen=='soldier_diary_performance':visible.update(totals=[dict(cells=['Missions','1','Wins','1'])],mode='missions',headings=[None,None],description=None)
         else:
             for key in a.DIARY_MISSION_TEXT.split():visible[key]='Shown'
-        ids=['scroll_visible_list']+(['select_diary_mission'] if screen=='soldier_diary' else [])+list(a.DIARY_BUTTON_ACTIONS[screen])
+        if screen=='soldier_memorial':visible.update(recruited='Recruited 10',lost='Lost 1')
+        ids=['scroll_visible_list']+(['select_memorial_soldier' if screen=='soldier_memorial' else 'select_diary_mission'] if diary_screen=='soldier_diary' else [])+list(a.DIARY_BUTTON_ACTIONS[screen])
     elif screen == 'manage_containment':
         visible=dict(title='Alien Containment',space_available='10',space_used='2',headings=['Alien','Live','Dead','Interrogating'],rows=[dict(handle='r0',cells=['Alien','2','0','0'],selected=False,controls=['increase','decrease'])],scroll=dict(up=True,down=True),buttons=[dict(id='remove',label='Remove Selected'),dict(id='cancel',label='Cancel')]);ids=['increase_containment_removal','decrease_containment_removal','scroll_visible_list','remove_selected_aliens','cancel_containment']
     elif screen == 'monthly_costs':
@@ -138,7 +140,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             visible.update(title='Outfitting',headings=['Heading']*headings,
                 rows=[dict(handle='r0',cells=['Shown']+[None]*(columns-1),selected=False)],scroll=dict(up=True,down=True))
             if screen == 'craft_equipment': visible['rows'][0]['controls']=['increase','decrease']
-        elif screen == 'soldier_info':
+        elif screen in ('soldier_info','memorial_soldier_info'):
             visible.update(name='MCP Healthy',rank='Rookie',missions='Missions>0',kills='Kills>0',
                            stats=[dict(label='Time Units',value='60')])
         else:
@@ -268,7 +270,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         if screen in ('build_base','confirm_new_base') and action in ('cancel_new_base','confirm_new_base','cancel_new_base_confirmation'):return next(x['label'] for x in visible['buttons'] if x['id']==('ok' if action=='confirm_new_base' else 'cancel'))
         if action == 'click_base_facility_cell':return 'Select visible base facility'
         if screen == 'dismantle_facility':return next(x['label'] for x in visible['buttons'] if x['id']==('ok' if action=='confirm_dismantle_facility' else 'cancel'))
-        if screen in a.DIARY_BUTTON_ACTIONS:return 'Open visible diary mission' if action=='select_diary_mission' else 'Scroll visible list' if action=='scroll_visible_list' else next(b['label'] for b in visible['buttons'] if b['id']==a.DIARY_BUTTON_ACTIONS[screen][action])
+        if screen in a.DIARY_BUTTON_ACTIONS:return 'Open visible memorial soldier' if action=='select_memorial_soldier' else 'Open visible diary mission' if action=='select_diary_mission' else 'Scroll visible list' if action=='scroll_visible_list' else next(b['label'] for b in visible['buttons'] if b['id']==a.DIARY_BUTTON_ACTIONS[screen][action])
         if action == 'right_click_base_facility_cell':return 'Open visible base facility'
         if screen == 'manage_containment':return a.CONTAINMENT_LABELS.get(action) or next(b['label'] for b in visible['buttons'] if b['id']==('remove' if action=='remove_selected_aliens' else 'cancel'))
         if action == 'close_monthly_costs': return visible['buttons'][0]['label']
@@ -304,7 +306,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'change_transfer_quantity': {'row':'r0','operation':'adjust','value':1},
                 'change_production_quantity': {'control':'engineers','operation':'adjust','value':1},
                 'set_production_sell': {'enabled':True},
-                'select_diary_mission':{'row':'r0'},'increase_containment_removal':{'row':'r0'},'decrease_containment_removal':{'row':'r0'},'right_click_base_facility_cell':{'x':0,'y':0},'select_build_facility': {'row':'r0'}, 'place_facility_cell': {'x':0,'y':0}, 'place_access_lift_cell': {'x':0,'y':0}, 'click_base_facility_cell': {'x':0,'y':0},
+                'select_memorial_soldier':{'row':'r0'},'select_diary_mission':{'row':'r0'},'increase_containment_removal':{'row':'r0'},'decrease_containment_removal':{'row':'r0'},'right_click_base_facility_cell':{'x':0,'y':0},'select_build_facility': {'row':'r0'}, 'place_facility_cell': {'x':0,'y':0}, 'place_access_lift_cell': {'x':0,'y':0}, 'click_base_facility_cell': {'x':0,'y':0},
                 'change_sale_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_sell': {'direction':'down','amount':'step'},
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
@@ -617,7 +619,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 224); self.assertEqual(len(a.STATE_ACTIONS), 93)
+        self.assertEqual(len(a.ACTIONS), 227); self.assertEqual(len(a.STATE_ACTIONS), 97)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -668,7 +670,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 224)
+        self.assertEqual(len(a.ACTIONS), 227)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
@@ -681,7 +683,7 @@ class TypedValidationTests(unittest.TestCase):
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
-            'select_diary_mission':'project_row','right_click_base_facility_cell':'facility_cell','increase_containment_removal':'project_row','decrease_containment_removal':'project_row','place_access_lift_cell':'facility_cell','click_base_facility_cell':'facility_cell','place_facility_cell':'facility_cell','select_build_facility':'facility_row','change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
+            'select_memorial_soldier':'project_row','select_diary_mission':'project_row','right_click_base_facility_cell':'facility_cell','increase_containment_removal':'project_row','decrease_containment_removal':'project_row','place_access_lift_cell':'facility_cell','click_base_facility_cell':'facility_cell','place_facility_cell':'facility_cell','select_build_facility':'facility_row','change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
             'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
@@ -846,7 +848,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/39')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/40')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -860,7 +862,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/39']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/40']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1580,9 +1582,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/39',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/39'
-send(dict(schema='openxcom-agent-control/39',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/40',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/40'
+send(dict(schema='openxcom-agent-control/40',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1627,9 +1629,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/39',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/39'
-send(dict(schema='openxcom-agent-control/39',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/40',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/40'
+send(dict(schema='openxcom-agent-control/40',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1660,9 +1662,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/39', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/40', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/39'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/40'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

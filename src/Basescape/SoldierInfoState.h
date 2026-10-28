@@ -40,6 +40,9 @@ class SoldierInfoState : public State
 {
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::vector<std::pair<Soldier *, int> > _agentDeadRoster;
+    size_t _agentDeadOrdinal = 0;
+    bool agentDeadRosterValid() const;
     bool _agentDestinationPaintFull=false;
     std::uint64_t _agentUiRevision=0;
     std::vector<std::uint64_t> _agentStoredPaintRevisions;

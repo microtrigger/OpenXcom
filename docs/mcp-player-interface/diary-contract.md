@@ -1,6 +1,6 @@
 # Visible soldier diary navigation
 
-UI schema 39 supports the living soldier's actual Diary overview, Combat,
+UI schema 40 supports the living soldier's actual Diary overview, Combat,
 Performance, Awards and individual mission report windows when the native UI
 makes them available. Stock rules without commendations hide Awards; the adapter
 does not manufacture that button or grant its action.
@@ -27,7 +27,10 @@ never exposes current tactical enemy state through these history reports.
 Empty-history live routes are locally qualified in both games. Populated Combat,
 Awards and mission reports are checked separately in native fixtures, not claimed
 as populated live qualification. Awards tooltip interaction, all medal sprite
-semantics, Memorial, and every caption are not included. The empty mission no-record caption is projected when its own overlapping
+semantics and every caption are not included in those historical checks. The
+separate Memorial contract adds archived-soldier navigation with synthetic
+live mission-detail qualification; it does not turn fixture history into an
+actual combat achievement. The empty mission no-record caption is projected when its own overlapping
 list is currently painted and demonstrably empty; foreign overlays and stale
 list state remain blocking. Full player-equivalent coverage and
 the regression backlog remain open.

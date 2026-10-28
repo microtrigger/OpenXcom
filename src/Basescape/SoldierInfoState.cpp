@@ -335,6 +335,13 @@ void SoldierInfoState::init()
 		_soldierId = 0;
 	}
 	_soldier = _list->at(_soldierId);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentDeadRoster.clear();_agentDeadOrdinal=_soldierId;
+    if(!_base)for(Soldier *dead:*_list){
+        if(!dead || !dead->getDeath()){_agentDeadRoster.clear();break;}
+        _agentDeadRoster.emplace_back(dead,dead->getId());
+    }
+#endif
 	_edtSoldier->setBig();
 	_edtSoldier->setText(_soldier->getName());
 	UnitStats *initial = _soldier->getInitStats();
@@ -622,13 +629,24 @@ void SoldierInfoState::blit()
     _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
     _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
 }
+bool SoldierInfoState::agentDeadRosterValid() const
+{
+    if(_base || !_game->getSavedGame() || _list!=_game->getSavedGame()->getDeadSoldiers() ||
+        !_list || _list->empty() || _agentDeadRoster.size()!=_list->size() || _agentDeadOrdinal!=_soldierId ||
+        _soldierId>=_list->size() || _list->at(_soldierId)!=_soldier)return false;
+    for(size_t i=0;i<_list->size();++i){
+        Soldier *current=_list->at(i);
+        if(!current || current!=_agentDeadRoster[i].first || current->getId()!=_agentDeadRoster[i].second || !current->getDeath())return false;
+    }
+    return true;
+}
 bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (!_game->isState(const_cast<SoldierInfoState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+    if (!_game->isState(const_cast<SoldierInfoState *>(this)) || _modal || (!_base && !agentDeadRosterValid()) || !agentPaintHealthy() ||
         !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
         _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
-    out=AgentUiState();out.screen="soldier_info";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    out=AgentUiState();out.screen=_base?"soldier_info":"memorial_soldier_info";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
     AgentOutfittingView view(_game,_surfaces,out);
     if (!_soldier || !_list || _soldierId>=_list->size() || _list->at(_soldierId)!=_soldier) return false;
     out.actor=_soldier;out.widgets.emplace_back(_list,_agentUiRevision);
@@ -639,6 +657,7 @@ bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
     const auto craft=view.text(_txtCraft);
     const auto recovery=view.text(_txtRecovery);
     const auto training=view.text(_txtPsionic);
+    const auto deathStatus=_base?std::string("null"):view.text(_txtDead);
     std::string stats="[";
     const auto stat=[&](const Text *label,const Text *number) {
         if (!label->getVisible() && !number->getVisible()) return;
@@ -659,18 +678,18 @@ bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
     stat(_txtPsiSkill,_numPsiSkill);
     view.button(_btnPrev,"previous","previous_personnel");
     view.button(_btnNext,"next","next_personnel");
-    view.button(_btnArmor,"armor","open_soldier_armor");
+    if(_base)view.button(_btnArmor,"armor","open_soldier_armor");
     view.button(_btnDiary,"diary","open_soldier_diary");
     view.button(_btnOk,"close","close_soldier_info");
-    out.visible="{\"name\":"+name+",\"rank\":"+rank+",\"missions\":"+missions+",\"kills\":"+kills+",\"craft\":"+craft+",\"recovery\":"+recovery+",\"training\":"+training+",\"stats\":"+stats+"],\"buttons\":"+view.buttons+"]}";
+    out.visible="{\"name\":"+name+",\"rank\":"+rank+",\"missions\":"+missions+",\"kills\":"+kills+",\"craft\":"+craft+",\"recovery\":"+recovery+",\"training\":"+training+",\"stats\":"+stats+"]"+(_base?std::string():",\"death_status\":"+deathStatus)+",\"buttons\":"+view.buttons+"]}";
     return view.finish();
 }
 bool SoldierInfoState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
-    if(request.action=="previous_personnel") { btnPrevClick(nullptr);return true; }
-    if(request.action=="next_personnel") { btnNextClick(nullptr);return true; }
+    if(request.action=="previous_personnel") { if(_base)btnPrevClick(nullptr);else btnNextClick(nullptr);return true; }
+    if(request.action=="next_personnel") { if(_base)btnNextClick(nullptr);else btnPrevClick(nullptr);return true; }
     if(request.action=="open_soldier_armor") { btnArmorClick(nullptr);return true; }
     if(request.action=="open_soldier_diary") { btnDiaryClick(nullptr);return true; }
     if(request.action=="close_soldier_info") { btnOkClick(nullptr);return true; }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Native owned soldier diary overview/performance/mission widgets and callbacks.
-// Explicit owning Game/resource/minimal SoldierInfo and seeded history/medal seams.
+// Explicit owning Game/resource and seeded history/medal seams; full native SoldierInfo.
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
@@ -14,6 +14,9 @@
 #include "../../src/Engine/Action.h"
 #include "../../src/Engine/Font.h"
 #include "../../src/Engine/FileMap.h"
+#define private public
+#include "../../src/Savegame/Soldier.h"
+#undef private
 #include "../../src/Engine/Language.h"
 #include "../../src/Engine/LocalizedText.h"
 #include "../../src/Engine/Options.h"
@@ -22,6 +25,8 @@
 #include "../../src/Engine/SurfaceSet.h"
 #include "../../src/Engine/Unicode.h"
 #include "../../src/Interface/TextButton.h"
+#include "../../src/Interface/Bar.h"
+#include "../../src/Savegame/SoldierDeath.h"
 #include "../../src/Interface/Text.h"
 #include "../../src/Interface/Window.h"
 #include "../../src/Basescape/BaseView.h"
@@ -36,7 +41,6 @@
 #include "../../src/Mod/RuleCountry.h"
 #include "../../src/Mod/Armor.h"
 #include "../../src/Savegame/Craft.h"
-#include "../../src/Savegame/Soldier.h"
 #include "../../src/Savegame/SoldierDiary.h"
 #include "../../src/Savegame/MissionStatistics.h"
 #include "../../src/Savegame/BattleUnitStatistics.h"
@@ -55,12 +59,14 @@
 #include "../../src/Basescape/MiniBaseView.h"
 #include "../../src/Observer/AgentProjectileOutput.h"
 #include "../../src/Observer/AgentUi.h"
+#include "../../src/Observer/AgentOutfitting.h"
 #include "../../src/Observer/AgentFrameCommand.h"
 using namespace OpenXcom;using namespace OpenXcom::Observer;
 namespace Fixture {
 struct State;
-struct Screen {Surface *surface;Surface *getSurface(){return surface;}bool agentCaptureOutput(const Surface*,AgentProjectileOutput&){return false;}};
+struct Screen {Surface *surface;Surface *getSurface()const{return surface;}bool agentCaptureOutput(const Surface*,AgentProjectileOutput&){return false;}};
 struct Resources {
+ void playMusic(const std::string&){} // Explicit no-audio resource seam.
  Mod *native=nullptr;
  const std::map<std::string,RuleCommendations*>&getCommendationsList(){return native->getCommendationsList();}
  RuleCommendations*getCommendation(const std::string&id){return native->getCommendation(id);}
@@ -77,7 +83,7 @@ struct Resources {
 struct Game {
  Screen screen;Resources mod;SavedGame saved;Language *language;Font *big,*small;SDL_Color *palette;
  std::vector<State*> stack;std::vector<State*> errors;Surface *cursor=nullptr,*fps=nullptr;unsigned pops=0,pushes=0;
- Language*getLanguage(){return language;}Screen *getScreen(){return &screen;}Resources *getMod(){return &mod;}SavedGame *getSavedGame(){return &saved;}
+ Language*getLanguage(){return language;}const Screen *getScreen()const{return &screen;}Screen *getScreen(){return &screen;}Resources *getMod(){return &mod;}SavedGame *getSavedGame(){return &saved;}
  Surface *getCursor(){return cursor;}Surface *getFpsCounter(){return fps;}
  bool isState(const void*s)const{return !stack.empty()&&stack.back()==s;}
  bool agentOverlayClear(const AgentUiState&ui)const{
@@ -114,43 +120,22 @@ struct ErrorMessageState:State {
 };
 enum SoldierDiaryDisplay{DIARY_KILLS,DIARY_MISSIONS,DIARY_COMMENDATIONS};
 struct SoldierDiaryOverviewState;struct SoldierDiaryPerformanceState;
-struct SoldierInfoState:State {Base*_base;size_t _soldierId;SoldierInfoState(Base*b,size_t id):_base(b),_soldierId(id){}void setSoldierId(size_t id){_soldierId=id;}void btnDiaryClick(Action*);};
-struct SoldierDiaryMissionState:State {
- Soldier*_soldier;TextButton *_btnOk,*_btnPrev,*_btnNext;Window*_window;
- Text *_txtTitle,*_txtUFO,*_txtScore,*_txtKills,*_txtLocation,*_txtRace,*_txtDaylight,*_txtDaysWounded,*_txtNoRecord;TextList*_lstKills;int _rowEntry;
- int _agentMissionRowEntry=-1;std::vector<int>_agentMissionIds;std::vector<const MissionStatistics*>_agentMissionRecords;bool _agentMissionValid=false,_agentDestinationPaintFull=false;std::vector<std::uint64_t>_agentStoredPaintRevisions;
- SoldierDiaryMissionState(Soldier*,int);~SoldierDiaryMissionState();void init()override;void btnOkClick(Action*);void btnPrevClick(Action*);void btnNextClick(Action*);
- bool agentDestinationFull()const;std::vector<std::uint64_t>agentPaintRevisions()const;void blit()override;bool agentUiState(AgentUiState&)const override;bool agentDispatch(const AgentRequest&)override;
-};
-struct SoldierDiaryOverviewState:State {
- Base*_base;size_t _soldierId;SoldierInfoState*_soldierInfoState;Soldier*_soldier=nullptr;std::vector<Soldier*>*_list;
- TextButton *_btnOk,*_btnPrev,*_btnNext,*_btnKills,*_btnMissions,*_btnCommendations;Window*_window;
- Text *_txtTitle,*_txtMission,*_txtRating,*_txtDate;TextList*_lstDiary;std::vector<MissionStatistics*>_agentMissionRows;bool agentMissionRowValid(size_t)const;InteractiveSurface*auditSender=nullptr;size_t auditRow=999;void audit(Action*a){auditSender=a->getSender();auditRow=_lstDiary->getSelectedRow();}
- bool _agentDestinationPaintFull=false;std::vector<std::uint64_t>_agentStoredPaintRevisions;
- SoldierDiaryOverviewState(Base*,size_t,SoldierInfoState*);~SoldierDiaryOverviewState();void init()override;void setSoldierId(size_t);
- void btnOkClick(Action*);void btnPrevClick(Action*);void btnNextClick(Action*);void btnKillsClick(Action*);void btnMissionsClick(Action*);void btnCommendationsClick(Action*);void lstDiaryInfoClick(Action*);
- bool agentDestinationFull()const;std::vector<std::uint64_t>agentPaintRevisions()const;void blit()override;bool agentUiState(AgentUiState&)const override;bool agentDispatch(const AgentRequest&)override;
-};
-struct SoldierDiaryPerformanceState:State {
- Base*_base;size_t _soldierId;SoldierDiaryOverviewState*_soldierDiaryOverviewState;Soldier*_soldier=nullptr;std::vector<Soldier*>*_list;
- TextButton *_btnOk,*_btnPrev,*_btnNext,*_btnKills,*_btnMissions,*_btnCommendations;Window*_window;
- Text *_txtTitle,*_txtMedalName,*_txtMedalLevel,*_txtMedalInfo;TextList *_lstPerformance,*_lstKillTotals,*_lstMissionTotals,*_lstCommendations;
- std::vector<std::string>_commendationsListEntry;std::vector<Surface*>_commendations,_commendationDecorations;SurfaceSet*_commendationSprite,*_commendationDecoration;
- SoldierDiaryDisplay _display;int _lastScrollPos;TextButton*_group;
- bool _agentDestinationPaintFull=false;std::vector<std::uint64_t>_agentStoredPaintRevisions;
- SoldierDiaryPerformanceState(Base*,size_t,SoldierDiaryOverviewState*,SoldierDiaryDisplay);~SoldierDiaryPerformanceState();void init()override;void drawSprites();
- void btnOkClick(Action*);void btnPrevClick(Action*);void btnNextClick(Action*);void btnKillsToggle(Action*);void btnMissionsToggle(Action*);void btnCommendationsToggle(Action*);void lstInfoMouseOver(Action*);void lstInfoMouseOut(Action*);void think()override;
- bool agentDestinationFull()const;std::vector<std::uint64_t>agentPaintRevisions()const;void blit()override;bool agentUiState(AgentUiState&)const override;bool agentDispatch(const AgentRequest&)override;
-};
+struct SoldierInfoState;struct SoldierMemorialState;
+struct SellState:State{SellState(Base*){std::abort();}};
+struct SoldierArmorState:State{SoldierArmorState(Base*,size_t){std::abort();}};
+struct SackSoldierState:State{SackSoldierState(Base*,size_t){std::abort();}};
+struct StatisticsState:State{StatisticsState(){std::abort();}};
+struct SoldiersState:State{void btnMemorialClick(Action*);};
+#include "DiaryDeclarations.generated.inc"
 #include "Diary.generated.inc"
-#include "SoldierInfoEntry.generated.inc"
+#include "SoldiersEntry.generated.inc"
 }
 static unsigned checks=0;
 static void check(bool value,const char*what){++checks;if(!value){std::cerr<<"FAIL "<<what<<'\n';std::exit(1);}}
 static void closedActions(const AgentUiState&ui){for(const auto&a:ui.actions)check(a.argumentKind=="none"||a.argumentKind=="project_row"||a.argumentKind=="scroll_direction","diary action arguments limited to native navigation or visible row/scroll");}
 int main(int argc,char**argv){
  check(argc==3&&SDL_Init(0)==0&&!SDL_GetVideoSurface(),"offscreen native fixture only");FileMap::load("common","./",false);Font big,small;for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}Options::baseXResolution=320;Options::baseYResolution=200;
- SDL_Color palette[256];for(int i=0;i<256;++i)palette[i]={Uint8(i),Uint8(i),Uint8(i),0};Surface canvas(320,200),background(320,200);canvas.setPalette(palette);background.setPalette(palette);background.clear(40);SurfaceSet medalTexture(31,8);auto*medalFrame=medalTexture.addFrame(0);medalFrame->setPalette(palette);medalFrame->clear(20);
+ SDL_Color palette[256];for(int i=0;i<256;++i)palette[i]={Uint8(i),Uint8(i),Uint8(i),0};Surface canvas(320,200),background(320,200);canvas.setPalette(palette);background.setPalette(palette);background.clear(40);SurfaceSet medalTexture(31,8);for(int f=1;f<50;++f){auto*t=medalTexture.addFrame(f);t->setPalette(palette);t->clear(20);}auto*medalFrame=medalTexture.addFrame(0);medalFrame->setPalette(palette);medalFrame->clear(20);
  for(const auto&variant:{"xcom1","xcom2"}){
   const std::string dir=std::string(argv[1])+"/bin/standard/"+variant+"/";Language language;language.loadFile(std::string(argv[1])+"/bin/common/Language/en-US.yml");language.loadFile(dir+"Language/en-US.yml");Mod native;RuleSoldier rule("STR_SOLDIER");Armor armor("FIXTURE_ARMOR");
   Fixture::Game game;game.screen.surface=&canvas;game.mod.background=&background;game.mod.texture=&medalTexture;game.mod.native=&native;game.language=&language;game.big=&big;game.small=&small;game.palette=palette;Fixture::currentGame=&game;Base base(&native);auto*alpha=new Soldier(&rule,&armor,0);auto*bravo=new Soldier(&rule,&armor,0);alpha->setName("ALPHA");bravo->setName("BRAVO");base.getSoldiers()->push_back(alpha);base.getSoldiers()->push_back(bravo);game.saved.setFunds(1000000);
@@ -161,7 +146,7 @@ int main(int argc,char**argv){
   const auto alphaBefore=YAML::Dump(alpha->getDiary()->save()),bravoBefore=YAML::Dump(bravo->getDiary()->save());
   {TextList strict(100,32,0,0);strict.setPalette(palette);strict.initText(&big,&small,&language);strict.setColumns(2,60,40);strict.addRow(1,"Header");strict.agentEnableReportCells(2);strict.blit(&canvas);std::vector<AgentOutfittingRow>captured;std::uint64_t epoch=0;check(!strict.agentReportRows(captured,epoch),"default strict report rejects ragged row");SDL_Rect target={};check(!strict.agentReportRowTarget(0,target),"report without selection opt-in has no native row action target");}
   {TextList optional(100,32,0,0);optional.setPalette(palette);optional.initText(&big,&small,&language);optional.setColumns(2,60,40);optional.addRow(1,"Header");optional.agentEnableReportCells(2,true);optional.blit(&canvas);std::vector<AgentOutfittingRow>captured;std::uint64_t epoch=0;check(optional.agentReportRows(captured,epoch)&&captured.size()==1&&captured[0].cells.size()==2&&captured[0].cells[0].known&&!captured[0].cells[1].known,"explicit missing-cell report retains heading and null absent column");auto*extra=new Text(40,9);optional._texts[0].push_back(extra);bool refused=!optional.agentReportRows(captured,epoch);optional._texts[0].pop_back();delete extra;check(refused,"postpaint row cell count change invalidates captured report");extra=new Text(40,9);auto*more=new Text(40,9);optional._texts[0].push_back(extra);optional._texts[0].push_back(more);refused=!optional.agentReportRows(captured,epoch);optional._texts[0].resize(1);delete extra;delete more;check(refused,"extra malformed columns rejected despite missing-cell opt-in");}
-  Fixture::SoldierInfoState info(&base,1);game.stack={&info};info.btnDiaryClick(nullptr);auto*overview=dynamic_cast<Fixture::SoldierDiaryOverviewState*>(game.stack.back());check(overview&&overview->_soldierId==1,"literal SoldierInfo entry opens current living soldier diary");AgentUiState ui;AgentRequest ok;ok.action="close_soldier_diary";AgentRequest prev;prev.action="previous_personnel";AgentRequest next;next.action="next_personnel";AgentRequest performance;performance.action="open_diary_performance";
+  Fixture::SoldierInfoState info(&base,1);game.stack={&info};info.init();info.btnDiaryClick(nullptr);auto*overview=dynamic_cast<Fixture::SoldierDiaryOverviewState*>(game.stack.back());check(overview&&overview->_soldierId==1,"literal SoldierInfo entry opens current living soldier diary");AgentUiState ui;AgentRequest ok;ok.action="close_soldier_diary";AgentRequest prev;prev.action="previous_personnel";AgentRequest next;next.action="next_personnel";AgentRequest performance;performance.action="open_diary_performance";
   check(!overview->agentDispatch(ok),"unpainted diary cannot dispatch");overview->blit();check(overview->agentUiState(ui)&&YAML::Load(ui.visible)["rows"].size()==0,"empty living diary visible without fabricated rows");closedActions(ui);std::ofstream(std::string(argv[2])+"/empty-"+variant+".json")<<ui.visible<<"\n";
   check(overview->agentDispatch(prev)&&overview->_soldierId==0,"native previous soldier navigation");check(!overview->agentDispatch(next),"navigation requires repaint before new grant");overview->blit();check(overview->agentUiState(ui)&&YAML::Load(ui.visible)["rows"].size()>0,"populated native owned mission diary rows");closedActions(ui);std::ofstream(std::string(argv[2])+"/overview-"+variant+".json")<<ui.visible<<"\n";
   for(auto row:YAML::Load(ui.visible)["rows"])check(row["cells"].size()==5,"overview report has five bounded logical cells");
@@ -196,7 +181,28 @@ int main(int argc,char**argv){
 
   {Fixture::SoldierDiaryOverviewState blocked(nullptr,0,&info);game.stack={&blocked};blocked.blit();check(!blocked.agentUiState(ui)&&!blocked.agentDispatch(ok),"memorial overview outside living diary scope");}
   check(YAML::Dump(alpha->getDiary()->save())==alphaBefore&&YAML::Dump(bravo->getDiary()->save())==bravoBefore&&game.saved.getFunds()==1000000,"view navigation scrolling and OK leave owned diaries and funds unchanged");for(auto*mission:*game.saved.getMissionStatistics())check(mission->injuryList.empty(),"native mission viewing does not insert missing injury keys");
+
+  // Three explicit native in-memory death records, not a live casualty or save.
+  auto*dead=game.saved.getDeadSoldiers();for(int i=0;i<3;++i){auto*d=new Soldier(&rule,&armor,101+i);d->setName("MEMORIAL "+std::to_string(i));d->getDiary()->load(diary,&native);d->die(new SoldierDeath(*game.saved.getTime(),i==1?nullptr:new BattleUnitKills));dead->push_back(d);}
+  std::vector<std::string>deadBefore;for(auto*d:*dead)deadBefore.push_back(YAML::Dump(d->save()));
+  Fixture::SoldiersState roster;game.stack={&roster};roster.btnMemorialClick(nullptr);auto*mem=dynamic_cast<Fixture::SoldierMemorialState*>(game.stack.back());check(mem!=nullptr,"literal Soldiers Memorial entry opens native memorial constructor");mem->blit();check(mem->agentUiState(ui)&&ui.screen=="soldier_memorial"&&YAML::Load(ui.visible)["rows"].size()==3,"three actual dead records projected as memorial rows");std::ofstream(std::string(argv[2])+"/memorial-"+variant+".json")<<ui.visible<<"\n";
+  AgentRequest selectDead;selectDead.action="select_memorial_soldier";selectDead.choice="r0";check(ui.offers(selectDead.action),"memorial native visible row selection offered");
+  std::swap((*dead)[0],(*dead)[2]);mem->blit();check(!mem->agentUiState(ui)&&!mem->agentDispatch(selectDead),"memorial roster reorder refuses captured row authority even after repaint");std::swap((*dead)[0],(*dead)[2]);mem->blit();
+  auto*oldDead=(*dead)[0];auto*replacementDead=new Soldier(&rule,&armor,301);replacementDead->die(new SoldierDeath(*game.saved.getTime(),nullptr));(*dead)[0]=replacementDead;mem->blit();check(!mem->agentUiState(ui),"memorial replaced dead identity refuses old rows");(*dead)[0]=oldDead;delete replacementDead;mem->blit();
+  Surface deadCover(1,1,0,0);SDL_Rect deadTarget={};check(mem->_lstSoldiers->agentReportRowTarget(0,deadTarget),"memorial row has actual native center click target");deadCover.setX(deadTarget.x);deadCover.setY(deadTarget.y);deadCover.setPalette(palette);deadCover.clear(99);mem->_surfaces.push_back(&deadCover);mem->blit();check(mem->agentUiState(ui),"partially covered memorial stays observational");check(YAML::Load(ui.visible)["rows"][0]["handle"].IsNull(),"foreign center overlay removes only covered memorial row handle");mem->_surfaces.pop_back();mem->blit();
+  const int identityBefore=(*dead)[0]->_id;(*dead)[0]->_id+=1000;mem->blit();check(!mem->agentUiState(ui)&&!mem->agentDispatch(selectDead),"same-address changed native soldier ID invalidates memorial binding");(*dead)[0]->_id=identityBefore;mem->blit();
+  const int originalListX=mem->_lstSoldiers->getX();mem->_lstSoldiers->setX(originalListX+1);check(!mem->agentDispatch(selectDead),"unpainted memorial geometry change refuses row dispatch");mem->_lstSoldiers->setX(originalListX);mem->blit();
+  auto missingCells=mem->_lstSoldiers->_texts.back();mem->_lstSoldiers->_texts.pop_back();check(!mem->agentDispatch(selectDead),"missing native text row invalidates memorial row dispatch");mem->_lstSoldiers->_texts.push_back(missingCells);mem->blit();
+  check(mem->agentDispatch(selectDead),"native memorial list click opens actual dead SoldierInfo");auto*deadInfo=dynamic_cast<Fixture::SoldierInfoState*>(game.stack.back());check(deadInfo&&deadInfo->_soldierId==2,"visual row zero reversed exactly once into last native dead index");deadInfo->init();deadInfo->blit();check(deadInfo->agentUiState(ui)&&ui.screen=="memorial_soldier_info"&&deadInfo->_soldier==(*dead)[2],"actual dead info constructor init and provider bind same soldier");std::ofstream(std::string(argv[2])+"/memorial-info-"+variant+".json")<<ui.visible<<"\n";
+  for(const auto&a:ui.actions)check(a.id=="previous_personnel"||a.id=="next_personnel"||a.id=="open_soldier_diary"||a.id=="close_soldier_info","dead info closed read-only actions forbid armor name sack assignment and psi");
+  check(deadInfo->agentDispatch(prev)&&deadInfo->_soldierId==0,"dead info displayed previous button invokes native next with wrap");deadInfo->blit();check(deadInfo->agentUiState(ui)&&YAML::Load(ui.visible)["death_status"].as<std::string>()==deadInfo->_txtDead->getText(),"dead info exports exact displayed KIA caption");check(deadInfo->agentDispatch(next)&&deadInfo->_soldierId==2,"dead info displayed next invokes native previous");deadInfo->blit();check(deadInfo->agentDispatch(next)&&deadInfo->_soldierId==1,"native dead next selects middle MIA record");deadInfo->blit();check(deadInfo->agentUiState(ui)&&YAML::Load(ui.visible)["death_status"].as<std::string>()==deadInfo->_txtDead->getText()&&!deadInfo->_soldier->getDeath()->getCause(),"MIA caption comes from actual native dead info text");check(deadInfo->agentDispatch(prev)&&deadInfo->_soldierId==2,"return from MIA via native reversed previous");deadInfo->blit();AgentRequest openDiary;openDiary.action="open_soldier_diary";check(deadInfo->agentDispatch(openDiary),"actual dead info Diary button opens overview");auto*deadOverview=dynamic_cast<Fixture::SoldierDiaryOverviewState*>(game.stack.back());check(deadOverview&&deadOverview->_soldierId==2,"dead diary retains native index without second reversal");deadOverview->blit();check(deadOverview->agentUiState(ui)&&ui.screen=="memorial_soldier_diary","explicit memorial diary provider");std::ofstream(std::string(argv[2])+"/memorial-overview-"+variant+".json")<<ui.visible<<"\n";
+  std::swap((*dead)[0],(*dead)[1]);deadOverview->blit();check(!deadOverview->agentUiState(ui)&&!deadOverview->agentDispatch(performance),"memorial overview roster reorder rejects stale identity after repaint");std::swap((*dead)[0],(*dead)[1]);deadOverview->blit();
+  check(deadOverview->agentDispatch(prev)&&deadOverview->_soldierId==0,"memorial overview displayed previous uses reversed native callback with wrap");deadOverview->blit();check(deadOverview->agentDispatch(next)&&deadOverview->_soldierId==2,"memorial overview next reverses native callback");deadOverview->blit();check(deadOverview->agentDispatch(performance),"memorial diary opens native performance");auto*deadPerformance=dynamic_cast<Fixture::SoldierDiaryPerformanceState*>(game.stack.back());deadPerformance->blit();check(deadPerformance->agentUiState(ui)&&ui.screen=="memorial_soldier_diary_performance"&&deadPerformance->_soldierId==2,"explicit memorial performance preserves selected native index");std::ofstream(std::string(argv[2])+"/memorial-performance-"+variant+".json")<<ui.visible<<"\n";
+  check(deadPerformance->agentDispatch(prev)&&deadPerformance->_soldierId==0,"memorial performance previous follows actual reversed button handler");deadPerformance->blit();check(deadPerformance->agentDispatch(next)&&deadPerformance->_soldierId==2,"memorial performance next follows actual reversed button handler");deadPerformance->blit();
+  std::swap((*dead)[0],(*dead)[1]);deadPerformance->blit();check(!deadPerformance->agentUiState(ui)&&!deadPerformance->agentDispatch(pok),"performance dead roster reorder invalidates stale caption authority");std::swap((*dead)[0],(*dead)[1]);deadPerformance->blit();check(deadPerformance->agentDispatch(pok)&&game.isState(deadOverview)&&deadOverview->_soldierId==2,"memorial performance OK preserves native index");deadOverview->init();deadOverview->blit();check(deadOverview->agentDispatch(ok)&&game.isState(deadInfo)&&deadInfo->_soldierId==2,"memorial diary OK returns same native index without reversal");deadInfo->init();deadInfo->blit();
+  std::swap((*dead)[0],(*dead)[1]);deadInfo->blit();check(!deadInfo->agentUiState(ui)&&!deadInfo->agentDispatch(openDiary),"dead info roster reorder invalidates stale bindings");std::swap((*dead)[0],(*dead)[1]);deadInfo->blit();AgentRequest closeInfo;closeInfo.action="close_soldier_info";check(deadInfo->agentDispatch(closeInfo)&&game.isState(mem),"dead info ordinary OK returns to memorial");mem->blit();AgentRequest closeMem;closeMem.action="close_memorial";check(mem->agentDispatch(closeMem)&&game.isState(&roster),"memorial ordinary OK returns to Soldiers");
+  for(size_t i=0;i<dead->size();++i)check(YAML::Dump((*dead)[i]->save())==deadBefore[i],"all memorial view navigation leaves native soldier death and diary data unchanged");
   for(auto*owned:game.errors)delete owned;game.errors.clear();game.stack.clear();
  }
- check(!SDL_GetVideoSurface(),"no game video opened");std::cout<<"PASS "<<checks<<" native diary checks; explicit owning/resource/minimal-SoldierInfo seams\n";
+ check(!SDL_GetVideoSurface(),"no game video opened");std::cout<<"PASS "<<checks<<" native diary checks; explicit owning/resource seams; full native SoldierInfo and Memorial\n";
 }

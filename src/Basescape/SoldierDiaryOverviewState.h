@@ -51,6 +51,9 @@ private:
 	TextList *_lstDiary;
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::vector<std::pair<Soldier *, int> > _agentDeadRoster;
+    size_t _agentDeadOrdinal = 0;
+    bool agentDeadRosterValid() const;
     std::vector<const MissionStatistics *> _agentMissionRows;
     bool agentMissionRowValid(size_t row) const;
     bool _agentDestinationPaintFull = false;

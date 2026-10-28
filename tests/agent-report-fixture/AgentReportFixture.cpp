@@ -16,6 +16,8 @@
 #include "../../src/Savegame/ItemContainer.h"
 #include "../../src/Mod/RuleCraft.h"
 #include "../../src/Savegame/Soldier.h"
+#include "../../src/Savegame/SoldierDiary.h"
+#include "../../src/Savegame/MissionStatistics.h"
 #include "../../src/Savegame/BattleUnit.h"
 #include "../../src/Savegame/BattleItem.h"
 #include "../../src/Savegame/Tile.h"
@@ -37,7 +39,7 @@
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
 bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false, missionContext = false;
-bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false, completionCampaign = false, outfittingCampaign = false, containmentCampaign = false;
+bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false, completionCampaign = false, outfittingCampaign = false, containmentCampaign = false, memorialCampaign = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -59,9 +61,10 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1" || std::string(argv[i+1])=="completion-medikit-v1" || std::string(argv[i+1])=="outfitting-stock-v1" || std::string(argv[i+1])=="containment-stock-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1" || std::string(argv[i+1])=="completion-medikit-v1" || std::string(argv[i+1])=="outfitting-stock-v1" || std::string(argv[i+1])=="containment-stock-v1" || std::string(argv[i+1])=="memorial-history-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
+        memorialCampaign=std::string(argv[i+1])=="memorial-history-v1";
         containmentCampaign=std::string(argv[i+1])=="containment-stock-v1";
         outfittingCampaign=std::string(argv[i+1])=="outfitting-stock-v1";
         completionCampaign=std::string(argv[i+1])=="completion-medikit-v1";
@@ -88,6 +91,55 @@ bool start(Game *game)
     require(master=="xcom1" || master=="xcom2");
     const bool underwater=master=="xcom2";
     Mod *mod=game->getMod();
+    if (memorialCampaign)
+    {
+        require(!Options::debugUi && Options::soldierDiaries);
+        // Synthetic completed history only, not a battle achievement. Fresh
+        // newSave and added fixture soldiers preserve every ordinary recruit.
+        std::unique_ptr<SavedGame> campaign(mod->newSave());
+        require(campaign && campaign->getBases()->size()==1 &&
+            campaign->getDeadSoldiers()->empty() && campaign->getMissionStatistics()->empty() &&
+            campaign->getDiscoveredResearch().empty() && !campaign->getSavedBattle());
+        Base *base=campaign->getBases()->front();
+        const size_t living=base->getSoldiers()->size();
+        require(living>0 && !mod->getSoldiersList().empty());
+        RuleSoldier *rules=mod->getSoldier(mod->getSoldiersList().front(),true);
+        Armor *armor=mod->getArmor(rules->getArmor(),true);
+        require(rules && armor);
+        for(int i=0;i<3;++i)
+        {
+            // Use complete ordinary constructor initialization, not partial
+            // Soldier::load YAML (which requires gender/look/name/rank/armor).
+            // Native unique ID generation and ordinary RNG are not overridden.
+            const int nativeId=campaign->getId("STR_SOLDIER");require(nativeId>0);
+            std::unique_ptr<Soldier> soldier(new Soldier(rules,armor,nativeId));
+            soldier->setName(std::string("SYNTHETIC Memorial ")+char('A'+i));
+            for(int rank=0;rank<i;++rank)soldier->promoteRank();
+            soldier->addMissionCount();
+            std::unique_ptr<MissionStatistics> mission(new MissionStatistics());
+            mission->id=i;mission->time=*campaign->getTime();
+            mission->type="STR_UFO_CRASH_RECOVERY";
+            mission->markerName="SYNTHETIC Memorial Mission";
+            mission->success=true;mission->rating="STR_OK";mission->score=10+i;
+            mission->injuryList[soldier->getId()]=i;
+            campaign->getMissionStatistics()->push_back(mission.release());
+            YAML::Node diary;diary["missionIdList"].push_back(i);
+            diary["daysWoundedTotal"]=i;diary["monthsService"]=1;
+            soldier->getDiary()->load(diary,mod);
+            Soldier *owned=soldier.get();base->getSoldiers()->push_back(soldier.release());
+            campaign->killSoldier(owned,nullptr); // Explicit fixture MIA, no enemy cause graph.
+            require(base->getSoldiers()->size()==living && campaign->getDeadSoldiers()->back()==owned);
+        }
+        base->setName("SYNTHETIC Memorial");
+        const double longitude=underwater?0.0:0.15,latitude=underwater?0.0:-0.85;
+        base->setLongitude(longitude);base->setLatitude(latitude);
+        for(Craft *craft:*base->getCrafts()){craft->setLongitude(longitude);craft->setLatitude(latitude);}
+        require(campaign->getDeadSoldiers()->size()==3 && campaign->getMissionStatistics()->size()==3 &&
+            campaign->getDiscoveredResearch().empty() && !campaign->getSavedBattle());
+        campaign->setDifficulty(DIFF_BEGINNER);campaign->setIronman(false);
+        game->setSavedGame(campaign.release());game->setState(new GeoscapeState);
+        finished=true;return true;
+    }
     if (containmentCampaign)
     {
         require(!Options::debugUi);

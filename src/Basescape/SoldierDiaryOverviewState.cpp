@@ -189,6 +189,13 @@ void SoldierDiaryOverviewState::init()
 		_soldierId = 0;
 	}
 	_soldier = _list->at(_soldierId);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentDeadRoster.clear();_agentDeadOrdinal=_soldierId;
+    if(!_base)for(Soldier *dead:*_list){
+        if(!dead || !dead->getDeath()){_agentDeadRoster.clear();break;}
+        _agentDeadRoster.emplace_back(dead,dead->getId());
+    }
+#endif
 	_txtTitle->setText(_soldier->getName());
 	_lstDiary->clearList();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -354,14 +361,25 @@ void SoldierDiaryOverviewState::blit()
     _agentStoredPaintRevisions = agentPaintRevisions();
     _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
 }
+bool SoldierDiaryOverviewState::agentDeadRosterValid() const
+{
+    if(_base || !_game->getSavedGame() || _list!=_game->getSavedGame()->getDeadSoldiers() ||
+        !_list || _list->empty() || _agentDeadRoster.size()!=_list->size() || _agentDeadOrdinal!=_soldierId ||
+        _soldierId>=_list->size() || _list->at(_soldierId)!=_soldier)return false;
+    for(size_t i=0;i<_list->size();++i){
+        Soldier *current=_list->at(i);
+        if(!current || current!=_agentDeadRoster[i].first || current->getId()!=_agentDeadRoster[i].second || !current->getDeath())return false;
+    }
+    return true;
+}
 bool SoldierDiaryOverviewState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
     if (typeid(*this) != typeid(SoldierDiaryOverviewState) || _modal || _window->agentPopupActive() ||
-        !_base || !_list || _list != _base->getSoldiers() || !_soldier || _soldierId >= _list->size() || _list->at(_soldierId) != _soldier ||
+        (_base ? (!_list || _list != _base->getSoldiers()) : !agentDeadRosterValid()) || !_soldier || _soldierId >= _list->size() || _list->at(_soldierId) != _soldier ||
         !_game->isState(const_cast<SoldierDiaryOverviewState *>(this)) || !agentPaintHealthy() ||
         !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
-    out=AgentUiState();out.screen="soldier_diary";out.actor=_soldier;out.save=_base;out.context.push_back(_soldierId);
+    out=AgentUiState();out.screen=_base?"soldier_diary":"memorial_soldier_diary";out.actor=_soldier;out.save=_base?static_cast<const void*>(_base):static_cast<const void*>(_game->getSavedGame());out.context.push_back(_soldierId);
     const auto painted=agentFlattenPaintOrder(_surfaces);const Surface *logical=_game->getScreen()->getSurface();
     if(!agentWidgetVisible(_window)||!_window->agentPresentationPaintedTo(logical))return false;
     for(const Surface *surface:painted)out.widgets.emplace_back(surface,surface->agentPresentationRevision());
@@ -423,8 +441,8 @@ bool SoldierDiaryOverviewState::agentUiState(Observer::AgentUiState &out) const
 bool SoldierDiaryOverviewState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState fresh;if(!agentUiState(fresh)||!fresh.offers(request.action))return false;
-    if(request.action=="previous_personnel"){btnPrevClick(nullptr);return true;}
-    if(request.action=="next_personnel"){btnNextClick(nullptr);return true;}
+    if(request.action=="previous_personnel"){if(_base)btnPrevClick(nullptr);else btnNextClick(nullptr);return true;}
+    if(request.action=="next_personnel"){if(_base)btnNextClick(nullptr);else btnPrevClick(nullptr);return true;}
     if(request.action=="open_diary_combat"){btnKillsClick(nullptr);return true;}
     if(request.action=="open_diary_awards"){btnCommendationsClick(nullptr);return true;}
     if(request.action=="select_diary_mission"){

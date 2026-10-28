@@ -26,6 +26,8 @@ class TextButton;
 class Window;
 class Text;
 class TextList;
+class Soldier;
+class SoldierDeath;
 
 /**
  * Screen that shows all the soldiers
@@ -38,7 +40,24 @@ private:
 	Window *_window;
 	Text *_txtTitle, *_txtName, *_txtRank, *_txtDate, *_txtRecruited, *_txtLost;
 	TextList *_lstSoldiers;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    const void *_agentMemorialSave = nullptr;
+    std::vector<const Soldier *> _agentDeadSoldiers;
+    std::vector<int> _agentDeadIds;
+    std::vector<const SoldierDeath *> _agentDeaths;
+    std::vector<int> _agentDeathDates;
+    bool agentMemorialBindingCurrent() const;
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Soldiers state.
 	SoldierMemorialState();
 	/// Cleans up the Soldiers state.

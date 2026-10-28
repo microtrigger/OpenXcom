@@ -208,6 +208,7 @@ bool SoldiersState::agentUiState(Observer::AgentUiState &out) const
     AgentListProjection list;if (!view.list(_lstSoldiers,3,false,list)) return false;
     for (size_t row:out.rows) { if (row>=_base->getSoldiers()->size()) return false;out.widgets.emplace_back(_base->getSoldiers()->at(row),0); }
     if (!out.rows.empty()) out.actions.emplace_back("select_soldier","Select soldier","visible_control_semantics","outfitting_row");
+    view.button(_btnMemorial,"memorial","open_memorial");
     view.button(_btnOk,"close","close_soldiers");
     out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
     return view.finish();
@@ -216,6 +217,7 @@ bool SoldiersState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="open_memorial") { btnMemorialClick(nullptr);return true; }
     if(request.action=="close_soldiers") { btnOkClick(nullptr);return true; }
     if(Observer::agentOutfittingScroll(_lstSoldiers,current,request)) return true;
     size_t row=0;if(request.action=="select_soldier" && Observer::agentOutfittingRow(current,request,row) && _lstSoldiers->agentSelectOutfittingRow(row)) { lstSoldiersClick(nullptr);return true; }
