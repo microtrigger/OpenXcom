@@ -33,10 +33,20 @@ class Text;
 class AliensCrashState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentPainted = false;
+    std::vector<std::uint64_t> _agentPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	TextButton *_btnOk;
 	Window *_window;
 	Text *_txtTitle;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Aliens Crash state.
 	AliensCrashState();
 	/// Cleans up the Aliens Crash state.
