@@ -27,6 +27,11 @@ never exposes current tactical enemy state through these history reports.
 Empty-history live routes are locally qualified in both games. Populated Combat,
 Awards and mission reports are checked separately in native fixtures, not claimed
 as populated live qualification. Awards tooltip interaction, all medal sprite
-semantics, Memorial, and every caption are not included. In particular the empty
-mission no-record caption remains nullable. Full player-equivalent coverage and
+semantics, Memorial, and every caption are not included. The empty mission no-record caption is projected when its own overlapping
+list is currently painted and demonstrably empty; foreign overlays and stale
+list state remain blocking. Full player-equivalent coverage and
 the regression backlog remain open.
+
+The scoped empty-list correction is native-fixture qualified in both games,
+including overlay, stale-paint and added-row negatives. It is not a new populated
+live-history acceptance claim.

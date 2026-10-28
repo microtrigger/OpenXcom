@@ -311,7 +311,22 @@ bool SoldierDiaryMissionState::agentUiState(Observer::AgentUiState &out) const
     const auto allowed=[this](const AgentUiState &part){return _game->agentOverlayClear(part);};
     const auto text=[&](const Text *widget)->std::string{
         out.widgets.emplace_back(widget,widget->agentTextRevision());const auto value=agentTextJson(widget);
-        if(value=="null"||!widget->agentPresentationPaintedTo(logical)||!agentWidgetUncovered(widget,painted))return "null";
+        if(value=="null"||!widget->agentPresentationPaintedTo(logical))return "null";
+        // The native empty kill list is painted after the "No record" caption.
+        // Its cleared transparent surface is not an occluding window. Exempt
+        // only this exact allocation after certifying its current empty paint;
+        // retain its controls and every other later surface in the witness.
+        std::vector<Surface *> captionPainted;
+        const std::vector<Surface *> *captionOrder=&painted;
+        if(widget==_txtNoRecord && _lstKills->getRows()==0 && _lstKills->agentPresentationPaintedTo(logical)) {
+            std::vector<AgentOutfittingRow> rows;std::uint64_t epoch=0;
+            if(_lstKills->agentReportRows(rows,epoch) && rows.empty()) {
+                out.context.push_back(epoch);
+                for(Surface *surface:painted)if(surface!=_lstKills)captionPainted.push_back(surface);
+                captionOrder=&captionPainted;
+            }
+        }
+        if(!agentWidgetUncovered(widget,*captionOrder))return "null";
         AgentUiState part;agentIncludeWidget(part,widget);return !part.regions.empty()&&allowed(part)?value:"null";
     };
     const auto title=text(_txtTitle), ufo=text(_txtUFO), score=text(_txtScore), kills=text(_txtKills);

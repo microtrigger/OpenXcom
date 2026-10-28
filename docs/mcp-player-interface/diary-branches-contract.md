@@ -34,7 +34,12 @@ MCP mapping checks.
 Empty-history Combat/Performance live routes are locally qualified in both
 games. Stock rules without commendations hide Awards; populated Awards and
 mission details have separate native-fixture qualification, not populated live
-acceptance. The empty mission no-record caption remains nullable. Native test
+acceptance. The no-record caption now ignores only its own currently painted, demonstrably
+empty transparent list allocation; other overlays and stale state still block it. Native test
 launchers are maintained separately on the tools/native-test-runner-20261028
 branch; consult its dependency and integration status before use. Full regression
 and the complete player-equivalent interface remain open.
+
+The scoped empty-list correction is native-fixture qualified in both games,
+including overlay, stale-paint and added-row negatives. It is not a new populated
+live-history acceptance claim.
