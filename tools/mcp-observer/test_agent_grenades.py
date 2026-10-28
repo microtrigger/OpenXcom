@@ -60,7 +60,7 @@ class GrenadeValidationTests(unittest.TestCase):
 
     def test_exact_version_closed_counts_and_replaced_weapon_name(self):
         self.assertEqual(a.SCHEMA, SCHEMA)
-        self.assertEqual((len(a.definitions()), len(a.ACTIONS), len(a.STATE_ACTIONS)), (4, 188, 81))
+        self.assertEqual((len(a.definitions()), len(a.ACTIONS), len(a.STATE_ACTIONS)), (6, 227, 97))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertNotIn('choose_fire_mode', a.ACTIONS)
         self.assertEqual(a.WEAPON_ACTION_HANDLES, tuple(f'a{i}' for i in range(6)))

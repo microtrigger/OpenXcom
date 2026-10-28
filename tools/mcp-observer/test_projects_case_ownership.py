@@ -4,7 +4,7 @@ import ast
 import copy
 import inspect
 from pathlib import Path
-import subprocess
+import hashlib
 import threading
 import unittest
 from unittest import mock
@@ -30,10 +30,12 @@ def method_node(source):
 
 
 def baseline_source():
-    return subprocess.run(['git', '-C', str(Path(__file__).resolve().parent), 'show',
-                           BASELINE + ':tools/mcp-observer/test_agent_projects.py'],
-                          check=True, capture_output=True, text=True).stdout
-
+    # Exact archived parent source, restored by reversing its original commit
+    # patch, not reconstructed from the candidate under test. See fixture README.
+    data = (Path(__file__).resolve().parent / 'fixtures/ownership/projects-639679d4.py.txt').read_bytes()
+    if hashlib.sha256(data).hexdigest() != '9e079f7678ed591d07a8507972039c789d26a66fb6192c9dcc7dc6accb353c0b':
+        raise AssertionError('pinned_ownership_baseline_mismatch')
+    return data.decode('utf-8')
 
 def baseline_method():
     node = method_node(baseline_source())
@@ -144,6 +146,14 @@ def make_case(method):
 
 
 class ProjectsCaseOwnershipTests(unittest.TestCase):
+    def test_pinned_baseline_tamper_and_missing_fail_closed(self):
+        with mock.patch.object(Path, 'read_bytes', return_value=b'not historical source'):
+            with self.assertRaisesRegex(AssertionError, '^pinned_ownership_baseline_mismatch$'):
+                baseline_source()
+        with mock.patch.object(Path, 'read_bytes', side_effect=FileNotFoundError('missing fixture')):
+            with self.assertRaises(FileNotFoundError):
+                baseline_source()
+
     def candidate(self):
         return getattr(projects.ProjectsClientTests, METHOD)
 

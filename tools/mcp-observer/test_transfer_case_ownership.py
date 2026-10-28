@@ -4,7 +4,7 @@ import ast
 import copy
 import inspect
 from pathlib import Path
-import subprocess
+import hashlib
 import unittest
 from unittest import mock
 
@@ -24,10 +24,12 @@ def method_node(source, name):
 
 
 def old_source():
-    return subprocess.run(['git', '-C', str(Path(__file__).resolve().parent), 'show',
-                           BASELINE + ':tools/mcp-observer/test_agent_transfer.py'],
-                          check=True, capture_output=True, text=True).stdout
-
+    # Exact archived parent source, restored by reversing its original commit
+    # patch, not reconstructed from the candidate under test. See fixture README.
+    data = (Path(__file__).resolve().parent / 'fixtures/ownership/transfer-61a8ab2c.py.txt').read_bytes()
+    if hashlib.sha256(data).hexdigest() != '7af69e5118cf7fdca3194f337285b8f394aafc494eae1b8f744c6878a4b06bba':
+        raise AssertionError('pinned_ownership_baseline_mismatch')
+    return data.decode('utf-8')
 
 def old_method(name):
     node = method_node(old_source(), name)
@@ -103,6 +105,14 @@ def make_case(method):
 
 
 class TransferCaseOwnershipTests(unittest.TestCase):
+    def test_pinned_baseline_tamper_and_missing_fail_closed(self):
+        with mock.patch.object(Path, 'read_bytes', return_value=b'not historical source'):
+            with self.assertRaisesRegex(AssertionError, '^pinned_ownership_baseline_mismatch$'):
+                old_source()
+        with mock.patch.object(Path, 'read_bytes', side_effect=FileNotFoundError('missing fixture')):
+            with self.assertRaises(FileNotFoundError):
+                old_source()
+
     def candidate(self, name):
         return getattr(transfer.TransferTests, name)
 

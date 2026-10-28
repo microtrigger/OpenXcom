@@ -77,7 +77,7 @@ def sized_arrival(size, event=False):
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
         self.assertEqual(a.COMPLETION_BUTTONS, BUTTONS)
@@ -85,7 +85,7 @@ class CompletionContractTests(unittest.TestCase):
         for screen, actions in ACTION_BUTTONS.items():
             expected = set(actions) | ({'scroll_visible_list'} if screen == 'items_arriving' else set())
             self.assertEqual(a.STATE_ACTIONS[screen], expected)
-        for version in range(1, 26):
+        for version in range(1, 40):
             obj = state(screen='production_complete'); obj['schema'] = f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable):
                 checked(obj)
@@ -278,12 +278,15 @@ class CompletionContractTests(unittest.TestCase):
         obj = state(screen='ufo_contact')
         self.assertEqual([entry['id'] for entry in obj['visible']['buttons']], ['intercept', 'center', 'cancel'])
         self.assertEqual([entry['id'] for entry in obj['actions']], ['dismiss_ufo_contact', 'open_contact_interception'])
-        for action in ('intercept', 'center', 'intercept_ufo', 'center_ufo', 'open_interception',
+        for action in ('intercept', 'center', 'intercept_ufo', 'center_ufo',
                        'intercept_ufo_contact', 'center_ufo_contact', 'open_ufo_details'):
             self.assertNotIn(action, a.ACTIONS)
             with self.subTest(action=action), self.assertRaises(Unavailable):
                 a.validate_action_arguments(arguments(action=action, args={}))
-        for action in ('center_selected_unit', 'center_enemy', 'open_bases', 'choose_visible_row'):
+        # General interception exists on Geoscape, not on a contact-specific popup.
+        self.assertIn('open_interception', a.STATE_ACTIONS['geoscape'])
+        self.assertNotIn('open_interception', a.STATE_ACTIONS['ufo_contact'])
+        for action in ('open_interception', 'center_selected_unit', 'center_enemy', 'open_bases', 'choose_visible_row'):
             bad = copy.deepcopy(obj)
             bad['actions'] = [dict(id=action, label='Center', label_source=a.label_source('ufo_contact', action),
                                   argument_kind=a.ARGUMENT_KINDS[action])]

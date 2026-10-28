@@ -26,8 +26,15 @@ def effect(kind, seq=1):
 class ImpactValidationTests(unittest.TestCase):
     def test_protocol_catalog_and_all_eight_kinds(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertIn('protocol /24:', a.definitions()[0]['description'])
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
+        # Advertised version must match the exact wire, not a historical prose literal.
+        self.assertIn('protocol /'+a.SCHEMA.rsplit('/',1)[1]+':', a.definitions()[0]['description'])
+        description=a.definitions()[0]['description']
+        self.assertIn('Campaign Save/Load uses only currently offered ordinary UI actions',description)
+        self.assertIn('no unrestricted paths or implicit overwrite authority',description)
+        self.assertIn('read_player_bases separately reads current player-owned base data',description)
+        self.assertIn('that read never grants a UI mutation capability',description)
+        self.assertNotIn('No campaign save/load/overwrite',description)
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_REQUEST, a.MAX_TEXT_PACKET, a.MAX_PACKET), (512, 32768, 49152))
         events = [presentation(1), message(seq=2), audio(3),

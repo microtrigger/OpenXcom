@@ -11,7 +11,7 @@ ACTIONS = {'open_craft_destination', 'cancel_craft_navigation'}
 class RedirectFixture(NativeFixture):
     def observation(self, challenge, capability):
         obj=super().observation(challenge, capability)
-        ids={'open_craft_destination':'target','return_craft_to_base':'base','patrol_craft_current_position':'patrol','go_to_craft_last_known_position':'last_known'}
+        ids={'return_craft_to_base':'base','patrol_craft_current_position':'patrol','open_craft_destination':'target','go_to_craft_last_known_position':'last_known'}
         obj['visible']['redirect']='REDIRECT CRAFT'
         obj['visible']['buttons']=[dict(id=b,label=b.title()) for b in ids.values()]
         obj['actions']=[dict(id=x,label=b.title(),label_source='visible_text',argument_kind='none') for x,b in ids.items()]
@@ -139,7 +139,7 @@ class CraftNavigationTests(unittest.TestCase):
         old=copy.deepcopy(base);del old['visible']['redirect']
         with self.assertRaises(Unavailable):self.checked(old)
         redirect=copy.deepcopy(base);redirect['visible']['redirect']='REDIRECT CRAFT'
-        ids={'open_craft_destination':'target','return_craft_to_base':'base','patrol_craft_current_position':'patrol','go_to_craft_last_known_position':'last_known'}
+        ids={'return_craft_to_base':'base','patrol_craft_current_position':'patrol','open_craft_destination':'target','go_to_craft_last_known_position':'last_known'}
         redirect['visible']['buttons']=[dict(id=b,label=b.title()) for b in ids.values()]
         redirect['actions']=[dict(id=x,label=b.title(),label_source='visible_text',argument_kind='none') for x,b in ids.items()]
         self.checked(redirect)

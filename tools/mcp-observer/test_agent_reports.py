@@ -2,6 +2,8 @@
 # New contribution maintained in this OpenXcom fork, 2026-10-18.
 """Synthetic /6 displayed-text and ordinary acknowledgment contracts only."""
 import json
+import re
+from pathlib import Path
 import unittest
 
 import adapter
@@ -18,9 +20,18 @@ def message(text='Jane\nis under alien control', report='alien_control', seq=1):
 class DisplayedReportValidationTests(unittest.TestCase):
     def test_exact_compiled_protocol_actions_states_and_tool_count(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual(len(a.ACTIONS), 209)
-        self.assertEqual(len(a.STATE_ACTIONS), 89)
-        self.assertEqual(len(a.definitions()), 4)
+        self.assertEqual(len(a.ACTIONS), 227)
+        self.assertEqual(len(a.STATE_ACTIONS), 97)
+        self.assertEqual(len(a.definitions()), 6)
+        # Exact native/adapter action parity, not counts inferred from adapters.
+        native=(Path(__file__).resolve().parents[2]/'src/Observer/AgentProtocol.cpp').read_text()
+        self.assertIn('return "openxcom-agent-control/40"',native)
+        native_actions=set(re.findall(r'value == "([a-z0-9_]+)"',native))
+        self.assertEqual(native_actions,set(a.ACTIONS))
+        self.assertEqual(set().union(*a.STATE_ACTIONS.values()) | {'move_cursor'},native_actions)
+        self.assertEqual({tool['name'] for tool in a.definitions()},
+                         {'read_ui_state','execute_ui_action','read_ui_action_result',
+                          'read_public_events','read_public_audio','read_player_bases'})
         self.assertEqual(a.ARGUMENT_KINDS['acknowledge_message'], 'none')
         self.assertEqual(a.STATE_ACTIONS['infobox'], frozenset())
         self.assertEqual(a.STATE_ACTIONS['infobox_ok'], {'acknowledge_message'})

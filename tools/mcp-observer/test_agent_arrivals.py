@@ -90,15 +90,15 @@ class ArrivalContractTests(unittest.TestCase):
 
     def test_wire23_only_preserves_action_state_tool_and_event_catalogs(self):
         self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
         self.assertEqual(a.STATE_ACTIONS['items_arriving'], ARRIVAL_ACTIONS)
         self.assertEqual({tool['name'] for tool in a.definitions()},
-                         {'read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio'})
+                         {'read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases'})
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 16, 32768, 49152, 512))
         self.assertEqual(len({event['kind'] for event in retained_events()}), 10)
         self.assertEqual(validate(page(retained_events()))['events'], retained_events())
-        for version in range(1, 26):
+        for version in range(1, 40):
             obj = arrival(); obj['schema'] = f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable):
                 checked(obj)
@@ -424,7 +424,14 @@ class ArrivalClientTests(unittest.TestCase):
             self.assertEqual([entry['type'] for entry in reply['content']], ['text'])
             self.assertEqual(json.loads(reply['content'][0]['text']), reply['structuredContent'])
         self.assertEqual([row['cells'] for row in observed['structuredContent']['visible']['rows']], PARTIAL_ROWS)
-        self.assertEqual(history['structuredContent']['events'], retained_events())
+        expected_metadata=[{key:value for key,value in event.items() if key!='pcm_hex'} for event in retained_events()]
+        self.assertEqual(history['structuredContent']['events'], expected_metadata)
+        self.assertNotIn('pcm_hex',json.dumps(history))
+        # PCM remains available only through the explicit audio endpoint.
+        audio=call(server,'read_public_audio',dict(epoch=EPOCH,after=0,limit=8))['result']
+        self.assertFalse(audio['isError'])
+        self.assertTrue(any(entry['type']=='audio' and entry['mimeType']=='audio/wav' for entry in audio['content']))
+        self.assertNotIn('pcm_hex',json.dumps(audio['structuredContent']))
         self.assertEqual(duplicate['structuredContent'], dispatched['structuredContent'])
         self.assertEqual(status['structuredContent'], dispatched['structuredContent'])
         self.assertEqual(peer.client.capability, fresh['structuredContent']['capability'])

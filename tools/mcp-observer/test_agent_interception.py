@@ -56,12 +56,54 @@ class InterceptionTests(unittest.TestCase):
             with self.assertRaises(Unavailable):self.checked(obj)
             obj['actions']=[x for x in obj['actions'] if x['id']!=action];self.checked(obj)
     def test_actions_use_fresh_single_use_grant(self):
-        scenarios={'open_contact_interception':'ufo_contact'}
-        for screen in a.INTERCEPTION_BUTTON_ACTIONS:scenarios.update(dict.fromkeys(a.STATE_ACTIONS[screen],screen))
-        for action,screen in scenarios.items():
-            peer=self.fixture(screen=screen);obj=peer.client.observe()
-            self.assertEqual(peer.client.execute(**arguments(obj,action=action))['status'],'dispatched')
-            self.assertIsNone(peer.client.capability);self.assertFalse(peer.client.visible_rows or peer.client.scroll_directions)
+        # A state catalog is a union of mutually exclusive native UI modes,
+        # not a grant. Exercise each actual mode without widening authority.
+        scenarios=[('ufo_contact',None)] + [(screen,None) for screen in a.INTERCEPTION_BUTTON_ACTIONS]
+        scenarios += [('geoscape_craft_navigation','redirect'),('monthly_report','failure')]
+        covered=set()
+        for screen,mode in scenarios:
+            def transform(op,obj,mode=mode):
+                shown=obj if obj.get('type')=='state' else obj.get('observation')
+                if shown is None:return obj
+                if mode=='redirect':
+                    shown['visible']['redirect']='REDIRECT CRAFT'
+                    pairs=[('return_craft_to_base','base'),('patrol_craft_current_position','patrol'),
+                           ('open_craft_destination','target'),('go_to_craft_last_known_position','last_known')]
+                elif mode=='failure':
+                    shown['visible']['failure']='Council terminates project'
+                    pairs=[('acknowledge_monthly_failure','failure_ok')]
+                else:return obj
+                shown['visible']['buttons']=[dict(id=button,label=button.title()) for _,button in pairs]
+                shown['actions']=[dict(id=action,label=button.title(),label_source='visible_text',argument_kind='none') for action,button in pairs]
+                return obj
+            class ModeFixture(NativeFixture):
+                def observation(self,challenge,capability,project=transform):
+                    return project('R',super().observation(challenge,capability))
+            def fixture():
+                peer=ModeFixture(screen=screen)
+                self.addCleanup(peer.close)
+                return peer
+            sample=transform('R',state(screen=screen))
+            offered={entry['id'] for entry in sample['actions']}
+            for action in sorted(offered):
+                with self.subTest(screen=screen,mode=mode,action=action):
+                    peer=fixture();old=peer.client.observe();obj=peer.client.observe()
+                    with self.assertRaises(Unavailable):peer.client.execute(**arguments(old,action=action))
+                    self.assertFalse(any(packet.startswith(b'E ') for packet in peer.requests))
+                    args=arguments(obj,action=action)
+                    receipt=peer.client.execute(**args)
+                    self.assertEqual(receipt['status'],'dispatched')
+                    self.assertEqual(peer.client.execute(**args),receipt)
+                    self.assertEqual(sum(packet.startswith(b'E ') for packet in peer.requests),1)
+                    self.assertIsNone(peer.client.capability);self.assertFalse(peer.client.visible_rows or peer.client.scroll_directions)
+                    covered.add((screen,action))
+            for action in sorted(a.STATE_ACTIONS[screen]-offered):
+                with self.subTest(hidden=action,screen=screen,mode=mode):
+                    peer=fixture();obj=peer.client.observe()
+                    with self.assertRaises(Unavailable):peer.client.execute(**arguments(obj,action=action))
+                    self.assertFalse(any(packet.startswith(b'E ') for packet in peer.requests))
+        expected={(screen,action) for screen in a.INTERCEPTION_BUTTON_ACTIONS for action in a.STATE_ACTIONS[screen]}
+        self.assertTrue(expected <= covered)
     def test_stale_rows_and_unshown_scroll_rejected_before_send(self):
         def transform(op,obj):
             if op=='R':obj['visible']['scroll']['up']=False
