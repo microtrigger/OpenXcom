@@ -167,7 +167,7 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _view->agentEnableFacilitySelection();
     for(Surface *surface:_surfaces) surface->agentTrackPresentation();
-    for(TextButton *button:{_btnBaseInfo,_btnFacilities,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnSell,_btnTransfer,_btnGeoscape})
+    for(TextButton *button:{_btnNewBase,_btnBaseInfo,_btnFacilities,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnSell,_btnTransfer,_btnGeoscape})
         button->agentEnableNamedControl();
     if(_game->getCursor()) _game->getCursor()->agentTrackPresentation();
     if(_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
@@ -645,6 +645,7 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
         out.actions.emplace_back(action,label,"visible_text");
     };
     const auto location=text(_txtLocation),funds=text(_txtFunds);
+    button(_btnNewBase,"new_base","open_new_base");
     button(_btnBaseInfo,"base_info","open_base_info");
     button(_btnFacilities,"build_facilities","open_build_facilities");
     button(_btnResearch,"research","open_research");
@@ -678,6 +679,7 @@ bool BasescapeState::agentDispatch(const Observer::AgentRequest &request)
         if (index>=fresh.rows.size()) return false;
         _mini->hoverAt(int(fresh.rows[index])*16+8); miniClick(nullptr); return true;
     }
+    if (request.action=="open_new_base") { btnNewBaseClick(nullptr); return true; }
     if (request.action=="open_base_info") { btnBaseInfoClick(nullptr); return true; }
     if (request.action=="open_build_facilities") { btnFacilitiesClick(nullptr); return true; }
     if (request.action=="open_research") { btnResearchClick(nullptr); return true; }

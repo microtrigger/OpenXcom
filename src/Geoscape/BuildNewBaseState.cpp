@@ -36,6 +36,11 @@
 #include "../Engine/Options.h"
 #include "../Menu/ErrorMessageState.h"
 #include "../Mod/RuleInterface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#endif
 
 namespace OpenXcom
 {
@@ -139,6 +144,12 @@ BuildNewBaseState::BuildNewBaseState(Base *base, Globe *globe, bool first) : _ba
 	{
 		_btnCancel->setVisible(false);
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for(Surface *surface:_surfaces)surface->agentTrackPresentation();
+    _btnCancel->agentEnableNamedControl();
+    if(_game->getCursor())_game->getCursor()->agentTrackPresentation();
+    if(_game->getFpsCounter())_game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -391,21 +402,45 @@ void BuildNewBaseState::resize(int &dX, int &dY)
 bool BuildNewBaseState::agentUiState(Observer::AgentUiState &ui) const
 {
     using namespace Observer;
-    // This bounded route covers first-base placement, whose Cancel is hidden.
-    if (!_first || _modal || _btnCancel->getVisible() || !agentWidgetVisible(_window)) return false;
-    ui.screen="build_base";
-    const std::string title=agentWidgetUncovered(_txtTitle,_surfaces) ? agentTextJson(_txtTitle) : "null";
-    if (title!="null") agentIncludeWidget(ui,_txtTitle);
-    const std::string geography=_globe->agentGeography(ui,_surfaces);
-    ui.visible="{\"title\":"+title+",\"globe\":"+geography+"}";
+    if (_modal || !_base || !_game->isState(const_cast<BuildNewBaseState *>(this)) ||
+        _window->agentPopupActive() || !agentPaintHealthy() || !agentWidgetVisible(_window)) return false;
+    const Surface *logical=_game->getScreen()->getSurface();
+    const SDL_Surface *destination=logical?logical->getSurface():nullptr;
+    if(!destination || destination->clip_rect.x || destination->clip_rect.y ||
+        destination->clip_rect.w!=destination->w || destination->clip_rect.h!=destination->h ||
+        !_window->agentPresentationPaintedTo(logical))return false;
+    ui=AgentUiState();ui.screen="build_base";
+    const auto painted=agentFlattenPaintOrder(_surfaces);
+    for(const Surface *surface:painted)ui.widgets.emplace_back(surface,surface->agentPresentationRevision());
+    ui.widgets.emplace_back(_txtTitle,_txtTitle->agentTextRevision());
+    ui.widgets.emplace_back(_btnCancel,_btnCancel->agentLabelRevision());
+    if(_game->getCursor())ui.widgets.emplace_back(_game->getCursor(),_game->getCursor()->agentPresentationRevision());
+    if(_game->getFpsCounter())ui.widgets.emplace_back(_game->getFpsCounter(),_game->getFpsCounter()->agentPresentationRevision());
+    const std::string title=agentWidgetUncovered(_txtTitle,painted) && _txtTitle->agentPresentationPaintedTo(logical) ? agentTextJson(_txtTitle) : "null";
+    // The title is observation, not a click target; its allocation slightly
+    // overlaps the native Cancel button and must not suppress that control.
+    const std::string geography=_globe->agentGeography(ui,painted);
     if (geography!="null") ui.actions.push_back(AgentUiAction("place_base_site","Choose base site","visible_control_semantics","point"));
+    std::string buttons="[";
+    if(!_first) {
+        const auto label=agentProjectNamedButton(_btnCancel,logical,painted,ui,
+            [this](const AgentUiState &part){return _game->agentOverlayClear(part);});
+        if(!label.empty() && label.size()<=1024) {
+            buttons+="{\"id\":\"cancel\",\"label\":"+agentJsonString(label)+"}";
+            ui.actions.emplace_back("cancel_new_base",label,"visible_text");
+        }
+    }
+    buttons+="]";
+    ui.visible="{\"title\":"+title+",\"globe\":"+geography+",\"buttons\":"+buttons+"}";
     ui.actor=_globe; ui.save=_base; ui.uiRevision=_globe->agentViewRevision();
     return true;
 }
 bool BuildNewBaseState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState ui;
-    if (!agentUiState(ui) || request.action!="place_base_site" || !ui.offers(request.action)) return false;
+    if (!agentUiState(ui) || !ui.offers(request.action)) return false;
+    if(request.action=="cancel_new_base") { if(_first)return false;btnCancelClick(nullptr);return true; }
+    if(request.action!="place_base_site")return false;
     // Exact freshly advertised point membership, never an eligibility preflight.
     bool offered=false;
     for(const auto &r:ui.regions) if(r.width==1 && r.height==1 && r.x==request.x && r.y==request.y) offered=true;

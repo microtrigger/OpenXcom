@@ -73,9 +73,13 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
                        difficulty=[dict(value=value, label=value.title(), selected=value == 'beginner') for value in a.DIFFICULTIES])
         ids = sorted(a.STATE_ACTIONS[screen])
     elif screen == 'build_base':
-        visible = dict(title='Choose base site', globe=dict(width=256, height=200, sample_step=16,
+        visible = dict(title='Choose base site', buttons=[], globe=dict(width=256, height=200, sample_step=16,
             samples=[dict(x=64, y=80, terrain='textured'), dict(x=80, y=80, terrain='untextured')]))
         ids = ['place_base_site']
+    elif screen == 'confirm_new_base':
+        visible=dict(cost='$1,000,000',area='Europe',buttons=[dict(id='ok',label='OK'),dict(id='cancel',label='Cancel')]);ids=['confirm_new_base','cancel_new_base_confirmation']
+    elif screen == 'place_lift':
+        visible=dict(title='Place access lift',grid=dict(columns=6,rows=6,origin_x=0,origin_y=8,cell_size=32,cells=[dict(x=0,y=0),dict(x=1,y=0)]),buttons=[]);ids=['place_access_lift_cell']
     elif screen == 'geoscape':
         visible = {field: field.title() for field in a.GEOSCAPE_FIELDS}
         visible['buttons'] = [dict(id=value, label=value.title()) for value in a.GEOSCAPE_BUTTONS]
@@ -249,6 +253,8 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         if action in ('accept_purchase','cancel_purchase','accept_sell','cancel_sell'):return next(x['label'] for x in visible['buttons'] if x['id']==action.split('_')[0])
         if screen in ('purchase_category','sell_category') and action in ('choose_visible_row','scroll_visible_list','close_dropdown'):
             return {'choose_visible_row':'Choose visible row','scroll_visible_list':'Scroll visible list','close_dropdown':'Close choices'}[action]
+        if action == 'place_access_lift_cell':return 'Place access lift in visible cell'
+        if screen in ('build_base','confirm_new_base') and action in ('cancel_new_base','confirm_new_base','cancel_new_base_confirmation'):return next(x['label'] for x in visible['buttons'] if x['id']==('ok' if action=='confirm_new_base' else 'cancel'))
         if action == 'click_base_facility_cell':return 'Select visible base facility'
         if screen == 'dismantle_facility':return next(x['label'] for x in visible['buttons'] if x['id']==('ok' if action=='confirm_dismantle_facility' else 'cancel'))
         if action == 'select_base': return 'Select base'
@@ -283,7 +289,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'change_transfer_quantity': {'row':'r0','operation':'adjust','value':1},
                 'change_production_quantity': {'control':'engineers','operation':'adjust','value':1},
                 'set_production_sell': {'enabled':True},
-                'select_build_facility': {'row':'r0'}, 'place_facility_cell': {'x':0,'y':0}, 'click_base_facility_cell': {'x':0,'y':0},
+                'select_build_facility': {'row':'r0'}, 'place_facility_cell': {'x':0,'y':0}, 'place_access_lift_cell': {'x':0,'y':0}, 'click_base_facility_cell': {'x':0,'y':0},
                 'change_sale_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_sell': {'direction':'down','amount':'step'},
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
@@ -596,7 +602,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 202); self.assertEqual(len(a.STATE_ACTIONS), 86)
+        self.assertEqual(len(a.ACTIONS), 207); self.assertEqual(len(a.STATE_ACTIONS), 88)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -647,7 +653,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 202)
+        self.assertEqual(len(a.ACTIONS), 207)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
@@ -660,7 +666,7 @@ class TypedValidationTests(unittest.TestCase):
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
-            'click_base_facility_cell':'facility_cell','place_facility_cell':'facility_cell','select_build_facility':'facility_row','change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
+            'place_access_lift_cell':'facility_cell','click_base_facility_cell':'facility_cell','place_facility_cell':'facility_cell','select_build_facility':'facility_row','change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
             'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
@@ -825,7 +831,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/34')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/35')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -839,7 +845,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/34']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/35']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1559,9 +1565,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/34',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/34'
-send(dict(schema='openxcom-agent-control/34',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/35',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/35'
+send(dict(schema='openxcom-agent-control/35',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1606,9 +1612,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/34',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/34'
-send(dict(schema='openxcom-agent-control/34',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/35',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/35'
+send(dict(schema='openxcom-agent-control/35',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1639,9 +1645,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/34', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/35', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/34'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/35'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

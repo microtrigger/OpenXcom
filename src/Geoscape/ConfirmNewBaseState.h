@@ -42,7 +42,18 @@ private:
 	Text *_txtCost, *_txtArea;
 	TextButton *_btnOk, *_btnCancel;
 	int _cost;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Confirm New Base state.
 	ConfirmNewBaseState(Base *base, Globe *globe);
 	/// Cleans up the Confirm New Base state.

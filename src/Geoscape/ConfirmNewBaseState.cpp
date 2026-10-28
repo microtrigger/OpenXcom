@@ -33,6 +33,15 @@
 #include "../Engine/Unicode.h"
 #include "../Mod/RuleInterface.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#include <typeinfo>
+#include <algorithm>
+#endif
+
 namespace OpenXcom
 {
 
@@ -89,6 +98,13 @@ ConfirmNewBaseState::ConfirmNewBaseState(Base *base, Globe *globe) : _base(base)
 	_txtCost->setText(tr("STR_COST_").arg(Unicode::formatFunding(_cost)));
 
 	_txtArea->setText(tr("STR_AREA_").arg(area));
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    _btnOk->agentEnableNamedControl();
+    _btnCancel->agentEnableNamedControl();
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -126,5 +142,85 @@ void ConfirmNewBaseState::btnCancelClick(Action *)
 	_globe->onMouseOver(0);
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool ConfirmNewBaseState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> ConfirmNewBaseState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    revisions.push_back(_txtCost->agentTextRevision());
+    revisions.push_back(_txtArea->agentTextRevision());
+    revisions.push_back(_btnOk->agentLabelRevision());
+    revisions.push_back(_btnCancel->agentLabelRevision());
+    return revisions;
+}
+void ConfirmNewBaseState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool ConfirmNewBaseState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(ConfirmNewBaseState) || _modal || _window->agentPopupActive() ||
+        !_base || !_game->isState(const_cast<ConfirmNewBaseState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState(); out.actor = _base; out.screen = "confirm_new_base";
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const Surface *logical = _game->getScreen()->getSurface();
+    for (const Surface *surface : painted) out.widgets.emplace_back(surface, surface->agentPresentationRevision());
+    if (_game->getCursor()) out.widgets.emplace_back(_game->getCursor(), _game->getCursor()->agentPresentationRevision());
+    if (_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(), _game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !widget->agentPresentationPaintedTo(logical) || !agentWidgetUncovered(widget, painted)) return "null";
+        AgentUiState part; agentIncludeWidget(part, widget);
+        if (part.regions.empty() || !allowed(part)) return "null";
+        const auto old = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return value;
+        out.regions.resize(old); return "null";
+    };
+    const auto cost = text(_txtCost), area = text(_txtArea);
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        const auto label = agentProjectNamedButton(widget, logical, painted, out, allowed);
+        if (label.empty() || label.size() > 1024) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    if (cost != "null" && cost != "\"\"" && area != "null" && area != "\"\"")
+        button(_btnOk, "ok", "confirm_new_base");
+    button(_btnCancel, "cancel", "cancel_new_base_confirmation");
+    buttons += "]";
+    out.visible = "{\"cost\":" + cost + ",\"area\":" + area + ",\"buttons\":" + buttons + "}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 32768;
+}
+bool ConfirmNewBaseState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;
+    if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if (request.action == "confirm_new_base") {
+        btnOkClick(nullptr); return true;
+    }
+    if (request.action == "cancel_new_base_confirmation") { btnCancelClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

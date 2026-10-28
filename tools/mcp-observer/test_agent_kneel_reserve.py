@@ -31,7 +31,7 @@ class KneelReserveTests(unittest.TestCase):
         return a.validate_state(copy.deepcopy(obj), CHALLENGE, EPOCH)
 
     def test_schema30_and_visible_enum_independent_of_pose(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/34')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/35')
         for value in ('on', 'off'):
             for pose in ('standing', 'kneeling', None):
                 obj = observation(value)

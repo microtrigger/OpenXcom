@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/34"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/35"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/34\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/35\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -38,7 +38,7 @@ bool agentActionId(const std::string &value)
         value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
         value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||
         value == "cancel_menu" || value == "dismiss_error" || value == "select_difficulty" ||
-        value == "set_ironman" || value == "start_new_game" || value == "place_base_site" ||
+        value == "set_ironman" || value == "start_new_game" || value == "place_base_site" || value == "open_new_base" || value == "cancel_new_base" || value == "confirm_new_base" || value == "cancel_new_base_confirmation" || value == "place_access_lift_cell" ||
         value == "replace_base_name" || value == "confirm_base_name" ||
         value == "load_saved_game" || value == "select_new_save_slot" || value == "replace_new_save_name" || value == "save_new_game" ||
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "open_psi_training_base" || value == "choose_visible_craft_destination" || value == "scroll_visible_list" ||
@@ -121,7 +121,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "select_build_facility") return "facility_row";
-    if (action == "place_facility_cell" || action == "click_base_facility_cell") return "facility_cell";
+    if (action == "place_facility_cell" || action == "click_base_facility_cell" || action == "place_access_lift_cell") return "facility_cell";
     if (action == "change_sale_quantity") return "sale_quantity";
     if (action == "scroll_sell") return "sale_scroll";
     if (action == "change_purchase_quantity") return "purchase_quantity";

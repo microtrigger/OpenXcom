@@ -76,7 +76,7 @@ def sized_arrival(size, event=False):
 
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/34')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/35')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
