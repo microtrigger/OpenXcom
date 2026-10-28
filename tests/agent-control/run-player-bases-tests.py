@@ -10,7 +10,7 @@ from native_test_runner import run_recipe
 
 LIMITATIONS = [
     'Actual native models/collector with synthetic in-memory rules injected through test-only private access; not live acceptance.',
-    'UI-equivalent pure research/manufacture query sets, known route pointer membership and guarded native craft estimates checked.',
+    'UI-equivalent pure research/manufacture query sets, known route pointer membership, guarded craft estimates, completed archive joins and researched tangible-item article metadata checked.',
     'No Game/window/campaign-load/player-save execution. Existing matching full-build objects are reused and explicitly hashed.',
     'Non-Target IDs track observed live bindings; unseen deletion/address reuse between captures cannot be distinguished. IDs never authorize mutations.',
     'The manifest is explicit, not a complete compiler, SDK-header, dynamic-library or toolchain transitive dependency closure.',
@@ -24,7 +24,10 @@ def integrate(source, build, sdk, output):
         'src/Observer/AgentPlayerBases.cpp', 'src/Observer/AgentPlayerBases.h',
         'tests/agent-control/AgentPlayerBasesTest.cpp', 'src/Savegame/Soldier.h',
         'src/Savegame/Base.h', 'src/Savegame/SavedGame.cpp', 'src/Savegame/Craft.cpp',
-        'src/Savegame/Craft.h', 'src/Savegame/Waypoint.h')]
+        'src/Savegame/Craft.h', 'src/Savegame/Waypoint.h',
+        'src/Savegame/MissionStatistics.h', 'src/Savegame/SoldierDiary.cpp',
+        'src/Savegame/BattleUnitStatistics.h', 'src/Mod/RuleItem.cpp',
+        'src/Mod/ArticleDefinition.cpp')]
     files += [Path(__file__).resolve(), Path(__file__).with_name('native_test_runner.py').resolve(), link_recipe]
     objects = [(build / 'src' / token).resolve() for token in shlex.split(link_recipe.read_text())
                if token.endswith('.o') and not token.endswith(('/main.cpp.o', '/AgentPlayerBases.cpp.o'))]

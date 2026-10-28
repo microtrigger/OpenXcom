@@ -175,13 +175,18 @@ python tests/agent-control/run-player-bases-tests.py --source gameplay-source --
 Two real compile steps (fixture and collector), link, and the native executable
 run through the generic core with the original explicit source/object closure,
 plus the harness, core and link recipe. No generated-source seam is added.
-The source must supply `AgentPlayerBasesTest.cpp` and the schema4 collector API;
-the supplied build must match that source. **Minimum published schema4 gameplay
-API dependency: `40c2f33e0b41e4155ec89f2355f107376c1f0ce5`.** Earlier schema3 commits do not
-establish availability of the knowledge/offers and safe-route fields.
+The source must supply `AgentPlayerBasesTest.cpp` and the schema5 collector API;
+the supplied build must match that source. **Minimum published schema5 gameplay
+API dependency: `4f4df15ae43e1277f84cac4adab3fff9c317c774`.** The earlier schema4 dependency
+`40c2f33e0b41e4155ec89f2355f107376c1f0ce5` does not establish availability of
+completed-history joins or known own-stock/equipment-reference article metadata.
 
 The fixture uses synthetic native owned-base models and research/manufacturing
-rules. It checks pure queries and safe own-route membership without running
+rules. It checks pure queries, safe own-route membership, completed historical
+archive joins, and independently researched owned-item article metadata. The
+history is seeded fixture data, not evidence of live achievements. The manifest
+also seals the relevant history/statistics and item/article model source. This
+executes without running
 Game, loading a campaign, reading player saves, or claiming live acceptance.
 The test executable exports sample owned-record JSON only to the requested new
 output directory. `RESULT.json` seals the explicitly listed input bytes;
