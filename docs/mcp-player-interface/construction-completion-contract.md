@@ -30,8 +30,10 @@ owned-state preservation in these runs, not byte-identical game state or a
 promise that normal time advancement can never change a base.
 
 Each run creates a new named save through the ordinary UI and verifies its
-presence in the save list. Save contents were not inspected. Loading these
-particular saves remains a separate acceptance step.
+presence in the save list. Save contents were not inspected. The subsequent
+[transfer and arrival](transfer-arrival-contract.md) stage loads these particular
+saves through the ordinary UI and verifies their two-base content. Reloading
+the newer arrival-complete saves remains pending.
 
 Gameplay used MCP without visual fallback. This acceptance does not cover
 queued or multi-cell construction, every facility type, every intervening
