@@ -56,8 +56,29 @@ then confirmed closure. Thus the **entire session is not labelled pure MCP**.
 This was a technical window-close distinction, not a reserve/gameplay fallback.
 Use the desktop window-manager shortcut for future normal test-window closure.
 
-This qualifies the bounded None/Snap slice in one live UFO test battle. It is
-not a completed campaign, a new full-battle acceptance, TFTD live qualification,
-or completion of the broader player-equivalent UFO/TFTD interface. Next ordinary
-slice: remaining reserve controls or a separately bounded path-preview interface,
-with fresh player-visible evidence and normal UI handlers.
+This qualifies the bounded None/Snap slice in one live UFO test battle, not a
+completed campaign or completion of the broader player-equivalent interface.
+
+## TFTD live qualification (06:17–06:24 UTC, 28 October 2026)
+
+The same published binary was exercised in an isolated TFTD New Battle, Port
+Attack / Triton / Beginner / Aquatoid. Fresh player-visible MCP observations
+confirmed None/58 TU → Snap/58 TU → None/58 TU. A subsequent ordinary movement
+through the adjacent door changed the selected position from (5,17,0) to
+(6,17,0), TU 50, with normal input context. These gameplay actions used MCP;
+no hidden state or saves were read. Passive H.264 video was verified before
+input and finalized (414.8 seconds, no recorded audio).
+
+The first Survey Ship test ended before combat: all aliens died in the crash.
+At 06:18:50 an unsupported projection prompted visual inspection; the first
+image output was truncated, so it was re-observed at 06:21:22. The visible
+“Auto recovery initiated” modal was dismissed once by its OK button at
+06:22:04; a malformed initial CUA call failed before input. Fresh MCP observation
+then confirmed debriefing, and all subsequent menu and battle actions returned
+to MCP. Thus this session is **mixed**, not pure MCP. The concrete uncovered gap
+is the auto-recovery modal's missing public projection/action. Normal window-
+manager closure after the bounded test was confirmed by window inventory.
+
+This is not a full TFTD mission acceptance or campaign completion. The next
+priority is the discovered auto-recovery modal gap, not a new synthetic matrix;
+rare matrix work and audio optimization remain deferred.
