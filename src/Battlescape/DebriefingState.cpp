@@ -187,6 +187,9 @@ DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(tru
     _lstStats->agentEnableReportCells(3);
     _lstRecovery->agentEnableReportCells(3);
     _lstTotal->agentEnableReportCells(2);
+    _lstSoldierStats->agentEnableSoldierStatsCells();
+    for (Surface *widget : std::vector<Surface*>{_window,_btnOk,_btnStats,_txtTitle,_txtSoldier,_txtTU,_txtStamina,_txtHealth,_txtBravery,_txtReactions,_txtFiring,_txtThrowing,_txtMelee,_txtStrength,_txtPsiStrength,_txtPsiSkill,_txtTooltip})
+        widget->agentTrackPresentation();
 #endif
 
 	// Second page
@@ -685,14 +688,105 @@ void DebriefingState::btnStatsClick(Action *)
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool DebriefingState::agentSoldierStatsUi(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    out = AgentUiState(); out.screen = "debriefing_soldier_stats"; out.actor = this;
+    const Surface *destination = _game->getScreen()->getSurface();
+    if (!_window->agentPresentationPaintedTo(destination) || !agentPaintHealthy()) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const auto text = [&](const Text *widget, bool heading) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        if (!agentWidgetVisible(widget) || !widget->agentPresentationPaintedTo(destination) || widget->getText().size()>1024) return "null";
+        AgentUiState part;
+        part.regions.push_back({widget->getX(),widget->getY(),widget->getWidth(),heading && widget->getHeight()==9 ? 8 : widget->getHeight()});
+        if (!agentRegionsUncovered(part.regions,widget,painted) || !_game->agentNonCursorOverlayClear(part)) return "null";
+        return agentJsonString(widget->getText());
+    };
+    bool publicWitness=false;
+    std::string headings="[";
+    for (const Text *widget : {_txtSoldier,_txtTU,_txtStamina,_txtHealth,_txtBravery,_txtReactions,_txtFiring,_txtThrowing,_txtMelee,_txtStrength,_txtPsiStrength,_txtPsiSkill}) {
+        if(headings.size()>1)headings+=","; const std::string caption=text(widget,true); headings+=caption; publicWitness=publicWitness||caption!="null";
+    }
+    headings+="]";
+    std::vector<AgentOutfittingRow> rows; std::uint64_t epoch=0;
+    const bool shown=_lstSoldierStats->agentPresentationPaintedTo(destination) && _lstSoldierStats->agentReportRows(rows,epoch);
+    std::string values="[";
+    if(shown) for(const auto &row:rows) {
+        if(row.cells.size()!=12)return false;
+        std::string value="{\"cells\":["; bool witnessed=false;
+        for(size_t c=0;c<12;++c) {
+            if(c)value+=",";
+            const auto &cell=row.cells[c]; AgentUiState part;
+            for(const auto &r:cell.regions)part.regions.push_back({r.x,r.y,r.w,r.h});
+            bool admitted=cell.known && !part.regions.empty() && agentRegionsUncovered(part.regions,_lstSoldierStats,painted) && _game->agentNonCursorOverlayClear(part);
+            witnessed=witnessed||admitted;
+            value+=admitted?agentJsonString(cell.text):"null";
+        }
+        value+="]}"; if(!witnessed)continue; publicWitness=true;
+        if(values.size()>1)values+=",";values+=value;
+    }
+    values+="]";
+    out.widgets.emplace_back(_lstSoldierStats,_lstSoldierStats->agentListRevision());
+    out.widgets.emplace_back(_lstSoldierStats,_lstSoldierStats->agentPresentationRevision());
+    out.context.push_back(epoch);
+    std::string buttons="[";
+    for(const auto &entry: std::vector<std::pair<TextButton*,std::string>>{{_btnOk,"ok"},{_btnStats,"stats"}}) {
+        TextButton *button=entry.first;
+        if(!button->agentPresentationPaintedTo(destination) || !agentWidgetUncovered(button,painted))continue;
+        const std::string label=agentButtonLabel(button); if(label.empty())continue;
+        AgentUiState part;agentIncludeWidget(part,button);if(!_game->agentOverlayClear(part))continue;
+        if(buttons.size()>1)buttons+=",";
+        buttons+="{\"id\":"+agentJsonString(entry.second)+",\"label\":"+agentJsonString(label)+"}";
+        agentIncludeWidget(out,button);
+        out.actions.emplace_back(button==_btnOk?"close_debriefing":"toggle_debriefing_stats",label,"visible_text");
+    }
+    buttons+="]";
+    const Surface *up=nullptr,*down=nullptr;_lstSoldierStats->agentSoldierStatsScrollControls(up,down);
+    const auto arrow=[&](const Surface *widget)->bool {
+        if(!widget || !widget->agentPresentationPaintedTo(destination) || !widget->agentContextVisible())return false;
+        const int left=std::max(0,widget->getX()),top=std::max(0,widget->getY());
+        const int right=std::min(Options::baseXResolution,widget->getX()+widget->getWidth());
+        const int bottom=std::min(Options::baseYResolution,widget->getY()+widget->getHeight());
+        if(left>=right||top>=bottom)return false;
+        AgentUiState part;part.regions.push_back({left,top,right-left,bottom-top});
+        if(!agentRegionsUncovered(part.regions,widget,painted)||!_game->agentOverlayClear(part))return false;
+        const auto size=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if(!agentRegionsDisjoint(out)){out.regions.resize(size);return false;}
+        out.widgets.emplace_back(widget,widget->agentPresentationRevision());return true;
+    };
+    const bool scrollUp=arrow(up),scrollDown=arrow(down);
+    out.context.insert(out.context.begin(),{scrollUp?1u:0u,scrollDown?1u:0u});
+    if(scrollUp||scrollDown)out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    const std::string title=text(_txtTitle,false),tooltip=text(_txtTooltip,false);
+    publicWitness=publicWitness||title!="null"||tooltip!="null";
+    out.visible="{\"title\":"+title+",\"headings\":"+headings+
+        ",\"table\":{\"status\":"+agentJsonString(shown?"shown":"unavailable")+",\"rows\":"+values+
+        "},\"tooltip\":"+tooltip+",\"scroll\":{\"up\":"+(scrollUp?"true":"false")+
+        ",\"down\":"+(scrollDown?"true":"false")+"},\"buttons\":"+buttons+"}";
+    return (publicWitness||!out.regions.empty()) && out.payload().size()<=30000;
+}
+
+bool DebriefingState::agentDispatch(const Observer::AgentRequest &request)
+{
+    if(request.action!="scroll_visible_list")return agentDispatch(request.action);
+    Observer::AgentUiState current;
+    if(!agentUiState(current)||!current.offers(request.action)||current.context.size()<2)return false;
+    if(request.choice=="up"&&current.context[0]){_lstSoldierStats->scrollUp(false,false);return true;}
+    if(request.choice=="down"&&current.context[1]){_lstSoldierStats->scrollDown(false,false);return true;}
+    return false;
+}
+
 bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
 {
     if (_modal || !_game->isState(const_cast<DebriefingState *>(this)) ||
         !Observer::agentWidgetVisible(_window)) return false;
+    if (_showSoldierStats) return agentSoldierStatsUi(out);
     out = Observer::AgentUiState();
     out.screen = "debriefing";
     // Only already-painted score/recovery/total widget cells are observed.
-    // The soldier-stat page, model statistics and recomputation remain excluded.
+    // The separate soldier-stat page is also painted-only; no model statistics or recomputation.
     const std::vector<Surface *> painted = Observer::agentFlattenPaintOrder(_surfaces);
     const auto text = [&](const Text *widget) -> std::string
     {
@@ -709,6 +803,7 @@ bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
         if (!label.empty())
         {
             stats = Observer::agentJsonString(label);
+            out.actions.emplace_back("toggle_debriefing_stats", label, "visible_text");
             Observer::agentIncludeWidget(out, _btnStats);
         }
     }
@@ -802,7 +897,8 @@ bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
 bool DebriefingState::agentDispatch(const std::string &action)
 {
     Observer::AgentUiState current;
-    if (action != "close_debriefing" || !agentUiState(current) || !current.offers(action)) return false;
+    if ((action != "close_debriefing" && action != "toggle_debriefing_stats") || !agentUiState(current) || !current.offers(action)) return false;
+    if (action == "toggle_debriefing_stats") { btnStatsClick(nullptr); return true; }
     btnOkClick(nullptr);
     return true;
 }

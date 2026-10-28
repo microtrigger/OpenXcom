@@ -10,7 +10,7 @@ from test_agent_control import state, arguments, NativeFixture, CHALLENGE, EPOCH
 class DismantleTests(unittest.TestCase):
     def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
     def test_schema_closed_state_fields_and_labels(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/43')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/44')
         self.assertEqual(a.STATE_ACTIONS['dismantle_facility'],{'confirm_dismantle_facility','cancel_dismantle_facility'})
         for screen in ('basescape','dismantle_facility'):
             obj=state(screen=screen);self.check(obj)

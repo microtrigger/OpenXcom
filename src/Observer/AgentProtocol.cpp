@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/43"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/44"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/43\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/44\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -44,7 +44,7 @@ bool agentActionId(const std::string &value)
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "open_psi_training_base" || value == "choose_visible_craft_destination" || value == "scroll_visible_list" ||
         value == "close_dropdown" || value == "open_funding" || value == "close_funding" || value == "end_turn" || value == "acknowledge_message" || value == "map_primary" || value == "map_secondary" ||
         value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
-        value == "choose_weapon_action" || value == "choose_grenade_timer" || value == "cancel_grenade_timer" || value == "cancel_weapon_action" || value == "close_debriefing" ||
+        value == "choose_weapon_action" || value == "choose_grenade_timer" || value == "cancel_grenade_timer" || value == "cancel_weapon_action" || value == "close_debriefing" || value == "toggle_debriefing_stats" ||
         value == "open_inventory" || value == "inventory_hover" || value == "inventory_activate" ||
         value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page" ||
         value == "view_level_up" || value == "view_level_down" || value == "toggle_layers" ||

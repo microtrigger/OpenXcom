@@ -34,5 +34,5 @@ class ReportRowsTests(unittest.TestCase):
   with self.assertRaises(Unavailable):self.check(o)
  def test_no_new_selection_authority(self):
   self.assertEqual(a.STATE_ACTIONS['lost_in_service'],{'acknowledge_lost_in_service'})
-  self.assertEqual(a.STATE_ACTIONS['debriefing'],{'close_debriefing'})
+  self.assertEqual(a.STATE_ACTIONS['debriefing'],{'close_debriefing','toggle_debriefing_stats'})
 if __name__=='__main__':unittest.main()

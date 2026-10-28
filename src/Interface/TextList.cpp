@@ -2594,6 +2594,36 @@ bool TextList::agentContainmentArrowClick(const Surface *destination,size_t logi
     return false;
 }
 
+void TextList::agentEnableSoldierStatsCells()
+{
+    if (_agentReportCells) return;
+    _agentSoldierStatsCells = true; _agentReportColumns = 12;
+    _agentReportCells = true; ++_agentListRevision; _redraw = true;
+    agentTrackPresentation();
+    _up->agentTrackPresentation(); _down->agentTrackPresentation(); _scrollbar->agentTrackPresentation();
+}
+
+bool TextList::agentSoldierStatsShape(size_t row) const
+{
+    if (!_agentSoldierStatsCells) return true;
+    if (_agentReportColumns != 12 || _columns.size() != 13 || _columns[12] != 0 ||
+        row >= _texts.size() || _texts[row].size() != 13 || !_texts[row][12] ||
+        !_texts[row][12]->getText().empty()) return false;
+    for (size_t c=0;c<12;++c) if (!_columns[c]) return false;
+    return true;
+}
+
+void TextList::agentSoldierStatsScrollControls(const Surface *&up, const Surface *&down) const
+{
+    up=down=nullptr;
+    if (!_agentSoldierStatsCells || !Observer::agentWidgetVisible(this) ||
+        _agentPaintRevision!=_agentListRevision || !_scrolling) return;
+    // Stock debrief arrows overhang the 320px canvas by one pixel. Their
+    // visible hitbox is admitted by the owning provider, not this raw lookup.
+    if (_up->agentContextVisible()) up=_up;
+    if (_down->agentContextVisible()) down=_down;
+}
+
 void TextList::agentEnableReportCells(unsigned columns, bool allowMissingCells, bool requireTextExtent)
 {
 	if (columns < 1 || columns > 5) return;
@@ -2610,9 +2640,9 @@ void TextList::agentEnableReportCells(unsigned columns, bool allowMissingCells, 
 void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 {
 	if (!_agentReportCells) return;
-	if (!_font || _comboBox || _wrap || _condensed || _arrowPos != -1 || _columns.size() != _agentReportColumns || logicalIndex >= _texts.size() ||
-		(_texts[logicalIndex].empty() || _texts[logicalIndex].size() > _agentReportColumns ||
-		 (!_agentReportAllowMissingCells && _texts[logicalIndex].size() != _agentReportColumns)) || getWidth() <= 0 || getWidth() > 640 ||
+	if (!_font || _comboBox || _wrap || _condensed || _arrowPos != -1 || _columns.size() != _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u) || logicalIndex >= _texts.size() ||
+		(_texts[logicalIndex].empty() || _texts[logicalIndex].size() > _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u) ||
+		 (!_agentReportAllowMissingCells && _texts[logicalIndex].size() != _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u))) || getWidth() <= 0 || getWidth() > 640 ||
 		getHeight() <= 0 || getHeight() > 400)
 	{ _agentReportCaptureHealthy = false; return; }
 	// Use the ordinary draw allocation, not caption metrics or the selection grid.
@@ -2627,11 +2657,13 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 	for (size_t col = 0; col < _texts[logicalIndex].size(); ++col)
 	{
 		const Text *cell = _texts[logicalIndex][col];
+		if (_agentSoldierStatsCells && col == 12) continue;
 		if (!_columns[col] || _columns[col] > 640 || cell->getX() < -640 || cell->getX() > 640 ||
 			cell->getWidth() <= 0 || cell->getWidth() > 640 || cell->getY() != y ||
 			cell->getHeight() != allocationHeight)
 		{ _agentReportCaptureHealthy = false; return; }
 	}
+	if (!agentSoldierStatsShape(logicalIndex)) { _agentReportCaptureHealthy = false; return; }
 	if (height <= 0) { _agentReportCaptureHealthy = false; return; }
 	if (y < 0 || y + height > getHeight()) return;
 	if (_agentDrawReportRows.size() >= 128) { _agentReportCaptureHealthy = false; return; }
@@ -2648,6 +2680,7 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 		capture.presentationRevisions[col] = cell->agentPresentationRevision();
 		capture.geometry[col] = {static_cast<Sint16>(cell->getX()), static_cast<Sint16>(cell->getY()),
 			static_cast<Uint16>(cell->getWidth()), static_cast<Uint16>(cell->getHeight())};
+		if (_agentSoldierStatsCells && col == 12) continue;
 		// Preserve the current child caption only where its actual allocation
 		// intersects the viewport. Flooding width and dot padding are native UI.
 		const int left = std::max(0, cell->getX());
@@ -2696,20 +2729,22 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const
 {
 	rows.clear(); captureEpoch = 0;
+    if (_agentSoldierStatsCells && (_columns.size()!=13 || _columns[12]!=0)) return false;
 	if (!_agentReportPaintEpoch || _agentReportPaintEpoch != _agentReportDrawEpoch || _agentReportEpochExhausted || !_agentReportCells || !_agentReportCaptureHealthy || !Observer::agentWidgetVisible(this) ||
 		getWidth() <= 0 || getWidth() > 640 || getHeight() <= 0 || getHeight() > 400 ||
 		!agentPresentationPaintedTo(_agentReportDestination) ||
 		_agentPaintRevision != _agentListRevision || !Observer::agentPaintHealthy() ||
-		_comboBox || _wrap || _condensed || _columns.size() != _agentReportColumns ||
+		_comboBox || _wrap || _condensed || _columns.size() != _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u) ||
 		_arrowPos != -1 || _agentPaintReportRows.size() > 128) return false;
 	for (const AgentReportCapture &capture : _agentPaintReportRows)
 	{
 		AgentOutfittingRow row = capture.row;
 		if (row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].empty() ||
-			_texts[row.logicalIndex].size() > _agentReportColumns ||
-			(!_agentReportAllowMissingCells && _texts[row.logicalIndex].size() != _agentReportColumns))
+			_texts[row.logicalIndex].size() > _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u) ||
+			(!_agentReportAllowMissingCells && _texts[row.logicalIndex].size() != _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u)))
 		{ rows.clear(); return false; }
-		for (size_t col = 0; col < _agentReportColumns; ++col)
+		if (!agentSoldierStatsShape(row.logicalIndex)) { rows.clear(); return false; }
+		for (size_t col = 0; col < _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u); ++col)
 		{
 			if (col >= _texts[row.logicalIndex].size())
 			{
@@ -2718,8 +2753,8 @@ bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint6
 			}
 			const Text *cell = _texts[row.logicalIndex][col];
 			const SDL_Rect &g = capture.geometry[col];
-			if (cell != capture.cells[col] || cell->_redraw ||
-				(capture.row.cells[col].known && !cell->agentPresentationPaintedTo(this)) ||
+			if (cell != capture.cells[col] || (col < _agentReportColumns && cell->_redraw) ||
+				(col < _agentReportColumns && capture.row.cells[col].known && !cell->agentPresentationPaintedTo(this)) ||
 				cell->agentTextRevision() != capture.textRevisions[col] ||
 				cell->agentPresentationRevision() != capture.presentationRevisions[col] ||
 				cell->getX() != g.x || cell->getY() != g.y || cell->getWidth() != g.w || cell->getHeight() != g.h)

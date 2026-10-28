@@ -15,7 +15,7 @@ class CannotReequipTests(unittest.TestCase):
         return a.validate_state(obj, CHALLENGE, EPOCH)
 
     def test_catalog_and_exact_shape(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/43')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/44')
         self.assertEqual(a.STATE_ACTIONS['cannot_reequip'], frozenset(('acknowledge_cannot_reequip','scroll_visible_list')))
         obj = self.shown(); self.checked(obj)
         for key in obj['visible']:

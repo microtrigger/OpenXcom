@@ -12,9 +12,9 @@ from test_agent_events import page, presentation, validate
 
 class DebriefProjectionTests(unittest.TestCase):
     def test_identity_counts_and_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/43')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (231, 99, 7))
-        self.assertEqual(a.STATE_ACTIONS['debriefing'], {'close_debriefing'})
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/44')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (232, 100, 7))
+        self.assertEqual(a.STATE_ACTIONS['debriefing'], {'close_debriefing','toggle_debriefing_stats'})
         self.assertEqual(a.ARGUMENT_KINDS['close_debriefing'], 'none')
 
     def test_rendered_nullable_strings(self):
@@ -56,7 +56,7 @@ class DebriefProjectionTests(unittest.TestCase):
     def test_close_only_debrief_no_stats_authority(self):
         close = state(screen='debriefing')['actions'][0]
         for screen in a.STATE_ACTIONS:
-            if screen == 'debriefing': continue
+            if screen in ('debriefing', 'debriefing_soldier_stats'): continue
             obj = state(screen=screen); obj.update(actions=[close], capability='2' * 32)
             with self.subTest(screen=screen), self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
         for action in ('open_stats', 'read_stats'):
