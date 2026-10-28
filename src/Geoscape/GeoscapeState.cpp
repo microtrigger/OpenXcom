@@ -549,6 +549,8 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 			out.actions.push_back(Observer::AgentUiAction("open_pause_menu", label, "visible_text"));
 		if (buttons[i] == _btnUfopaedia)
 			out.actions.push_back(Observer::AgentUiAction("open_ufopaedia", label, "visible_text"));
+		if (buttons[i] == _btnGraphs)
+            out.actions.emplace_back("open_graphs",label,"visible_text");
 		if (buttons[i] == _btnFunding)
 			out.actions.push_back(Observer::AgentUiAction("open_funding", label, "visible_text"));
 		if (count++) controls += ",";
@@ -584,6 +586,7 @@ bool GeoscapeState::agentDispatch(const std::string &action)
 	Observer::AgentUiState current;
 	if (!agentUiState(current) || !current.offers(action)) return false;
 	if (action == "open_ufopaedia") { btnUfopaediaClick(nullptr); return true; }
+	if (action == "open_graphs") { btnGraphsClick(nullptr); return true; }
 	if (action == "open_funding") { btnFundingClick(nullptr); return true; }
 	if (action == "open_interception") { btnInterceptClick(nullptr); return true; }
 	if (action == "open_bases") { btnBasesClick(nullptr); return true; }

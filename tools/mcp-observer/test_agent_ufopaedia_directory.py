@@ -20,7 +20,7 @@ class UfopaediaDirectoryTests(unittest.TestCase):
         peer=NativeFixture(**kwargs);self.addCleanup(peer.close);return peer
 
     def test_closed_catalog(self):
-        self.assertEqual((a.SCHEMA,len(a.ACTIONS),len(a.STATE_ACTIONS)),('openxcom-agent-control/49',251,105))
+        self.assertEqual((a.SCHEMA,len(a.ACTIONS),len(a.STATE_ACTIONS)),('openxcom-agent-control/50',261,106))
         for screen in SCREENS:
             checked(state(screen=screen));validate(page([event(state(screen=screen))]))
 

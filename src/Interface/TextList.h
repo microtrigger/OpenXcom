@@ -123,6 +123,7 @@ private:
 	std::vector<AgentPurchaseRow> _agentDrawPurchaseRows, _agentPaintPurchaseRows;
 	std::vector<AgentArrivalRow> _agentDrawArrivalRows, _agentPaintArrivalRows;
 	bool _agentArrivalCells = false;
+    bool _agentGraphAxis = false;
 	// ItemsArrivingState-only logical current viewport; no row action authority.
 	struct AgentArrivalLogicalCapture
 	{
@@ -295,6 +296,8 @@ public:
 	void agentEnableArrivalLogicalCells();
 	bool agentArrivalLogicalRows(std::vector<AgentArrivalRow> &rows, std::uint64_t &captureEpoch) const;
 	void agentEnableArrivalCells();
+    void agentEnableGraphAxis();
+    std::string agentGraphAxisJson(const Surface *destination, const std::vector<Surface *> &paintOrder) const;
 	bool agentArrivalRows(std::vector<AgentArrivalRow> &rows) const;
 	// Purchase-only, independent text witnesses and exact painted row arrows.
 	bool agentPurchaseRows(std::vector<AgentPurchaseRow> &rows) const;

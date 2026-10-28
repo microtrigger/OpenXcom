@@ -33,7 +33,7 @@ class AbortMissionTests(unittest.TestCase):
         return a.validate_state(obj, CHALLENGE, EPOCH)
 
     def test_schema_exact_shape_and_nullable_displayed_captions(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/49')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/50')
         self.checked(abort_state())
         for field in FIELDS:
             for value in (None, '', 'Displayed\nlocalized caption: 17'):

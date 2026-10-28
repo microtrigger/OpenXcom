@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/49"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/50"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/49\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/50\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -27,7 +27,7 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "acknowledge_cannot_reequip" || value == "open_abort_mission" || value == "confirm_abort_mission" || value == "cancel_abort_mission" || value == "move_cursor" || value == "choose_dogfight_mode" || value == "open_interception" || value == "open_contact_interception" || value == "cancel_interception" ||
+    return value == "open_graphs" || value == "graph_alien_region" || value == "graph_alien_country" || value == "graph_xcom_region" || value == "graph_xcom_country" || value == "graph_income" || value == "graph_finance" || value == "toggle_graph_series" || value == "scroll_graph_legend" || value == "close_graphs" || value == "acknowledge_cannot_reequip" || value == "open_abort_mission" || value == "confirm_abort_mission" || value == "cancel_abort_mission" || value == "move_cursor" || value == "choose_dogfight_mode" || value == "open_interception" || value == "open_contact_interception" || value == "cancel_interception" ||
         value == "open_intercept_base" || value == "confirm_interception" || value == "cancel_interception_confirmation" ||
         value == "open_transfer" || value == "cancel_transfer_destination" ||
         value == "change_transfer_quantity" || value == "review_transfer" ||
@@ -155,8 +155,8 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "camera_pan") return "camera_direction";
     if (action == "minimap_center") return "minimap_target";
     if (action == "open_new_battle_choice") return "choice_control";
-    if (action == "click_visible_globe_target" || action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
-    if (action == "scroll_visible_list" || action == "scroll_article_text") return "scroll_direction";
+    if (action == "toggle_graph_series" || action == "click_visible_globe_target" || action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
+    if (action == "scroll_graph_legend" || action == "scroll_visible_list" || action == "scroll_article_text") return "scroll_direction";
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
     if (action == "replace_target_name" || action == "replace_base_name" || action == "replace_new_save_name") return "text";

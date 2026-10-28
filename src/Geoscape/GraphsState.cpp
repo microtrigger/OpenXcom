@@ -18,6 +18,11 @@
  */
 #include "GraphsState.h"
 #include <sstream>
+#include <algorithm>
+#include "../Engine/Screen.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
 #include "../Engine/Palette.h"
@@ -71,7 +76,11 @@ GraphsState::GraphsState() : _butRegionsOffset(0), _butCountriesOffset(0)
 	_txtMonths = new TextList(205, 8, 115, 183);
 	_txtYears = new TextList(200, 8, 121, 191);
 
-	// Set palette
+	#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _txtMonths->agentEnableGraphAxis();
+    _txtYears->agentEnableGraphAxis();
+#endif
+    // Set palette
 	setInterface("graphs");
 
 	//add all our elements
@@ -1164,5 +1173,133 @@ void GraphsState::updateButton(GraphButInfo *from,ToggleTextButton *to)
 	to->setInvertColor(from->_color);
 	to->setPressed(from->_pushed);
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+std::vector<Surface *> GraphsState::agentLineSurfaces() const
+{
+    std::vector<Surface *> result;
+    for (const auto *group : {&_alienRegionLines,&_alienCountryLines,&_xcomRegionLines,&_xcomCountryLines,&_financeLines,&_incomeLines})
+        result.insert(result.end(),group->begin(),group->end());
+    return result;
+}
+std::vector<ToggleTextButton *> GraphsState::agentLegend() const
+{
+    auto result = _finance ? _btnFinances : (_country ? _btnCountries : _btnRegions);
+    if (!_finance) result.push_back(_country ? _btnCountryTotal : _btnRegionTotal);
+    return result;
+}
+void GraphsState::blit()
+{
+    _agentGraphPaint=false;
+    for(auto *line:agentLineSurfaces()) line->agentTrackPresentation();
+    State::blit();
+    _agentGraphPaint=Observer::agentPaintHealthy();
+    _agentGraphContext={static_cast<unsigned>(_alien),static_cast<unsigned>(_income),static_cast<unsigned>(_country),static_cast<unsigned>(_finance),_butRegionsOffset,_butCountriesOffset};
+}
+bool GraphsState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<GraphsState *>(this)) || _modal || !_agentGraphPaint || !agentPaintHealthy()) return false;
+    const std::vector<std::uint64_t> context={static_cast<unsigned>(_alien),static_cast<unsigned>(_income),static_cast<unsigned>(_country),static_cast<unsigned>(_finance),_butRegionsOffset,_butCountriesOffset};
+    if(context!=_agentGraphContext)return false;
+    const Surface *screen = _game->getScreen()->getSurface();
+    if (!screen || screen->getWidth()!=320 || screen->getHeight()!=200) return false;
+    out=AgentUiState();out.screen="graphs";
+    out.regions.push_back({0,0,320,200});
+    if (!_game->agentOverlayClear(out) || !agentRegionVisible(out.regions.front())) return false;
+    const auto lines=agentLineSurfaces();
+    std::vector<Surface *> controls;
+    for (auto *surface:_surfaces) if (std::find(lines.begin(),lines.end(),surface)==lines.end()) controls.push_back(surface);
+    const auto text=[&](const Text *widget) {
+        out.widgets.emplace_back(widget,widget->agentTextRevision());
+        return agentWidgetUncovered(widget,controls) ? agentTextJson(widget) : "null";
+    };
+    const char *mode=_finance?"finance":_income?"income":_country?(_alien?"alien_country":"xcom_country"):(_alien?"alien_region":"xcom_region");
+    out.visible="{\"mode\":"+agentJsonString(mode)+",\"title\":"+text(_txtTitle)+",\"factor\":"+text(_txtFactor);
+    out.widgets.emplace_back(_txtMonths,_txtMonths->agentListRevision());
+    out.widgets.emplace_back(_txtYears,_txtYears->agentListRevision());
+    out.visible+=",\"months\":"+_txtMonths->agentGraphAxisJson(screen,_surfaces)+",\"years\":"+_txtYears->agentGraphAxisJson(screen,_surfaces)+",\"scale\":[";
+    for(size_t i=0;i<_txtScale.size();++i){if(i)out.visible+=",";out.visible+=text(_txtScale[i]);}
+    out.visible+="],\"legend\":[";
+    auto legend=agentLegend();
+    for(size_t i=0;i<legend.size();++i){auto *button=legend[i];bool pressed=false;
+        out.widgets.emplace_back(button,button->agentToggleRevision());
+        if(!agentWidgetUncovered(button,controls)||!button->agentTogglePressed(pressed))continue;
+        const auto label=agentButtonLabel(button);if(label.empty())continue;
+        if(!out.rows.empty())out.visible+=",";
+        out.visible+="{\"handle\":\"r"+std::to_string(out.rows.size())+"\",\"label\":"+agentJsonString(label)+",\"pressed\":"+(pressed?"true":"false")+"}";
+        bool present[256]={};
+        for(int py=0;py<button->getHeight();++py)for(int px=0;px<button->getWidth();++px){
+            const auto color=button->getPixel(px,py);
+            if(color && screen->getPixel(button->getX()+px,button->getY()+py)==color)present[color]=true;
+        }
+        out.visible.pop_back();out.visible+=",\"visible_palette\":[";
+        bool firstColor=true;for(unsigned c=1;c<256;++c)if(present[c]){if(!firstColor)out.visible+=",";firstColor=false;out.visible+=std::to_string(c);}
+        out.visible+="]}";
+        out.rows.push_back(i);
+    }
+    const size_t offset=_country?_butCountriesOffset:_butRegionsOffset;
+    const size_t total=(_country?_countryToggles:_regionToggles).size();
+    const bool up=!_finance && offset>0,down=!_finance && offset+GRAPH_MAX_BUTTONS+1<total;
+    out.context={static_cast<unsigned>(_alien),static_cast<unsigned>(_income),static_cast<unsigned>(_country),static_cast<unsigned>(_finance),_butRegionsOffset,_butCountriesOffset,static_cast<unsigned>(up),static_cast<unsigned>(down)};
+    out.visible+="],\"scroll\":{\"up\":"+std::string(up?"true":"false")+",\"down\":"+(down?"true":"false")+"},\"plot\":{\"x\":125,\"y\":45,\"width\":188,\"height\":134,\"segments\":[";
+    // Reconstruct only actual painted line pixels in native order, then keep
+    // pixels still visible in the final logical canvas. No source time series.
+    unsigned char pixels[200][320]={};
+    for(auto *surface:_surfaces){if(!surface->agentBlitEnabled())continue;
+        if(std::find(lines.begin(),lines.end(),surface)==lines.end()){
+            // A later non-chart widget can occlude a line even with identical
+            // palette colour. Never infer line identity from colour equality.
+            if(surface!=_bg)for(int y=45;y<179;++y)for(int x=125;x<313;++x)
+                if(x>=surface->getX()&&x<surface->getX()+surface->getWidth()&&y>=surface->getY()&&y<surface->getY()+surface->getHeight())pixels[y][x]=0;
+            continue;
+        }
+        if(!surface->agentPresentationPaintedTo(screen)||surface->getX()!=0||surface->getY()!=0||surface->getWidth()!=320||surface->getHeight()!=200)return false;
+        for(int y=45;y<179;++y)for(int x=125;x<313;++x){const auto color=surface->getPixel(x-surface->getX(),y-surface->getY());if(color)pixels[y][x]=color;}
+    }
+    bool first=true;
+    for(int y=45;y<179;++y)for(int x=125;x<313;){unsigned color=pixels[y][x];
+        if(!color||screen->getPixel(x,y)!=color){++x;continue;}
+        int end=x;while(end+1<313&&pixels[y][end+1]==color&&screen->getPixel(end+1,y)==color)++end;
+        if(!first)out.visible+=",";first=false;
+        out.visible+="{\"x1\":"+std::to_string(x)+",\"y1\":"+std::to_string(y)+",\"x2\":"+std::to_string(end)+",\"y2\":"+std::to_string(y)+",\"color\":"+std::to_string(color)+"}";x=end+1;
+    }
+    out.visible+="]}}";
+    if(out.visible.size()>40000)return false; // bounded protocol, never truncate chart
+
+    const char *names[]={"graph_alien_region","graph_alien_country","graph_xcom_region","graph_xcom_country","graph_income","graph_finance","close_graphs"};
+    const char *labels[]={"Alien activity by region","Alien activity by country","XCOM activity by region","XCOM activity by country","Income","Finance","Return to Geoscape"};
+    const InteractiveSurface *icons[]={_btnUfoRegion,_btnUfoCountry,_btnXcomRegion,_btnXcomCountry,_btnIncome,_btnFinance,_btnGeoscape};
+    for(unsigned i=0;i<7;++i)if(agentWidgetUncovered(icons[i],controls))out.actions.emplace_back(names[i],labels[i],"visible_control_semantics");
+    if(!out.rows.empty())out.actions.emplace_back("toggle_graph_series","Toggle visible series","visible_control_semantics","visible_row");
+    if(up||down)out.actions.emplace_back("scroll_graph_legend","Scroll visible legend","visible_control_semantics","scroll_direction");
+    return true;
+}
+bool GraphsState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;if(!agentUiState(current)||!current.offers(request.action))return false;
+    if(request.action=="graph_alien_region"){btnUfoRegionClick(nullptr);return true;}
+    if(request.action=="graph_alien_country"){btnUfoCountryClick(nullptr);return true;}
+    if(request.action=="graph_xcom_region"){btnXcomRegionClick(nullptr);return true;}
+    if(request.action=="graph_xcom_country"){btnXcomCountryClick(nullptr);return true;}
+    if(request.action=="graph_income"){btnIncomeClick(nullptr);return true;}
+    if(request.action=="graph_finance"){btnFinanceClick(nullptr);return true;}
+    if(request.action=="close_graphs"){btnGeoscapeClick(nullptr);return true;}
+    SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+    Action action(&event,1.0,1.0,0,0);
+    if(request.action=="scroll_graph_legend"){
+        if(request.choice=="up"&&current.context[6])event.button.button=SDL_BUTTON_WHEELUP;
+        else if(request.choice=="down"&&current.context[7])event.button.button=SDL_BUTTON_WHEELDOWN;else return false;
+        action.setSender(_bg);shiftButtons(&action);return true;
+    }
+    if(request.action=="toggle_graph_series"){
+        if(request.choice.size()<2||request.choice.size()>3||request.choice[0]!='r'||(request.choice.size()==3&&request.choice[1]=='0'))return false;
+        unsigned slot=0;for(size_t i=1;i<request.choice.size();++i){if(request.choice[i]<'0'||request.choice[i]>'9')return false;slot=slot*10+request.choice[i]-'0';}
+        const auto legend=agentLegend();if(slot>=current.rows.size()||current.rows[slot]>=legend.size())return false;
+        auto *button=legend[current.rows[slot]];action.setSender(button);action.setMouseAction(button->getX()+1,button->getY()+1,button->getX(),button->getY());button->mousePress(&action,this);return true;
+    }
+    return false;
+}
+#endif
 
 }

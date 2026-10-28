@@ -18,7 +18,7 @@ NEW_STATES = ('basescape','base_info','base_stores','base_transfers')
 
 def descriptors(obj, ids):
     buttons={x['id']:x['label'] for x in obj['visible'].get('buttons',[])}
-    mapping=({'open_ufopaedia':'ufopaedia','open_interception':'intercept','open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if obj['state']=='geoscape'
+    mapping=({'open_graphs':'graphs','open_ufopaedia':'ufopaedia','open_interception':'intercept','open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if obj['state']=='geoscape'
              else a.BASE_BUTTON_ACTIONS.get(obj['state'],{}))
     def label(action):
         if action=='click_visible_globe_target':return 'Inspect visible target'
@@ -60,8 +60,8 @@ class StrategyFixture(NativeFixture):
 
 class GeoscapeContractTests(unittest.TestCase):
     def test_exact_wire_catalog_and_argument_domains(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/49')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(251, 105, 7))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/50')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(261, 106, 7))
         self.assertEqual(a.GEOSCAPE_SPEED_HANDLES,tuple(f's{i}' for i in range(6)))
         self.assertEqual(a.BASE_TARGET_HANDLES,tuple(f'b{i}' for i in range(8)))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},dict.fromkeys(set(NEW_ACTIONS)-{'choose_geoscape_speed','select_base'},'none')|{'choose_geoscape_speed':'geoscape_speed','select_base':'base_target'})

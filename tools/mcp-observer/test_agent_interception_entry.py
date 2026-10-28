@@ -10,7 +10,7 @@ def shown(obj):
  return obj
 class InterceptionEntryTests(unittest.TestCase):
  def test_catalog_and_exact_button_argument_contract(self):
-  self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS)),(251,105));obj=shown(state(screen='geoscape'));a.validate_state(json.loads(json.dumps(obj)),CHALLENGE,EPOCH)
+  self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS)),(261,106));obj=shown(state(screen='geoscape'));a.validate_state(json.loads(json.dumps(obj)),CHALLENGE,EPOCH)
   for change in ('missing','label','neighbour'):
    bad=copy.deepcopy(obj)
    if change=='missing':bad['visible']['buttons']=[x for x in bad['visible']['buttons'] if x['id']!='intercept']

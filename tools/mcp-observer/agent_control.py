@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/49'
+SCHEMA = 'openxcom-agent-control/50'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -80,6 +80,10 @@ ACTIONS = ('move_cursor', 'next_soldier', 'previous_soldier', 'kneel', 'stand', 
            'close_craft_crew', 'change_craft_equipment', 'close_craft_equipment', 'select_craft_armor_soldier',
            'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor',
            'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')
+GRAPH_MODES = ('alien_region','alien_country','xcom_region','xcom_country','income','finance')
+GRAPH_ACTIONS = tuple('graph_'+m for m in GRAPH_MODES) + ('toggle_graph_series','scroll_graph_legend','close_graphs')
+GRAPH_LABELS = dict(zip(GRAPH_ACTIONS, ('Alien activity by region','Alien activity by country','XCOM activity by region','XCOM activity by country','Income','Finance','Toggle visible series','Scroll visible legend','Return to Geoscape')))
+ACTIONS += ('open_graphs',) + GRAPH_ACTIONS
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -216,7 +220,7 @@ RESEARCH_COMPLETION_ACTION_ORDER = {'research_complete': ('dismiss_research_comp
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
-ARGUMENT_KINDS.update(click_visible_globe_target='visible_row', choose_globe_target='outfitting_row', replace_target_name='text', choose_visible_craft_destination='visible_row', choose_visible_craft_point='point', load_saved_game='visible_row', open_psi_training_base='visible_row', toggle_psi_training='outfitting_row', move_cursor='cursor_position', select_difficulty='difficulty', set_ironman='boolean',
+ARGUMENT_KINDS.update(toggle_graph_series='visible_row', scroll_graph_legend='scroll_direction', click_visible_globe_target='visible_row', choose_globe_target='outfitting_row', replace_target_name='text', choose_visible_craft_destination='visible_row', choose_visible_craft_point='point', load_saved_game='visible_row', open_psi_training_base='visible_row', toggle_psi_training='outfitting_row', move_cursor='cursor_position', select_difficulty='difficulty', set_ironman='boolean',
                       replace_base_name='text', replace_new_save_name='text', place_base_site='point',
                       open_new_battle_choice='choice_control', choose_visible_row='visible_row',
                       scroll_visible_list='scroll_direction', scroll_article_text='scroll_direction', map_primary='grid_cell', map_secondary='grid_cell',
@@ -276,7 +280,8 @@ STATE_ACTIONS = {
     'ufopaedia_select': frozenset(('select_ufopaedia_article', 'close_ufopaedia_select', 'scroll_visible_list')),
     'multiple_targets': frozenset(('choose_globe_target','cancel_globe_targets')),
     'target_info': frozenset(('open_target_interception','focus_target_name','finish_target_name','replace_target_name','close_target_info')),
-    'geoscape': frozenset(('click_visible_globe_target','open_ufopaedia', 'open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
+    'graphs': frozenset(GRAPH_ACTIONS),
+    'geoscape': frozenset(('open_graphs','click_visible_globe_target','open_ufopaedia', 'open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
     'basescape': frozenset(('open_new_base', 'select_base', 'click_base_facility_cell', 'right_click_base_facility_cell', 'open_base_info', 'open_build_facilities', 'open_research', 'open_manufacture', 'open_purchase', 'open_sell', 'open_transfer', 'open_soldiers', 'open_crafts', 'return_geoscape')),
     'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers', 'open_monthly_costs')),
     'manage_containment': frozenset(('increase_containment_removal','decrease_containment_removal','scroll_visible_list','remove_selected_aliens','cancel_containment')),
@@ -436,6 +441,7 @@ def validate_ready(raw):
 
 
 def label_source(screen, action):
+    if action in GRAPH_ACTIONS: return 'visible_control_semantics'
     if action in ('move_cursor','advance_slideshow'): return 'visible_control_semantics'
     if action in ('select_memorial_soldier', 'select_diary_mission', 'right_click_base_facility_cell', 'increase_containment_removal', 'decrease_containment_removal', 'choose_dogfight_mode', 'select_build_facility', 'place_facility_cell', 'click_base_facility_cell', 'place_access_lift_cell'): return 'visible_control_semantics'
     if action in QUANTITY_SEMANTIC_LABELS or action in OUTFITTING_SEMANTIC_LABELS or (screen == 'new_research' and action == 'select_research_project'):
@@ -497,7 +503,7 @@ def validate_geoscape(visible, actions):
         require(type(button['id']) is str and button['id'] in GEOSCAPE_BUTTONS and button['id'] not in seen)
         seen.add(button['id'])
         visible_text(button['label']); require(bool(button['label']))
-    for action, button in (('open_interception', 'intercept'), ('open_funding', 'funding'), ('open_bases', 'bases'), ('open_pause_menu', 'options'), ('open_ufopaedia', 'ufopaedia')):
+    for action, button in (('open_interception', 'intercept'), ('open_funding', 'funding'), ('open_bases', 'bases'), ('open_pause_menu', 'options'), ('open_ufopaedia', 'ufopaedia'), ('open_graphs','graphs')):
         require(action not in actions or button in seen)
     speeds = visible['speeds']
     require(type(speeds) is list and len(speeds) <= len(GEOSCAPE_SPEED_HANDLES))
@@ -514,6 +520,49 @@ def validate_geoscape(visible, actions):
 
     validate_marker_witnesses(visible['targets'])
     require('click_visible_globe_target' not in actions or bool(visible['targets']))
+
+
+def validate_graphs(v, actions):
+    exact(v, 'mode title factor months years scale legend scroll plot')
+    require(type(v['mode']) is str and v['mode'] in GRAPH_MODES)
+    for key in ('title','factor'): strategy_text(v[key], nullable=True)
+    for key in ('months','years'):
+        require(type(v[key]) is list and len(v[key]) in (0,12 if key=='months' else 6))
+        for cell in v[key]:
+            exact(cell,'label clipped bounds')
+            strategy_text(cell['label'],nullable=True); require(type(cell['clipped']) is bool)
+            bounds=cell['bounds']
+            require((cell['label'] is None)==(bounds is None))
+            if bounds is not None:
+                exact(bounds,'x y width height')
+                integer(bounds['x'],0,319); integer(bounds['y'],0,199)
+                integer(bounds['width'],1,320-bounds['x']); integer(bounds['height'],1,200-bounds['y'])
+    require(type(v['scale']) is list and len(v['scale'])==10)
+    for text in v['scale']: strategy_text(text,nullable=True)
+    require(type(v['legend']) is list and len(v['legend'])<=17)
+    for i,row in enumerate(v['legend']):
+        exact(row,'handle label pressed visible_palette'); require(row['handle']==ROW_HANDLES[i])
+        palette=row['visible_palette']; require(type(palette) is list and len(palette)<=255)
+        for color in palette: integer(color,1,255)
+        require(palette==sorted(set(palette)))
+        strategy_text(row['label']); require(type(row['pressed']) is bool)
+    exact(v['scroll'],'up down')
+    require(all(type(x) is bool for x in v['scroll'].values()))
+    require('toggle_graph_series' not in actions or bool(v['legend']))
+    require('scroll_graph_legend' not in actions or any(v['scroll'].values()))
+    p=v['plot']; exact(p,'x y width height segments')
+    for key,value in (('x',125),('y',45),('width',188),('height',134)): integer(p[key],value,value)
+    require(type(p['segments']) is list and len(p['segments'])<=25192)
+    seen=set(); previous=None
+    for line in p['segments']:
+        exact(line,'x1 y1 x2 y2 color')
+        integer(line['x1'],125,312); integer(line['x2'],line['x1'],312)
+        integer(line['y1'],45,178); integer(line['y2'],line['y1'],line['y1'])
+        integer(line['color'],1,255)
+        identity=tuple(line[k] for k in ('x1','y1','x2','y2','color'))
+        require(identity not in seen); seen.add(identity)
+        require(previous is None or line['y1']>previous[0] or (line['y1']==previous[0] and line['x1']>previous[1]))
+        previous=(line['y1'],line['x2'])
 
 
 def validate_marker_witnesses(targets):
@@ -1630,6 +1679,8 @@ def validate_visible(screen, visible, seen, *, presentation=False):
         validate_new_game(visible, seen)
     elif screen == 'dogfight':
         validate_dogfight(visible, seen)
+    elif screen == 'graphs':
+        validate_graphs(visible, seen)
     elif screen == 'geoscape':
         validate_geoscape(visible, seen)
     elif screen in ('multiple_targets','target_info'):
@@ -1747,6 +1798,8 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
         require(action['argument_kind'] == ARGUMENT_KINDS[action['id']])
     require(not {'kneel', 'stand'}.issubset(seen) and seen <= STATE_ACTIONS[obj['state']])
     validate_visible(obj['state'], obj['visible'], seen)
+    if obj['state'] == 'graphs':
+        for d in obj['actions']: require(d['label']==GRAPH_LABELS[d['id']])
     if obj['state'] == 'weapon_action_menu' and 'choose_weapon_action' in seen:
         descriptor = next(action for action in obj['actions'] if action['id'] == 'choose_weapon_action')
         require(descriptor['label'] == obj['visible']['rows'][0]['label'])
@@ -1766,7 +1819,7 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
                     if d['id']==action:require(d['label']==buttons[key])
     if obj['state'] in ('geoscape', 'basescape', 'base_info', 'base_stores', 'base_transfers'):
         buttons = {button['id']: button['label'] for button in obj['visible'].get('buttons', [])}
-        mapping = ({'open_ufopaedia':'ufopaedia', 'open_interception':'intercept', 'open_funding': 'funding', 'open_bases': 'bases', 'open_pause_menu': 'options'}
+        mapping = ({'open_graphs':'graphs','open_ufopaedia':'ufopaedia', 'open_interception':'intercept', 'open_funding': 'funding', 'open_bases': 'bases', 'open_pause_menu': 'options'}
                    if obj['state'] == 'geoscape' else BASE_BUTTON_ACTIONS.get(obj['state'], {}))
         for descriptor in obj['actions']:
             action = descriptor['id']
@@ -2551,6 +2604,9 @@ class AgentControlClient:
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
                 if obj['state'] in ('build_facilities', 'new_battle_dropdown', 'sell_category', 'purchase_category', 'transfer_destination', 'intercept_craft', 'psi_training', 'load_list'):
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
+                if obj['state'] == 'graphs':
+                    self.visible_rows = frozenset(row['handle'] for row in obj['visible']['legend'])
+                    self.scroll_directions = frozenset(k for k,v in obj['visible']['scroll'].items() if v)
                 if obj['state'] in ('craft_destination_selection','geoscape'):
                     self.visible_rows = frozenset(target['row'] for target in obj['visible']['targets'])
                 if obj['state'] in ('soldier_memorial', 'memorial_soldier_diary', 'memorial_soldier_diary_performance', 'soldier_diary', 'soldier_diary_performance', 'soldier_diary_mission', 'manage_containment', 'build_facilities', 'new_battle_dropdown', 'sell_category', 'purchase_category', 'sell', 'purchase', 'transfer_destination', 'transfer_items', 'intercept_craft', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving', 'cannot_reequip', 'debriefing_soldier_stats', 'statistics') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in UFOPAEDIA_DIRECTORY or obj['state'] in RESEARCH_NOTICE_STATES:
@@ -2774,9 +2830,9 @@ class AgentControlClient:
                 require_target(args['value'] in self.difficulty_values)
             elif action == 'open_new_battle_choice':
                 require_target(args['control'] in self.choice_controls)
-            elif action in ('click_visible_globe_target', 'select_build_facility', 'choose_visible_row', 'open_psi_training_base', 'choose_visible_craft_destination', 'load_saved_game'):
+            elif action in ('toggle_graph_series', 'click_visible_globe_target', 'select_build_facility', 'choose_visible_row', 'open_psi_training_base', 'choose_visible_craft_destination', 'load_saved_game'):
                 require_target(args['row'] in self.visible_rows)
-            elif action == 'scroll_visible_list':
+            elif action in ('scroll_graph_legend','scroll_visible_list'):
                 require_target(args['direction'] in self.scroll_directions)
             elif action in ('increase_containment_removal','decrease_containment_removal'):
                 require_target((args['row'], action.split('_')[0]) in self.containment_rows)

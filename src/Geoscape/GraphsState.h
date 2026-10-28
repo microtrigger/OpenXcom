@@ -60,7 +60,18 @@ private:
 	//scroll and repaint buttons functions
 	void scrollButtons(std::vector<GraphButInfo *> &toggles, std::vector<ToggleTextButton *> &buttons, size_t &offset, int step);
 	void updateButton(GraphButInfo *from,ToggleTextButton *to);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentGraphPaint = false;
+    std::vector<std::uint64_t> _agentGraphContext;
+    std::vector<Surface *> agentLineSurfaces() const;
+    std::vector<ToggleTextButton *> agentLegend() const;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Graphs state.
 	GraphsState();
 	/// Cleans up the Graphs state.

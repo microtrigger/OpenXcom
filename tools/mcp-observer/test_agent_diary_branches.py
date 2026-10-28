@@ -10,7 +10,7 @@ NEW={'select_diary_mission','open_diary_combat','open_diary_awards','previous_di
 class DiaryBranchesTests(unittest.TestCase):
  def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
  def test_schema_closed_modes_mission_fields(self):
-  self.assertEqual(a.SCHEMA,'openxcom-agent-control/49')
+  self.assertEqual(a.SCHEMA,'openxcom-agent-control/50')
   for screen in ('soldier_diary','soldier_diary_performance','soldier_diary_mission'):
    o=state(screen=screen);self.check(o)
    for key in o['visible']:

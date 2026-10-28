@@ -3308,6 +3308,41 @@ bool TextList::agentSelectOutfittingRow(size_t logicalIndex)
 	return false;
 }
 
+void TextList::agentEnableGraphAxis()
+{
+    if (!_agentGraphAxis) { _agentGraphAxis=true; ++_agentListRevision; _redraw=true; agentTrackPresentation(); }
+}
+
+std::string TextList::agentGraphAxisJson(const Surface *destination,const std::vector<Surface *> &paintOrder) const
+{
+    if(!_agentGraphAxis || !_font || !destination || !agentPresentationPaintedTo(destination) ||
+       _agentPaintRevision!=_agentListRevision || !_agentCoverageHealthy || _selectable || _comboBox || _dot || _wrap || _condensed || _flooding || _arrowPos!=-1 || _texts.size()!=1 || (_columns.size()!=6&&_columns.size()!=12) || _texts[0].size()!=_columns.size())return "[]";
+    std::string result="[";
+    for(size_t i=0;i<_texts[0].size();++i){
+        if(i)result+=",";const Text *cell=_texts[0][i];
+        bool known=cell->agentContextVisible()&&cell->getFont()&&cell->getNumLines()==1&&cell->getText().size()<=1024;
+        UString chars=Unicode::convUtf8ToUtf32(cell->getText());
+        for(auto ch:chars)if(ch!=' '&&ch!=Unicode::TOK_COLOR_FLIP&&!cell->getFont()->agentHasGlyph(ch))known=false;
+        chars.erase(std::remove(chars.begin(),chars.end(),Unicode::TOK_COLOR_FLIP),chars.end());
+        int count=0,expected=0,left=320,top=200,right=0,bottom=0;
+        if(known)for(int sy=0;sy<cell->getHeight();++sy)for(int sx=0;sx<cell->getWidth();++sx){
+            const auto color=cell->getPixel(sx,sy);if(!color)continue;++expected;
+            const int lx=cell->getX()+sx,ly=cell->getY()+sy,x=getX()+lx,y=getY()+ly;
+            if(lx<0||ly<0||lx>=getWidth()||ly>=getHeight()||x<0||y<0||x>=destination->getWidth()||y>=destination->getHeight()||getPixel(lx,ly)!=color||destination->getPixel(x,y)!=color)continue;
+            bool after=false,covered=false;
+            for(auto *part:paintOrder){if(part==this){after=true;continue;}if(!after||!part->agentBlitEnabled())continue;
+                const int px=x-part->getX(),py=y-part->getY();
+                if(px>=0&&py>=0&&px<part->getWidth()&&py<part->getHeight()&&part->getPixel(px,py)!=0){covered=true;break;}
+            }
+            if(covered)continue;
+            ++count;left=std::min(left,x);top=std::min(top,y);right=std::max(right,x+1);bottom=std::max(bottom,y+1);
+        }
+        if(!count){result+="{\"label\":null,\"clipped\":false,\"bounds\":null}";continue;}
+        result+="{\"label\":"+Observer::agentJsonString(Unicode::convUtf32ToUtf8(chars))+",\"clipped\":"+((count!=expected||!cell->agentTextComplete())?"true":"false")+",\"bounds\":{\"x\":"+std::to_string(left)+",\"y\":"+std::to_string(top)+",\"width\":"+std::to_string(right-left)+",\"height\":"+std::to_string(bottom-top)+"}}";
+    }
+    return result+"]";
+}
+
 void TextList::agentEnableArrivalCells()
 {
 	if (!_agentArrivalCells) { _agentArrivalCells = true; ++_agentListRevision; _redraw = true; }
