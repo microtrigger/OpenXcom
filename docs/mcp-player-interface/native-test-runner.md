@@ -142,3 +142,26 @@ a later local result to this minimum commit without checking the full chain.
 Neither harness downloads dependencies, changes permissions, or bypasses host
 security/network restrictions. Executed helper source and binaries are trusted
 code, not sandboxed by the generic runner.
+
+## Diary harness integration
+
+```text
+python tests/agent-control/run-diary-tests.py --source gameplay-source --build gameplay-build --sdk native-sdk --data runtime-data --output new-diary-output
+```
+
+This harness likewise delegates four real compile steps, link and native test
+to `run_recipe`, with separate temporary generated inputs and immutable manifest
+receipts. It preserves the original literal Overview/Performance/Mission and
+SoldierInfo-entry source extraction, cursor seam, stock region/UFO rule subsets,
+native historical models and fixture assertions. Combat history, medals and
+mission records are seeded fixture data, not evidence of live achievements or
+mission execution. Read `QUALIFICATION.json` for those explicit boundaries.
+
+The source/build must match and expose the reviewed Diary API and
+`AgentDiaryTest.cpp`. **Minimum published Diary API dependency:**
+[`8ca9daa87ca52a7cbce6aa8a20b898a009912b61`](https://github.com/microtrigger/OpenXcom/commit/8ca9daa87ca52a7cbce6aa8a20b898a009912b61).
+The containment commit above does not establish availability of Diary APIs.
+This minimum API pin is not an assertion that a later local fix or test closure
+is identical to that commit. In particular, the local no-record fix adds checks
+beyond the frozen original Diary suite. Runtime receipts remain caller-supplied
+with recorded exact input hashes; source and build must match.
