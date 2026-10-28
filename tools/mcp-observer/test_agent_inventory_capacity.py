@@ -15,7 +15,7 @@ from test_agent_inventory_control import InventoryFixture, inventory
 
 class InventoryCapacityValidationTests(unittest.TestCase):
     def test_exact_identity_capacity_and_unchanged_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/33')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/34')
         self.assertEqual(a.INVENTORY_TARGET_HANDLES, tuple(f'v{i}' for i in range(96)))
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))

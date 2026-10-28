@@ -53,6 +53,7 @@
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "../Observer/AgentUi.h"
+#include <algorithm>
 #include "../Observer/AgentProjectileOutput.h"
 #include "../Engine/Screen.h"
 #include "../Interface/Cursor.h"
@@ -164,6 +165,7 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 	_btnGeoscape->onMouseClick((ActionHandler)&BasescapeState::btnGeoscapeClick);
 	_btnGeoscape->onKeyboardPress((ActionHandler)&BasescapeState::btnGeoscapeClick, Options::keyCancel);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _view->agentEnableFacilitySelection();
     for(Surface *surface:_surfaces) surface->agentTrackPresentation();
     for(TextButton *button:{_btnBaseInfo,_btnFacilities,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnSell,_btnTransfer,_btnGeoscape})
         button->agentEnableNamedControl();
@@ -608,6 +610,30 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
     }
     slots+="]";
     if (!out.rows.empty()) out.actions.emplace_back("select_base","Select base","visible_control_semantics","base_target");
+    std::string grid="null";
+    std::size_t cellCount=0;
+    if(_view->agentFacilityPresented(logical)) {
+        std::string cells="[";
+        for(int y=0;y<6;++y)for(int x=0;x<6;++x){
+            // Authority is the actual ordinary click target, not the whole
+            // decorative cell border. Native hover labels may overlap that
+            // border while leaving its center fully visible and interactive.
+            AgentUiState cell;cell.regions.push_back({_view->getX()+32*x+16,_view->getY()+32*y+16,1,1});
+            if(!agentRegionsUncovered(cell.regions,_view,painted) || !_game->agentOverlayClear(cell))continue;
+            const auto old=out.regions.size();out.regions.insert(out.regions.end(),cell.regions.begin(),cell.regions.end());
+            if(!agentRegionsDisjoint(out)){out.regions.resize(old);continue;}
+            if(cells.size()>1)cells+=",";
+            cells+="{\"x\":"+std::to_string(x)+",\"y\":"+std::to_string(y)+"}";
+            out.context.push_back(y*6+x);++cellCount;
+        }
+        cells+="]";
+        if(cellCount) {
+            grid="{\"columns\":6,\"rows\":6,\"origin_x\":"+std::to_string(_view->getX())+",\"origin_y\":"+std::to_string(_view->getY())+",\"cell_size\":32,\"cells\":"+cells+"}";
+            out.actions.emplace_back("click_base_facility_cell","Select visible base facility","visible_control_semantics","facility_cell");
+        }
+    }
+    // Trailing count delimits cell indices from existing name authority metadata.
+    out.context.push_back(cellCount);
     std::string buttons="[";
     const auto button=[&](TextButton *widget,const char *id,const char *action)
     {
@@ -629,7 +655,7 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
     button(_btnSoldiers,"soldiers","open_soldiers");
     button(_btnCrafts,"crafts","open_crafts");
     button(_btnGeoscape,"geoscape","return_geoscape"); buttons+="]";
-    out.visible="{\"base_name\":"+name+",\"location\":"+location+",\"funds\":"+funds+",\"base_slots\":"+slots+",\"buttons\":"+buttons+"}";
+    out.visible="{\"base_name\":"+name+",\"location\":"+location+",\"funds\":"+funds+",\"base_slots\":"+slots+",\"grid\":"+grid+",\"buttons\":"+buttons+"}";
     return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
 }
 
@@ -637,6 +663,14 @@ bool BasescapeState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState fresh;
     if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if(request.action=="click_base_facility_cell") {
+        if(request.x<0 || request.y<0 || request.x>5 || request.y>5 || fresh.context.empty())return false;
+        const auto count=fresh.context.back();
+        if(count>36 || count>=fresh.context.size())return false;
+        const auto end=fresh.context.end()-1,begin=end-count;
+        if(std::find(begin,end,request.y*6+request.x)==end)return false;
+        return _view->agentFacilityClick(this,request.x,request.y);
+    }
     if (request.action=="select_base")
     {
         if (request.choice.size()!=2 || request.choice[0]!='b' || request.choice[1]<'0' || request.choice[1]>'7') return false;

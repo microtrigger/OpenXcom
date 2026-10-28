@@ -575,6 +575,25 @@ void BaseView::setSecondaryColor(Uint8 color)
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void BaseView::agentEnableFacilitySelection()
+{
+    _agentFacilityTracked=true;agentTrackPresentation();
+}
+bool BaseView::agentFacilityPresented(const Surface *destination) const
+{
+    const SDL_Surface *target=destination?destination->getSurface():nullptr;
+    return _agentFacilityTracked && _base && _texture && !_selector &&
+        getWidth()==BASE_SIZE*GRID_SIZE && getHeight()==BASE_SIZE*GRID_SIZE &&
+        getX()>=0 && getY()>=0 && getX()<=448 && getY()<=208 &&
+        target && target->clip_rect.x==0 && target->clip_rect.y==0 &&
+        target->clip_rect.w==target->w && target->clip_rect.h==target->h &&
+        getX()+getWidth()<=target->w && getY()+getHeight()<=target->h &&
+        Observer::agentWidgetVisible(this) && agentPresentationPaintedTo(destination);
+}
+bool BaseView::agentFacilityClick(State *state,int x,int y)
+{
+    return _agentFacilityTracked && agentNativeCellClick(state,x,y);
+}
 void BaseView::agentEnablePlacement()
 {
     _agentPlacementTracked=true;agentTrackPresentation();
@@ -600,7 +619,11 @@ bool BaseView::agentPlacementPresented(const Surface *destination) const
 }
 bool BaseView::agentPlacementClick(State *state,int x,int y)
 {
-    if(!_agentPlacementTracked || !state || !agentContextVisible() ||
+    return _agentPlacementTracked && agentNativeCellClick(state,x,y);
+}
+bool BaseView::agentNativeCellClick(State *state,int x,int y)
+{
+    if(!state || !agentContextVisible() ||
         getWidth()!=BASE_SIZE*GRID_SIZE || getHeight()!=BASE_SIZE*GRID_SIZE ||
         x<0 || y<0 || x>=BASE_SIZE || y>=BASE_SIZE)return false;
     const int centerX=getX()+x*GRID_SIZE+GRID_SIZE/2,centerY=getY()+y*GRID_SIZE+GRID_SIZE/2;

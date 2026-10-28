@@ -25,7 +25,7 @@ def effect(kind, seq=1):
 
 class ImpactValidationTests(unittest.TestCase):
     def test_protocol_catalog_and_all_eight_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/33')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/34')
         self.assertIn('protocol /24:', a.definitions()[0]['description'])
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))

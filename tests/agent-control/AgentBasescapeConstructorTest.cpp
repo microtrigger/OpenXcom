@@ -10,7 +10,8 @@ extern "C" int __wrap_SDL_UpperBlit(SDL_Surface*s,SDL_Rect*a,SDL_Surface*d,SDL_R
 namespace Constructor {
 Paint *paintContext=nullptr;
 struct Base{};struct Globe{};
-struct BaseView:InteractiveSurface {using InteractiveSurface::InteractiveSurface;void setTexture(void*){}};
+// BaseView seam deliberately offers no facility-grid action; these suites test other routes.
+struct BaseView:InteractiveSurface {using InteractiveSurface::InteractiveSurface;void agentEnableFacilitySelection(){}bool agentFacilityPresented(const Surface*)const{return false;}bool agentFacilityClick(State*,int,int){return false;}void setTexture(void*){}};
 struct MiniBaseView:InteractiveSurface {using InteractiveSurface::InteractiveSurface;struct Slot{unsigned slot;bool selected;};void setTexture(void*){}void setBases(std::vector<Base*>*){}std::uint64_t agentRevision()const{return 1;}std::vector<Slot>agentSlots(const AgentProjectileOutput&)const{return {};} };
 struct Screen {Surface*logical=nullptr;Surface*getSurface(){return logical;}bool agentCaptureOutput(const Surface*,AgentProjectileOutput&)const{return false;}};
 struct Mod {void*getSurfaceSet(const std::string&){return nullptr;}};

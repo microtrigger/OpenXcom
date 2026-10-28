@@ -30,6 +30,15 @@
 #include "../Mod/RuleBaseFacility.h"
 #include "../Savegame/SavedGame.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#include <algorithm>
+#include <typeinfo>
+#endif
+
 namespace OpenXcom
 {
 
@@ -78,6 +87,13 @@ DismantleFacilityState::DismantleFacilityState(Base *base, BaseView *view, BaseF
 
 	_txtFacility->setAlign(ALIGN_CENTER);
 	_txtFacility->setText(tr(_fac->getRules()->getType()));
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    _btnOk->agentEnableNamedControl();
+    _btnCancel->agentEnableNamedControl();
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -139,5 +155,93 @@ void DismantleFacilityState::btnCancelClick(Action *)
 {
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool DismantleFacilityState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> DismantleFacilityState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    revisions.push_back(_txtTitle->agentTextRevision());
+    revisions.push_back(_txtFacility->agentTextRevision());
+    revisions.push_back(_btnOk->agentLabelRevision());
+    revisions.push_back(_btnCancel->agentLabelRevision());
+    return revisions;
+}
+void DismantleFacilityState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool DismantleFacilityState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(DismantleFacilityState) || _modal || _window->agentPopupActive() ||
+        !_base || !_fac || !_game->isState(const_cast<DismantleFacilityState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    if (std::find(_base->getFacilities()->begin(), _base->getFacilities()->end(), _fac) == _base->getFacilities()->end()) return false;
+    out = AgentUiState(); out.actor = _fac; out.screen = "dismantle_facility";
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const Surface *logical = _game->getScreen()->getSurface();
+    for (const Surface *surface : painted) out.widgets.emplace_back(surface, surface->agentPresentationRevision());
+    if (_game->getCursor()) out.widgets.emplace_back(_game->getCursor(), _game->getCursor()->agentPresentationRevision());
+    if (_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(), _game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !widget->agentPresentationPaintedTo(logical) || !agentWidgetUncovered(widget, painted)) return "null";
+        AgentUiState part; agentIncludeWidget(part, widget);
+        if (part.regions.empty() || !allowed(part)) return "null";
+        const auto old = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return value;
+        out.regions.resize(old); return "null";
+    };
+    const auto title = text(_txtTitle), facility = text(_txtFacility);
+    // This bounded capability never authorizes abandoning an entire base.
+    // The own-facility rule is an explicit safety gate, not inferred from a
+    // translated caption or used to prefilter ordinary grid-click legality.
+    const bool confirmationAllowed = !_fac->getRules()->isLift();
+    out.context.push_back(confirmationAllowed ? 1 : 0);
+    std::string buttons = "[";
+    const auto button = [&](TextButton *widget, const char *id, const char *action) {
+        const auto label = agentProjectNamedButton(widget, logical, painted, out, allowed);
+        if (label.empty() || label.size() > 1024) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back(action, label, "visible_text");
+    };
+    if (confirmationAllowed && title != "null" && title != "\"\"" && facility != "null" && facility != "\"\"")
+        button(_btnOk, "ok", "confirm_dismantle_facility");
+    button(_btnCancel, "cancel", "cancel_dismantle_facility");
+    buttons += "]";
+    out.visible = "{\"title\":" + title + ",\"facility\":" + facility +
+        ",\"confirmation_allowed\":" + (confirmationAllowed ? "true" : "false") + ",\"buttons\":" + buttons + "}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 32768;
+}
+bool DismantleFacilityState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;
+    if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if (request.action == "confirm_dismantle_facility") {
+        if (_fac->getRules()->isLift()) return false;
+        btnOkClick(nullptr); return true;
+    }
+    if (request.action == "cancel_dismantle_facility") { btnCancelClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

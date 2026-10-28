@@ -57,7 +57,8 @@ struct GeoscapeState{Globe globe;TextButton speed{10,10};TextButton*_btn5Secs=&s
 #include "Timer.generated.inc"
 struct BasescapeState;struct ItemsArrivingState;
 
-struct BaseView:InteractiveSurface{using InteractiveSurface::InteractiveSurface;Base*base=nullptr;void setTexture(void*){}void setBase(Base*b){base=b;}};
+// BaseView seam deliberately offers no facility-grid action; these suites test other routes.
+struct BaseView:InteractiveSurface{using InteractiveSurface::InteractiveSurface;void agentEnableFacilitySelection(){}bool agentFacilityPresented(const Surface*)const{return false;}bool agentFacilityClick(State*,int,int){return false;}Base*base=nullptr;void setTexture(void*){}void setBase(Base*b){base=b;}};
 struct MiniBaseView:InteractiveSurface{using InteractiveSurface::InteractiveSurface;enum{MAX_BASES=8};struct Slot{unsigned slot;bool selected;};std::vector<Base*>*bases=nullptr;unsigned selected=0;
  void setTexture(void*){}void setBases(std::vector<Base*>*b){bases=b;}void setSelectedBase(size_t n){selected=n;}
  std::uint64_t agentRevision()const{return 1;}std::vector<Slot>agentSlots(const AgentProjectileOutput&)const{return {};}

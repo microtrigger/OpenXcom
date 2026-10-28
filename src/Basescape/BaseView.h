@@ -40,6 +40,8 @@ class BaseView : public InteractiveSurface
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool _agentPlacementTracked = false;
+    bool _agentFacilityTracked = false;
+    bool agentNativeCellClick(State *state, int x, int y);
 #endif
 	static const int BASE_SIZE = 6;
 	static const int GRID_SIZE = 32;
@@ -60,6 +62,9 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     // Placement-only semantic view witness; never exports occupancy or rules.
     void agentEnablePlacement();
+    void agentEnableFacilitySelection();
+    bool agentFacilityPresented(const Surface *destination) const;
+    bool agentFacilityClick(State *state, int x, int y);
     bool agentPlacementPresented(const Surface *destination) const;
     const Surface *agentPlacementSelector() const;
     bool agentPlacementClick(State *state, int x, int y);

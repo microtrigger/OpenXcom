@@ -115,7 +115,7 @@ int main(int argc,char**argv){
  const std::string token(32,'1'),prefix="E "+token+" "+token+" "+token+" 1 place_facility_cell ";
  AgentRequest parsed;for(const auto &args:{"0 0","5 5","2 4"})check(parseAgentRequest(prefix+args,parsed),"canonical protocol cell accepted");
  for(const auto &args:{"-1 0","6 0","0 6","00 0","1.0 2","1","1 2 extra","+1 2","1 -0"})check(!parseAgentRequest(prefix+args,parsed),"malformed/offgrid protocol cell refused");
- check(std::string(agentArgumentKind("place_facility_cell"))=="facility_cell"&&std::string(agentProtocolSchema())=="openxcom-agent-control/33","explicit schema and argument kind");
+ check(std::string(agentArgumentKind("place_facility_cell"))=="facility_cell"&&std::string(agentProtocolSchema())=="openxcom-agent-control/34","explicit schema and argument kind");
  for(const auto &variant:{"xcom1","xcom2"}){
   Language language;language.loadFile(std::string(argv[1])+"/bin/standard/"+variant+"/Language/en-US.yml");
   Fixture::Game game;game.screen.surface=&canvas;game.mod.background=&background;game.mod.texture=&texture;game.language=&language;game.big=&big;game.small=&small;game.palette=palette;Fixture::currentGame=&game;
