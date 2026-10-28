@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/30"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/31"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/30\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/31\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -62,6 +62,7 @@ bool agentActionId(const std::string &value)
         value == "close_production_list" || value == "change_production_quantity" ||
         value == "set_production_sell" || value == "open_purchase" || value == "change_purchase_quantity" ||
         value == "accept_purchase" || value == "cancel_purchase" || value == "open_purchase_category" ||
+        value == "open_sell" || value == "change_sale_quantity" || value == "accept_sell" || value == "cancel_sell" || value == "open_sell_category" || value == "scroll_sell" ||
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
         value == "dismiss_production_complete" || value == "open_production_destination" ||
@@ -118,6 +119,8 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
+    if (action == "change_sale_quantity") return "sale_quantity";
+    if (action == "scroll_sell") return "sale_scroll";
     if (action == "change_purchase_quantity") return "purchase_quantity";
     if (action == "set_production_sell") return "boolean_value";
     if (action == "scroll_purchase") return "purchase_scroll";
@@ -218,6 +221,18 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         if (parts.size() != 7 || (parts[6] != "standoff" && parts[6] != "cautious" &&
             parts[6] != "standard" && parts[6] != "aggressive" && parts[6] != "disengage")) return false;
         request.choice = parts[6];
+    }
+    else if (kind == "sale_quantity")
+    {
+        std::uint64_t row;
+        if (parts.size()!=9 || parts[6].size()<2 || parts[6][0]!='r' || !decimal(parts[6].substr(1),31,row) ||
+            parts[7]!="adjust" || (parts[8]!="1" && parts[8]!="-1")) return false;
+        request.choice=parts[6]; request.operation=parts[7]; request.value=parts[8]=="1"?1:-1;
+    }
+    else if (kind == "sale_scroll")
+    {
+        if (parts.size()!=8 || (parts[6]!="up" && parts[6]!="down") || parts[7]!="step") return false;
+        request.direction=parts[6]; request.amount=parts[7];
     }
     else if (kind == "production_quantity" || kind == "purchase_quantity" || kind == "equipment_quantity" || kind == "transfer_quantity")
     {

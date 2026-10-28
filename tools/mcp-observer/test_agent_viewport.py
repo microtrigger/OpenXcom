@@ -46,8 +46,8 @@ def validate_state(obj):
 
 class ViewportValidationTests(unittest.TestCase):
     def test_exact_current_version_counts_kinds_and_tool_catalog(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/30')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())), (188,81,5))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/31')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())), (194,83,5))
         self.assertEqual(a.MINIMAP_TARGET_HANDLES, tuple(f'm{i}' for i in range(160)))
         self.assertEqual(a.CAMERA_DIRECTIONS, ('left','right','up','down'))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},

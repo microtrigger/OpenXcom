@@ -165,7 +165,7 @@ BasescapeState::BasescapeState(Base *base, Globe *globe) : _base(base), _globe(g
 	_btnGeoscape->onKeyboardPress((ActionHandler)&BasescapeState::btnGeoscapeClick, Options::keyCancel);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     for(Surface *surface:_surfaces) surface->agentTrackPresentation();
-    for(TextButton *button:{_btnBaseInfo,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnTransfer,_btnGeoscape})
+    for(TextButton *button:{_btnBaseInfo,_btnSoldiers,_btnCrafts,_btnResearch,_btnManufacture,_btnPurchase,_btnSell,_btnTransfer,_btnGeoscape})
         button->agentEnableNamedControl();
     if(_game->getCursor()) _game->getCursor()->agentTrackPresentation();
     if(_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
@@ -623,6 +623,7 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
     button(_btnResearch,"research","open_research");
     button(_btnManufacture,"manufacture","open_manufacture");
     button(_btnPurchase,"purchase","open_purchase");
+    button(_btnSell,"sell","open_sell");
     button(_btnTransfer,"transfer","open_transfer");
     button(_btnSoldiers,"soldiers","open_soldiers");
     button(_btnCrafts,"crafts","open_crafts");
@@ -646,6 +647,7 @@ bool BasescapeState::agentDispatch(const Observer::AgentRequest &request)
     if (request.action=="open_research") { btnResearchClick(nullptr); return true; }
     if (request.action=="open_manufacture") { btnManufactureClick(nullptr); return true; }
     if (request.action=="open_purchase") { btnPurchaseClick(nullptr); return true; }
+    if (request.action=="open_sell") { btnSellClick(nullptr); return true; }
     if (request.action=="open_transfer") { btnTransferClick(nullptr); return true; }
     if (request.action=="open_soldiers") { btnSoldiersClick(nullptr); return true; }
     if (request.action=="open_crafts") { btnCraftsClick(nullptr); return true; }

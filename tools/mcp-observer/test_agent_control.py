@@ -145,11 +145,12 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
                 quantity_controls=[dict(control=control,increase=True,decrease=True) for control in a.QUANTITY_CONTROLS])
         ids=sorted(a.STATE_ACTIONS[screen])
         if screen=='manufacture_start':ids.remove('scroll_visible_list')
-    elif screen == 'purchase':
+    elif screen in ('purchase', 'sell'):
         visible=dict(title='Purchase / Hire',funds='$1,000',total='$0',space_used='0.0',headings=['Item','Cost'],
             category=dict(label='All'),rows=[dict(handle='r0',cells=['Rifle','$3,000','0','0'],selected=False,controls=['increase','decrease'])],
             scroll=dict(up=True,down=True),scrollbar=dict(targets=[dict(handle='t0',position='top'),dict(handle='t1',position='middle'),dict(handle='t2',position='bottom')]),
             buttons=[dict(id='accept',label='OK'),dict(id='cancel',label='Cancel')])
+        if screen == 'sell': visible.update(headings=['Item','Quantity','Value'],scrollbar=None)
         ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in a.INTERCEPTION_BUTTON_ACTIONS:
         visible=dict(buttons=[dict(id=key,label=key.title()) for key in a.INTERCEPTION_BUTTON_ACTIONS[screen].values()])
@@ -188,7 +189,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             visible.update(headings=[None]*columns,rows=[row],scroll=dict(up=True,down=True))
             if destination: visible['funds']='$1,000'
         ids = sorted(a.STATE_ACTIONS[screen])
-    elif screen == 'purchase_category':
+    elif screen in ('purchase_category', 'sell_category'):
         visible=dict(control='category',label='All',rows=[dict(handle='r0',cells=['All'],selected=True)],scroll=dict(up=True,down=True))
         ids=sorted(a.STATE_ACTIONS[screen])
     elif screen == 'new_battle_dropdown':
@@ -233,9 +234,9 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             return next(button['label'] for button in visible['buttons'] if button['id'] == a.COMPLETION_BUTTON_ACTIONS[screen][action])
         if action in a.QUANTITY_SEMANTIC_LABELS:return a.QUANTITY_SEMANTIC_LABELS[action]
         if action=='set_production_sell':return visible['sell']['label']
-        if action=='open_purchase_category':return visible['category']['label']
-        if action in ('accept_purchase','cancel_purchase'):return next(x['label'] for x in visible['buttons'] if x['id']==action.split('_')[0])
-        if screen=='purchase_category' and action in ('choose_visible_row','scroll_visible_list','close_dropdown'):
+        if action in ('open_purchase_category','open_sell_category'):return visible['category']['label']
+        if action in ('accept_purchase','cancel_purchase','accept_sell','cancel_sell'):return next(x['label'] for x in visible['buttons'] if x['id']==action.split('_')[0])
+        if screen in ('purchase_category','sell_category') and action in ('choose_visible_row','scroll_visible_list','close_dropdown'):
             return {'choose_visible_row':'Choose visible row','scroll_visible_list':'Scroll visible list','close_dropdown':'Close choices'}[action]
         if action == 'select_base': return 'Select base'
         mapping = ({'open_interception':'intercept','open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if screen=='geoscape'
@@ -269,6 +270,8 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'change_transfer_quantity': {'row':'r0','operation':'adjust','value':1},
                 'change_production_quantity': {'control':'engineers','operation':'adjust','value':1},
                 'set_production_sell': {'enabled':True},
+                'change_sale_quantity': {'row':'r0','operation':'adjust','value':1},
+                'scroll_sell': {'direction':'down','amount':'step'},
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_purchase': {'direction':'down','amount':'step'},
                 'position_purchase_list': {'target':'t0'},
@@ -383,8 +386,8 @@ class NativeFixture:
                     fixture_check(int(revision) == self.revision and action in [i['id'] for i in self.latest['actions']], 'verification_revision_action')
                     fixture_check(ident not in self.results, 'verification_duplicate')
                     kind = a.ARGUMENT_KINDS[action]
-                    expected_count = 6 if kind == 'none' else 8 if kind in ('point', 'cursor_position', 'purchase_scroll', 'crew_assignment') else 7
-                    if kind in ('production_quantity','purchase_quantity','equipment_quantity','transfer_quantity'):
+                    expected_count = 6 if kind == 'none' else 8 if kind in ('point', 'cursor_position', 'purchase_scroll', 'sale_scroll', 'crew_assignment') else 7
+                    if kind in ('production_quantity','purchase_quantity','equipment_quantity','transfer_quantity','sale_quantity'):
                         expected_count = 9 if command[7] in ('adjust','set') else 8
                     fixture_check(len(command) == expected_count, 'verification_arity')
                     self.worker_phase = 'build_reply'
@@ -570,7 +573,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 188); self.assertEqual(len(a.STATE_ACTIONS), 81)
+        self.assertEqual(len(a.ACTIONS), 194); self.assertEqual(len(a.STATE_ACTIONS), 83)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -621,7 +624,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 188)
+        self.assertEqual(len(a.ACTIONS), 194)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
@@ -634,7 +637,7 @@ class TypedValidationTests(unittest.TestCase):
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
-            'change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
+            'change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
             'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
@@ -799,7 +802,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/30')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/31')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -813,7 +816,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/30']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/31']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1533,9 +1536,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/30',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/30'
-send(dict(schema='openxcom-agent-control/30',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/31',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/31'
+send(dict(schema='openxcom-agent-control/31',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1580,9 +1583,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/30',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/30'
-send(dict(schema='openxcom-agent-control/30',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/31',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/31'
+send(dict(schema='openxcom-agent-control/31',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1613,9 +1616,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/30', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/31', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/30'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/31'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

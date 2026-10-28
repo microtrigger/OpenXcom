@@ -63,6 +63,10 @@ private:
 	/// Gets the row of the current selection.
 	TransferRow &getRow() { return _items[_rows[_sel]]; }
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Sell state.
 	SellState(Base *base, OptionsOrigin origin = OPT_GEOSCAPE);
 	/// Cleans up the Sell state.

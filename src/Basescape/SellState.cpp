@@ -46,6 +46,9 @@
 #include "../Engine/Options.h"
 #include "../Engine/Unicode.h"
 #include "../Mod/RuleInterface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -697,5 +700,231 @@ void SellState::cbxCategoryChange(Action *)
 {
 	updateList();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool SellState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<SellState *>(this)) || !agentPaintHealthy() ||
+        _timerInc->isRunning() || _timerDec->isRunning()) return false;
+    const bool dropdown = _cbxCategory->agentPopupOpen();
+    if ((_modal && (!dropdown || _modal != _cbxCategory)) || (dropdown && _modal != _cbxCategory)) return false;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    out = AgentUiState(); out.actor = _base;
+    out.widgets.emplace_back(_lstItems, _lstItems->agentListRevision());
+    out.widgets.emplace_back(_cbxCategory, _cbxCategory->agentUiRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto includeRegions = [&](const std::vector<AgentUiRect> &regions, const Surface *owner) -> bool {
+        if (regions.empty() || !agentRegionsUncovered(regions, owner, painted)) return false;
+        AgentUiState part; part.regions = regions;
+        if (!allowed(part)) return false;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), regions.begin(), regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    // Complete Purchase cells can share unchanged ink (stock '$' spans the
+    // next row). Check each FULL mask against later widgets and overlays;
+    // only then union already certified cell ink for the global disjoint gate.
+    // This never deduplicates an overlap with a button, arrow or other widget.
+    std::vector<AgentUiRect> purchaseInk;
+    size_t purchaseWork = 0;
+    bool purchaseHealthy = true;
+    const auto inkOrder = [](const AgentUiRect &a, const AgentUiRect &b) {
+        return a.y != b.y ? a.y < b.y : a.x < b.x;
+    };
+    const auto includeCell = [&](const std::vector<AgentUiRect> &regions) -> bool {
+        if (!purchaseHealthy || regions.empty() || regions.size() > 8192 ||
+            !agentRegionsUncovered(regions, _lstItems, painted)) return false;
+        AgentUiState part; part.regions = regions;
+        if (!allowed(part)) return false;
+        std::vector<AgentUiRect> additions;
+        for (const AgentUiRect &run : regions)
+        {
+            if (++purchaseWork > 2 * 1024 * 1024 || run.height != 1 || run.width <= 0 ||
+                run.x < 0 || run.y < 0 || run.x + run.width > 640 || run.y >= 400)
+            { purchaseHealthy = false; return false; }
+            int left = run.x, right = run.x + run.width;
+            auto prior = std::lower_bound(purchaseInk.begin(), purchaseInk.end(), run.y,
+                [](const AgentUiRect &r, int y) { return r.y < y; });
+            for (; prior != purchaseInk.end() && prior->y == run.y && left < right; ++prior)
+            {
+                if (++purchaseWork > 2 * 1024 * 1024) { purchaseHealthy = false; return false; }
+                if (prior->x + prior->width <= left) continue;
+                if (prior->x >= right) break;
+                if (prior->x > left) additions.push_back({left, run.y, prior->x-left, 1});
+                left = std::max(left, prior->x + prior->width);
+            }
+            if (left < right) additions.push_back({left, run.y, right-left, 1});
+            if (additions.size() + purchaseInk.size() > 8192) { purchaseHealthy = false; return false; }
+        }
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), additions.begin(), additions.end());
+        if (!agentRegionsDisjoint(out)) { out.regions.resize(before); return false; }
+        purchaseInk.insert(purchaseInk.end(), additions.begin(), additions.end());
+        std::sort(purchaseInk.begin(), purchaseInk.end(), inkOrder);
+        return true;
+    };
+    const auto include = [&](const Surface *widget) -> bool {
+        AgentUiState part; agentIncludeWidget(part, widget);
+        return includeRegions(part.regions, widget);
+    };
+    const auto includeCombo = [&]() -> bool {
+        if (!_cbxCategory->agentToggleUncovered(painted)) return false;
+        AgentUiState part; agentIncludeWidget(part, _cbxCategory);
+        if (part.regions.empty() || !allowed(part)) return false;
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return true;
+        out.regions.resize(before); return false;
+    };
+    if (dropdown)
+    {
+        out.screen = "sell_category";
+        if (!includeCombo()) return false;
+        AgentListProjection list;
+        if (!agentProjectList(_cbxCategory->agentList(), _cbxCategory->agentList(), painted, 1, true, out, list, allowed)) return false;
+        out.context = {list.up ? 1u : 0u, list.down ? 1u : 0u};
+        out.visible = "{\"control\":\"category\",\"label\":null,\"rows\":" + list.rows + ",\"scroll\":" + list.scroll + "}";
+        if (!out.rows.empty()) out.actions.emplace_back("choose_visible_row", "Choose visible row", "visible_control_semantics", "visible_row");
+        if (list.up || list.down) out.actions.emplace_back("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction");
+        out.actions.emplace_back("close_dropdown", "Close choices", "visible_control_semantics");
+        return agentRegionsDisjoint(out) && out.visible.size() <= 9000;
+    }
+    out.screen = "sell";
+    const auto text = [&](const Text *widget) -> std::string {
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !agentWidgetUncovered(widget, painted)) return "null";
+        return widget->getText().empty() || include(widget) ? value : "null";
+    };
+    const auto title = text(_txtTitle), funds = text(_txtFunds), total = text(_txtSales), space = text(_txtSpaceUsed);
+    const auto headings = "[" + text(_txtQuantity) + "," + text(_txtSell) + "," + text(_txtValue) + "]";
+    std::string category = "null", buttons = "[";
+    const auto label = _cbxCategory->agentLabel();
+    if (!label.empty() && label.size() <= 1024 && includeCombo())
+    {
+        category = "{\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back("open_sell_category", label, "visible_text");
+    }
+    const auto button = [&](TextButton *widget, const char *id, const char *action, const char *kind) {
+        const auto shown = agentButtonLabel(widget);
+        if (shown.empty() || shown.size() > 1024 || !include(widget)) return;
+        if (buttons.size() > 1) buttons += ",";
+        buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(shown) + "}";
+        out.actions.emplace_back(action, shown, "visible_text", kind);
+    };
+    button(_btnOk, "accept", "accept_sell", "none");
+    button(_btnCancel, "cancel", "cancel_sell", "none"); buttons += "]";
+    const Surface *up = nullptr, *down = nullptr;
+    _lstItems->agentScrollControls(up, down);
+    const bool canUp = up && include(up), canDown = down && include(down);
+    out.context = {canUp ? 1u : 0u, canDown ? 1u : 0u};
+    const std::string scroll = std::string("{\"up\":") + (canUp ? "true" : "false") + ",\"down\":" + (canDown ? "true" : "false") + "}";
+    if (canUp || canDown) out.actions.emplace_back("scroll_sell", "Scroll sell list", "visible_control_semantics", "sale_scroll");
+    std::string scrollbar = "null";
+    const std::string prefix = "{\"title\":" + title + ",\"funds\":" + funds + ",\"total\":" + total + ",\"space_used\":" + space + ",\"headings\":" + headings + ",\"category\":" + category + ",\"rows\":";
+    const std::string suffix = ",\"scroll\":" + scroll + ",\"scrollbar\":" + scrollbar + ",\"buttons\":" + buttons + "}";
+    std::vector<AgentPurchaseRow> rows;
+    if (!_lstItems->agentPurchaseRows(rows)) return false;
+    std::string shownRows = "[";
+    for (const AgentPurchaseRow &row : rows)
+    {
+        if (out.rows.size() == 32) break;
+        const auto before = out.regions.size();
+        const bool inc = row.increase && include(row.increase), dec = row.decrease && include(row.decrease);
+        if (!inc && !dec) continue;
+        std::string cells = "[";
+        for (unsigned i = 0; i < 4; ++i)
+        {
+            if (i) cells += ",";
+            std::vector<AgentUiRect> regions;
+            for (const SDL_Rect &r : row.cells[i].regions) regions.push_back({r.x,r.y,r.w,r.h});
+            const bool known = row.cells[i].known && (regions.empty() || includeCell(regions));
+            cells += known ? agentJsonString(row.cells[i].text) : "null";
+        }
+        cells += "]";
+        // A selector is useful only if its whole painted band is uncovered.
+        // This separate check never grants a row control or a cell string.
+        AgentUiState selected; selected.regions = {{row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h}};
+        bool isSelected = row.selected && allowed(selected);
+        bool afterList = false;
+        for (const Surface *later : _surfaces)
+        {
+            if (later == _lstItems) { afterList = true; continue; }
+            if (afterList && later && later->getVisible() &&
+                later->getY() < row.bounds.y + row.bounds.h && later->getY()+later->getHeight() > row.bounds.y &&
+                later->getX() < row.bounds.x+row.bounds.w && later->getX()+later->getWidth() > row.bounds.x) isSelected = false;
+        }
+        std::string controls = inc ? "[\"increase\"" : "[";
+        if (dec) controls += inc ? ",\"decrease\"" : "\"decrease\"";
+        controls += "]";
+        const std::string entry = (out.rows.empty() ? "" : ",") + std::string("{\"handle\":\"r") + std::to_string(out.rows.size()) + "\",\"cells\":" + cells + ",\"selected\":" + (isSelected ? "true" : "false") + ",\"controls\":" + controls + "}";
+        if (prefix.size() + shownRows.size() + entry.size() + suffix.size() + 1 > 9000) { out.regions.resize(before); break; }
+        shownRows += entry; out.rows.push_back(row.logicalIndex); out.context.push_back((inc ? 1u : 0u) | (dec ? 2u : 0u));
+    }
+    shownRows += "]";
+    if (!out.rows.empty()) out.actions.emplace_back("change_sale_quantity", "Change sale quantity", "visible_control_semantics", "sale_quantity");
+    out.visible = prefix + shownRows + suffix;
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 9000;
+}
+
+bool SellState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    const auto slot = [](const std::string &value, char prefix, unsigned limit) -> int {
+        if (value.size() < 2 || value.size() > 3 || value[0] != prefix || (value.size() == 3 && value[1] == '0')) return -1;
+        unsigned result = 0;
+        for (size_t i = 1; i < value.size(); ++i) { if (value[i] < '0' || value[i] > '9') return -1; result = result * 10 + value[i] - '0'; }
+        return result < limit ? static_cast<int>(result) : -1;
+    };
+    if (current.screen == "sell_category")
+    {
+        if (request.action == "close_dropdown") return _cbxCategory->agentClose(nullptr, this);
+        if (request.action == "choose_visible_row")
+        {
+            const int index = slot(request.choice, 'r', current.rows.size());
+            return index >= 0 && _cbxCategory->agentChooseVisibleRow(current.rows[index], nullptr, this);
+        }
+        if (request.action == "scroll_visible_list" && current.context.size() == 2)
+        {
+            if (request.choice == "up" && current.context[0]) { _cbxCategory->agentList()->scrollUp(false,false); return true; }
+            if (request.choice == "down" && current.context[1]) { _cbxCategory->agentList()->scrollDown(false,false); return true; }
+        }
+        return false;
+    }
+    if (request.action == "open_sell_category") return _cbxCategory->agentOpen();
+    if (request.action == "accept_sell") { btnOkClick(nullptr); return true; }
+    if (request.action == "cancel_sell") { btnCancelClick(nullptr); return true; }
+    if (request.action == "change_sale_quantity")
+    {
+        const int index = slot(request.choice, 'r', current.rows.size());
+        if (index < 0 || current.context.size() != current.rows.size()+2) return false;
+        if (request.operation != "adjust" || (request.value != 1 && request.value != -1)) return false;
+        const unsigned required = request.value > 0 ? 1u : 2u;
+        if ((current.context[index+2] & required) != required) return false;
+        const size_t row = current.rows[index];
+        if (row >= _rows.size() || _rows[row] < 0 || static_cast<size_t>(_rows[row]) >= _items.size()) return false;
+        // Route the admitted displayed row exactly as the native arrow-press
+        // selection does, then use the ordinary one-step left-click handler.
+        _sel = row;
+        SDL_Event event = {}; event.type = SDL_MOUSEBUTTONUP; event.button.button = SDL_BUTTON_LEFT;
+        Action action(&event, 1.0, 1.0, 0, 0);
+        if (request.value > 0) lstItemsLeftArrowClick(&action);
+        else lstItemsRightArrowClick(&action);
+        return true;
+    }
+    if (request.action == "scroll_sell")
+    {
+        const unsigned direction = request.direction == "up" ? 0 : request.direction == "down" ? 1 : 2;
+        if (direction > 1 || current.context.size() < 2 || !current.context[direction]) return false;
+        if (request.amount != "step") return false;
+        if (direction) _lstItems->scrollDown(false, false);
+        else _lstItems->scrollUp(false, false);
+        return true;
+    }
+    return false;
+}
+#endif
 
 }
