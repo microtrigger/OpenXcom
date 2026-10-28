@@ -165,3 +165,25 @@ This minimum API pin is not an assertion that a later local fix or test closure
 is identical to that commit. In particular, the local no-record fix adds checks
 beyond the frozen original Diary suite. Runtime receipts remain caller-supplied
 with recorded exact input hashes; source and build must match.
+
+## Owned-base model harness integration
+
+```text
+python tests/agent-control/run-player-bases-tests.py --source gameplay-source --build gameplay-build --sdk native-sdk --output new-player-bases-output
+```
+
+Two real compile steps (fixture and collector), link, and the native executable
+run through the generic core with the original explicit source/object closure,
+plus the harness, core and link recipe. No generated-source seam is added.
+The source must supply `AgentPlayerBasesTest.cpp` and the schema4 collector API;
+the supplied build must match that source. **Minimum published schema4 gameplay
+API dependency: `40c2f33e0b41e4155ec89f2355f107376c1f0ce5`.** Earlier schema3 commits do not
+establish availability of the knowledge/offers and safe-route fields.
+
+The fixture uses synthetic native owned-base models and research/manufacturing
+rules. It checks pure queries and safe own-route membership without running
+Game, loading a campaign, reading player saves, or claiming live acceptance.
+The test executable exports sample owned-record JSON only to the requested new
+output directory. `RESULT.json` seals the explicitly listed input bytes;
+`QUALIFICATION.json` records limitations and a caller-supplied revision warning.
+Neither receipt claims a full transitive compiler/SDK dependency closure.

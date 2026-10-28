@@ -1,18 +1,69 @@
 #!/usr/bin/env python3
-"""Native model collector checks using an existing full-build object closure; does not run Game."""
-import argparse,hashlib,json,os,shlex,subprocess
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Run trusted native owned-base model checks through the generic runner; no Game."""
+import argparse
+import json
+import os
+import shlex
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--source',required=True,type=Path);p.add_argument('--build',required=True,type=Path);p.add_argument('--sdk',required=True,type=Path);p.add_argument('--output',required=True,type=Path);a=p.parse_args();s,build,sdk,out=[x.resolve() for x in (a.source,a.build,a.sdk,a.output)];out.mkdir(parents=True,exist_ok=False)
-flags=['c++','-std=c++11','-O0','-DOPENXCOM_EXPERIMENTAL_AGENT_CONTROL','-DOPENXCOM_EXPERIMENTAL_OBSERVER_DIAGNOSTICS','-DOPENXCOM_LOADING_PRESENTATION_HELPERS','-D__NO_OPENGL','-I'+str(sdk/'include/SDL'),'-I'+str(sdk/'include')]
-lib=sdk/'lib/x86_64-linux-gnu';env=dict(os.environ,LD_LIBRARY_PATH=str(lib)+':'+os.environ.get('LD_LIBRARY_PATH',''));sha=lambda x:hashlib.sha256(Path(x).read_bytes()).hexdigest()
-files=[s/'src/Observer/AgentPlayerBases.cpp',s/'src/Observer/AgentPlayerBases.h',s/'tests/agent-control/AgentPlayerBasesTest.cpp',Path(__file__).resolve(),s/'src/Savegame/Soldier.h',s/'src/Savegame/Base.h']
-result={'all_passed':False,'game_executed':False,'live_acceptance':False,'source_sha256':{str(x):sha(x) for x in files},'limitations':['Actual native models/collector, synthetic in-memory rules injected through test-only private access.','No Game/window/campaign-load/player-save execution. Full build object closure reused and sealed below.','Non-Target entity IDs track observed live bindings; unseen deletion/address reuse between captures is not distinguishable. IDs never authorize mutations.']}
-def store():(out/'RESULT.json').write_text(json.dumps(result,indent=2)+'\n')
-def run(name,cmd):
- r=subprocess.run([str(x) for x in cmd],cwd=s,env=env,capture_output=True,text=True);(out/(name+'.log')).write_text(r.stdout+r.stderr);result[name+'_exit']=r.returncode;store();print(name,r.returncode,r.stdout[-1000:],r.stderr[-3000:],flush=True)
- if r.returncode:raise SystemExit(r.returncode)
-run('compile_fixture',flags+['-c',files[2],'-o',out/'fixture.o']);run('compile_collector',flags+['-c',files[0],'-o',out/'collector.o'])
-link=shlex.split((build/'src/CMakeFiles/openxcom.dir/link.txt').read_text());objects=[(build/'src'/x).resolve() for x in link if x.endswith('.o') and not x.endswith('/main.cpp.o') and not x.endswith('/AgentPlayerBases.cpp.o')]
-result['object_sha256']={str(x):sha(x) for x in objects};store()
-run('link',['c++',out/'fixture.o',out/'collector.o']+objects+['-Wl,--gc-sections','-L'+str(lib),'-lSDL','-lSDL_image','-lSDL_mixer','-lSDL_gfx','-lyaml-cpp','-ldl','-pthread','-o',out/'test'])
-run('test',[out/'test',out/'records.json']);result['inputs_unchanged']=all(sha(f)==v for f,v in result['source_sha256'].items()) and all(sha(f)==v for f,v in result['object_sha256'].items());result['all_passed']=result['inputs_unchanged'];store();raise SystemExit(0 if result['all_passed'] else 1)
+from native_test_runner import run_recipe
+
+LIMITATIONS = [
+    'Actual native models/collector with synthetic in-memory rules injected through test-only private access; not live acceptance.',
+    'UI-equivalent pure research/manufacture query sets, known route pointer membership and guarded native craft estimates checked.',
+    'No Game/window/campaign-load/player-save execution. Existing matching full-build objects are reused and explicitly hashed.',
+    'Non-Target IDs track observed live bindings; unseen deletion/address reuse between captures cannot be distinguished. IDs never authorize mutations.',
+    'The manifest is explicit, not a complete compiler, SDK-header, dynamic-library or toolchain transitive dependency closure.',
+]
+
+
+def integrate(source, build, sdk, output):
+    source, build, sdk, output = [Path(p).resolve() for p in (source, build, sdk, output)]
+    link_recipe = build / 'src/CMakeFiles/openxcom.dir/link.txt'
+    files = [source / p for p in (
+        'src/Observer/AgentPlayerBases.cpp', 'src/Observer/AgentPlayerBases.h',
+        'tests/agent-control/AgentPlayerBasesTest.cpp', 'src/Savegame/Soldier.h',
+        'src/Savegame/Base.h', 'src/Savegame/SavedGame.cpp', 'src/Savegame/Craft.cpp',
+        'src/Savegame/Craft.h', 'src/Savegame/Waypoint.h')]
+    files += [Path(__file__).resolve(), Path(__file__).with_name('native_test_runner.py').resolve(), link_recipe]
+    objects = [(build / 'src' / token).resolve() for token in shlex.split(link_recipe.read_text())
+               if token.endswith('.o') and not token.endswith(('/main.cpp.o', '/AgentPlayerBases.cpp.o'))]
+    if not objects:
+        raise ValueError('No native build object closure')
+    flags = ['c++', '-std=c++11', '-O0', '-DOPENXCOM_EXPERIMENTAL_AGENT_CONTROL',
+             '-DOPENXCOM_EXPERIMENTAL_OBSERVER_DIAGNOSTICS', '-DOPENXCOM_LOADING_PRESENTATION_HELPERS',
+             '-D__NO_OPENGL', '-I' + str(sdk / 'include/SDL'), '-I' + str(sdk / 'include')]
+    library = sdk / 'lib/x86_64-linux-gnu'
+    overlay = {'LD_LIBRARY_PATH': str(library) + ':' + os.environ.get('LD_LIBRARY_PATH', '')}
+    def step(name, argv):
+        return dict(name=name, argv=[str(arg) for arg in argv], cwd=str(source), env=overlay.copy())
+    steps = [step('compile_fixture', flags + ['-c', files[2], '-o', output / 'fixture.o']),
+             step('compile_collector', flags + ['-c', files[0], '-o', output / 'collector.o']),
+             step('link', ['c++', output / 'fixture.o', output / 'collector.o'] + objects + [
+                 '-Wl,--gc-sections', '-L' + str(library), '-lSDL', '-lSDL_image', '-lSDL_mixer',
+                 '-lSDL_gfx', '-lyaml-cpp', '-ldl', '-pthread', '-o', output / 'test']),
+             step('test', [output / 'test', output / 'records.json'])]
+    receipt = run_recipe(dict(version=1, source=str(source), output=str(output),
+                              inputs=list(dict.fromkeys(str(p) for p in files + objects)), steps=steps))
+    qualification = dict(all_passed=receipt['all_passed'], inputs_unchanged=receipt['inputs_unchanged'],
+                         game_executed=False, live_acceptance=False, generic_receipt='RESULT.json',
+                         limitations=LIMITATIONS, source_revision='caller-supplied; inspect recorded input hashes')
+    (output / 'QUALIFICATION.json').write_text(json.dumps(qualification, indent=2) + '\n')
+    return receipt
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('source', 'build', 'sdk', 'output'):
+        parser.add_argument('--' + name, type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        receipt = integrate(args.source, args.build, args.sdk, args.output)
+    except (ValueError, OSError) as error:
+        print('Player-bases runner refused input: ' + type(error).__name__)
+        return 2
+    return 0 if receipt['all_passed'] else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
