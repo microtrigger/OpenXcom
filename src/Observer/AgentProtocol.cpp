@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/47"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/48"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/47\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/48\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -90,7 +90,7 @@ bool agentActionId(const std::string &value)
         value == "close_crafts" ||
         value == "open_craft_crew" ||
         value == "open_craft_equipment" ||
-        value == "open_ufopaedia" ||
+        value == "click_visible_globe_target" || value == "choose_globe_target" || value == "cancel_globe_targets" || value == "open_target_interception" || value == "focus_target_name" || value == "finish_target_name" || value == "replace_target_name" || value == "close_target_info" || value == "open_ufopaedia" ||
         value == "select_ufopaedia_category" ||
         value == "close_ufopaedia" ||
         value == "select_ufopaedia_article" ||
@@ -131,7 +131,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "choose_dogfight_mode") return "dogfight_mode";
     if (action == "set_craft_soldier") return "crew_assignment";
     if (action == "change_craft_equipment") return "equipment_quantity";
-    if (action == "select_ufopaedia_category" || action == "select_ufopaedia_article" || action == "select_craft_weapon" || action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
+    if (action == "choose_globe_target" || action == "select_ufopaedia_category" || action == "select_ufopaedia_article" || action == "select_craft_weapon" || action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "select_build_facility") return "facility_row";
@@ -155,11 +155,11 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "camera_pan") return "camera_direction";
     if (action == "minimap_center") return "minimap_target";
     if (action == "open_new_battle_choice") return "choice_control";
-    if (action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
+    if (action == "click_visible_globe_target" || action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
     if (action == "scroll_visible_list" || action == "scroll_article_text") return "scroll_direction";
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
-    if (action == "replace_base_name" || action == "replace_new_save_name") return "text";
+    if (action == "replace_target_name" || action == "replace_base_name" || action == "replace_new_save_name") return "text";
     if (action == "place_base_site") return "point";
     return agentActionId(action) ? "none" : "unsupported";
 }

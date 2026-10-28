@@ -9,7 +9,20 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <time.h>
 using OpenXcom::Observer::AgentAudioEvents;
+namespace {
+bool syntheticClock = false, failClock = false;
+std::uint64_t realtimeUs = 5000000, monotonicUs = 1000000;
+}
+extern "C" int __real_clock_gettime(clockid_t, struct timespec *);
+extern "C" int __wrap_clock_gettime(clockid_t clock, struct timespec *out)
+{
+    if (!syntheticClock) return __real_clock_gettime(clock, out);
+    if (failClock) return -1;
+    const std::uint64_t us = clock == CLOCK_REALTIME ? realtimeUs : monotonicUs;
+    out->tv_sec=us/1000000;out->tv_nsec=(us%1000000)*1000;return 0;
+}
 namespace {
 void (*callback)(void *, Uint8 *, int) = nullptr;
 void *context = nullptr;
@@ -171,6 +184,53 @@ int main()
             else { check(event.nonzero, "tail summary is initialized"); ++windows; }
         }
         check(windows + dropped == 5000, "threaded windows plus exact losses conserve completed PCM");
+    }
+    {
+        AgentAudioEvents audio; AgentAudioEvents::Event first, second;
+        attach(audio); feedWindows(1); // registration boundary discarded
+        std::vector<Uint8> block(AgentAudioEvents::WindowBytes * 2, 1);
+        feed(block.data(), block.size());
+        check(audio.take(first) && audio.take(second), "two windows in one callback");
+        check(first.timing.firstRealtimeUs > 0 && first.timing.firstMonotonicUs > 0,
+            "actual callback clock captured");
+        check(first.timing.firstRealtimeUs == second.timing.firstRealtimeUs &&
+            first.timing.lastMonotonicUs == second.timing.lastMonotonicUs,
+            "same callback clocks preserved, not dequeue clock");
+        check(first.timing.firstFrameOffset == 0 && first.timing.lastFrameEndOffset == 2205 &&
+            second.timing.firstFrameOffset == 2205 && second.timing.lastFrameEndOffset == 4410 &&
+            first.timing.firstCallbackFrames == 4410 && second.timing.lastCallbackFrames == 4410,
+            "within callback frame offsets exact");
+    }
+    {
+        AgentAudioEvents audio; AgentAudioEvents::Event event;
+        attach(audio); feedWindows(1);
+        syntheticClock = true; realtimeUs=5000000;monotonicUs=1000000;
+        std::vector<Uint8> first(400, 1), last(AgentAudioEvents::WindowBytes - 400, 1);
+        feed(first.data(), first.size());
+        realtimeUs+=2000;monotonicUs+=2000;
+        feed(last.data(), last.size());
+        check(audio.take(event), "split callback window retained");
+        check(event.timing.lastMonotonicUs > event.timing.firstMonotonicUs &&
+            event.timing.lastRealtimeUs >= event.timing.firstRealtimeUs &&
+            event.timing.firstCallbackFrames == 100 && event.timing.lastCallbackFrames == 2105 &&
+            event.timing.firstFrameOffset == 0 && event.timing.lastFrameEndOffset == 2105,
+            "first and last contributing callback boundaries retained");
+        check(event.timing.firstRealtimeUs == 5000000 && event.timing.lastRealtimeUs == 5002000 &&
+              event.timing.firstMonotonicUs == 1000000 && event.timing.lastMonotonicUs == 1002000,
+              "injected callback clocks preserved exactly");
+        syntheticClock = false;
+    }
+    for (unsigned fault=0;fault<3;++fault)
+    {
+        AgentAudioEvents audio;attach(audio);feedWindows(1);
+        syntheticClock=true;failClock=false;realtimeUs=5000000;monotonicUs=1000000;
+        feedWindows(1);
+        if (fault==0) --realtimeUs;
+        if (fault==1) --monotonicUs;
+        if (fault==2) failClock=true;
+        feedWindows(1);audio.poll(true);
+        check(!callback, "failed or backward clock closes capture");
+        syntheticClock=false;failClock=false;
     }
     for (int bad : {0, 1, 3, -4, AgentAudioEvents::MaxCallbackBytes + 4})
     {

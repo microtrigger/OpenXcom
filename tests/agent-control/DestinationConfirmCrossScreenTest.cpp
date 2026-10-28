@@ -99,7 +99,7 @@ struct MarkerSet {Surface*marker;std::map<int,Surface*>frames,resources;std::map
 struct Globe : Surface {int speed=60,stops=0,rangeCalls=0,invalidates=0;double lastRange=-1;
  Game*_game=currentGame; Surface *_markers,*_radars,*_countries; MarkerSet storage;MarkerSet*_markerSet=&storage;
  struct Projection{void clearLayer(int){}}_agentProjection;
- struct AgentPaintedTarget{Target*target;std::weak_ptr<const void> lifetime;};
+ struct AgentPaintedTarget{Target*target;std::weak_ptr<const void> lifetime;bool destinationEligible=false;};
  std::vector<AgentPaintedTarget>_agentMarkerPixels;int _agentMarkerWidth=0,_agentMarkerHeight=0;bool _agentTargetCandidates=false;
  bool _agentBlitReady=false,_isMouseScrolling=false,_isMouseScrolled=false;int _rotLon=0,_rotLat=0;unsigned _agentShownViewRevision=0,_agentViewRevision=1;
  Globe():Surface(320,200){_markers=new Surface(320,200);_radars=new Surface(320,200);_countries=new Surface(320,200);storage.marker=new Surface(5,5);for(auto*s:{_markers,_radars,_countries,storage.marker})s->setPalette(_game->palette);storage.marker->clear(90);_markers->agentTrackPresentation();}
@@ -108,6 +108,7 @@ struct Globe : Surface {int speed=60,stops=0,rangeCalls=0,invalidates=0;double l
  void agentCoverRect(Surface*,Surface*){}
  void drawTarget(Target*,Surface*);void drawMarkers();void blit(Surface*)override;
  std::string agentDestinationTargets(AgentUiState&,const std::vector<Surface*>&,std::vector<Target*>&)const;
+ std::string agentGeoscapeTargets(AgentUiState&,const std::vector<Surface*>&,std::vector<Target*>&,std::vector<std::pair<int,int>>&,bool=false)const;
  void onMouseClick(ActionHandler){} void rotateStop(){++stops;}void setCraftRange(double,double,double r){++rangeCalls;lastRange=r;}void invalidate(){++invalidates;}
 };
 #include "DestinationGlobe.generated.inc"
@@ -124,6 +125,7 @@ struct ConfirmDestinationState:State {
  bool agentUiState(AgentUiState&)const override;bool agentDispatch(const AgentRequest&)override;void btnOkClick(Action*);void btnCancelClick(Action*);
 };
 struct MultipleTargetsState:State {
+ std::vector<std::weak_ptr<const void>> _agentTargetLifetimes;std::weak_ptr<const void>_agentCraftLifetime;
  static const int MARGIN=10,SPACING=4,BUTTON_HEIGHT=16;
  std::vector<Target*>_targets;Craft*_craft;GeoscapeState*_state;Window*_window;std::vector<TextButton*>_btnTargets;
  MultipleTargetsState(std::vector<Target*>,Craft*,GeoscapeState*);~MultipleTargetsState();void init()override;void popupTarget(Target*);

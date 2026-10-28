@@ -12,10 +12,18 @@ class AgentAudioEvents
 public:
     enum { FramesPerWindow = 2205, FrameBytes = 4, WindowBytes = FramesPerWindow * FrameBytes, RingCapacity = 32,
            MaxCallbackBytes = 262144 };
+    // Actual callback-entry clocks and frame offsets, NOT speaker timestamps.
+    struct Timing {
+        std::uint64_t firstRealtimeUs = 0, firstMonotonicUs = 0;
+        unsigned firstFrameOffset = 0, firstCallbackFrames = 0;
+        std::uint64_t lastRealtimeUs = 0, lastMonotonicUs = 0;
+        unsigned lastFrameEndOffset = 0, lastCallbackFrames = 0;
+    };
     struct Event {
         enum Kind { Window, Gap, Status } kind = Window;
         enum State { Pending, Active, Unavailable } state = Pending;
         bool nonzero = false;
+        Timing timing;
         std::uint64_t pcmSequence = 0;
         Uint8 pcm[WindowBytes] = {};
         std::uint64_t droppedWindows = 0;
@@ -35,7 +43,7 @@ public:
     void close();
 private:
     typedef std::chrono::steady_clock Clock;
-    struct Summary { std::uint64_t sequence; bool nonzero; Uint8 pcm[WindowBytes]; };
+    struct Summary { std::uint64_t sequence; bool nonzero; Timing timing; Uint8 pcm[WindowBytes]; };
     enum { Slots = RingCapacity + 1 };
     std::atomic<unsigned> _catalog, _read, _write, _failed;
     std::atomic<std::uint64_t> _produced;
@@ -44,6 +52,8 @@ private:
     std::uint64_t _sequence;
     Uint8 _partialPcm[WindowBytes];
     unsigned _partialBytes;
+    Timing _partialTiming;
+    std::uint64_t _lastRealtimeUs, _lastMonotonicUs;
     bool _partialNonzero, _skipFirst;
     // Main-thread-only fields; no callback accesses controller/game state.
     bool _attached, _terminal, _pending;

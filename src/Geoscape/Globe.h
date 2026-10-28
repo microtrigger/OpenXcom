@@ -58,6 +58,7 @@ private:
     struct AgentPaintedTarget {
         Target *target;
         std::weak_ptr<const void> lifetime;
+        bool destinationEligible = false;
     };
     std::vector<AgentPaintedTarget> _agentMarkerPixels;
     int _agentMarkerWidth = 0, _agentMarkerHeight = 0;
@@ -141,6 +142,9 @@ public:
 	std::uint64_t agentViewRevision() const { return _agentViewRevision; }
     std::string agentDestinationTargets(Observer::AgentUiState &ui,
         const std::vector<Surface *> &overlays, std::vector<Target *> &targets) const;
+    std::string agentGeoscapeTargets(Observer::AgentUiState &ui,
+        const std::vector<Surface *> &overlays, std::vector<Target *> &targets,
+        std::vector<std::pair<int,int> > &points, bool destinationOnly = false) const;
 #endif
 	/// Creates a new globe at the specified position and size.
 	Globe(Game* game, int cenX, int cenY, int width, int height, int x = 0, int y = 0);

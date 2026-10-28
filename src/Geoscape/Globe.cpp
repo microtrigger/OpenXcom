@@ -1620,14 +1620,15 @@ void Globe::drawTarget(Target *target, Surface *surface)
             const int right=std::min(std::min(_agentMarkerWidth,int(layer->clip_rect.x)+layer->clip_rect.w),marker->getX()+std::min(sw,source->w-sx));
             const int bottom=std::min(std::min(_agentMarkerHeight,int(layer->clip_rect.y)+layer->clip_rect.h),marker->getY()+std::min(sh,source->h-sy));
             const bool transparentAlpha=(source->flags & SDL_SRCALPHA) && source->format->alpha==0;
-            const auto lifetime=_agentTargetCandidates ? target->agentLifetime() : std::weak_ptr<const void>();
+            const auto lifetime=target->agentLifetime();
             for (int py=top; !transparentAlpha && py<bottom; ++py)
                 for (int px=left; px<right; ++px)
                 {
                     const auto pixel=marker->getPixel(sx+px-marker->getX(),sy+py-marker->getY());
                     if ((source->flags & SDL_SRCCOLORKEY) && pixel==source->format->colorkey) continue;
                     auto &owner=_agentMarkerPixels[py*_agentMarkerWidth+px];
-                    owner.target=_agentTargetCandidates ? target : nullptr;
+                    owner.target=target;
+                    owner.destinationEligible=_agentTargetCandidates;
                     owner.lifetime=lifetime;
                 }
         }
@@ -2093,8 +2094,15 @@ void Globe::agentCoverRect(Surface *layer,const Surface *painted)
 std::string Globe::agentDestinationTargets(Observer::AgentUiState &ui,
     const std::vector<Surface *> &overlays, std::vector<Target *> &targets) const
 {
+    std::vector<std::pair<int,int> > points;
+    return agentGeoscapeTargets(ui, overlays, targets, points, true);
+}
+std::string Globe::agentGeoscapeTargets(Observer::AgentUiState &ui,
+    const std::vector<Surface *> &overlays, std::vector<Target *> &targets,
+    std::vector<std::pair<int,int> > &points, bool destinationOnly) const
+{
     using namespace Observer;
-    targets.clear();
+    targets.clear(); points.clear();
     const Surface *destination=_game->getScreen()->getSurface();
     if (!_agentBlitReady || _agentMarkerPixels.empty() || _agentShownViewRevision!=_agentViewRevision ||
         !agentPaintHealthy() || !agentWidgetVisible(this) || !agentWidgetVisible(_markers) ||
@@ -2108,7 +2116,7 @@ std::string Globe::agentDestinationTargets(Observer::AgentUiState &ui,
     for (std::size_t n=0; n<_agentMarkerPixels.size() && targets.size()<32; ++n)
     {
         const auto &owner=_agentMarkerPixels[n];
-        if (!owner.target || owner.lifetime.expired()) continue;
+        if (!owner.target || owner.lifetime.expired() || (destinationOnly && !owner.destinationEligible)) continue;
         bool duplicate=false;
         for (const auto &prior:admitted)
             if (!prior.owner_before(owner.lifetime) && !owner.lifetime.owner_before(prior)) { duplicate=true; break; }
@@ -2129,7 +2137,7 @@ std::string Globe::agentDestinationTargets(Observer::AgentUiState &ui,
         if (index) rows+=",";
         rows+="{\"row\":\"r"+std::to_string(index)+"\",\"x\":"+std::to_string(x)+
             ",\"y\":"+std::to_string(y)+",\"width\":1,\"height\":1}";
-        targets.push_back(owner.target); admitted.push_back(owner.lifetime); ui.rows.push_back(index);
+        targets.push_back(owner.target); points.emplace_back(x,y); admitted.push_back(owner.lifetime); ui.rows.push_back(index);
         ui.targetLifetimes.push_back(owner.lifetime);
         ui.context.push_back(reinterpret_cast<std::uintptr_t>(owner.target));
         ui.regions.push_back(part.regions.front());

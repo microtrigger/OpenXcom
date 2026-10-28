@@ -20,12 +20,12 @@ public:
 class State {
 public:
  Observer::AgentUiState ui;
- bool dirty=false,bindingValid=true;
+ bool dirty=false,bindingValid=true,dispatchResult=true;
  unsigned calls=0;
  std::function<void(const Observer::AgentRequest&)> handler;
  bool agentUiState(Observer::AgentUiState &out)const{if(dirty)return false;out=ui;return true;}
  bool agentBindingCurrent(const Observer::AgentUiState &)const{return bindingValid;}
- bool agentDispatch(const Observer::AgentRequest &request){++calls;if(handler)handler(request);return true;}
+ bool agentDispatch(const Observer::AgentRequest &request){++calls;if(handler)handler(request);return dispatchResult;}
 };
 class Screen {
 public: bool ready=true; std::uint64_t revision=1;

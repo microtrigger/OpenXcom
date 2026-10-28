@@ -18,6 +18,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <memory>
+#endif
 #include <vector>
 
 namespace OpenXcom
@@ -35,6 +38,13 @@ class GeoscapeState;
 class MultipleTargetsState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::weak_ptr<const void> > _agentTargetLifetimes;
+    std::weak_ptr<const void> _agentCraftLifetime;
+#endif
 	static const int MARGIN = 10;
 	static const int SPACING = 4;
 	static const int BUTTON_HEIGHT = 16;
@@ -46,6 +56,11 @@ private:
 	Window *_window;
 	std::vector<TextButton*> _btnTargets;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Multiple Targets state.
 	MultipleTargetsState(std::vector<Target*> targets, Craft *craft, GeoscapeState *state);
 	/// Cleans up the Multiple Targets state.

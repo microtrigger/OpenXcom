@@ -18,6 +18,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/State.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include <memory>
+#endif
 
 namespace OpenXcom
 {
@@ -36,6 +39,12 @@ class Globe;
 class TargetInfoState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::weak_ptr<const void> _agentTargetLifetime;
+#endif
 	Target *_target;
 	Globe *_globe;
 
@@ -44,6 +53,11 @@ private:
 	TextEdit *_edtTitle;
 	Text *_txtTargetted, *_txtFollowers;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Target Info state.
 	TargetInfoState(Target *target, Globe *globe);
 	/// Cleans up the Target Info state.

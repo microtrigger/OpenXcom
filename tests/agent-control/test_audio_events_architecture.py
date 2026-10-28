@@ -10,7 +10,7 @@ class AudioEventsArchitectureTest(unittest.TestCase):
     def test_callback_boundary(self):
         callback = body('Observer/AgentAudioEvents.cpp', 'AgentAudioEvents::observe(')
         callback = re.sub(r'//[^\n]*', '', callback)
-        for forbidden in ('new ', 'delete ', 'malloc', 'mutex', 'lock(', 'Clock', 'chrono',
+        for forbidden in ('new ', 'delete ', 'malloc', 'mutex', 'lock(', 'chrono',
                           'SDL_', 'Mix_', 'Game', 'Sound', 'Music', 'send(', 'printf', 'json'):
             self.assertNotIn(forbidden, callback)
         for required in ('MaxCallbackBytes', 'len % FrameBytes', '_skipFirst', '_partialBytes',
@@ -21,8 +21,9 @@ class AudioEventsArchitectureTest(unittest.TestCase):
         self.assertIn('FramesPerWindow = 2205', h)
         self.assertIn('FrameBytes = 4', h)
         self.assertIn('RingCapacity = 32', h)
-        self.assertIn('struct Summary { std::uint64_t sequence; bool nonzero; Uint8 pcm[WindowBytes]; };', h)
-        for forbidden in ('BattleUnit', 'Position', 'Sound *', 'Music *', 'channelId', 'timestamp'):
+        self.assertIn('struct Summary { std::uint64_t sequence; bool nonzero; Timing timing; Uint8 pcm[WindowBytes]; };', h)
+        self.assertIn('captureClocks(realtime, monotonic)', (ROOT / 'src/Observer/AgentAudioEvents.cpp').read_text())
+        for forbidden in ('BattleUnit', 'Position', 'Sound *', 'Music *', 'channelId'):
             self.assertNotIn(forbidden, h)
     def test_qualification_and_single_owner(self):
         poll = body('Observer/AgentAudioEvents.cpp', 'AgentAudioEvents::poll(')
@@ -38,7 +39,7 @@ class AudioEventsArchitectureTest(unittest.TestCase):
         self.assertNotIn('SDL_LockAudio', close)
     def test_lifecycle_and_independent_poll(self):
         game = (ROOT / 'src/Engine/Game.cpp').read_text()
-        self.assertIn('_agentAudioEvents.poll(_agentController.enabled());\n        _agentController.poll();', game)
+        self.assertIn('_agentAudioEvents.poll(_agentController.enabled() && !Observer::AgentSoundPlayback::primaryMode());\n        _agentController.poll();', game)
         self.assertIn('_agentAudioEvents.publishCatalogSupported(_mod->isMusicCatalogSoftwareMixed())', game)
         self.assertIn('_agentAudioEvents.close()', body('Engine/Game.cpp', 'Game::~Game('))
         self.assertIn('resetAgentAudioEvents()', body('Engine/Game.cpp', 'Game::initAudio('))

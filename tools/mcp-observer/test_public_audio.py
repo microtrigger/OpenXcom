@@ -1,3 +1,4 @@
+from test_audio_clock_fixture import timing
 import base64,copy,json,os,pathlib,struct,unittest
 import agent_control as a
 import adapter,public_audio as p
@@ -6,7 +7,7 @@ from test_agent_control import EPOCH,CHALLENGE
 
 def event(seq,pcm_sequence=None):
  return dict(seq=seq,kind='audio_output',duration_ms=100,nonzero=True,source=None,sound=None,position=None,
-             pcm_sequence=pcm_sequence or seq,profile=p.PROFILE,pcm_hex='0100'+'0000'*4409)
+             timing=timing(pcm_sequence or seq),pcm_sequence=pcm_sequence or seq,profile=p.PROFILE,pcm_hex='0100'+'0000'*4409)
 def page(events,after=0,newest=None):
  newest=events[-1]['seq'] if newest is None else newest
  return dict(schema=a.SCHEMA,mode=a.MODE,type='events',challenge=CHALLENGE,epoch=EPOCH,audio_history='mixed_output',audio_status='active',sound_playback=dict(playback_epoch=0,status='inactive'),after=after,oldest=max(1,newest-255),newest=newest,next_cursor=events[-1]['seq'] if events else after,gap=after+1<max(1,newest-255),events=events)
@@ -47,6 +48,30 @@ class PublicAudioTests(unittest.TestCase):
   e=event(1);del e['pcm_hex']
   with self.assertRaises(Unavailable):checked(page([e]))
   with self.assertRaises(Unavailable):checked(page([event(1,2),event(2,1)]))
+ def test_callback_clocks_strict_and_preserved(self):
+  e=event(1)
+  obj=p.read_audio(Peer([page([e])]),EPOCH,0,8)['structuredContent']
+  self.assertEqual(obj['schema'],'openxcom-public-audio/2')
+  self.assertEqual(obj['temporal_alignment'],'postmix_callback_clock_not_speaker_time')
+  self.assertEqual(obj['events'][0]['timing'],e['timing'])
+  for key,value in [('clock','receipt_time'),('first_realtime_us',0),('first_monotonic_us',True),
+                    ('last_realtime_us',1),('last_monotonic_us',1),('first_frame_offset',2205),
+                    ('last_frame_end_offset',0),('last_callback_frames',65537)]:
+   bad=event(1);bad['timing'][key]=value
+   with self.subTest(key=key),self.assertRaises(Unavailable):checked(page([bad]))
+  for key in tuple(e['timing']):
+   bad=event(1);del bad['timing'][key]
+   with self.subTest(missing=key),self.assertRaises(Unavailable):checked(page([bad]))
+  bad=event(1);del bad['timing']
+  with self.assertRaises(Unavailable):checked(page([bad]))
+ def test_callback_clock_order_within_and_across_pages(self):
+  first=event(1);second=event(2);second['timing']=timing(0)
+  with self.assertRaises(Unavailable):checked(page([first,second]))
+  with self.assertRaises(Unavailable):
+   p.read_audio(Peer([page([first],newest=2),page([second],after=1,newest=2)]),EPOCH,0,8)
+  # Multiple windows from the same actual callback may share its clocks.
+  second['timing']=dict(first['timing'])
+  checked(page([first,second]))
  def test_page_and_response_bounds_no_extra_reads(self):
   pages=[page([dict(seq=i,kind='displayed_message',text='X',report=None,source=None,position=None)],after=i-1,newest=20) for i in range(1,9)]
   peer=Peer(pages);result=p.read_audio(peer,EPOCH,0,8);self.assertEqual(len(peer.calls),8);self.assertTrue(result['structuredContent']['deferred']);self.assertEqual(result['structuredContent']['windows'],0)

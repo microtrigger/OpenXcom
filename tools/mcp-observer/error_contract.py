@@ -19,12 +19,13 @@ CODES = {
     'native_unavailable_unspecified': ('native', 'warning', 'stop'),
     'native_result_unknown': ('native', 'critical', 'reconcile'),
     'native_result_unknown_after_dispatch': ('native', 'critical', 'reconcile'),
+    'native_result_rejected_before_dispatch': ('admission', 'warning', 'refresh_observation'),
     'native_result_unavailable': ('native', 'warning', 'reconcile'),
     'invalid_arguments': ('request', 'warning', 'correct_request'),
     'legacy_unavailable': ('unknown', 'error', 'stop'),
 }
 PHASES = frozenset(('read', 'pre_send', 'send_or_receipt', 'result_query', 'unknown'))
-OUTCOMES = frozenset(('not_applicable', 'not_sent', 'unknown'))
+OUTCOMES = frozenset(('not_applicable', 'not_sent', 'known_not_dispatched', 'unknown'))
 
 def detail(code, phase='read', action_outcome='not_applicable'):
     if type(code) is not str or code not in CODES: code = 'legacy_unavailable'

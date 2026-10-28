@@ -1,3 +1,4 @@
+from test_audio_clock_fixture import timing
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-18.
 """Synthetic /5 event/tactical contracts; no game, renderer or audio-device proof."""
@@ -33,7 +34,7 @@ def presentation(seq=1,screen='battlescape'):
 
 
 def audio(seq=1,nonzero=True):
-    return dict(seq=seq,kind='audio_output',duration_ms=100,nonzero=nonzero,source=None,sound=None,position=None,pcm_sequence=seq,profile='s16le-stereo-22050',pcm_hex=('0100'+'0000'*4409) if nonzero else '0000'*4410)
+    return dict(seq=seq,kind='audio_output',duration_ms=100,nonzero=nonzero,source=None,sound=None,position=None,timing=timing(seq),pcm_sequence=seq,profile='s16le-stereo-22050',pcm_hex=('0100'+'0000'*4409) if nonzero else '0000'*4410)
 
 
 def page(events=(),after=0,newest=None,history='mixed_output',challenge=CHALLENGE):

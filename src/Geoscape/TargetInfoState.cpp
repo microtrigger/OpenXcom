@@ -28,6 +28,9 @@
 #include "../Engine/Options.h"
 #include "InterceptState.h"
 #include "../Engine/Action.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 
 namespace OpenXcom
 {
@@ -41,6 +44,9 @@ namespace OpenXcom
 TargetInfoState::TargetInfoState(Target *target, Globe *globe) : _target(target), _globe(globe)
 {
 	_screen = false;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if(_target) _agentTargetLifetime=_target->agentLifetime();
+#endif
 
 	// Create objects
 	_window = new Window(this, 192, 120, 32, 40, POPUP_BOTH);
@@ -136,5 +142,75 @@ void TargetInfoState::edtTitleChange(Action *action)
 		_edtTitle->setText(_target->getName(_game->getLanguage()));
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void TargetInfoState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool TargetInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if(!_target || _agentTargetLifetime.expired() || !_game->isState(const_cast<TargetInfoState *>(this)) ||
+        (_modal && _modal!=_edtTitle) || !agentPaintHealthy() || !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces))return false;
+    out=AgentUiState();out.screen="target_info";out.actor=_target;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    out.targetLifetimes.push_back(_agentTargetLifetime);
+    AgentOutfittingView view(_game,_surfaces,out);
+    std::string name,shown="null";
+    out.widgets.emplace_back(_edtTitle,_edtTitle->agentInputRevision());
+    if(agentWidgetUncovered(_edtTitle,view.painted) && _edtTitle->agentRenderedText(name) && name.size()<=1024 && view.include(_edtTitle))
+    {
+        shown=agentJsonString(name);
+        if(_edtTitle->agentEditable()) {
+            out.actions.emplace_back("replace_target_name","Rename target","visible_control_semantics","text");
+            out.actions.emplace_back("finish_target_name","Finish editing target name","visible_control_semantics");
+        }
+        else if(!_modal && Options::keyboardMode==KEYBOARD_ON) out.actions.emplace_back("focus_target_name","Focus target name","visible_control_semantics");
+    }
+    const std::string heading=view.text(_txtTargetted),followers=view.text(_txtFollowers);
+    if(!_modal) {
+        view.button(_btnIntercept,"intercept","open_target_interception");
+        view.button(_btnOk,"close","close_target_info");
+    }
+    out.visible="{\"name\":"+shown+",\"targetted_heading\":"+heading+",\"followers\":"+followers+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool TargetInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;if(!agentUiState(current) || !current.offers(request.action))return false;
+    if(request.action=="open_target_interception"){btnInterceptClick(nullptr);return true;}
+    if(request.action=="close_target_info"){btnOkClick(nullptr);return true;}
+    if(request.action=="focus_target_name")
+    {
+        SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtTitle);
+        action.setMouseAction(_edtTitle->getX()+_edtTitle->getWidth()/2,
+            _edtTitle->getY()+_edtTitle->getHeight()/2,_edtTitle->getX(),_edtTitle->getY());
+        _edtTitle->mousePress(&action,this);return true;
+    }
+    if(request.action=="finish_target_name")
+    {
+        SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtTitle);
+        _edtTitle->keyboardPress(&action,this);return true;
+    }
+    if(request.action=="replace_target_name")
+    {
+        if(!Observer::agentInputText(request.text))return false;
+        if(_edtTitle->agentReplaceText(request.text))
+        {
+            SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+            Action action(&event,1.0,1.0,0,0);action.setSender(_edtTitle);_edtTitle->keyboardPress(&action,this);
+        }
+        return true;
+    }
+    return false;
+}
+#endif
 
 }

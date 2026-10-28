@@ -523,6 +523,10 @@ class Server:
                 return read_audio(self.agent_control, **arguments)
             else:
                 obj = self.agent_control.read_result(**arguments)
+            if name in ('execute_ui_action', 'read_ui_action_result') and obj.get('status') == 'rejected_before_dispatch':
+                from error_contract import detail
+                obj = dict(obj, failure=detail('native_result_rejected_before_dispatch',
+                    'result_query' if name == 'read_ui_action_result' else 'send_or_receipt', 'known_not_dispatched'))
             if name in ('execute_ui_action', 'read_ui_action_result') and obj.get('status') in ('unavailable', 'unknown_after_dispatch', 'unknown'):
                 from error_contract import detail
                 obj = dict(obj, failure=detail('native_result_'+obj['status'],

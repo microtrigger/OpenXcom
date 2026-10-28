@@ -555,24 +555,32 @@ bool TextEdit::agentBaseInfoName(const Surface *destination, std::string &shown,
 	return true;
 }
 
+bool TextEdit::agentTextLayoutComplete() const
+{
+    if (!Observer::agentWidgetVisible(this) || !_text || !_text->getFont() ||
+        !_text->agentContextVisible() || !_text->agentTextComplete() ||
+        _text->getText().size() > 128 || _text->getTextWidth() > getWidth() ||
+        _text->getTextHeight() > getHeight()) return false;
+    SDL_Rect ink;
+    if (_text->agentPaintedBounds(ink) &&
+        (ink.x < 0 || ink.y < 0 || ink.x+ink.w > getWidth() || ink.y+ink.h > getHeight())) return false;
+    return true;
+}
+
 bool TextEdit::agentRenderedText(std::string &text) const
 {
-	if (!Observer::agentWidgetVisible(this) || !_text || !_text->getFont() ||
-		!_text->agentContextVisible() || !_text->agentTextComplete() ||
-		_text->getText().size() > 128 || _text->getTextWidth() > getWidth() ||
-		_text->getTextHeight() > getHeight()) return false;
-	SDL_Rect ink;
-	if (_text->agentPaintedBounds(ink))
-	{
-		if (ink.x < 0 || ink.y < 0 || ink.x + ink.w > getWidth() || ink.y + ink.h > getHeight()) return false;
-		// A partially clipped end caret is normal native input. Only its actual
-		// painted intersection can obscure text; blink-off paints no occluder.
-		if (_agentCaretPainted && ink.x < _agentCaretBounds.x + _agentCaretBounds.w &&
-			ink.x + ink.w > _agentCaretBounds.x && ink.y < _agentCaretBounds.y + _agentCaretBounds.h &&
-			ink.y + ink.h > _agentCaretBounds.y) return false;
-	}
-	text = _text->getText();
-	return true;
+    if (!agentTextLayoutComplete()) return false;
+    SDL_Rect ink;
+    if (_text->agentPaintedBounds(ink))
+    {
+        // Read-side authority still excludes text actually obscured by the
+        // normal native caret. This is not relaxed by input validation below.
+        if (_agentCaretPainted && ink.x < _agentCaretBounds.x + _agentCaretBounds.w &&
+            ink.x + ink.w > _agentCaretBounds.x && ink.y < _agentCaretBounds.y + _agentCaretBounds.h &&
+            ink.y + ink.h > _agentCaretBounds.y) return false;
+    }
+    text = _text->getText();
+    return true;
 }
 
 bool TextEdit::agentRenderedBounds(SDL_Rect &bounds) const
@@ -619,8 +627,10 @@ bool TextEdit::agentReplaceText(const std::string &text)
 	_blink = true;
 	_redraw = true;
 	draw();
-	std::string rendered;
-	if (!agentRenderedText(rendered) || rendered != text)
+    // Validate only the caller-supplied replacement, not a newly observed
+    // hidden value. A normal blinking caret may cover its glyph bounds; that
+    // must not reject valid native input. Public reads remain caret-strict.
+    if (!agentTextLayoutComplete() || _text->getText() != text)
 	{
 		// Unsupported glyphs or incomplete text must not leave a
 		// partial edit or call the state's change handler.

@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/47'
+SCHEMA = 'openxcom-agent-control/48'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -76,7 +76,7 @@ ACTIONS = ('move_cursor', 'next_soldier', 'previous_soldier', 'kneel', 'stand', 
            'open_memorial', 'select_memorial_soldier', 'close_memorial', 'open_soldiers', 'select_soldier', 'close_soldiers', 'previous_personnel',
            'select_diary_mission', 'open_diary_combat', 'open_diary_awards', 'previous_diary_mission', 'next_diary_mission', 'close_diary_mission', 'next_personnel', 'open_soldier_diary', 'open_diary_performance', 'close_soldier_diary', 'close_diary_performance', 'open_soldier_armor', 'close_soldier_info', 'open_crafts',
            'select_craft', 'close_crafts', 'open_craft_crew', 'open_craft_equipment',
-           'open_ufopaedia', 'select_ufopaedia_category', 'close_ufopaedia', 'select_ufopaedia_article', 'close_ufopaedia_select', 'open_craft_armor', 'open_craft_weapon_1', 'open_craft_weapon_2', 'select_craft_weapon', 'cancel_craft_weapons', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
+           'click_visible_globe_target', 'choose_globe_target', 'cancel_globe_targets', 'open_target_interception', 'focus_target_name', 'finish_target_name', 'replace_target_name', 'close_target_info', 'open_ufopaedia', 'select_ufopaedia_category', 'close_ufopaedia', 'select_ufopaedia_article', 'close_ufopaedia_select', 'open_craft_armor', 'open_craft_weapon_1', 'open_craft_weapon_2', 'select_craft_weapon', 'cancel_craft_weapons', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
            'close_craft_crew', 'change_craft_equipment', 'close_craft_equipment', 'select_craft_armor_soldier',
            'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor',
            'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')
@@ -216,7 +216,7 @@ RESEARCH_COMPLETION_ACTION_ORDER = {'research_complete': ('dismiss_research_comp
 INVENTORY_TARGET_HANDLES = tuple(f'v{index}' for index in range(96))
 INVENTORY_TEXT_FIELDS = ('selected_name', 'time_units', 'weight', 'item_name', 'ammo', 'warning')
 ARGUMENT_KINDS = dict.fromkeys(ACTIONS, 'none')
-ARGUMENT_KINDS.update(choose_visible_craft_destination='visible_row', load_saved_game='visible_row', open_psi_training_base='visible_row', toggle_psi_training='outfitting_row', move_cursor='cursor_position', select_difficulty='difficulty', set_ironman='boolean',
+ARGUMENT_KINDS.update(click_visible_globe_target='visible_row', choose_globe_target='outfitting_row', replace_target_name='text', choose_visible_craft_destination='visible_row', load_saved_game='visible_row', open_psi_training_base='visible_row', toggle_psi_training='outfitting_row', move_cursor='cursor_position', select_difficulty='difficulty', set_ironman='boolean',
                       replace_base_name='text', replace_new_save_name='text', place_base_site='point',
                       open_new_battle_choice='choice_control', choose_visible_row='visible_row',
                       scroll_visible_list='scroll_direction', scroll_article_text='scroll_direction', map_primary='grid_cell', map_secondary='grid_cell',
@@ -274,7 +274,9 @@ STATE_ACTIONS = {
     'dogfight': frozenset(('choose_dogfight_mode',)),
     'ufopaedia_start': frozenset(('select_ufopaedia_category', 'close_ufopaedia', 'scroll_visible_list')),
     'ufopaedia_select': frozenset(('select_ufopaedia_article', 'close_ufopaedia_select', 'scroll_visible_list')),
-    'geoscape': frozenset(('open_ufopaedia', 'open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
+    'multiple_targets': frozenset(('choose_globe_target','cancel_globe_targets')),
+    'target_info': frozenset(('open_target_interception','focus_target_name','finish_target_name','replace_target_name','close_target_info')),
+    'geoscape': frozenset(('click_visible_globe_target','open_ufopaedia', 'open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
     'basescape': frozenset(('open_new_base', 'select_base', 'click_base_facility_cell', 'right_click_base_facility_cell', 'open_base_info', 'open_build_facilities', 'open_research', 'open_manufacture', 'open_purchase', 'open_sell', 'open_transfer', 'open_soldiers', 'open_crafts', 'return_geoscape')),
     'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers', 'open_monthly_costs')),
     'manage_containment': frozenset(('increase_containment_removal','decrease_containment_removal','scroll_visible_list','remove_selected_aliens','cancel_containment')),
@@ -354,8 +356,8 @@ STATE_ACTIONS = {
 }
 GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year', 'funds', 'speed')
 GEOSCAPE_BUTTONS = ('intercept', 'bases', 'graphs', 'ufopaedia', 'options', 'funding')
-STATUSES = ('pending', 'dispatched', 'unavailable', 'unknown_after_dispatch', 'unknown')
-TERMINAL_STATUSES = ('dispatched', 'unavailable', 'unknown_after_dispatch')
+STATUSES = ('pending', 'dispatched', 'unavailable', 'unknown_after_dispatch', 'unknown', 'rejected_before_dispatch')
+TERMINAL_STATUSES = ('dispatched', 'unavailable', 'unknown_after_dispatch', 'rejected_before_dispatch')
 TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases', 'retire_action_receipts')
 FAILURES = (OSError, ValueError, UnicodeError, RecursionError, TypeError)
 
@@ -439,7 +441,7 @@ def label_source(screen, action):
     if action in QUANTITY_SEMANTIC_LABELS or action in OUTFITTING_SEMANTIC_LABELS or (screen == 'new_research' and action == 'select_research_project'):
         return 'visible_control_semantics'
     return ('visible_control_semantics' if screen in ('battlescape', 'inventory', 'minimap') or
-            action in ('replace_base_name', 'replace_new_save_name', 'load_saved_game', 'place_base_site', 'open_new_battle_choice',
+            action in ('click_visible_globe_target','choose_globe_target','cancel_globe_targets','focus_target_name','finish_target_name','replace_target_name','replace_base_name', 'replace_new_save_name', 'load_saved_game', 'place_base_site', 'open_new_battle_choice',
                        'choose_visible_row', 'scroll_visible_list', 'scroll_article_text', 'close_dropdown', 'cancel_weapon_action',
                        'cancel_grenade_timer', 'select_base', 'open_psi_training_base', 'choose_visible_craft_destination') else 'visible_text')
 
@@ -485,7 +487,7 @@ def validate_dogfight(visible, actions):
 
 
 def validate_geoscape(visible, actions):
-    exact(visible, ' '.join(GEOSCAPE_FIELDS) + ' buttons speeds')
+    exact(visible, ' '.join(GEOSCAPE_FIELDS) + ' buttons speeds targets')
     for field in GEOSCAPE_FIELDS:
         visible_text(visible[field], nullable=True)
     require(type(visible['buttons']) is list and len(visible['buttons']) <= len(GEOSCAPE_BUTTONS))
@@ -508,6 +510,47 @@ def validate_geoscape(visible, actions):
         if speed['selected']: selected.append(speed['label'])
     require(len(selected) <= 1 and visible['speed'] == (selected[0] if selected else None))
     require('choose_geoscape_speed' not in actions or bool(speeds))
+
+
+    validate_marker_witnesses(visible['targets'])
+    require('click_visible_globe_target' not in actions or bool(visible['targets']))
+
+
+def validate_marker_witnesses(targets):
+    require(type(targets) is list and len(targets) <= len(ROW_HANDLES))
+    for index,target in enumerate(targets):
+        exact(target,'row x y width height')
+        require(target['row']==ROW_HANDLES[index])
+        integer(target['x'],0,639);integer(target['y'],0,399)
+        integer(target['width'],1,1);integer(target['height'],1,1)
+
+
+TARGET_SEMANTICS={'click_visible_globe_target':'Inspect visible target','choose_globe_target':'Select target',
+                  'cancel_globe_targets':'Cancel target selection','focus_target_name':'Focus target name','finish_target_name':'Finish editing target name','replace_target_name':'Rename target'}
+
+def validate_target_chain(screen,visible,actions):
+    if screen=='multiple_targets':
+        exact(visible,'rows buttons');require(visible['buttons']==[])
+        rows=visible['rows'];require(type(rows) is list and len(rows)<=32)
+        for i,row in enumerate(rows):
+            exact(row,'handle cells selected');require(row['handle']==ROW_HANDLES[i])
+            require(type(row['cells']) is list and len(row['cells'])==1)
+            strategy_text(row['cells'][0],nullable=True);require(row['selected'] is False)
+        require('choose_globe_target' not in actions or bool(rows))
+    else:
+        exact(visible,'name targetted_heading followers buttons')
+        for key in ('name','targetted_heading','followers'):strategy_text(visible[key],nullable=True)
+        buttons=visible['buttons'];require(type(buttons) is list and len(buttons)<=2)
+        ordered_subset([b.get('id') if type(b) is dict else None for b in buttons],('intercept','close'))
+        for b in buttons:
+            exact(b,'id label');strategy_text(b['label']);require(bool(b['label']))
+        for action,key in (('open_target_interception','intercept'),('close_target_info','close')):
+            require(action not in actions or any(b['id']==key for b in buttons))
+        require(not (set(actions) & {'replace_target_name','focus_target_name','finish_target_name'}) or visible['name'] is not None)
+        require(not ('focus_target_name' in actions and 'finish_target_name' in actions))
+        if actions:
+            require(('replace_target_name' in actions)==('finish_target_name' in actions))
+            require('finish_target_name' not in actions or not buttons)
 
 
 UFOPAEDIA_DIRECTORY = {
@@ -1585,6 +1628,8 @@ def validate_visible(screen, visible, seen, *, presentation=False):
         validate_dogfight(visible, seen)
     elif screen == 'geoscape':
         validate_geoscape(visible, seen)
+    elif screen in ('multiple_targets','target_info'):
+        validate_target_chain(screen,visible,seen)
     elif screen in UFOPAEDIA_DIRECTORY:
         validate_ufopaedia_directory(screen, visible, seen)
     elif screen in ('basescape', 'base_info'):
@@ -1706,6 +1751,15 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
             expected = (obj['visible']['timers'][0]['label'] if descriptor['id'] == 'choose_grenade_timer'
                         else 'Cancel timer')
             require(descriptor['label'] == expected)
+    if obj['state'] in ('multiple_targets','target_info','geoscape'):
+        for d in obj['actions']:
+            if d['id'] in TARGET_SEMANTICS:require(d['label']==TARGET_SEMANTICS[d['id']])
+        if obj['state']=='target_info':
+            buttons={b['id']:b['label'] for b in obj['visible']['buttons']}
+            for action,key in (('open_target_interception','intercept'),('close_target_info','close')):
+                require((action in {d['id'] for d in obj['actions']}) == (key in buttons))
+                for d in obj['actions']:
+                    if d['id']==action:require(d['label']==buttons[key])
     if obj['state'] in ('geoscape', 'basescape', 'base_info', 'base_stores', 'base_transfers'):
         buttons = {button['id']: button['label'] for button in obj['visible'].get('buttons', [])}
         mapping = ({'open_ufopaedia':'ufopaedia', 'open_interception':'intercept', 'open_funding': 'funding', 'open_bases': 'bases', 'open_pause_menu': 'options'}
@@ -1908,6 +1962,7 @@ def validate_events(raw, challenge, epoch, after, limit, audio_history):
     require(type(events) is list and len(events) <= limit)
     expected = max(after + 1, obj['oldest'])
     previous_pcm_sequence = 0
+    previous_pcm_timing = None
     require(bool(events) == (expected <= obj['newest']))
     for event in events:
         require(type(event) is dict and type(event.get('kind')) is str)
@@ -1966,11 +2021,25 @@ def validate_events(raw, challenge, epoch, after, limit, audio_history):
             integer(event['playback_epoch'], 1, MAX_COUNTER)
             integer(event['dropped_events'], 1, MAX_COUNTER)
         elif event['kind'] == 'audio_output':
-            exact(event, 'seq kind duration_ms nonzero source sound position pcm_sequence profile pcm_hex')
+            exact(event, 'seq kind duration_ms nonzero source sound position pcm_sequence profile pcm_hex timing')
             require(audio_history == 'mixed_output')
             integer(event['pcm_sequence'], 1, MAX_COUNTER)
             require(event['pcm_sequence'] > previous_pcm_sequence)
             previous_pcm_sequence = event['pcm_sequence']
+            timing = event['timing']
+            require(type(timing) is dict)
+            exact(timing, 'clock first_realtime_us first_monotonic_us first_frame_offset first_callback_frames last_realtime_us last_monotonic_us last_frame_end_offset last_callback_frames')
+            require(timing['clock'] == 'posix_realtime_monotonic_us')
+            for key in ('first_realtime_us', 'first_monotonic_us', 'last_realtime_us', 'last_monotonic_us'):
+                integer(timing[key], 1, MAX_COUNTER)
+            for key in ('first_callback_frames', 'last_callback_frames'):
+                integer(timing[key], 1, 65536)
+            integer(timing['first_frame_offset'], 0, timing['first_callback_frames'] - 1)
+            integer(timing['last_frame_end_offset'], 1, timing['last_callback_frames'])
+            require(timing['last_realtime_us'] >= timing['first_realtime_us'] and timing['last_monotonic_us'] >= timing['first_monotonic_us'])
+            if previous_pcm_timing is not None:
+                require(timing['first_realtime_us'] >= previous_pcm_timing['last_realtime_us'] and timing['first_monotonic_us'] >= previous_pcm_timing['last_monotonic_us'])
+            previous_pcm_timing = timing
             require(event['profile'] == 's16le-stereo-22050')
             require(type(event['pcm_hex']) is str and len(event['pcm_hex']) == 17640
                     and re.fullmatch('[0-9a-f]+', event['pcm_hex']) is not None)
@@ -2180,18 +2249,18 @@ def definitions():
          'inputSchema': execute_schema,
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
-         'description': 'Read a known command receipt without replaying it. The separate observation describes visible UI after dispatch; dispatched is not gameplay success. Public event_sequence is not a simulation counter. This tool never reconnects or retries an uncertain action.',
+         'description': 'Read a known command receipt without replaying it. rejected_before_dispatch is a retained proof that the handler was not entered, not a claim the request was never sent; obtain a fresh observation and use a new command ID for any newly chosen action. unavailable and unknown statuses remain uncertain and must not be replayed. The separate observation describes visible UI after dispatch; dispatched is not gameplay success. Public event_sequence is not a simulation counter. This tool never reconnects or retries an uncertain action.',
          'inputSchema': {'type': 'object', 'properties': {'command_id': dict(opaque), 'command_generation': {'type':'integer','minimum':1,'maximum':MAX_COUNTER,'default':1}},
                          'required': ['command_id'], 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_public_events',
-         'description': 'Read retained public presentation and accepted sound playback events. In explicit playback observation mode, sound_play_issued carries only a process-session opaque content ID, gain snapshots and successful mixer position parameters; repeated ID means previously observed identical decoded content, not a semantic class, actor or outcome. Positive-gain accepted playback is not guaranteed audible or unmasked. Playback epoch boundaries clear pending history but preserve content IDs within the same native process; restart does not link identities. Separate playback status/gap events disclose incomplete observation. PCM audio_history/audio_status may be unavailable while playback observation is active. Also read exact displayed-message reports, renderer projectile, impact-effect, collapse-animation, thrown-item and large-explosion-effect presence episodes and digital mixed-output history after a cursor, without consuming it or an action grant. First read_ui_state supplies the session epoch. The independent native ring retains256 public events; after is exclusive, limit is1..16, next_cursor advances through returned events and gap explicitly reports expired history. A byte-bounded page may contain fewer than limit. Identical cursor reads may include newer events; retained records are immutable. Presentation events contain only the same bounded visible DTO, no action authority. displayed_message contains complete shown text and an exact compiled phrase report or null; source and position stay null, and no hidden cause or actor identity is inferred. projectile_presented, impact_effect_presented, collapse_animation_presented, thrown_item_presented and large_explosion_effect_presented mean the corresponding ordinary renderer contribution survived an admitted presentation; source, actor, faction, world_position, hit and damage remain null. Impact excludes big explosions and melee/psi branches; collapse is humanoid drawRoutine0 only and never a death or damage claim. Thrown-item and large-explosion-effect events are independent presence episodes: no item identity, grenade causality, timer expiry, landing or detonation outcome is inferred from their order. Episodes may coalesce and absent events prove no absence of firing, impacts, collapse, thrown items or large effects; no attack counter or RGB-only equivalence is claimed. audio_history is compiled mixed_output capability or unavailable; current audio_status is pending, active, or unavailable. Ordered audio_status events also disclose discarded partial windows on terminal reset/failure. Current status may differ from older paged history. audio_output records an actual100ms digital final-mix window; nonzero does not identify an enemy, shot, source, direction, or physical audibility. Those unknown attribution fields stay null. audio_gap reports lost completed callback windows separately from public-ring gap. Sequence gives order only; completed PCM windows have no shared video clock, and trace receive time is not event occurrence time. Event-to-video synchronization is unproved. A grid or unclassified fragment is not enemy semantics or movement legality. This read does not advance simulation, refresh a stale grant, reconnect, or retry uncertain actions.',
+         'description': 'Read retained public presentation and accepted sound playback events. In explicit playback observation mode, sound_play_issued carries only a process-session opaque content ID, gain snapshots and successful mixer position parameters; repeated ID means previously observed identical decoded content, not a semantic class, actor or outcome. Positive-gain accepted playback is not guaranteed audible or unmasked. Playback epoch boundaries clear pending history but preserve content IDs within the same native process; restart does not link identities. Separate playback status/gap events disclose incomplete observation. PCM audio_history/audio_status may be unavailable while playback observation is active. Also read exact displayed-message reports, renderer projectile, impact-effect, collapse-animation, thrown-item and large-explosion-effect presence episodes and digital mixed-output history after a cursor, without consuming it or an action grant. First read_ui_state supplies the session epoch. The independent native ring retains256 public events; after is exclusive, limit is1..16, next_cursor advances through returned events and gap explicitly reports expired history. A byte-bounded page may contain fewer than limit. Identical cursor reads may include newer events; retained records are immutable. Presentation events contain only the same bounded visible DTO, no action authority. displayed_message contains complete shown text and an exact compiled phrase report or null; source and position stay null, and no hidden cause or actor identity is inferred. projectile_presented, impact_effect_presented, collapse_animation_presented, thrown_item_presented and large_explosion_effect_presented mean the corresponding ordinary renderer contribution survived an admitted presentation; source, actor, faction, world_position, hit and damage remain null. Impact excludes big explosions and melee/psi branches; collapse is humanoid drawRoutine0 only and never a death or damage claim. Thrown-item and large-explosion-effect events are independent presence episodes: no item identity, grenade causality, timer expiry, landing or detonation outcome is inferred from their order. Episodes may coalesce and absent events prove no absence of firing, impacts, collapse, thrown items or large effects; no attack counter or RGB-only equivalence is claimed. audio_history is compiled mixed_output capability or unavailable; current audio_status is pending, active, or unavailable. Ordered audio_status events also disclose discarded partial windows on terminal reset/failure. Current status may differ from older paged history. audio_output records an actual100ms digital final-mix window; nonzero does not identify an enemy, shot, source, direction, or physical audibility. Those unknown attribution fields stay null. audio_gap reports lost completed callback windows separately from public-ring gap. Actual postmix callback realtime/monotonic clocks and within-callback frame offsets accompany each PCM window. These are digital mixing times, not speaker timestamps. Trace receive time is not event occurrence time. Video alignment still requires common capture clocks, buffer uncertainty and drift checks. A grid or unclassified fragment is not enemy semantics or movement legality. This read does not advance simulation, refresh a stale grant, reconnect, or retry uncertain actions.',
          'inputSchema': arg_schema({'epoch': dict(opaque),
              'after': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},
              'limit': {'type': 'integer', 'minimum': 1, 'maximum': MAX_EVENTS}}),
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_public_audio',
-         'description': 'Read actual retained game mixed-output PCM as bounded WAV audio content, using the public event cursor. At most eight100ms windows; optional page_budget1..8 bounds native page exchanges (default8). Each page retains the existing RPC timeout; deferred and gap are explicit. Segments join only contiguous PCM sequences and split at status/gap boundaries. This is the internal22050Hz stereo S16LE postmix profile, not a device sample-rate claim. No source, actor, weapon, hit, death or position is inferred; output silence and missing history are different. Sample order has no shared video clock. No gameplay action, UI-grant refresh, or replay.',
+         'description': 'Read actual retained game mixed-output PCM as bounded WAV audio content, using the public event cursor. At most eight100ms windows; optional page_budget1..8 bounds native page exchanges (default8). Each page retains the existing RPC timeout; deferred and gap are explicit. Segments join only contiguous PCM sequences and split at status/gap boundaries. This is the internal22050Hz stereo S16LE postmix profile, not a device sample-rate claim. No source, actor, weapon, hit, death or position is inferred; output silence and missing history are different. Schema openxcom-public-audio/2 includes actual postmix callback realtime/monotonic clocks and within-callback frame offsets. These are not speaker timestamps or synchronization proof; video alignment requires preserved common-clock packet timestamps and drift/buffer checks. No gameplay action, UI-grant refresh, or replay.',
          'inputSchema': {'type':'object','properties':{'epoch':dict(opaque),'after':{'type':'integer','minimum':0,'maximum':MAX_COUNTER},
              'limit':{'type':'integer','minimum':1,'maximum':8},'page_budget':{'type':'integer','minimum':1,'maximum':8,'default':8}},
              'required':['epoch','after','limit'],'additionalProperties':False},
@@ -2477,7 +2546,7 @@ class AgentControlClient:
                     self.choice_controls = frozenset(key for key, value in obj['visible'].items() if value is not None)
                 if obj['state'] in ('build_facilities', 'new_battle_dropdown', 'sell_category', 'purchase_category', 'transfer_destination', 'intercept_craft', 'psi_training', 'load_list'):
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
-                if obj['state'] == 'craft_destination_selection':
+                if obj['state'] in ('craft_destination_selection','geoscape'):
                     self.visible_rows = frozenset(target['row'] for target in obj['visible']['targets'])
                 if obj['state'] in ('soldier_memorial', 'memorial_soldier_diary', 'memorial_soldier_diary_performance', 'soldier_diary', 'soldier_diary_performance', 'soldier_diary_mission', 'manage_containment', 'build_facilities', 'new_battle_dropdown', 'sell_category', 'purchase_category', 'sell', 'purchase', 'transfer_destination', 'transfer_items', 'intercept_craft', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving', 'cannot_reequip', 'debriefing_soldier_stats', 'statistics') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in UFOPAEDIA_DIRECTORY or obj['state'] in RESEARCH_NOTICE_STATES:
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
@@ -2503,7 +2572,7 @@ class AgentControlClient:
                     self.purchase_rows = frozenset((entry['handle'], direction) for entry in obj['visible']['rows'] for direction in entry['controls'])
                     bar = obj['visible']['scrollbar']
                     self.purchase_targets = frozenset(entry['handle'] for entry in bar['targets']) if bar is not None else frozenset()
-                if obj['state'] in OUTFITTING_LISTS or obj['state'] in UFOPAEDIA_DIRECTORY:
+                if obj['state'] in OUTFITTING_LISTS or obj['state'] in UFOPAEDIA_DIRECTORY or obj['state']=='multiple_targets':
                     self.outfitting_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
                 if obj['state'] == 'craft_equipment':
                     self.equipment_rows = frozenset((row['handle'], direction) for row in obj['visible']['rows'] for direction in row['controls'])
@@ -2700,7 +2769,7 @@ class AgentControlClient:
                 require_target(args['value'] in self.difficulty_values)
             elif action == 'open_new_battle_choice':
                 require_target(args['control'] in self.choice_controls)
-            elif action in ('select_build_facility', 'choose_visible_row', 'open_psi_training_base', 'choose_visible_craft_destination', 'load_saved_game'):
+            elif action in ('click_visible_globe_target', 'select_build_facility', 'choose_visible_row', 'open_psi_training_base', 'choose_visible_craft_destination', 'load_saved_game'):
                 require_target(args['row'] in self.visible_rows)
             elif action == 'scroll_visible_list':
                 require_target(args['direction'] in self.scroll_directions)

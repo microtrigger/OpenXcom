@@ -21,6 +21,7 @@ def descriptors(obj, ids):
     mapping=({'open_ufopaedia':'ufopaedia','open_interception':'intercept','open_funding':'funding','open_bases':'bases','open_pause_menu':'options'} if obj['state']=='geoscape'
              else a.BASE_BUTTON_ACTIONS.get(obj['state'],{}))
     def label(action):
+        if action=='click_visible_globe_target':return 'Inspect visible target'
         if action=='choose_geoscape_speed':return obj['visible']['speeds'][0]['label']
         if action=='select_base':return 'Select base'
         return buttons[mapping[action]] if action in mapping else action.replace('_',' ').title()
@@ -31,7 +32,7 @@ def descriptors(obj, ids):
 
 def geo():
     obj=state(screen='geoscape')
-    obj['visible'].update(speed='5 Secs',speeds=[dict(handle='s0',label='5 Secs',selected=True),dict(handle='s1',label='1 Min',selected=False)])
+    obj['visible'].update(targets=[dict(row='r0',x=100,y=70,width=1,height=1)],speed='5 Secs',speeds=[dict(handle='s0',label='5 Secs',selected=True),dict(handle='s1',label='1 Min',selected=False)])
     return descriptors(obj,sorted(a.STATE_ACTIONS['geoscape']))
 
 
@@ -59,8 +60,8 @@ class StrategyFixture(NativeFixture):
 
 class GeoscapeContractTests(unittest.TestCase):
     def test_exact_wire_catalog_and_argument_domains(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/47')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(242, 103, 7))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/48')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(250, 105, 7))
         self.assertEqual(a.GEOSCAPE_SPEED_HANDLES,tuple(f's{i}' for i in range(6)))
         self.assertEqual(a.BASE_TARGET_HANDLES,tuple(f'b{i}' for i in range(8)))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},dict.fromkeys(set(NEW_ACTIONS)-{'choose_geoscape_speed','select_base'},'none')|{'choose_geoscape_speed':'geoscape_speed','select_base':'base_target'})

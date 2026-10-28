@@ -65,6 +65,7 @@ private:
 	SDL_Rect _agentBaseInfoNameChildGeometry = {}, _agentBaseInfoNameGeometry = {};
 	std::string _agentBaseInfoNameShown;
 	void agentCaptureBaseInfoName();
+    bool agentTextLayoutComplete() const;
 #endif
 	/// Native insertion shared by physical keyboard and bounded replacement.
 	bool insertInputCharacter(UCode c);

@@ -4,10 +4,33 @@
 #include <SDL_mixer.h>
 #include <cstdlib>
 #include <cstring>
+#include <time.h>
 
 namespace OpenXcom { namespace Observer {
+namespace {
+// Bounded clock queries only. No application state, allocation, or I/O.
+bool captureClocks(std::uint64_t &realtime, std::uint64_t &monotonic)
+{
+#if defined(CLOCK_REALTIME) && defined(CLOCK_MONOTONIC)
+    timespec rt = {}, mt = {};
+    if (clock_gettime(CLOCK_REALTIME, &rt) || clock_gettime(CLOCK_MONOTONIC, &mt) ||
+        rt.tv_sec < 0 || mt.tv_sec < 0 || rt.tv_nsec < 0 || mt.tv_nsec < 0 ||
+        rt.tv_nsec >= 1000000000 || mt.tv_nsec >= 1000000000) return false;
+    const std::uint64_t maximum = 9007199254740991ULL;
+    if (static_cast<std::uint64_t>(rt.tv_sec) > maximum / 1000000 ||
+        static_cast<std::uint64_t>(mt.tv_sec) > maximum / 1000000) return false;
+    realtime = static_cast<std::uint64_t>(rt.tv_sec) * 1000000 + rt.tv_nsec / 1000;
+    monotonic = static_cast<std::uint64_t>(mt.tv_sec) * 1000000 + mt.tv_nsec / 1000;
+    return realtime > 0 && monotonic > 0 && realtime <= maximum && monotonic <= maximum;
+#else
+    (void)realtime; (void)monotonic;
+    return false;
+#endif
+}
+}
+
 AgentAudioEvents::AgentAudioEvents() : _catalog(0), _read(0), _write(0), _failed(0),
-    _produced(0), _sequence(0), _partialBytes(0), _partialNonzero(false), _skipFirst(true),
+    _produced(0), _sequence(0), _partialBytes(0), _lastRealtimeUs(0), _lastMonotonicUs(0), _partialNonzero(false), _skipFirst(true),
     _attached(false), _terminal(false), _pending(false), _initialStatusPending(true),
     _activeStatusPending(false), _terminalStatusPending(false), _partialWindowDiscarded(false),
     _expected(1), _started(Clock::now()) {}
@@ -39,6 +62,8 @@ void AgentAudioEvents::poll(bool active)
     if (catalog != 1 || !version || version->major != 1 || version->minor != 2 || version->patch != 12 ||
         !Mix_QuerySpec(&rate, &format, &channels) || rate != 22050 || format != AUDIO_S16LSB || channels != 2)
     { close(); return; }
+    std::uint64_t realtime = 0, monotonic = 0;
+    if (!captureClocks(realtime, monotonic)) { close(); return; }
     // The build excludes the independent mixed-audio observer. This is the
     // sole postmix owner, while ordinary music hooks remain untouched.
     Mix_SetPostMix(postmix, this);
@@ -77,10 +102,22 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
     // Registration can meet an already-mixed block. The continuous epoch
     // begins with the following callback, with no pre-attachment samples.
     if (_skipFirst) { _skipFirst = false; return; }
+    std::uint64_t realtime = 0, monotonic = 0;
+    if (!captureClocks(realtime, monotonic) || realtime < _lastRealtimeUs || monotonic < _lastMonotonicUs)
+    { _failed.store(1, std::memory_order_release); return; }
+    _lastRealtimeUs = realtime; _lastMonotonicUs = monotonic;
+    const unsigned callbackFrames = static_cast<unsigned>(len) / FrameBytes;
     const unsigned windowBytes = FramesPerWindow * FrameBytes;
     unsigned offset = 0;
     while (offset < static_cast<unsigned>(len))
     {
+        if (!_partialBytes)
+        {
+            _partialTiming.firstRealtimeUs = realtime;
+            _partialTiming.firstMonotonicUs = monotonic;
+            _partialTiming.firstFrameOffset = offset / FrameBytes;
+            _partialTiming.firstCallbackFrames = callbackFrames;
+        }
         const unsigned remaining = windowBytes - _partialBytes;
         const unsigned available = static_cast<unsigned>(len) - offset;
         const unsigned count = remaining < available ? remaining : available;
@@ -91,6 +128,10 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
         std::memcpy(_partialPcm + _partialBytes, stream + offset, count);
         _partialBytes += count;
         offset += count;
+        _partialTiming.lastRealtimeUs = realtime;
+        _partialTiming.lastMonotonicUs = monotonic;
+        _partialTiming.lastFrameEndOffset = offset / FrameBytes;
+        _partialTiming.lastCallbackFrames = callbackFrames;
         if (_partialBytes != windowBytes) continue;
         if (_sequence >= 9007199254740991ULL)
         { _failed.store(1, std::memory_order_release); return; }
@@ -101,6 +142,7 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
         {
             _ring[write].sequence = _sequence;
             _ring[write].nonzero = _partialNonzero;
+            _ring[write].timing = _partialTiming;
             std::memcpy(_ring[write].pcm, _partialPcm, WindowBytes);
             _write.store(next, std::memory_order_release);
         }
@@ -173,6 +215,7 @@ bool AgentAudioEvents::take(Event &event)
     { _failed.store(1, std::memory_order_release); return false; }
     event.nonzero = summary.nonzero;
     event.pcmSequence = summary.sequence;
+    event.timing = summary.timing;
     std::memcpy(event.pcm, summary.pcm, WindowBytes);
     _expected = summary.sequence + 1;
     return true;

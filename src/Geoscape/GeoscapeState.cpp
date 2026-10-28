@@ -555,7 +555,24 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 		controls += "{\"id\":" + Observer::agentJsonString(ids[i]) +
 			",\"label\":" + Observer::agentJsonString(label) + "}";
 	}
-	controls += "]}";
+    // Only surfaces painted after the globe can occlude its final markers.
+    std::vector<Surface *> markerOverlays;
+    bool afterGlobe=false;
+    for (Surface *surface : _surfaces) {
+        if (surface==_globe) { afterGlobe=true; continue; }
+        if (afterGlobe) markerOverlays.push_back(surface);
+    }
+    Observer::AgentUiState markerProjection;
+    std::vector<Target *> markerTargets;
+    std::vector<std::pair<int,int> > markerPoints;
+    const std::string markers=_globe->agentGeoscapeTargets(markerProjection,markerOverlays,markerTargets,markerPoints);
+    // Speed rows deliberately retain their independent native-index mapping.
+    out.context.insert(out.context.end(),markerProjection.context.begin(),markerProjection.context.end());
+    out.targetLifetimes=markerProjection.targetLifetimes;
+    out.regions.insert(out.regions.end(),markerProjection.regions.begin(),markerProjection.regions.end());
+    if (!markerTargets.empty())
+        out.actions.emplace_back("click_visible_globe_target","Inspect visible target","visible_control_semantics","visible_row");
+    controls += "],\"targets\":"+markers+"}";
 	out.visible += ",";
 	out.visible.append(controls, 1, std::string::npos);
 	out.controlVisible = controls;
@@ -584,6 +601,32 @@ bool GeoscapeState::agentDispatch(const Observer::AgentRequest &request)
 		DogfightState *dogfight = agentActiveDogfight();
 		return dogfight && dogfight->agentDispatch(request);
 	}
+    if (request.action=="click_visible_globe_target")
+    {
+        Observer::AgentUiState current;
+        if (!agentUiState(current) || !current.offers(request.action)) return false;
+        std::vector<Surface *> overlays; bool after=false;
+        for (Surface *surface:_surfaces) {
+            if(surface==_globe) { after=true;continue; }
+            if(after) overlays.push_back(surface);
+        }
+        Observer::AgentUiState projection; std::vector<Target *> targets;
+        std::vector<std::pair<int,int> > points;
+        _globe->agentGeoscapeTargets(projection,overlays,targets,points);
+        for(size_t i=0;i<points.size();++i) if(request.choice=="r"+std::to_string(i))
+        {
+            if(i>=current.targetLifetimes.size() || projection.targetLifetimes[i].expired() ||
+                current.targetLifetimes[i].owner_before(projection.targetLifetimes[i]) ||
+                projection.targetLifetimes[i].owner_before(current.targetLifetimes[i])) return false;
+            SDL_Event event={};event.type=SDL_MOUSEBUTTONUP;event.button.button=SDL_BUTTON_LEFT;
+            Action action(&event,1.0,1.0,0,0);
+            action.setMouseAction(points[i].first,points[i].second,_globe->getX(),_globe->getY());
+            action.setSender(_globe);
+            globeClick(&action);
+            return true;
+        }
+        return false;
+    }
 	if (request.action != "choose_geoscape_speed") return agentDispatch(request.action);
 	Observer::AgentUiState current;
 	if (!agentUiState(current) || !current.offers(request.action) || request.choice.size() != 2 ||

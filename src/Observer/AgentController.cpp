@@ -233,6 +233,15 @@ void AgentController::drainAudioEvents()
                 "\"kind\":\"audio_gap\",\"dropped_windows\":" + std::to_string(event.droppedWindows) :
                 std::string("\"kind\":\"audio_output\",\"duration_ms\":100,\"nonzero\":") +
                     (event.nonzero ? "true" : "false") + ",\"source\":null,\"sound\":null,\"position\":null" +
+                    ",\"timing\":{\"clock\":\"posix_realtime_monotonic_us\"" +
+                    ",\"first_realtime_us\":" + std::to_string(event.timing.firstRealtimeUs) +
+                    ",\"first_monotonic_us\":" + std::to_string(event.timing.firstMonotonicUs) +
+                    ",\"first_frame_offset\":" + std::to_string(event.timing.firstFrameOffset) +
+                    ",\"first_callback_frames\":" + std::to_string(event.timing.firstCallbackFrames) +
+                    ",\"last_realtime_us\":" + std::to_string(event.timing.lastRealtimeUs) +
+                    ",\"last_monotonic_us\":" + std::to_string(event.timing.lastMonotonicUs) +
+                    ",\"last_frame_end_offset\":" + std::to_string(event.timing.lastFrameEndOffset) +
+                    ",\"last_callback_frames\":" + std::to_string(event.timing.lastCallbackFrames) + "}" +
                     ",\"pcm_sequence\":" + std::to_string(event.pcmSequence) +
                     ",\"profile\":\"s16le-stereo-22050\",\"pcm_hex\":\"" + pcmHex + "\"";
         if (!_publicEvents.append(body)) { close(); return; }
@@ -361,7 +370,7 @@ void AgentController::poll()
     invalidate(); // One-use consumption occurs before queueing, never on replay.
     if (!valid || !_queued.stage(request, binding, target, _generation, display, grantTime, received))
     {
-        _ledger.find(request.id)->response = resultPacket(request.id, "unavailable"); receipt(request.id);
+        _ledger.find(request.id)->response = resultPacket(request.id, "rejected_before_dispatch"); receipt(request.id);
     }
 }
 void AgentController::rejectQueued()
@@ -369,7 +378,7 @@ void AgentController::rejectQueued()
     if (!_queued.active()) return;
     const std::string id = _queued.request().id;
     _queued.clear(); // Terminal before any response or reentrant callback.
-    _ledger.find(id)->response = resultPacket(id, "unavailable"); receipt(id);
+    _ledger.find(id)->response = resultPacket(id, "rejected_before_dispatch"); receipt(id);
 }
 bool AgentController::transportAlive() const
 {

@@ -216,3 +216,50 @@ class ErrorClassificationTests(unittest.TestCase):
         self.assertEqual(obj['failure']['action_outcome'],'unknown')
         self.assertEqual(obj['failure']['severity'],'critical')
         self.assertEqual(sum(r.startswith(b'E ') for r in n.requests),1)
+
+    def test_predispatch_rejection_is_distinct_terminal_receipt(self):
+        def reject(op,obj):
+            return dict(obj,status='rejected_before_dispatch',observation=None) if op in ('E','S') else obj
+        n,s=self.fixture(transform=reject)
+        args=arguments(n.client.observe())
+        first=call(s,'execute_ui_action',args)['result']
+        self.assertFalse(first['isError'])
+        obj=first['structuredContent']
+        self.assertEqual(obj['status'],'rejected_before_dispatch')
+        self.assertIsNone(obj['observation'])
+        self.assertEqual(obj['failure']['code'],'native_result_rejected_before_dispatch')
+        self.assertEqual(obj['failure']['action_outcome'],'known_not_dispatched')
+        self.assertEqual(obj['failure']['severity'],'warning')
+        self.assertEqual(obj['failure']['recovery'],'refresh_observation')
+        self.assertEqual(n.client.state,'NEED_CONTEXT')
+        queried=call(s,'read_ui_action_result',{'command_id':COMMAND})['result']['structuredContent']
+        self.assertEqual(queried['status'],obj['status'])
+        self.assertEqual(queried['failure']['phase'],'result_query')
+        self.assertEqual(queried['failure']['action_outcome'],'known_not_dispatched')
+        duplicate=call(s,'execute_ui_action',args)['result']['structuredContent']
+        self.assertEqual(duplicate['status'],'rejected_before_dispatch')
+        self.assertEqual(sum(r.startswith(b'E ') for r in n.requests),1)
+        self.assertFalse(any(r.startswith(b'L ') for r in n.requests))
+
+    def test_predispatch_rejection_cannot_include_postaction_observation(self):
+        from test_agent_control import result,state,dump,EPOCH
+        obj=result(status='rejected_before_dispatch',observation=state(None,None,revision=2,event_sequence=2))
+        with self.assertRaises(Unavailable):a.validate_result(dump(obj),COMMAND,EPOCH)
+
+    def test_retained_rejection_cannot_change_into_dispatch(self):
+        def changed(op,obj):
+            if op=='E':return dict(obj,status='rejected_before_dispatch',observation=None)
+            return obj
+        n,s=self.fixture(transform=changed)
+        args=arguments(n.client.observe());call(s,'execute_ui_action',args)
+        failure=self.error(s,'read_ui_action_result',{'command_id':COMMAND})
+        self.assertEqual(failure['failure']['action_outcome'],'unknown')
+        self.assertEqual(n.client.state,'CLOSED')
+        self.assertEqual(sum(r.startswith(b'E ') for r in n.requests),1)
+
+    def test_rejection_wrong_generation_still_unknown_after_send(self):
+        n,s=self.fixture(transform=lambda op,obj:dict(obj,status='rejected_before_dispatch',observation=None,command_generation=2) if op=='E' else obj)
+        args=arguments(n.client.observe());failure=self.error(s,'execute_ui_action',args)
+        self.assertEqual(failure['failure']['action_outcome'],'unknown')
+        self.assertEqual(n.client.state,'CLOSED')
+        self.assertEqual(sum(r.startswith(b'E ') for r in n.requests),1)

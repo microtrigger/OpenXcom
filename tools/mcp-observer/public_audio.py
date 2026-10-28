@@ -29,7 +29,7 @@ def wav(pcm):
 def read_audio(client,epoch,after,limit,page_budget=MAX_PAGES):
     validate_arguments(dict(epoch=epoch,after=after,limit=limit,page_budget=page_budget))
     cursor=after;cutoff=None;latest=after;windows=0;gap=False;events=[];segments=[];blocks=[]
-    pending=bytearray();first_pcm=last_pcm=first_event=last_event=None;previous_pcm=None
+    pending=bytearray();first_pcm=last_pcm=first_event=last_event=None;previous_pcm=None;previous_timing=None
     status='unavailable';history='unavailable';pages=0
     def flush():
         nonlocal pending,first_pcm,last_pcm,first_event,last_event
@@ -54,10 +54,14 @@ def read_audio(client,epoch,after,limit,page_budget=MAX_PAGES):
                 require(previous_pcm is None or seq > previous_pcm)
                 if previous_pcm is not None and seq != previous_pcm+1:gap=True
                 previous_pcm=seq
+                timing=event['timing']
+                if previous_timing is not None:
+                    require(timing['first_realtime_us'] >= previous_timing['last_realtime_us'] and timing['first_monotonic_us'] >= previous_timing['last_monotonic_us'])
+                previous_timing=timing
                 if pending and seq!=last_pcm+1:flush();gap=True
                 if not pending:first_pcm=seq;first_event=cursor
                 pending.extend(bytes.fromhex(event['pcm_hex']));last_pcm=seq;last_event=cursor;windows+=1
-                summary.update(pcm_sequence=seq,nonzero=event['nonzero'],duration_ms=100)
+                summary.update(pcm_sequence=seq,nonzero=event['nonzero'],duration_ms=100,timing=dict(event['timing']))
             elif event['kind'] in ('audio_gap','audio_status'):
                 flush()
                 if event['kind']=='audio_gap':gap=True;summary['dropped_windows']=event['dropped_windows']
@@ -65,11 +69,11 @@ def read_audio(client,epoch,after,limit,page_budget=MAX_PAGES):
             events.append(summary)
         if cursor>=cutoff or windows>=limit or not page['events']:break
     flush()
-    obj=dict(schema='openxcom-public-audio/1',epoch=epoch,after=after,cutoff=cutoff,next_cursor=cursor,
+    obj=dict(schema='openxcom-public-audio/2',epoch=epoch,after=after,cutoff=cutoff,next_cursor=cursor,
         newest=latest,audio_history=history,audio_status=status,gap=gap,deferred=cursor<cutoff,
         profile=PROFILE,sample_rate=22050,channels=2,sample_format='s16le',windows=windows,pages=pages,
         segments=segments,events=events,semantics='actual_retained_postmix_no_source_attribution',
-        temporal_alignment='sample_order_only_no_video_clock')
+        temporal_alignment='postmix_callback_clock_not_speaker_time')
     result=dict(content=[dict(type='text',text=json.dumps(obj,separators=(',',':')))]+blocks,structuredContent=obj,isError=False)
     require(len(json.dumps(result,separators=(',',':')).encode())<=131072)
     return result

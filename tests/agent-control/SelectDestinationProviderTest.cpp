@@ -98,7 +98,7 @@ struct MarkerSet {Surface*marker;std::map<int,Surface*>frames,resources;std::map
 struct Globe : Surface {int speed=60,stops=0,rangeCalls=0,invalidates=0;double lastRange=-1;
  Game*_game=currentGame; Surface *_markers,*_radars,*_countries; MarkerSet storage;MarkerSet*_markerSet=&storage;
  struct Projection{void clearLayer(int){}}_agentProjection;
- struct AgentPaintedTarget{Target*target;std::weak_ptr<const void> lifetime;};
+ struct AgentPaintedTarget{Target*target;std::weak_ptr<const void> lifetime;bool destinationEligible=false;};
  std::vector<AgentPaintedTarget>_agentMarkerPixels;int _agentMarkerWidth=0,_agentMarkerHeight=0;bool _agentTargetCandidates=false;
  bool _agentBlitReady=false,_isMouseScrolling=false,_isMouseScrolled=false;int _rotLon=0,_rotLat=0;unsigned _agentShownViewRevision=0,_agentViewRevision=1;
  Globe():Surface(320,200){_markers=new Surface(320,200);_radars=new Surface(320,200);_countries=new Surface(320,200);storage.marker=new Surface(5,5);for(auto*s:{_markers,_radars,_countries,storage.marker})s->setPalette(_game->palette);storage.marker->clear(90);_markers->agentTrackPresentation();}
@@ -107,6 +107,7 @@ struct Globe : Surface {int speed=60,stops=0,rangeCalls=0,invalidates=0;double l
  void agentCoverRect(Surface*,Surface*){}
  void drawTarget(Target*,Surface*);void drawMarkers();void blit(Surface*)override;
  std::string agentDestinationTargets(AgentUiState&,const std::vector<Surface*>&,std::vector<Target*>&)const;
+ std::string agentGeoscapeTargets(AgentUiState&,const std::vector<Surface*>&,std::vector<Target*>&,std::vector<std::pair<int,int>>&,bool=false)const;
  void onMouseClick(ActionHandler){} void rotateStop(){++stops;}void setCraftRange(double,double,double r){++rangeCalls;lastRange=r;}void invalidate(){++invalidates;}
 };
 #include "DestinationGlobe.generated.inc"
@@ -177,7 +178,7 @@ int main(int argc,char **argv){
  request.action="choose_visible_craft_destination";request.choice="r1";check(!state->agentDispatch(request),"unknown row refused");request.choice="r0";
  check(state->agentDispatch(request)&&game.pushes==1&&craft.sets==0,"semantic selection only pushes native next-state boundary");auto*selection=static_cast<Fixture::MultipleTargetsState*>(game.pushed);check(selection->targets.size()==1&&selection->targets[0]==&visibleSite&&selection->craft==&craft,"singleton exact painted target no hidden target");delete selection;game.top=state;
  // Later visible craft marker occludes eligible site; hidden craft cannot affect it.
- Fixture::Craft blocker;Fixture::Base holder;holder.marker=-1;holder.crafts={&blocker};game.save.bases={&holder};globe.drawMarkers();globe.blit(&canvas);state->blit();check(state->agentUiState(two)&&!two.offers("choose_visible_craft_destination"),"all painted craft classes occlude");blocker.marker=-1;globe.drawMarkers();globe.blit(&canvas);state->blit();check(state->agentUiState(two)&&two.offers("choose_visible_craft_destination"),"hidden craft has no admission effect");
+ Fixture::Craft blocker;Fixture::Base holder;holder.marker=-1;holder.crafts={&blocker};game.save.bases={&holder};globe.drawMarkers();globe.blit(&canvas);state->blit();check(state->agentUiState(two)&&!two.offers("choose_visible_craft_destination"),"all painted craft classes occlude");{AgentUiState own;std::vector<Fixture::Target*> admitted;std::vector<std::pair<int,int>>points;auto json=globe.agentGeoscapeTargets(own,{},admitted,points);check(admitted.size()==1&&admitted[0]==&blocker&&points.size()==1,"own marker admitted through general globe final witness");check(YAML::Load(json).size()==1&&json.find("SECRET")==std::string::npos,"own target remains geometry only");Surface ownCover(5,5,78,78);ownCover.setVisible(true);AgentUiState covered;globe.agentGeoscapeTargets(covered,{&ownCover},admitted,points);check(admitted.empty(),"own final marker obscured by real overlay");}blocker.marker=-1;globe.drawMarkers();globe.blit(&canvas);state->blit();check(state->agentUiState(two)&&two.offers("choose_visible_craft_destination"),"hidden craft has no admission effect");
  globe.storage.marker->clear();globe.drawMarkers();globe.blit(&canvas);state->blit();check(state->agentUiState(two)&&!two.offers("choose_visible_craft_destination"),"transparent marker not exposed");globe.storage.marker->clear(90);
  visibleSite.x=-80;globe.drawMarkers();globe.blit(&canvas);state->blit();check(state->agentUiState(two)&&!two.offers("choose_visible_craft_destination"),"back hemisphere absent");visibleSite.x=80;
 
