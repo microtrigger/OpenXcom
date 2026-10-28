@@ -370,7 +370,9 @@ class ResearchCompletionClient(unittest.TestCase):
     def test_retained_pages_preserve_grant_and_replay_bytes_semantics(self):
         for text in ('x'*1024,'漢'*341,'😀'*256):
             peer=self.fixture(screen='ufopaedia_article');obj=peer.client.observe()
-            article=state(screen='ufopaedia_article');article['visible']['body_lines']=[text]*8
+            # Retained native records must fit conservative UTF-8 asciiBound,
+            # not merely Python's smaller canonical-ASCII serialization.
+            article=state(screen='ufopaedia_article');article['visible']['body_lines']=[text]*4
             peer.public_events=[event(article,i+1) for i in range(3)];peer.event_page_limit=1
             before=(peer.client.capability,peer.client.revision,peer.client.available_actions)
             for after in range(3):

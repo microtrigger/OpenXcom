@@ -216,11 +216,25 @@ class EventClientTests(unittest.TestCase):
 
     def test_history_retained_independently_and_exact_public_ring_gap(self):
         native=self.fixture();native.client.observe()
-        for _ in range(300):self.append(native,audio(nonzero=False))
+        for sequence in range(1,301):self.append(native,audio(seq=sequence,nonzero=False))
         obj=native.client.read_events(EPOCH,0,16)
-        self.assertEqual((obj['oldest'],obj['newest'],obj['next_cursor']),(45,300,60));self.assertTrue(obj['gap'])
-        self.assertEqual(len(obj['events']),16)
+        self.assertEqual((obj['oldest'],obj['newest'],obj['next_cursor']),(45,300,46));self.assertTrue(obj['gap'])
+        self.assertEqual(len(obj['events']),2) # Full PCM records are byte-bounded before count16.
+        self.assertLessEqual(len(dump(obj)),a.MAX_PACKET)
         again=native.client.read_events(EPOCH,44,16);self.assertFalse(again['gap']);self.assertEqual(again['events'],obj['events'])
+        retained=list(obj['events']);cursor=obj['next_cursor']
+        while cursor < 300:
+            following=native.client.read_events(EPOCH,cursor,16)
+            self.assertFalse(following['gap']);self.assertEqual(len(following['events']),2)
+            self.assertLessEqual(len(dump(following)),a.MAX_PACKET)
+            self.assertGreater(following['next_cursor'],cursor)
+            retained.extend(following['events']);cursor=following['next_cursor']
+        self.assertEqual([event['seq'] for event in retained],list(range(45,301)))
+        self.assertEqual([event['pcm_sequence'] for event in retained],list(range(45,301)))
+        reread=native.client.read_events(EPOCH,44,16)
+        self.assertEqual(reread['events'],obj['events'])
+        self.assertEqual(native.client.read_events(EPOCH,300,16)['events'],[])
+        self.assertFalse(any(request.startswith(b'E ') for request in native.requests))
 
     def test_callback_gap_survives_read_as_its_own_event(self):
         native=self.fixture();native.client.observe()

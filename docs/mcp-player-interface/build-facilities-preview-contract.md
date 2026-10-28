@@ -20,10 +20,19 @@ a qualified visible-grid action target and ordinary placement route are still
 necessary for mutations. Choosing a row or seeing a
 preview is not a completed construction.
 
-Focused native (78 checks), adapter and production-build checks pass. Short UFO/TFTD live runs qualify the General Stores selection, displayed
-cost/time/maintenance and Cancel/Close route, with unchanged base snapshots.
-A TFTD visual diagnostic identified a real completeness gap: some visibly shown
-facility rows, including the highlighted selection after Cancel, are omitted
-by the projection. Full list coverage is not qualified; correct this witness
-before claiming complete selection or proceeding to placement. The wider regression suite is
-not fully passing; those existing failures are not waived by focused checks.
+The facility list uses the GUI caption actually drawn in the current viewport,
+its native row index and active click band. It does not require pixel-perfect
+glyph preservation: normal adjacent glyph overlap and the native selection band
+do not remove otherwise visible, interactive rows. Child-text presentation,
+viewport clipping, top state, real overlays and current presentation remain
+checked. The generic list projections are unchanged.
+
+Focused native checks (181), adapter and production build pass. Short UFO/TFTD
+live runs expose all nine stock facility rows, preserve the selected General
+Stores row after preview/Cancel, and correctly open the previously omitted
+Workshop through its fresh native row handle. Both return through Cancel/Close
+with unchanged owned-base snapshots. These checks repair the observed missing-row
+gap; they do not qualify actual facility placement or every modded list layout.
+The wider regression suite is not fully passing; see
+[fixture qualification](regression-fixture-qualification.md) for the exact
+baseline comparison and remaining limitations.

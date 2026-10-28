@@ -88,7 +88,10 @@ class GameplayValidationTests(unittest.TestCase):
         for field, actions in [('hands', {'open_hand_action_menu'}),
                                ('enemy_buttons', {'center_enemy'}), ('grid', {'map_primary', 'map_secondary'})]:
             obj = state()
-            if field == 'grid': obj['visible']['tactical']['grid'] = []; obj['visible']['focus_target'] = None
+            if field == 'grid':
+                obj['visible']['tactical']['grid'] = []
+                obj['visible']['tactical']['map_context']['cells'] = []
+                obj['visible']['focus_target'] = None
             else: obj['visible'][field] = []
             with self.subTest(field=field), self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
             obj['actions'] = [item for item in obj['actions'] if item['id'] not in actions]
@@ -164,6 +167,8 @@ class GameplayClientTests(unittest.TestCase):
         self.assertEqual(len(native.requests), count)
         projection = state()['visible']; extra = copy.deepcopy(projection['tactical']['grid'][0]); extra['handle'] = 'g2'
         projection['tactical']['grid'].append(extra)
+        context = copy.deepcopy(projection['tactical']['map_context']['cells'][0]); context['handle'] = 'g2'
+        projection['tactical']['map_context']['cells'].append(context)
         native.public_events.append(dict(seq=1, kind='presentation', state='battlescape', visible=projection))
         native.client.read_events(EPOCH, 0, 16)
         self.assertEqual(native.client.hands, {'right'}); self.assertEqual(native.client.grid_cells, {'g0','g1'})

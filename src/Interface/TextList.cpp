@@ -1072,7 +1072,7 @@ void TextList::draw()
 			for (std::vector<Text*>::iterator j = _texts[i].begin(); j < _texts[i].end(); ++j)
 			{
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-				if (_agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells) (*j)->agentTrackPresentation();
+				if (_agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
 #endif
 				(*j)->setY(y);
 				(*j)->blit(this);
@@ -1187,7 +1187,7 @@ void TextList::blit(Surface *surface)
 		}
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-		if (_agentPsiTrainingCells) _selector->agentTrackPresentation();
+		if (_agentPsiTrainingCells || _agentOutfittingColumns==1) _selector->agentTrackPresentation();
 #endif
 		_selector->blit(surface);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -1372,7 +1372,7 @@ void TextList::blit(Surface *surface)
 					SDL_UnlockSurface(getSurface());
 				}
 			}
-			row.selected = row.selected && changed;
+			row.selected = row.selected && (_agentOutfittingColumns==1 || changed);
 		}
 		_agentPaintRevision = _agentListRevision;
 #endif
@@ -1837,8 +1837,10 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			if (!cell.known) continue;
 			const bool overlap = overlaps(cell.regions, allInk);
 			if (!_agentCoverageHealthy) return;
-			if (overlap && !unchanged(cell.ink)) { cell.known = false; cell.regions.clear(); cell.ink.clear(); }
-			if (!_agentCoverageHealthy) return;
+            // Facility captions are native visible-row semantics, not a
+            // full-glyph reconstruction. Neighboring native ink is not a
+            // foreign overlay. Other list opt-ins retain their old proof.
+            if (_agentOutfittingColumns!=1 && overlap && !unchanged(cell.ink)) { cell.known=false;cell.regions.clear();cell.ink.clear(); }
 		}
 		// A row control needs at least one surviving ordinary typed write.
 		std::vector<SDL_Rect> surviving;
@@ -1945,6 +1947,16 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		for (size_t column = 0; column < _texts[logicalIndex].size(); ++column)
 		{
 			const Text *cell = _texts[logicalIndex][column];
+            if (_agentOutfittingColumns==1) {
+                if(cell->agentContextVisible() && cell->getText().size()<=1024) {
+                    row.cells[column].known=true;
+                    UString shown=Unicode::convUtf8ToUtf32(cell->getText());
+                    shown.erase(std::remove(shown.begin(),shown.end(),Unicode::TOK_COLOR_FLIP),shown.end());
+                    row.cells[column].text=Unicode::convUtf32ToUtf8(shown);
+                    row.cells[column].regions.push_back(row.clickBand);
+                }
+                continue;
+            }
 			SDL_Rect rect = {};
 			if (!cell->agentContextVisible() || !cell->getFont() || cell->getNumLines() != 1 ||
 				!cell->agentTextComplete() || cell->getTextWidth() > cell->getWidth() ||
@@ -2805,6 +2817,53 @@ bool TextList::agentSelectPsiTrainingRow(size_t logicalIndex)
 		selectPhysicalRow(physical - _rows.begin()); return true;
 	}
 	return false;
+}
+
+// Facility-only entry to the existing independent cell capture machinery.
+// Public generic outfitting opt-in still rejects one column; no other state
+// gains this route implicitly. The normal renderer/layout is unchanged.
+void TextList::agentEnableFacilityCells()
+{
+    if (_agentOutfittingColumns != 1 || _agentOutfittingEquipment || _agentOutfittingCrew) {
+        _agentOutfittingColumns=1; _agentOutfittingEquipment=false; _agentOutfittingCrew=false;
+        ++_agentListRevision; _redraw=true; agentTrackPresentation();
+    }
+}
+bool TextList::agentFacilityRows(const Surface *destination, std::vector<AgentOutfittingRow> &rows) const
+{
+    rows.clear();
+    if (_agentOutfittingColumns!=1 || _agentOutfittingEquipment || _agentOutfittingCrew ||
+        _columns.size()!=1 || _comboBox || !_selectable || !_bg || !_selector || _arrowPos!=-1 ||
+        _agentPaintRevision!=_agentListRevision || !_agentCoverageHealthy || !Observer::agentPaintHealthy() ||
+        !Observer::agentWidgetVisible(this) || !agentPresentationPaintedTo(destination)) return false;
+    for (AgentOutfittingRow row:_agentPaintOutfittingRows) {
+        if(row.cells.size()!=1 || !row.cells[0].known || row.cells[0].text.empty() || row.logicalIndex>=_texts.size() ||
+            _texts[row.logicalIndex].size()!=1 || std::count(_rows.begin(),_rows.end(),row.logicalIndex)!=1)continue;
+        const Text *cell=_texts[row.logicalIndex][0];
+        if(!cell->agentContextVisible() || !cell->agentPresentationPaintedTo(this) || cell->getY()+getY()!=row.bounds.y ||
+            row.bounds.x!=getX() || row.bounds.w!=getWidth())continue;
+        UString shown=Unicode::convUtf8ToUtf32(cell->getText());
+        shown.erase(std::remove(shown.begin(),shown.end(),Unicode::TOK_COLOR_FLIP),shown.end());
+        if(Unicode::convUtf32ToUtf8(shown)!=row.cells[0].text)continue;
+        const auto &r=row.clickBand;
+        if(!r.w || !r.h || r.x<_agentOutfittingClip.x || r.y<_agentOutfittingClip.y ||
+            r.x+r.w>_agentOutfittingClip.x+_agentOutfittingClip.w || r.y+r.h>_agentOutfittingClip.y+_agentOutfittingClip.h ||
+            r.x<getX() || r.y<getY() || r.x+r.w>getX()+getWidth() || r.y+r.h>getY()+getHeight())continue;
+        if(!Observer::agentRegionsUncovered({{r.x,r.y,r.w,r.h}},this,_agentPaintOrder))continue;
+        row.selected=row.selected && _selector->agentPresentationPaintedTo(destination);
+        rows.push_back(row);
+    }
+    return true;
+}
+bool TextList::agentSelectFacilityRow(const Surface *destination,size_t logicalIndex)
+{
+    std::vector<AgentOutfittingRow> rows;if(!agentFacilityRows(destination,rows))return false;
+    for(const auto &row:rows)if(row.logicalIndex==logicalIndex){
+        const auto physical=std::find(_rows.begin(),_rows.end(),logicalIndex);
+        if(physical==_rows.end() || std::count(_rows.begin(),_rows.end(),logicalIndex)!=1)return false;
+        selectPhysicalRow(physical-_rows.begin());return true;
+    }
+    return false;
 }
 
 void TextList::agentEnableOutfitting(unsigned columns, bool equipment, bool crew)

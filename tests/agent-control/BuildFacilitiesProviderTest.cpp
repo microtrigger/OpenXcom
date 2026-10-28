@@ -90,7 +90,7 @@ int main(int argc,char**argv){
  check(state.agentUiState(ui)&&ui.screen=="build_facilities","actual constructor list admitted");
  check(!ui.rows.empty()&&ui.rows.size()<=32&&ui.offers("select_build_facility")&&ui.offers("close_build_facilities"),"bounded row and close actions");
  check(ui.visible.find("STR_LABORATORY")==std::string::npos,"rule identifiers never exported");
- SDL_Rect erased={200,64,104,104};SDL_FillRect(canvas.getSurface(),&erased,0);check(state.agentUiState(ui)&&ui.rows.empty()&&!ui.offers("select_build_facility"),"current list RGB erasure removes handles");state.blit();check(state.agentUiState(ui)&&!ui.rows.empty(),"list repaint restores rows");
+
  auto visible=YAML::Load(ui.visible);check(visible["rows"][0]["cells"].size()==1&&visible["rows"][0]["cells"][0].as<std::string>()==std::string(language.getString("STR_LABORATORY")),"displayed localized facility");
  req.action="select_build_facility";req.choice="r99";check(!state.agentDispatch(req)&&game.pushes==0,"invalid row denied");req.choice="r00";check(!state.agentDispatch(req),"noncanonical row denied");
  req.action="place_facility";check(!state.agentDispatch(req),"placement absent");
@@ -109,6 +109,33 @@ int main(int argc,char**argv){
  DerivedBuild start(&base,&previous);game.top=&start;for(int i=0;i<22;++i)start._window->popup();start.blit();check(!start.agentUiState(ui),"derived startup facility list not admitted");start.release();
  struct DerivedPlace:Fixture::PlaceFacilityState {DerivedPlace(Fixture::Base*b,Fixture::RuleBaseFacility*r):PlaceFacilityState(b,r){}};
  DerivedPlace placement(&base,&game.mod.rules[0]);game.top=&placement;placement.blit();check(!placement.agentUiState(ui),"derived start facility placement not admitted");placement.release();
+ // Regression: stock 9px font advances 8px. Same-color descender overlap
+ // must retain Workshop/Wide Array Sonar, and selected bands must not consume
+ // the neighboring row. Actual native selection/details/cancel for every row.
+ game.mod.ids.clear();game.mod.rules.clear();
+ const bool tftd=std::string(variant)=="xcom2";
+ const std::vector<std::string> stock={"STR_LIVING_QUARTERS","STR_LABORATORY","STR_WORKSHOP",tftd?"STR_STANDARD_SONAR":"STR_SMALL_RADAR_SYSTEM",tftd?"STR_WIDE_ARRAY_SONAR":"STR_LARGE_RADAR_SYSTEM",tftd?"STR_TORPEDO_DEFENSES":"STR_MISSILE_DEFENSES","STR_GENERAL_STORES","STR_ALIEN_CONTAINMENT",tftd?"STR_SUB_PEN":"STR_HANGAR"};
+ for(const auto&id:stock){game.mod.ids.push_back(id);Fixture::RuleBaseFacility rule;rule.id=id;game.mod.rules.push_back(rule);}
+ Fixture::BuildFacilitiesState stockState(&base,&previous);game.top=&stockState;for(int i=0;i<22;++i)stockState._window->popup();stockState.blit();
+ check(stockState.agentUiState(ui)&&ui.rows.size()==9,"all nine stock facility rows including shared descenders");
+ for(size_t i=0;i<9;++i){
+   check(ui.rows[i]==i&&YAML::Load(ui.visible)["rows"][i]["cells"][0].as<std::string>()==std::string(language.getString(stock[i])),"fresh stock row handle maps correct native facility");
+   req.action="select_build_facility";req.choice="r"+std::to_string(i);check(stockState.agentDispatch(req),"ordinary select every stock facility");
+   auto*preview=const_cast<Fixture::PlaceFacilityState*>(static_cast<const Fixture::PlaceFacilityState*>(game.top));
+   check(preview->_rule==stockState._facilities[i],"ordinary callback selected exact indexed rule");preview->blit();req.action="cancel_place_facility";check(preview->agentDispatch(req),"ordinary cancel stock preview");preview->release();delete preview;
+   game.top=&stockState;stockState.blit();check(stockState.agentUiState(ui)&&ui.rows.size()==9&&YAML::Load(ui.visible)["rows"][i]["selected"].as<bool>(),"after cancel selected native band retains all nine rows");
+ }
+ if(tftd){std::vector<AgentListRow> legacy;check(stockState._lstFacilities->agentRows(legacy)&&legacy.size()==7,"generic legacy overlap projection remains unchanged");}
+ Text *rowText=stockState._lstFacilities->_texts[2][0];rowText->setVisible(false);rowText->setVisible(true);
+ check(stockState.agentUiState(ui)&&std::find(ui.rows.begin(),ui.rows.end(),2)==ui.rows.end(),"child visibility ABA cannot revive stale row caption");stockState._lstFacilities->invalidate();stockState.blit();check(stockState.agentUiState(ui)&&ui.rows.size()==9,"native child repaint restores row evidence");
+ // A changed glyph pixel is not a different native row or hidden UI action.
+ canvas.setPixel(203,83,20);check(stockState.agentUiState(ui)&&ui.rows.size()==9,"benign pixel difference does not revoke visible native row semantics");stockState.blit();
+ // Logical caption comes from the actual rendered widget, not the ruleset.
+ stockState._lstFacilities->setCellText(2,0,"UI WORKSHOP");check(!stockState.agentUiState(ui),"dirty facility caption refused before repaint");stockState.blit();
+ check(stockState.agentUiState(ui)&&ui.rows.size()==9&&YAML::Load(ui.visible)["rows"][2]["cells"][0].as<std::string>()=="UI WORKSHOP","actual painted UI caption not hidden rule fallback");
+ Surface rowCover(104,8,200,80);rowCover.setPalette(palette);rowCover.clear(90);stockState._surfaces.push_back(&rowCover);stockState.blit();
+ check(stockState.agentUiState(ui)&&std::find(ui.rows.begin(),ui.rows.end(),2)==ui.rows.end(),"real later overlay removes row action authority");stockState._surfaces.pop_back();stockState.blit();check(stockState.agentUiState(ui)&&ui.rows.size()==9,"uncovered fresh row restores native actions");
+ stockState.release();
  }
  check(!SDL_GetVideoSurface(),"no game opened");std::cout<<"PASS "<<checks<<" facilities constructor/provider/dispatch checks; explicit domain seams, no placement\n";
 }

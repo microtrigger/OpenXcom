@@ -417,7 +417,16 @@ class NativeFixture:
                     if epoch != EPOCH or after > newest:
                         obj = dict(schema=a.SCHEMA, mode=a.MODE, type='error', status='unavailable')
                     else:
-                        events = copy.deepcopy(self.public_events[max(after, oldest-1):][:min(limit, self.event_page_limit)])
+                        events = []
+                        page_bytes = 0
+                        for event in self.public_events[max(after, oldest-1):]:
+                            # Mirror AgentPublicEvents::read's conservative UTF-8
+                            # byte-to-ASCII bound and comma accounting, not just count.
+                            encoded = json.dumps(event, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+                            size = sum(1 if byte < 128 else 6 for byte in encoded) + 1
+                            if len(events) == min(limit, self.event_page_limit) or page_bytes + size > 46000:
+                                break
+                            events.append(copy.deepcopy(event)); page_bytes += size
                         obj = dict(schema=a.SCHEMA, mode=a.MODE, type='events', challenge=challenge, epoch=epoch,
                             audio_history=self.hello['audio_history'],
                             audio_status=self.audio_status if self.hello['audio_history']=='mixed_output' else 'unavailable',
@@ -1162,7 +1171,7 @@ class ListValidationTests(unittest.TestCase):
         expected = {
             'new_battle': {'start_battle', 'cancel_menu', 'open_new_battle_choice'},
             'new_battle_dropdown': {'choose_visible_row', 'scroll_visible_list', 'close_dropdown'},
-            'funding': {'scroll_visible_list', 'close_funding'}, 'geoscape': {'open_funding', 'open_bases', 'open_pause_menu', 'choose_geoscape_speed'},
+            'funding': {'scroll_visible_list', 'close_funding'}, 'geoscape': {'open_interception', 'open_funding', 'open_bases', 'open_pause_menu', 'choose_geoscape_speed'},
         }
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)

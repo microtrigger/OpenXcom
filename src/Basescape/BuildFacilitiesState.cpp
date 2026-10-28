@@ -89,6 +89,7 @@ BuildFacilitiesState::BuildFacilitiesState(Base *base, State *state) : _base(bas
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     for (Surface *surface : _surfaces) surface->agentTrackPresentation();
     _btnOk->agentEnableNamedControl();
+    _lstFacilities->agentEnableFacilityCells();
     if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
     if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
 #endif
@@ -233,13 +234,31 @@ bool BuildFacilitiesState::agentUiState(Observer::AgentUiState &out) const
     };
     const auto title = text(_txtTitle);
     AgentListProjection list;
-    const auto listAllowed = [&](const AgentUiState &part) {
-        if (!allowed(part)) return false;
-        if (BuildFacilitiesStateInkCurrent(_lstFacilities, logical, part)) return true;
-        const Surface *up=nullptr, *down=nullptr; _lstFacilities->agentScrollControls(up, down);
-        return BuildFacilitiesStateInkCurrent(up, logical, part) || BuildFacilitiesStateInkCurrent(down, logical, part);
+    std::vector<AgentOutfittingRow> rows;
+    if (!_lstFacilities->agentFacilityRows(logical,rows)) return false;
+    out.widgets.emplace_back(_lstFacilities,_lstFacilities->agentListRevision());
+    // Native clickable row bands are disjoint even when glyph descenders
+    // overlap. Caption/selection come from the same ordinary list paint.
+    const auto include=[&](const AgentUiState &part,const Surface *owner)->bool {
+        if(part.regions.empty() || !agentRegionsUncovered(part.regions,owner,painted) || !allowed(part))return false;
+        const auto old=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if(agentRegionsDisjoint(out))return true;out.regions.resize(old);return false;
     };
-    if (!agentProjectList(_lstFacilities, _lstFacilities, painted, 1, true, out, list, listAllowed)) return false;
+    list.rows="[";
+    for(const auto&row:rows){
+        if(out.rows.size()==32)break;
+        if(row.logicalIndex>=_facilities.size() || row.cells.size()!=1)return false;
+        AgentUiState band;band.regions.push_back({row.clickBand.x,row.clickBand.y,row.clickBand.w,row.clickBand.h});
+        if(!include(band,_lstFacilities))continue;
+        if(!out.rows.empty())list.rows+=",";
+        list.rows+="{\"handle\":\"r"+std::to_string(out.rows.size())+"\",\"cells\":["+agentJsonString(row.cells[0].text)+"],\"selected\":"+(row.selected?"true":"false")+"}";
+        out.rows.push_back(row.logicalIndex);
+    }
+    list.rows+="]";
+    const Surface *up=nullptr,*down=nullptr;_lstFacilities->agentScrollControls(up,down);
+    const auto arrow=[&](const Surface *widget){AgentUiState part;agentIncludeWidget(part,widget);return BuildFacilitiesStateInkCurrent(widget,logical,part)&&include(part,widget);};
+    list.up=arrow(up);list.down=arrow(down);
+    list.scroll=std::string("{\"up\":")+(list.up?"true":"false")+",\"down\":"+(list.down?"true":"false")+"}";
     for (const auto row : out.rows) {
         if (row >= _facilities.size()) return false;
         out.widgets.emplace_back(_facilities[row], 0);
@@ -265,7 +284,7 @@ bool BuildFacilitiesState::agentDispatch(const Observer::AgentRequest &request)
     if (request.action == "select_build_facility") {
         for (std::size_t i = 0; i < fresh.rows.size(); ++i) if (request.choice == "r" + std::to_string(i)) {
             const auto row = fresh.rows[i];
-            if (row >= _facilities.size() || !_lstFacilities->agentSelectProjectRow(row)) return false;
+            if (row >= _facilities.size() || !_lstFacilities->agentSelectFacilityRow(_game->getScreen()->getSurface(),row)) return false;
             lstFacilitiesClick(nullptr); return true;
         }
     }

@@ -231,6 +231,10 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
 	void agentEnableOutfitting(unsigned columns, bool equipment = false, bool crew = false);
+    // BuildFacilitiesState-only single-cell paint proof. Legacy lists unchanged.
+    void agentEnableFacilityCells();
+    bool agentFacilityRows(const Surface *destination, std::vector<AgentOutfittingRow> &rows) const;
+    bool agentSelectFacilityRow(const Surface *destination, size_t logicalIndex);
 	// Narrow opt-in: current four UI cells, not glyph completeness or model data.
 	void agentEnableCommendationCells();
 	bool agentCommendationRows(std::vector<AgentOutfittingRow> &rows) const;
