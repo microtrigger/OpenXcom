@@ -34,6 +34,14 @@
 #include "../Mod/RuleInterface.h"
 #include <climits>
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include <typeinfo>
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#endif
+
 namespace OpenXcom
 {
 
@@ -103,6 +111,12 @@ PlaceFacilityState::PlaceFacilityState(Base *base, RuleBaseFacility *rule) : _ba
 
 	_numMaintenance->setBig();
 	_numMaintenance->setText(Unicode::formatFunding(_rule->getMonthlyCost()));
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    _btnCancel->agentEnableNamedControl();
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -153,5 +167,117 @@ void PlaceFacilityState::viewClick(Action *)
 		_game->popState();
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace {
+// Private readback of the known widget's painted ink, never image discovery or
+// exported pixels. Compare current indexed RGB against the logical destination.
+bool PlaceFacilityStateInkCurrent(const Surface *widget, const Surface *logical,
+    const Observer::AgentUiState &part)
+{
+    if (!widget || !logical || !widget->agentPresentationPaintedTo(logical) || part.regions.empty()) return false;
+    SDL_Surface *source = widget->getSurface(), *target = logical->getSurface();
+    if (!source || !target || source->format->BytesPerPixel != 1 || target->format->BytesPerPixel != 1 ||
+        !source->format->palette || !target->format->palette) return false;
+    if (Observer::agentObservePaint(SDL_LockSurface(source)) < 0) return false;
+    if (Observer::agentObservePaint(SDL_LockSurface(target)) < 0) { SDL_UnlockSurface(source); return false; }
+    bool same = true, ink = false; std::size_t work = 0;
+    for (const auto &r : part.regions) {
+        if (r.x < widget->getX() || r.y < widget->getY() || r.x+r.width > widget->getX()+source->w ||
+            r.y+r.height > widget->getY()+source->h || r.x < 0 || r.y < 0 ||
+            r.x+r.width > target->w || r.y+r.height > target->h) { same=false; break; }
+        for (int y=r.y; same && y<r.y+r.height; ++y) for (int x=r.x; x<r.x+r.width; ++x) {
+            if (++work > 131072) { same=false; break; }
+            const Uint8 a=static_cast<const Uint8 *>(source->pixels)[(y-widget->getY())*source->pitch+x-widget->getX()];
+            if ((source->flags & SDL_SRCCOLORKEY) && a==source->format->colorkey) continue;
+            const Uint8 b=static_cast<const Uint8 *>(target->pixels)[y*target->pitch+x];
+            if (a>=source->format->palette->ncolors || b>=target->format->palette->ncolors) { same=false; break; }
+            const SDL_Color ca=source->format->palette->colors[a], cb=target->format->palette->colors[b];
+            ink=true; if (ca.r!=cb.r || ca.g!=cb.g || ca.b!=cb.b) { same=false; break; }
+        }
+    }
+    SDL_UnlockSurface(target); SDL_UnlockSurface(source);
+    return same && ink && Observer::agentPaintHealthy();
+}
+}
+bool PlaceFacilityState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> PlaceFacilityState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    revisions.push_back(_txtFacility->agentTextRevision());
+    revisions.push_back(_txtCost->agentTextRevision());
+    revisions.push_back(_numCost->agentTextRevision());
+    revisions.push_back(_txtTime->agentTextRevision());
+    revisions.push_back(_numTime->agentTextRevision());
+    revisions.push_back(_txtMaintenance->agentTextRevision());
+    revisions.push_back(_numMaintenance->agentTextRevision());
+    revisions.push_back(_btnCancel->agentLabelRevision());
+    return revisions;
+}
+void PlaceFacilityState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool PlaceFacilityState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(PlaceFacilityState) || _modal || _window->agentPopupActive() || !_base || !_game->isState(const_cast<PlaceFacilityState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState(); out.actor = _base; out.screen = "place_facility";
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const Surface *logical = _game->getScreen()->getSurface();
+    for (const Surface *surface : painted) out.widgets.emplace_back(surface, surface->agentPresentationRevision());
+    if (_game->getCursor()) out.widgets.emplace_back(_game->getCursor(), _game->getCursor()->agentPresentationRevision());
+    if (_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(), _game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !agentWidgetUncovered(widget, painted)) return "null";
+        AgentUiState part; agentIncludeWidget(part, widget);
+        if (part.regions.empty() || !allowed(part) || !PlaceFacilityStateInkCurrent(widget, logical, part)) return "null";
+        const auto old = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return value;
+        out.regions.resize(old); return "null";
+    };
+    const auto facility = text(_txtFacility);
+    const auto cost_label = text(_txtCost);
+    const auto cost = text(_numCost);
+    const auto time_label = text(_txtTime);
+    const auto time = text(_numTime);
+    const auto maintenance_label = text(_txtMaintenance);
+    const auto maintenance = text(_numMaintenance);
+    std::string buttons = "[";
+    const auto label = agentProjectNamedButton(_btnCancel, logical, painted, out, allowed);
+    if (!label.empty() && label.size() <= 1024) {
+        buttons += "{\"id\":\"cancel\",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back("cancel_place_facility", label, "visible_text");
+    }
+    buttons += "]";
+    out.visible = "{\"facility\":" + facility + ",\"cost_label\":" + cost_label + ",\"cost\":" + cost + ",\"time_label\":" + time_label + ",\"time\":" + time + ",\"maintenance_label\":" + maintenance_label + ",\"maintenance\":" + maintenance + ",\"buttons\":" + buttons + "}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 32768;
+}
+bool PlaceFacilityState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;
+    if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if (request.action == "cancel_place_facility") { btnCancelClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

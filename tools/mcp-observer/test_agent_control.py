@@ -145,6 +145,12 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
                 quantity_controls=[dict(control=control,increase=True,decrease=True) for control in a.QUANTITY_CONTROLS])
         ids=sorted(a.STATE_ACTIONS[screen])
         if screen=='manufacture_start':ids.remove('scroll_visible_list')
+    elif screen == 'build_facilities':
+        visible=dict(title='Build Facilities', rows=[dict(handle='r0',cells=['Laboratory'],selected=False)], scroll=dict(up=True,down=True), buttons=[dict(id='close',label='OK')])
+        ids=sorted(a.STATE_ACTIONS[screen])
+    elif screen == 'place_facility':
+        visible=dict(facility='Laboratory',cost_label='Cost',cost='$750,000',time_label='Time',time='26 days',maintenance_label='Maintenance',maintenance='$30,000',buttons=[dict(id='cancel',label='Cancel')])
+        ids=sorted(a.STATE_ACTIONS[screen])
     elif screen in ('purchase', 'sell'):
         visible=dict(title='Purchase / Hire',funds='$1,000',total='$0',space_used='0.0',headings=['Item','Cost'],
             category=dict(label='All'),rows=[dict(handle='r0',cells=['Rifle','$3,000','0','0'],selected=False,controls=['increase','decrease'])],
@@ -216,6 +222,8 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             if action == 'choose_visible_row': return 'Choose visible row'
             if action == 'scroll_visible_list': return 'Scroll visible list'
             return next(button['label'] for button in visible['buttons'] if button['id'] == a.INTERCEPTION_BUTTON_ACTIONS[screen][action])
+        if screen in ('build_facilities','place_facility'):
+            return 'Select visible facility' if action=='select_build_facility' else 'Scroll visible list' if action=='scroll_visible_list' else visible['buttons'][0]['label']
         if screen in a.TRANSFER_BUTTON_ACTIONS:
             if action in a.QUANTITY_SEMANTIC_LABELS: return a.QUANTITY_SEMANTIC_LABELS[action]
             if action == 'choose_visible_row': return 'Choose visible row'
@@ -270,6 +278,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'change_transfer_quantity': {'row':'r0','operation':'adjust','value':1},
                 'change_production_quantity': {'control':'engineers','operation':'adjust','value':1},
                 'set_production_sell': {'enabled':True},
+                'select_build_facility': {'row':'r0'},
                 'change_sale_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_sell': {'direction':'down','amount':'step'},
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
@@ -573,7 +582,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 194); self.assertEqual(len(a.STATE_ACTIONS), 83)
+        self.assertEqual(len(a.ACTIONS), 198); self.assertEqual(len(a.STATE_ACTIONS), 85)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -624,7 +633,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 194)
+        self.assertEqual(len(a.ACTIONS), 198)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
@@ -637,7 +646,7 @@ class TypedValidationTests(unittest.TestCase):
             'select_research_project': 'project_row', 'select_production_project': 'project_row',
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
-            'change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
+            'select_build_facility':'facility_row','change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
             'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
@@ -802,7 +811,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/31')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/32')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -816,7 +825,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/31']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/32']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1536,9 +1545,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/31',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/31'
-send(dict(schema='openxcom-agent-control/31',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/32',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/32'
+send(dict(schema='openxcom-agent-control/32',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1583,9 +1592,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/31',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/31'
-send(dict(schema='openxcom-agent-control/31',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/32',mode='agent-control',epoch='1'*32,ledger_capacity=256, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/32'
+send(dict(schema='openxcom-agent-control/32',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1616,9 +1625,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/31', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/32', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/31'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/32'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

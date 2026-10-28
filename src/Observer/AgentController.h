@@ -3,9 +3,10 @@
 #include "AgentUi.h"
 #include "AgentPublicEvents.h"
 #include "AgentFrameCommand.h"
+#include "AgentPlayerBases.h"
 #include <SDL.h>
 namespace OpenXcom {
-class Game; class State;
+class Game; class State; class SavedGame;
 namespace Observer {
 class AgentController {
     Game *_game;
@@ -20,6 +21,12 @@ class AgentController {
     bool _dispatchInProgress = false;
     std::uint64_t _presentationSerial = 0, _dispatchPresentation = 0;
     AgentPublicEvents _publicEvents;
+    AgentPlayerBases _playerBases;
+    SavedGame *_basesSave = nullptr;
+    std::vector<std::string> _basesRecords;
+    std::string _basesEpoch, _basesSnapshot;
+    std::uint64_t _basesGeneration = 0;
+    void playerBasesPage(const AgentRequest &request);
     State *_boundTop = 0, *_frameTop = 0;
     AgentUiState _binding;
     std::uint64_t _revision = 0, _eventSequence = 0, _contextTime = 0;
@@ -44,6 +51,7 @@ public:
     explicit AgentController(Game *game);
     ~AgentController();
     void close();
+    void resetPlayerBases();
     bool enabled() const { return _fd >= 0; }
     void invalidate(bool publicChange = true);
     void beforeEvent(const SDL_Event &event);

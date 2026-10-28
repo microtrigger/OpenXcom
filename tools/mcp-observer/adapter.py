@@ -390,7 +390,7 @@ class Server:
                                           self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled,
                                           self.supervised_inventory_unload_enabled, self.agent_control is not None)}
         elif (method == 'tools/call' and self.agent_control is not None
-                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio')):
+                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases')):
             from agent_control import token, validate_action_arguments, validate_event_arguments
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
@@ -401,6 +401,9 @@ class Server:
                     validate_action_arguments(arguments)
                 elif params['name'] == 'read_public_events':
                     validate_event_arguments(arguments)
+                elif params['name'] == 'read_player_bases':
+                    from player_bases import arguments as base_arguments
+                    base_arguments(arguments)
                 elif params['name'] == 'read_public_audio':
                     from public_audio import validate_arguments
                     validate_arguments(arguments)
@@ -506,6 +509,8 @@ class Server:
             elif name == 'read_public_events':
                 from public_audio import metadata_page
                 obj = metadata_page(self.agent_control.read_events(**arguments))
+            elif name == 'read_player_bases':
+                obj = self.agent_control.read_player_bases(**arguments)
             elif name == 'read_public_audio':
                 from public_audio import read_audio
                 return read_audio(self.agent_control, **arguments)

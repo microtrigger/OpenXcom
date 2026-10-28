@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "AgentPlayerBases.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "AgentProtocol.h"
+#include "../Savegame/SavedGame.h"
+#include "../Savegame/GameTime.h"
+#include "../Savegame/Base.h"
+#include "../Savegame/BaseFacility.h"
+#include "../Savegame/Soldier.h"
+#include "../Savegame/Craft.h"
+#include "../Savegame/CraftWeapon.h"
+#include "../Savegame/Vehicle.h"
+#include "../Savegame/ItemContainer.h"
+#include "../Savegame/ResearchProject.h"
+#include "../Savegame/Production.h"
+#include "../Savegame/Transfer.h"
+#include "../Savegame/EquipmentLayoutItem.h"
+#include "../Mod/RuleBaseFacility.h"
+#include "../Mod/RuleSoldier.h"
+#include "../Mod/RuleCraft.h"
+#include "../Mod/RuleCraftWeapon.h"
+#include "../Mod/RuleItem.h"
+#include "../Mod/RuleResearch.h"
+#include "../Mod/RuleManufacture.h"
+#include "../Mod/Armor.h"
+#include "../Mod/Unit.h"
+#include <algorithm>
+#include <cmath>
+#include <functional>
+#include <iomanip>
+#include <limits>
+#include <locale>
+#include <sstream>
+#include <stdexcept>
+namespace OpenXcom { namespace Observer {
+namespace {
+const std::size_t MaxRecords = 100000, MaxRecordBytes = 16384, MaxTotalBytes = 16 * 1024 * 1024;
+std::string quote(const std::string &value) {
+    if (value.size() > 4096) throw std::runtime_error("record_limit");
+    return agentJsonString(value);
+}
+struct Object {
+    std::string value = "{";
+    Object &raw(const char *key, const std::string &v) { if(value.size()>1)value+=",";value+=quote(key)+":"+v;return *this; }
+    Object &s(const char *key,const std::string &v){return raw(key,quote(v));}
+    template<typename T> Object &n(const char *key,T v){std::ostringstream s;s.imbue(std::locale::classic());s<<std::setprecision(17)<<v;return raw(key,s.str());}
+    Object &d(const char *key,double v){if(!std::isfinite(v))throw std::runtime_error("invalid_base_data");return n(key,v);}
+    Object &b(const char *key,bool v){return raw(key,v?"true":"false");}
+    Object &nullable(const char *key,const std::string &v){return raw(key,v.empty()?"null":quote(v));}
+    std::string end()const{return value+"}";}
+};
+Object record(const char *kind,const std::string &id,const std::string &base){return Object().s("kind",kind).s("id",id).s("base_id",base);}
+std::string stats(const UnitStats *s){
+    if(!s)throw std::runtime_error("invalid_base_data");
+    return Object().n("tu",s->tu).n("stamina",s->stamina).n("health",s->health).n("bravery",s->bravery)
+        .n("reactions",s->reactions).n("firing",s->firing).n("throwing",s->throwing).n("strength",s->strength)
+        .n("psi_strength",s->psiStrength).n("psi_skill",s->psiSkill).n("melee",s->melee).end();
+}
+std::string quantities(const std::map<std::string,int> &items){
+    Object out; if(items.size()>1000)throw std::runtime_error("record_limit");
+    for(const auto &item:items)out.raw(item.first.c_str(),std::to_string(item.second));return out.end();
+}
+std::string capacity(double total,double used){return Object().d("capacity",total).d("used",used).d("free",total-used).end();}
+}
+void AgentPlayerBases::reset(){_identities.clear();_seen.clear();_save=nullptr;_next=0;_thread=std::thread::id();}
+std::string AgentPlayerBases::identify(const std::string &kind,const void *pointer,const std::weak_ptr<const void> &lifetime,bool tracked){
+    if(!pointer)throw std::runtime_error("invalid_base_data");
+    const Key key(kind,pointer);_seen.insert(key);auto found=_identities.find(key);
+    if(found!=_identities.end() && (!tracked || (!found->second.lifetime.expired() &&
+        !found->second.lifetime.owner_before(lifetime) && !lifetime.owner_before(found->second.lifetime)))) return found->second.id;
+    if(_next>=9007199254740991ULL || _identities.size()>=MaxRecords)throw std::runtime_error("record_limit");
+    Identity value;value.id=kind+"_"+std::to_string(++_next);value.lifetime=lifetime;value.tracked=tracked;_identities[key]=value;return value.id;
+}
+bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<std::string> &records,std::string &reason){
+    records.clear();reason.clear();
+    if(_thread!=std::thread::id() && _thread!=std::this_thread::get_id()){reason="wrong_thread";return false;}
+    if(!save){reason="no_campaign";return false;}
+    if(_save!=save){reset();_save=save;} _thread=std::this_thread::get_id();_seen.clear();
+    try {
+        if(!language)throw std::runtime_error("invalid_base_data");
+        const auto *bases=static_cast<const SavedGame*>(save)->getBases();
+        if(!bases || bases->size()>64)throw std::runtime_error("record_limit");
+        std::map<Base*,std::string> baseIds;std::map<Craft*,std::string> craftIds;std::map<Soldier*,std::string> soldierIds;
+        std::map<std::string,Soldier*> nativeSoldiers;
+        const auto soldierId=[&](Soldier *s)->std::string {
+            if(!s)throw std::runtime_error("invalid_base_data");const auto id="soldier_"+std::to_string(s->getId());
+            auto f=nativeSoldiers.find(id);if(f!=nativeSoldiers.end()&&f->second!=s)throw std::runtime_error("invalid_base_data");
+            nativeSoldiers[id]=s;soldierIds[s]=id;return id;
+        };
+        for(Base *base:*bases){
+            if(!base || baseIds.count(base))throw std::runtime_error("invalid_base_data");
+            baseIds[base]=identify("base",base,base->agentLifetime(),true);
+            if(base->getSoldiers()->size()>MaxRecords || base->getCrafts()->size()>MaxRecords || base->getTransfers()->size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(Soldier *s:*base->getSoldiers())soldierId(s);
+            for(Craft *c:*base->getCrafts()){if(!c)throw std::runtime_error("invalid_base_data");craftIds[c]=identify("craft",c,c->agentLifetime(),true);}
+            for(Transfer *t:*base->getTransfers()){
+                if(!t)throw std::runtime_error("invalid_base_data");
+                if(t->getSoldier())soldierId(t->getSoldier());
+                if(Craft*c=t->getCraft())craftIds[c]=identify("craft",c,c->agentLifetime(),true);
+            }
+        }
+        std::size_t total=0;std::set<std::string> recordIds;
+        const auto emit=[&](const std::string &id,const Object &object){
+            const auto json=object.end();if(json.size()>MaxRecordBytes || records.size()>=MaxRecords || total+json.size()>MaxTotalBytes)throw std::runtime_error("record_limit");
+            if(!recordIds.insert(id).second)throw std::runtime_error("invalid_base_data");total+=json.size();records.push_back(json);
+        };
+        const auto *time=save->getTime();if(!time)throw std::runtime_error("invalid_base_data");
+        Object date;date.n("year",time->getYear()).n("month",time->getMonth()).n("day",time->getDay()).n("hour",time->getHour()).n("minute",time->getMinute()).n("second",time->getSecond());
+        emit("campaign_0",record("campaign","campaign_0","").n("funds",save->getFunds()).raw("time",date.end()));
+        const auto stock=[&](ItemContainer *items,const std::string &owner,const char *kind,const std::string &base){
+            if(!items || items->getContents()->size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(const auto &item:*items->getContents()){
+                const auto id=identify("stock",&item);emit(id,record("stock",id,base).s("owner_id",owner).s("owner_kind",kind).s("type",item.first).n("quantity",item.second));
+            }
+        };
+        const auto vehicles=[&](const std::vector<Vehicle*> &list,const std::string &owner,const char *kind,const std::string &base){
+            if(list.size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(Vehicle *v:list){if(!v || !v->getRules())throw std::runtime_error("invalid_base_data");const auto id=identify("vehicle",v);
+                // Base defense vehicles may alias loaded craft vehicles. Only the
+                // authoritative first owner gets a record; no tactical graph.
+                if(recordIds.count(id))continue;
+                emit(id,record("vehicle",id,base).s("owner_id",owner).s("owner_kind",kind).s("type",v->getRules()->getType()).n("ammo",v->getAmmo()).n("size",v->getSize()));
+            }
+        };
+        const auto soldier=[&](Soldier *s,const std::string &base,const std::string &transfer){
+            if(!s || !s->getRules() || !s->getArmor())throw std::runtime_error("invalid_base_data");const auto id=soldierIds.at(s);
+            const auto craft=craftIds.find(s->getCraft());
+            emit(id,record("soldier",id,base).n("native_id",s->getId()).s("type",s->getRules()->getType()).s("name",s->getName(false))
+                .s("rank",s->getRankString()).n("rank_value",int(s->getRank())).s("armor",s->getArmor()->getType()).n("gender",int(s->getGender())).n("look",int(s->getLook()))
+                .n("missions",s->getMissions()).n("kills",s->getKills()).n("recovery_days",s->getWoundRecovery()).b("psi_training",s->isInPsiTraining())
+                .n("psi_improvement",s->getImprovement()).n("psi_strength_improvement",s->getPsiStrImprovement()).nullable("craft_id",craft==craftIds.end()?"":craft->second)
+                .s("location",transfer.empty()?"home":"in_transit").nullable("transfer_id",transfer).raw("initial_stats",stats(s->getInitStats())).raw("current_stats",stats(s->getCurrentStats())));
+            if(s->getEquipmentLayout()->size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(EquipmentLayoutItem *e:*s->getEquipmentLayout()){
+                if(!e)throw std::runtime_error("invalid_base_data");const auto eid=identify("equipment_layout",e);
+                emit(eid,record("equipment_layout",eid,base).s("soldier_id",id).s("item_type",e->getItemType()).s("slot",e->getSlot()).n("x",e->getSlotX()).n("y",e->getSlotY()).s("ammo_item",e->getAmmoItem()).n("fuse_timer",e->getFuseTimer()));
+            }
+        };
+        const auto craft=[&](Craft *c,const std::string &base,const std::string &transfer){
+            if(!c || !c->getRules())throw std::runtime_error("invalid_base_data");const auto id=craftIds.at(c);const auto *r=c->getRules();
+            std::vector<std::string> crew;for(const auto &s:soldierIds)if(s.first->getCraft()==c)crew.push_back(s.second);std::sort(crew.begin(),crew.end());
+            std::string crewJson="[";for(const auto &s:crew){if(crewJson.size()>1)crewJson+=",";crewJson+=quote(s);}crewJson+="]";
+            emit(id,record("craft",id,base).n("native_id",c->getId()).s("type",c->getType()).s("name",c->getName(language)).s("status",c->getStatus())
+                .s("location",transfer.empty()?"home_roster":"in_transit").nullable("transfer_id",transfer).n("weapon_slot_count",c->getWeapons()->size()).n("weapon_capacity",r->getWeapons()).d("longitude",c->getLongitude()).d("latitude",c->getLatitude())
+                .n("speed",c->getSpeed()).n("fuel",c->getFuel()).n("fuel_max",r->getMaxFuel()).n("damage",c->getDamage()).n("damage_max",r->getMaxDamage()).n("speed_max",r->getMaxSpeed())
+                .n("soldier_capacity",r->getSoldiers()).n("vehicle_capacity",r->getVehicles()).n("item_capacity",r->getMaxItems()).n("space_used",c->getSpaceUsed()).n("space_available",c->getSpaceAvailable())
+                .n("monthly_cost",r->getRentCost()).b("low_fuel",c->getLowFuel()).b("mission_complete",c->getMissionComplete()).raw("crew",crewJson));
+            stock(c->getItems(),id,"craft",base);vehicles(*c->getVehicles(),id,"craft",base);
+            if(c->getWeapons()->size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(std::size_t i=0;i<c->getWeapons()->size();++i){CraftWeapon *w=c->getWeapons()->at(i);if(!w)continue;if(!w->getRules())throw std::runtime_error("invalid_base_data");const auto wid=identify("weapon",w);const auto *wr=w->getRules();
+                emit(wid,record("weapon",wid,base).s("craft_id",id).s("type",wr->getType()).n("slot",i).n("ammo",w->getAmmo()).n("ammo_max",wr->getAmmoMax()).n("rearm_rate",wr->getRearmRate()).b("rearming",w->isRearming()).s("launcher_item",wr->getLauncherItem()).s("clip_item",wr->getClipItem()));
+            }
+        };
+        for(Base *base:*bases){const auto bid=baseIds.at(base);
+            Object personnel;personnel.n("soldiers",base->getTotalSoldiers()).n("scientists",base->getTotalScientists()).n("engineers",base->getTotalEngineers())
+                .n("available_soldiers",base->getAvailableSoldiers()).n("available_scientists",base->getAvailableScientists()).n("available_engineers",base->getAvailableEngineers())
+                .n("allocated_scientists",base->getAllocatedScientists()).n("allocated_engineers",base->getAllocatedEngineers());
+            Object capacities;capacities.raw("quarters",capacity(base->getAvailableQuarters(),base->getUsedQuarters())).raw("stores",capacity(base->getAvailableStores(),base->getUsedStores()))
+                .raw("laboratories",capacity(base->getAvailableLaboratories(),base->getUsedLaboratories())).raw("workshops",capacity(base->getAvailableWorkshops(),base->getUsedWorkshops()))
+                .raw("hangars",capacity(base->getAvailableHangars(),base->getUsedHangars())).raw("psi_labs",capacity(base->getAvailablePsiLabs(),base->getUsedPsiLabs())).raw("containment",capacity(base->getAvailableContainment(),base->getUsedContainment()));
+            Object maintenance;maintenance.n("craft",base->getCraftMaintenance()).n("personnel",base->getPersonnelMaintenance()).n("facilities",base->getFacilityMaintenance()).n("total",base->getMonthlyMaintenace());
+            emit(bid,record("base",bid,bid).s("name",base->getName(language)).d("longitude",base->getLongitude()).d("latitude",base->getLatitude()).n("grid_size",6)
+                .raw("personnel",personnel.end()).raw("capacities",capacities.end()).raw("maintenance",maintenance.end()).n("defense",base->getDefenseValue()).n("short_range_detection",base->getShortRangeDetection()).n("long_range_detection",base->getLongRangeDetection()));
+            if(base->getFacilities()->size()>MaxRecords || base->getResearch().size()>MaxRecords || base->getProductions().size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(BaseFacility *f:*base->getFacilities()){
+                if(!f || !f->getRules())throw std::runtime_error("invalid_base_data");const auto id=identify("facility",f);const auto *r=f->getRules();
+                Object caps;caps.n("quarters",r->getPersonnel()).n("stores",r->getStorage()).n("laboratories",r->getLaboratories()).n("workshops",r->getWorkshops()).n("hangars",r->getCrafts()).n("psi_labs",r->getPsiLaboratories()).n("containment",r->getAliens());
+                emit(id,record("facility",id,bid).s("type",r->getType()).n("x",f->getX()).n("y",f->getY()).n("size",r->getSize()).n("build_days_remaining",f->getBuildTime()).n("build_days_total",r->getBuildTime()).n("build_cost",r->getBuildCost()).n("monthly_cost",r->getMonthlyCost()).raw("capacities",caps.end())
+                    .n("radar_range",r->getRadarRange()).n("radar_chance",r->getRadarChance()).n("defense",r->getDefenseValue()).n("hit_ratio",r->getHitRatio()).b("lift",r->isLift()).b("hyperwave",r->isHyperwave()).b("mind_shield",r->isMindShield()).b("grav_shield",r->isGravShield()));
+            }
+            for(Soldier *s:*base->getSoldiers())soldier(s,bid,"");for(Craft *c:*base->getCrafts())craft(c,bid,"");
+            stock(base->getStorageItems(),bid,"base",bid);vehicles(*base->getVehicles(),bid,"base",bid);
+            for(ResearchProject *p:base->getResearch()){
+                if(!p || !p->getRules())throw std::runtime_error("invalid_base_data");const auto id=identify("research",p);
+                emit(id,record("research",id,bid).s("type",p->getRules()->getName()).s("progress",p->getResearchProgress()).n("assigned",p->getAssigned()).n("spent",p->getSpent()).n("cost",p->getCost()));
+            }
+            for(Production *p:base->getProductions()){
+                if(!p || !p->getRules())throw std::runtime_error("invalid_base_data");const auto id=identify("production",p);const auto *r=p->getRules();
+                emit(id,record("production",id,bid).s("type",r->getName()).s("category",r->getCategory()).n("amount_total",p->getAmountTotal()).n("amount_produced",p->getAmountProduced()).n("time_spent",p->getTimeSpent()).n("assigned_engineers",p->getAssignedEngineers()).n("unit_time",r->getManufactureTime()).n("unit_cost",r->getManufactureCost()).n("required_space",r->getRequiredSpace()).b("infinite",p->getInfiniteAmount()).b("sell",p->getSellItems()).raw("required_items",quantities(r->getRequiredItems())).raw("produced_items",quantities(r->getProducedItems())));
+            }
+            for(Transfer *t:*base->getTransfers()){
+                const auto id=identify("transfer",t);const auto type=t->getType();const char *name=nullptr;
+                switch(type){case TRANSFER_ITEM:name="item";break;case TRANSFER_CRAFT:name="craft";break;case TRANSFER_SOLDIER:name="soldier";break;case TRANSFER_SCIENTIST:name="scientist";break;case TRANSFER_ENGINEER:name="engineer";break;default:throw std::runtime_error("invalid_base_data");}
+                emit(id,record("transfer",id,bid).s("transfer_type",name).n("hours",t->getHours()).n("quantity",t->getQuantity()).nullable("item_type",type==TRANSFER_ITEM?t->getItems():"").nullable("craft_id",t->getCraft()?craftIds.at(t->getCraft()):"").nullable("soldier_id",t->getSoldier()?soldierIds.at(t->getSoldier()):""));
+                if(t->getSoldier())soldier(t->getSoldier(),bid,id);if(t->getCraft())craft(t->getCraft(),bid,id);
+            }
+        }
+        std::sort(records.begin(),records.end());
+        for(auto i=_identities.begin();i!=_identities.end();)if(!_seen.count(i->first))i=_identities.erase(i);else ++i;
+        return true;
+    } catch(const std::exception &e){records.clear();reason=std::string(e.what())=="record_limit"?"record_limit":"invalid_base_data";return false;}
+}
+} }
+#endif

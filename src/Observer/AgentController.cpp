@@ -214,6 +214,53 @@ void AgentController::drainAudioEvents()
         if (!_publicEvents.append(body)) { close(); return; }
     }
 }
+void AgentController::resetPlayerBases()
+{
+    _playerBases.reset(); _basesSave=nullptr; _basesRecords.clear();
+    _basesSnapshot.clear(); _basesEpoch.clear(); _basesGeneration=0;
+}
+void AgentController::playerBasesPage(const AgentRequest &request)
+{
+    // Sample only on the owner main thread. No UI sampling, grant or ledger mutation.
+    SavedGame *save=_game->getSavedGame();
+    if (save!=_basesSave) { resetPlayerBases(); _basesSave=save; }
+    if (_basesEpoch.empty() && !randomToken(_basesEpoch)) { close(); return; }
+    std::string status="ok", reason="", records="[";
+    std::size_t next=request.after;
+    if (request.snapshot=="-")
+    {
+        std::vector<std::string> captured;
+        if (!_playerBases.collect(save,_game->getLanguage(),captured,reason)) status="unavailable";
+        else if (_basesSnapshot.empty() || captured!=_basesRecords)
+        {
+            if (++_basesGeneration>=9007199254740992ULL || !randomToken(_basesSnapshot)) { close(); return; }
+            _basesRecords.swap(captured);
+        }
+    }
+    else if (request.snapshot!=_basesSnapshot || _basesSnapshot.empty()) { status="unavailable"; reason="snapshot_expired"; }
+    if (status=="ok" && request.after>_basesRecords.size()) { status="unavailable"; reason="invalid_offset"; }
+    if (status=="ok")
+    {
+        while(next<_basesRecords.size() && next-request.after<request.limit)
+        {
+            const auto &record=_basesRecords[next];
+            if (record.size()>16384) { status="unavailable"; reason="record_limit"; break; }
+            if (records.size()+record.size()+2>32768) break;
+            if (next!=request.after) records+=",";
+            records+=record; ++next;
+        }
+    }
+    records+="]";
+    if(status!="ok") { records="[]"; next=request.after; }
+    const bool ok=status=="ok";
+    sendPacket("{\"schema\":\"openxcom-player-bases/1\",\"type\":\"player_bases\",\"epoch\":"+agentJsonString(_epoch)+
+        ",\"challenge\":"+agentJsonString(request.challenge)+",\"campaign_epoch\":"+agentJsonString(_basesEpoch)+
+        ",\"status\":"+agentJsonString(status)+",\"reason\":"+(ok?"null":agentJsonString(reason))+
+        ",\"snapshot\":"+(ok?agentJsonString(_basesSnapshot):"null")+",\"generation\":"+std::to_string(_basesGeneration)+
+        ",\"offset\":"+std::to_string(request.after)+",\"next_offset\":"+std::to_string(next)+
+        ",\"total\":"+(ok?std::to_string(_basesRecords.size()):"null")+",\"complete\":"+(ok&&next==_basesRecords.size()?"true":"false")+
+        ",\"records\":"+records+"}");
+}
 void AgentController::poll()
 {
     if (_fd < 0) return;
@@ -228,7 +275,7 @@ void AgentController::poll()
 #endif
     drainAudioEvents();
     if (_fd < 0) return;
-    if (!diagnosticProfileQualified() || !agentPaintHealthy()) { close(); return; }
+    if (!diagnosticProfileQualified()) { close(); return; }
     if (!focused()) invalidate(false);
     if (_queued.active() && (_queued.expired(now()) || !_queued.generationMatches(_generation))) rejectQueued();
     if (_fd < 0) return;
@@ -263,6 +310,7 @@ void AgentController::poll()
         _ready = true;
         sendPacket(agentEnvelope() + ",\"status\":\"ready\"}"); return;
     }
+    if (request.kind == 'B') { playerBasesPage(request); return; }
     if (request.kind == 'S') { receipt(request.id); return; }
     if (request.kind == 'V') { eventPage(request); return; }
     if (request.kind == 'R')
@@ -361,7 +409,7 @@ void AgentController::beginFrame()
 void AgentController::presented()
 {
     if (_fd < 0 || !_ready || _dispatchInProgress) return;
-    if (!agentPaintHealthy()) { close(); return; }
+    if (!agentPaintHealthy()) { invalidate(); rejectQueued(); return; }
     AgentUiState ui;
     if (_frameTop != _game->agentTopState() || _frameGeneration != _generation || !sample(ui))
     { invalidate(); rejectQueued(); return; }

@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/31"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/32"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/31\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/32\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -62,6 +62,7 @@ bool agentActionId(const std::string &value)
         value == "close_production_list" || value == "change_production_quantity" ||
         value == "set_production_sell" || value == "open_purchase" || value == "change_purchase_quantity" ||
         value == "accept_purchase" || value == "cancel_purchase" || value == "open_purchase_category" ||
+        value == "open_build_facilities" || value == "select_build_facility" || value == "close_build_facilities" || value == "cancel_place_facility" ||
         value == "open_sell" || value == "change_sale_quantity" || value == "accept_sell" || value == "cancel_sell" || value == "open_sell_category" || value == "scroll_sell" ||
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
@@ -119,6 +120,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
+    if (action == "select_build_facility") return "facility_row";
     if (action == "change_sale_quantity") return "sale_quantity";
     if (action == "scroll_sell") return "sale_scroll";
     if (action == "change_purchase_quantity") return "purchase_quantity";
@@ -200,6 +202,15 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     {
         if (!canonical.empty()) canonical += " ";
         canonical += part; parts.push_back(part);
+    }
+    if (canonical == packet && parts.size() == 5 && parts[0] == "B")
+    {
+        std::uint64_t limit = 0;
+        if (!agentToken(parts[1]) || (parts[2]!="-" && !agentToken(parts[2])) ||
+            !decimal(parts[3], 100000, request.after) || !decimal(parts[4], 16, limit) || !limit ||
+            (parts[2]=="-" && request.after)) return false;
+        request.kind='B'; request.challenge=parts[1]; request.snapshot=parts[2];
+        request.limit=static_cast<unsigned>(limit); return true;
     }
     if (canonical == packet && parts.size() == 5 && parts[0] == "V")
     {
@@ -333,7 +344,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
             parts[6] != "up" && parts[6] != "down")) return false;
         request.choice = parts[6];
     }
-    else if (kind == "visible_row" || kind == "project_row" || kind == "outfitting_row")
+    else if (kind == "facility_row" || kind == "visible_row" || kind == "project_row" || kind == "outfitting_row")
     {
         std::uint64_t row;
         if (parts.size() != 7 || parts[6].empty() || parts[6][0] != 'r' ||

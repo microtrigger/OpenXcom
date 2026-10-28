@@ -2284,6 +2284,9 @@ SavedGame *Game::getSavedGame() const
 void Game::setSavedGame(SavedGame *save)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Retire read-only owned-base snapshot identities before replacing the campaign.
+    // This also handles a new save reusing a previous allocation address.
+    _agentController.resetPlayerBases();
     Observer::AgentSoundPlayback::instance().boundary(false);
     _agentController.invalidate(false);
 #endif

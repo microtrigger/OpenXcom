@@ -29,6 +29,14 @@
 #include "../Savegame/SavedGame.h"
 #include "PlaceFacilityState.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include <typeinfo>
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#endif
+
 namespace OpenXcom
 {
 
@@ -78,6 +86,12 @@ BuildFacilitiesState::BuildFacilitiesState(Base *base, State *state) : _base(bas
 	_lstFacilities->onMouseClick((ActionHandler)&BuildFacilitiesState::lstFacilitiesClick);
 
 	PopulateBuildList();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    _btnOk->agentEnableNamedControl();
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -134,5 +148,133 @@ void BuildFacilitiesState::lstFacilitiesClick(Action *)
 {
 	_game->pushState(new PlaceFacilityState(_base, _facilities[_lstFacilities->getSelectedRow()]));
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+namespace {
+// Private readback of the known widget's painted ink, never image discovery or
+// exported pixels. Compare current indexed RGB against the logical destination.
+bool BuildFacilitiesStateInkCurrent(const Surface *widget, const Surface *logical,
+    const Observer::AgentUiState &part)
+{
+    if (!widget || !logical || !widget->agentPresentationPaintedTo(logical) || part.regions.empty()) return false;
+    SDL_Surface *source = widget->getSurface(), *target = logical->getSurface();
+    if (!source || !target || source->format->BytesPerPixel != 1 || target->format->BytesPerPixel != 1 ||
+        !source->format->palette || !target->format->palette) return false;
+    if (Observer::agentObservePaint(SDL_LockSurface(source)) < 0) return false;
+    if (Observer::agentObservePaint(SDL_LockSurface(target)) < 0) { SDL_UnlockSurface(source); return false; }
+    bool same = true, ink = false; std::size_t work = 0;
+    for (const auto &r : part.regions) {
+        if (r.x < widget->getX() || r.y < widget->getY() || r.x+r.width > widget->getX()+source->w ||
+            r.y+r.height > widget->getY()+source->h || r.x < 0 || r.y < 0 ||
+            r.x+r.width > target->w || r.y+r.height > target->h) { same=false; break; }
+        for (int y=r.y; same && y<r.y+r.height; ++y) for (int x=r.x; x<r.x+r.width; ++x) {
+            if (++work > 131072) { same=false; break; }
+            const Uint8 a=static_cast<const Uint8 *>(source->pixels)[(y-widget->getY())*source->pitch+x-widget->getX()];
+            if ((source->flags & SDL_SRCCOLORKEY) && a==source->format->colorkey) continue;
+            const Uint8 b=static_cast<const Uint8 *>(target->pixels)[y*target->pitch+x];
+            if (a>=source->format->palette->ncolors || b>=target->format->palette->ncolors) { same=false; break; }
+            const SDL_Color ca=source->format->palette->colors[a], cb=target->format->palette->colors[b];
+            ink=true; if (ca.r!=cb.r || ca.g!=cb.g || ca.b!=cb.b) { same=false; break; }
+        }
+    }
+    SDL_UnlockSurface(target); SDL_UnlockSurface(source);
+    return same && ink && Observer::agentPaintHealthy();
+}
+}
+bool BuildFacilitiesState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> BuildFacilitiesState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    revisions.push_back(_txtTitle->agentTextRevision());
+    revisions.push_back(_lstFacilities->agentListRevision());
+    revisions.push_back(_btnOk->agentLabelRevision());
+    return revisions;
+}
+void BuildFacilitiesState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    for (Surface *surface : Observer::agentFlattenPaintOrder(_surfaces)) surface->agentTrackPresentation();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool BuildFacilitiesState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(BuildFacilitiesState) || _modal || _window->agentPopupActive() || !_base || !_game->isState(const_cast<BuildFacilitiesState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState(); out.actor = _base; out.screen = "build_facilities";
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const Surface *logical = _game->getScreen()->getSurface();
+    for (const Surface *surface : painted) out.widgets.emplace_back(surface, surface->agentPresentationRevision());
+    if (_game->getCursor()) out.widgets.emplace_back(_game->getCursor(), _game->getCursor()->agentPresentationRevision());
+    if (_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(), _game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !agentWidgetUncovered(widget, painted)) return "null";
+        AgentUiState part; agentIncludeWidget(part, widget);
+        if (part.regions.empty() || !allowed(part) || !BuildFacilitiesStateInkCurrent(widget, logical, part)) return "null";
+        const auto old = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (agentRegionsDisjoint(out)) return value;
+        out.regions.resize(old); return "null";
+    };
+    const auto title = text(_txtTitle);
+    AgentListProjection list;
+    const auto listAllowed = [&](const AgentUiState &part) {
+        if (!allowed(part)) return false;
+        if (BuildFacilitiesStateInkCurrent(_lstFacilities, logical, part)) return true;
+        const Surface *up=nullptr, *down=nullptr; _lstFacilities->agentScrollControls(up, down);
+        return BuildFacilitiesStateInkCurrent(up, logical, part) || BuildFacilitiesStateInkCurrent(down, logical, part);
+    };
+    if (!agentProjectList(_lstFacilities, _lstFacilities, painted, 1, true, out, list, listAllowed)) return false;
+    for (const auto row : out.rows) {
+        if (row >= _facilities.size()) return false;
+        out.widgets.emplace_back(_facilities[row], 0);
+    }
+    if (!out.rows.empty()) out.actions.emplace_back("select_build_facility", "Select visible facility", "visible_control_semantics", "facility_row");
+    out.context = {list.up ? 1u : 0u, list.down ? 1u : 0u};
+    if (list.up || list.down) out.actions.emplace_back("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction");
+    std::string buttons = "[";
+    const auto label = agentProjectNamedButton(_btnOk, logical, painted, out, allowed);
+    if (!label.empty() && label.size() <= 1024) {
+        buttons += "{\"id\":\"close\",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back("close_build_facilities", label, "visible_text");
+    }
+    buttons += "]";
+    out.visible = "{\"title\":" + title + ",\"rows\":" + list.rows + ",\"scroll\":" + list.scroll + ",\"buttons\":" + buttons + "}";
+    return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 32768;
+}
+bool BuildFacilitiesState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;
+    if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if (request.action == "close_build_facilities") { btnOkClick(nullptr); return true; }
+    if (request.action == "select_build_facility") {
+        for (std::size_t i = 0; i < fresh.rows.size(); ++i) if (request.choice == "r" + std::to_string(i)) {
+            const auto row = fresh.rows[i];
+            if (row >= _facilities.size() || !_lstFacilities->agentSelectProjectRow(row)) return false;
+            lstFacilitiesClick(nullptr); return true;
+        }
+    }
+    if (request.action == "scroll_visible_list" && fresh.context.size() == 2) {
+        if (request.choice == "up" && fresh.context[0]) { _lstFacilities->scrollUp(false, false); return true; }
+        if (request.choice == "down" && fresh.context[1]) { _lstFacilities->scrollDown(false, false); return true; }
+    }
+    return false;
+}
+#endif
 
 }
