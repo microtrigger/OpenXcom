@@ -13,9 +13,9 @@ from native_test_runner import digest, run_recipe
 
 
 LIMITATIONS = [
-    'Literal native Diary Overview and Performance constructors/init/providers/dispatch/nav/OK and SoldierInfo entry callback; actual TextList/report capture and native owned SoldierDiary/MissionStatistics models.',
-    'Owning Game, minimal SoldierInfo constructor/selection setter, State cursor initialization and synthetic interface/background resources are seams. Seeded own mission summaries use stock region/UFO type names; no actual mission completion claimed.',
-    'Actual Mission constructor/init/provider/nav/OK executes; missing injury entries remain absent. Seeded historical kill receipts and one native synthetic commendation rule/medal exercise Combat/Awards without claiming live achievements; no GUI/Game/save execution.',
+    'Literal native SoldierInfo, Memorial, Diary Overview/Performance/Mission constructors/init/providers/dispatch/navigation/OK; actual TextList capture and native owned models. Soldiers Memorial entry callback is literal with a minimal owning Soldiers fixture.',
+    'Owning Game, State cursor initialization, synthetic interface/background/rank sprites and no-audio music resource are seams. Unrelated Armor/Sack/Sell/Statistics constructor branches abort if unexpectedly invoked. Seeded own mission summaries use stock region/UFO type names; no actual mission completion claimed.',
+    'Actual Mission constructor/init/provider/nav/OK executes; missing injury entries remain absent. Seeded historical kill receipts and one native synthetic commendation rule/medal exercise Combat/Awards without claiming live achievements. Three synthetic native dead records qualify Memorial navigation and identity guards, not actual casualties; no GUI/Game/save execution.',
     'The explicit input manifest preserves the original harness source/resource/object closure and adds generator/core/link recipe and generated source files. It is not a complete compiler/header/shared-library transitive dependency manifest.',
 ]
 
@@ -31,10 +31,12 @@ def integrate(source, build, sdk, data, output):
     state = source / 'src/Engine/State.cpp'
     link_recipe = build / 'src/CMakeFiles/openxcom.dir/link.txt'
     files = [Path(__file__).resolve(), Path(__file__).with_name('native_test_runner.py').resolve(),
-             helper, fixture, state, source / 'src/Menu/ErrorMessageState.cpp', link_recipe]
+             helper, fixture, state, source / 'src/Menu/ErrorMessageState.cpp', link_recipe,
+             source / 'tests/agent-control/AgentMemorialProtocolTest.cpp']
     files += [source / ('src/' + unit + '.' + ext)
               for unit in ('Basescape/SoldierDiaryOverviewState', 'Basescape/SoldierDiaryPerformanceState',
                            'Basescape/SoldierDiaryMissionState', 'Basescape/SoldierInfoState',
+                           'Basescape/SoldierMemorialState', 'Basescape/SoldiersState',
                            'Interface/TextList', 'Observer/AgentProtocol')
               for ext in ('cpp', 'h')]
     files += [data / f'standard/{variant}/{name}.rul'
@@ -55,16 +57,24 @@ def integrate(source, build, sdk, data, output):
         raise ValueError('No native build object closure')
     with tempfile.TemporaryDirectory(prefix='diary-inputs-', dir=output.parent) as temporary:
         generated = Path(temporary)
-        bodies = []
-        for name in ('SoldierDiaryOverviewState', 'SoldierDiaryPerformanceState', 'SoldierDiaryMissionState'):
+        bodies = []; declarations = []
+        for name in ('SoldierInfoState', 'SoldierDiaryOverviewState', 'SoldierDiaryPerformanceState', 'SoldierDiaryMissionState', 'SoldierMemorialState'):
+            header = (source / f'src/Basescape/{name}.h').read_text()
+            declaration = header[header.index('class ' + name + ' :'):]
+            declaration = declaration[:declaration.index('};') + 2].replace('class ' + name, 'struct ' + name, 1).replace('private:', 'public:')
+            if name == 'SoldierDiaryOverviewState':
+                declaration = declaration.replace('public:', 'public:\nInteractiveSurface*auditSender=nullptr;size_t auditRow=999;void audit(Action*a){auditSender=a->getSender();auditRow=_lstDiary->getSelectedRow();}\n', 1)
+            declarations.append(declaration)
             text = (source / f'src/Basescape/{name}.cpp').read_text()
             signatures = [f'{name}::{name}(', f'{name}::~{name}(']
             signatures += [m.group(1) for m in re.finditer(
                 r'\n((?:void|int|bool|std::vector<std::uint64_t>) ' + name + r'::\w+\()', text)]
             bodies.extend(support.block(text, sig) for sig in signatures)
+        (generated / 'DiaryDeclarations.generated.inc').write_text('\n'.join(declarations))
+        bodies.append(support.block((source / 'src/Menu/ErrorMessageState.cpp').read_text(), 'void ErrorMessageState::btnOkClick('))
         (generated / 'Diary.generated.inc').write_text('\n'.join(bodies))
-        text = (source / 'src/Basescape/SoldierInfoState.cpp').read_text()
-        (generated / 'SoldierInfoEntry.generated.inc').write_text(support.block(text, 'void SoldierInfoState::btnDiaryClick('))
+        text = (source / 'src/Basescape/SoldiersState.cpp').read_text()
+        (generated / 'SoldiersEntry.generated.inc').write_text(support.block(text, 'void SoldiersState::btnMemorialClick('))
         text = state.read_text()
         needle = '_cursorColor = _game->getCursor()->getColor();'
         if text.count(needle) != 1:
@@ -89,6 +99,8 @@ def integrate(source, build, sdk, data, output):
             '-Wl,--gc-sections', '-L' + str(library), '-lSDL', '-lSDL_image', '-lSDL_mixer', '-lSDL_gfx',
             '-lyaml-cpp', '-ldl', '-pthread', '-o', output / 'test']))
         steps.append(step('test', [output / 'test', data.parent, output], data / 'common'))
+        steps.append(step('compile_memorial_protocol', flags + [source / 'tests/agent-control/AgentMemorialProtocolTest.cpp', output / 'protocol.o', '-o', output / 'memorial-protocol']))
+        steps.append(step('test_memorial_protocol', [output / 'memorial-protocol']))
         generated_files = sorted(generated.iterdir())
         manifest = list(dict.fromkeys(str(path) for path in files + objects + generated_files))
         # These are real individual compile/link/test steps; the core owns every

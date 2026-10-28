@@ -151,14 +151,20 @@ python tests/agent-control/run-diary-tests.py --source gameplay-source --build g
 
 This harness likewise delegates four real compile steps, link and native test
 to `run_recipe`, with separate temporary generated inputs and immutable manifest
-receipts. It preserves the original literal Overview/Performance/Mission and
-SoldierInfo-entry source extraction, cursor seam, stock region/UFO rule subsets,
-native historical models and fixture assertions. Combat history, medals and
+receipts. The current Memorial integration extracts full literal SoldierInfo,
+Memorial and Overview/Performance/Mission classes plus the Soldiers entry
+callback. It preserves publicized declaration/audit-only fixture seams, the
+State cursor seam, synthetic interface/rank sprites and silent music, stock
+region/UFO rule subsets, native historical models and fixture assertions.
+A separate compile/link and execution checks `AgentMemorialProtocolTest.cpp`
+using the freshly compiled protocol object. Statistics and unrelated mutation
+constructors abort if unexpectedly reached. Combat history, medals and
 mission records are seeded fixture data, not evidence of live achievements or
 mission execution. Read `QUALIFICATION.json` for those explicit boundaries.
 
 The source/build must match and expose the reviewed Diary API and
-`AgentDiaryTest.cpp`. **Minimum published Diary API dependency:**
+`AgentDiaryTest.cpp`. **Current Memorial integration minimum API: `eb9c2accea0b3ca3589fc8649d0993a9db1398a0`.** The earlier Diary-only dependency below is historical, not
+sufficient for the full Memorial harness:
 [`8ca9daa87ca52a7cbce6aa8a20b898a009912b61`](https://github.com/microtrigger/OpenXcom/commit/8ca9daa87ca52a7cbce6aa8a20b898a009912b61).
 The containment commit above does not establish availability of Diary APIs.
 This minimum API pin is not an assertion that a later local fix or test closure
@@ -192,3 +198,35 @@ The test executable exports sample owned-record JSON only to the requested new
 output directory. `RESULT.json` seals the explicitly listed input bytes;
 `QUALIFICATION.json` records limitations and a caller-supplied revision warning.
 Neither receipt claims a full transitive compiler/SDK dependency closure.
+
+## Memorial bootstrap parser harness
+
+```text
+python tests/agent-control/run-memorial-bootstrap-tests.py --source gameplay-source --output new-memorial-parser-output
+```
+
+The generic core compiles and runs an isolated driver containing the literal
+native report-fixture parser and its flag declarations. Nine cases preserve the
+original argument-removal, default-off/environment refusal, missing/unknown/
+duplicate option and containment-alias assertions. Each case resets all extracted
+selection flags and the child process environment. No Game, fixture preparation,
+campaign, save, or UI action is executed. Temporary generated C++ is outside the
+new output directory; source, harness, core and generated input hashes are sealed.
+
+The caller must supply the reviewed `memorial-history-v1` parser API in
+`AgentReportFixture.cpp/.h`. **Minimum published Memorial gameplay API dependency:
+`eb9c2accea0b3ca3589fc8649d0993a9db1398a0`.** Runtime receipts identify caller-supplied input
+hashes, not a fabricated commit qualification. Source code and compiler execution
+remain trusted, not sandboxed by this harness.
+
+Supply paired `--build gameplay-build --sdk native-sdk` to additionally compile,
+link and execute `AgentMemorialBootstrapTest.cpp` through the generic core. This
+optional mode extracts the exact three-soldier loop between explicit reviewed
+anchors in `AgentReportFixture.cpp` into a temporary include. It checks complete
+native Soldier constructor initialization, three death/history joins and the
+unchanged living roster using synthetic in-memory models. It does not execute
+the surrounding campaign bootstrap, Game, UI, resource loading or save-file handling (the model test inspects in-memory
+Soldier serialization only).
+The matching existing native object closure and relevant model sources are
+sealed alongside the extracted loop; the usual explicit-manifest limitations
+still apply. Without both options, only the original nine parser cases run.
