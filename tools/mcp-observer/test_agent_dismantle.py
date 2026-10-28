@@ -10,7 +10,7 @@ from test_agent_control import state, arguments, NativeFixture, CHALLENGE, EPOCH
 class DismantleTests(unittest.TestCase):
     def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
     def test_schema_closed_state_fields_and_labels(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/36')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/37')
         self.assertEqual(a.STATE_ACTIONS['dismantle_facility'],{'confirm_dismantle_facility','cancel_dismantle_facility'})
         for screen in ('basescape','dismantle_facility'):
             obj=state(screen=screen);self.check(obj)
@@ -62,7 +62,7 @@ class DismantleTests(unittest.TestCase):
         for grid in (None,dict(columns=6,rows=6,origin_x=0,origin_y=0,cell_size=32,cells=[])):
             o=state(screen='basescape');o['visible']['grid']=grid
             with self.assertRaises(Unavailable):self.check(o)
-            o['actions']=[x for x in o['actions'] if x['id']!='click_base_facility_cell'];self.check(o)
+            o['actions']=[x for x in o['actions'] if x['id'] not in ('click_base_facility_cell','right_click_base_facility_cell')];self.check(o)
         for mode in ('stale','unlisted','mutated','changed_base'):
             peer=NativeFixture(screen='basescape')
             try:

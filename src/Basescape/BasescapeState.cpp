@@ -630,6 +630,7 @@ bool BasescapeState::agentUiState(Observer::AgentUiState &out) const
         if(cellCount) {
             grid="{\"columns\":6,\"rows\":6,\"origin_x\":"+std::to_string(_view->getX())+",\"origin_y\":"+std::to_string(_view->getY())+",\"cell_size\":32,\"cells\":"+cells+"}";
             out.actions.emplace_back("click_base_facility_cell","Select visible base facility","visible_control_semantics","facility_cell");
+            out.actions.emplace_back("right_click_base_facility_cell","Open visible base facility","visible_control_semantics","facility_cell");
         }
     }
     // Trailing count delimits cell indices from existing name authority metadata.
@@ -664,13 +665,13 @@ bool BasescapeState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState fresh;
     if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
-    if(request.action=="click_base_facility_cell") {
+    if(request.action=="click_base_facility_cell" || request.action=="right_click_base_facility_cell") {
         if(request.x<0 || request.y<0 || request.x>5 || request.y>5 || fresh.context.empty())return false;
         const auto count=fresh.context.back();
         if(count>36 || count>=fresh.context.size())return false;
         const auto end=fresh.context.end()-1,begin=end-count;
         if(std::find(begin,end,request.y*6+request.x)==end)return false;
-        return _view->agentFacilityClick(this,request.x,request.y);
+        return request.action=="right_click_base_facility_cell" ? _view->agentFacilityRightClick(this,request.x,request.y) : _view->agentFacilityClick(this,request.x,request.y);
     }
     if (request.action=="select_base")
     {

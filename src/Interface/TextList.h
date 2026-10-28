@@ -181,6 +181,13 @@ private:
 		std::uint64_t textRevisions[5], presentationRevisions[5];
 		SDL_Rect geometry[5];
 	};
+    // ManageAlienContainmentState-only logical four-cell arrow viewport.
+    bool _agentContainmentCells = false;
+    std::vector<AgentReportCapture> _agentDrawContainmentRows, _agentPaintContainmentRows;
+    const Surface *_agentContainmentDestination = nullptr;
+    SDL_Rect _agentContainmentClip = {};
+    std::uint64_t _agentContainmentDrawEpoch = 0, _agentContainmentEpoch = 0;
+    void agentCaptureContainmentRow(size_t logicalIndex, int y);
 	unsigned _agentReportColumns = 0;
 	bool _agentReportCells = false, _agentReportCaptureHealthy = true, _agentReportEpochExhausted = false;
 	std::uint64_t _agentReportDrawEpoch = 0, _agentReportPaintEpoch = 0;
@@ -241,6 +248,9 @@ public:
 	void agentEnableSaveListCells(bool newSlot);
 	bool agentSaveListRows(std::vector<AgentOutfittingRow> &rows) const;
 	bool agentSelectSaveListRow(size_t logicalIndex);
+    void agentEnableContainmentCells();
+    bool agentContainmentRows(const Surface *destination, std::vector<AgentOutfittingRow> &rows, std::uint64_t &epoch) const;
+    bool agentContainmentArrowClick(const Surface *destination, size_t logicalIndex, bool increase, State *state);
 	void agentEnableReportCells(unsigned columns);
 	bool agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const;
 	void agentEnablePromotionCells();

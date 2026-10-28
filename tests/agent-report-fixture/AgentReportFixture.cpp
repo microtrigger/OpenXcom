@@ -10,6 +10,8 @@
 #include "../../src/Savegame/SavedGame.h"
 #include "../../src/Savegame/SavedBattleGame.h"
 #include "../../src/Savegame/Base.h"
+#include "../../src/Savegame/BaseFacility.h"
+#include "../../src/Mod/RuleBaseFacility.h"
 #include "../../src/Savegame/Craft.h"
 #include "../../src/Savegame/ItemContainer.h"
 #include "../../src/Mod/RuleCraft.h"
@@ -35,7 +37,7 @@
 namespace OpenXcom { namespace AgentReportFixture {
 namespace {
 bool requested = false, finished = false, gameplay = false, armored = false, equippedVehicle = false, missionContext = false;
-bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false, completionCampaign = false, outfittingCampaign = false;
+bool inventoryBody = false, inventoryPaging = false, manufactureCampaign = false, completionCampaign = false, outfittingCampaign = false, containmentCampaign = false;
 void require(bool condition) { if (!condition) throw Exception("Isolated report fixture setup unavailable"); }
 YAML::Node position(int x,int y,int z=0)
 { YAML::Node n; n.push_back(x);n.push_back(y);n.push_back(z);return n; }
@@ -57,9 +59,10 @@ void prepare(int &argc,char **argv)
     for(int i=1;i<argc;++i)
     {
         if(std::string(argv[i])!="--agent-report-fixture") continue;
-        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1" || std::string(argv[i+1])=="completion-medikit-v1" || std::string(argv[i+1])=="outfitting-stock-v1"));
+        require(!requested && i+1<argc && (std::string(argv[i+1])=="alien-control-v1" || std::string(argv[i+1])=="gameplay-v1" || std::string(argv[i+1])=="gameplay-armored-v1" || std::string(argv[i+1])=="gameplay-vehicle-v1" || std::string(argv[i+1])=="gameplay-mission-v1" || std::string(argv[i+1])=="inventory-body-v1" || std::string(argv[i+1])=="inventory-paging-v1" || std::string(argv[i+1])=="manufacture-medikit-v1" || std::string(argv[i+1])=="completion-medikit-v1" || std::string(argv[i+1])=="outfitting-stock-v1" || std::string(argv[i+1])=="containment-stock-v1"));
         const char *mode=std::getenv("OPENXCOM_AGENT_CONTROL");
         require(mode && std::string(mode)=="1");
+        containmentCampaign=std::string(argv[i+1])=="containment-stock-v1";
         outfittingCampaign=std::string(argv[i+1])=="outfitting-stock-v1";
         completionCampaign=std::string(argv[i+1])=="completion-medikit-v1";
         manufactureCampaign=completionCampaign || std::string(argv[i+1])=="manufacture-medikit-v1";
@@ -85,6 +88,50 @@ bool start(Game *game)
     require(master=="xcom1" || master=="xcom2");
     const bool underwater=master=="xcom2";
     Mod *mod=game->getMod();
+    if (containmentCampaign)
+    {
+        require(!Options::debugUi);
+        // Explicit synthetic owned stock, not a capture/research achievement.
+        // This one-shot bootstrap cannot be invoked by MCP or against a save.
+        std::unique_ptr<SavedGame> campaign(mod->newSave());
+        require(campaign && campaign->getBases()->size()==1 &&
+            campaign->getDiscoveredResearch().empty() && !campaign->getSavedBattle());
+        Base *base=campaign->getBases()->front();
+        RuleBaseFacility *rule=mod->getBaseFacility("STR_ALIEN_CONTAINMENT",true);
+        const std::string captive=underwater?"STR_AQUATOID_SOLDIER":"STR_SECTOID_SOLDIER";
+        RuleItem *item=mod->getItem(captive,true);
+        require(rule && rule->getSize()==1 && rule->getAliens()>=2 && item && item->isAlien());
+        require(base->getAvailableContainment()==0 && base->getUsedContainment()==0);
+        bool occupied[6][6]={};
+        for (BaseFacility *facility:*base->getFacilities())
+        {
+            require(facility && facility->getRules() && facility->getBuildTime()==0);
+            const int x=facility->getX(),y=facility->getY(),size=facility->getRules()->getSize();
+            require(x>=0 && y>=0 && size>0 && x+size<=6 && y+size<=6);
+            for(int dy=0;dy<size;++dy)for(int dx=0;dx<size;++dx)
+            { require(!occupied[x+dx][y+dy]);occupied[x+dx][y+dy]=true; }
+        }
+        int targetX=-1,targetY=-1;
+        for(int y=0;y<6 && targetX<0;++y)for(int x=0;x<6;++x)
+            if(!occupied[x][y] && ((x>0&&occupied[x-1][y]) || (x<5&&occupied[x+1][y]) ||
+                (y>0&&occupied[x][y-1]) || (y<5&&occupied[x][y+1])))
+            {targetX=x;targetY=y;break;}
+        require(targetX>=0);
+        std::unique_ptr<BaseFacility> facility(new BaseFacility(rule,base));
+        facility->setX(targetX);facility->setY(targetY);facility->setBuildTime(0);
+        base->getFacilities()->push_back(facility.release());
+        require(base->getStorageItems()->getItem(captive)==0);
+        base->getStorageItems()->addItem(captive,2);
+        base->setName("MCP Containment");
+        const double longitude=underwater?0.0:0.15,latitude=underwater?0.0:-0.85;
+        base->setLongitude(longitude);base->setLatitude(latitude);
+        for(Craft *craft:*base->getCrafts()){craft->setLongitude(longitude);craft->setLatitude(latitude);}
+        require(base->getUsedContainment()==2 && base->getAvailableContainment()==rule->getAliens() &&
+            campaign->getDiscoveredResearch().empty() && !campaign->getSavedBattle());
+        campaign->setDifficulty(DIFF_BEGINNER);campaign->setIronman(false);
+        game->setSavedGame(campaign.release());game->setState(new GeoscapeState);
+        finished=true;return true;
+    }
     if (outfittingCampaign)
     {
         // Explicit stock-only test preconditions, never achievements or an MCP oracle.

@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/36"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/37"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/36\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/37\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -54,6 +54,7 @@ bool agentActionId(const std::string &value)
         value == "return_geoscape" || value == "open_base_info" || value == "close_base_info" ||
         value == "open_base_stores" || value == "close_base_stores" ||
         value == "open_base_transfers" || value == "close_base_transfers" ||
+        value == "right_click_base_facility_cell" || value == "increase_containment_removal" || value == "decrease_containment_removal" || value == "remove_selected_aliens" || value == "cancel_containment" ||
         value == "open_monthly_costs" || value == "close_monthly_costs" ||
         value == "open_research" || value == "open_new_research" || value == "select_research_project" ||
         value == "adjust_scientists" || value == "accept_research" || value == "cancel_research_project" ||
@@ -122,14 +123,14 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "select_build_facility") return "facility_row";
-    if (action == "place_facility_cell" || action == "click_base_facility_cell" || action == "place_access_lift_cell") return "facility_cell";
+    if (action == "right_click_base_facility_cell" || action == "place_facility_cell" || action == "click_base_facility_cell" || action == "place_access_lift_cell") return "facility_cell";
     if (action == "change_sale_quantity") return "sale_quantity";
     if (action == "scroll_sell") return "sale_scroll";
     if (action == "change_purchase_quantity") return "purchase_quantity";
     if (action == "set_production_sell") return "boolean_value";
     if (action == "scroll_purchase") return "purchase_scroll";
     if (action == "position_purchase_list") return "purchase_position";
-    if (action == "select_research_project" || action == "select_production_project") return "project_row";
+    if (action == "increase_containment_removal" || action == "decrease_containment_removal" || action == "select_research_project" || action == "select_production_project") return "project_row";
     if (action == "adjust_scientists" || action == "adjust_engineers") return "staff_direction";
     if (action == "choose_geoscape_speed") return "geoscape_speed";
     if (action == "select_base") return "base_target";

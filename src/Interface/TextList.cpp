@@ -1042,6 +1042,8 @@ void TextList::draw()
 	}
 	_agentDrawSaveListRows.clear();
 	_agentSaveListCaptureHealthy = true;
+	_agentDrawContainmentRows.clear();
+    if (_agentContainmentCells && _agentContainmentDrawEpoch != UINT64_MAX) ++_agentContainmentDrawEpoch;
 	_agentDrawReportRows.clear();
 	_agentReportCaptureHealthy = !_agentReportEpochExhausted;
 	if (_agentReportCells)
@@ -1072,7 +1074,7 @@ void TextList::draw()
 			for (std::vector<Text*>::iterator j = _texts[i].begin(); j < _texts[i].end(); ++j)
 			{
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-				if (_agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
+				if (_agentContainmentCells || _agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
 #endif
 				(*j)->setY(y);
 				(*j)->blit(this);
@@ -1082,6 +1084,7 @@ void TextList::draw()
 			agentCaptureCommendationRow(i, y);
 			agentCapturePromotionRow(i, y);
 			agentCaptureReportRow(i, y);
+            agentCaptureContainmentRow(i, y);
 			agentCaptureSaveListRow(i, y);
 			agentCaptureArrivalLogicalRow(i, y);
 			agentCaptureRow(i, y);
@@ -1127,6 +1130,9 @@ void TextList::blit(Surface *surface)
 	_agentPaintSaveListRows.clear();
 	_agentSaveListClip = surface->getSurface()->clip_rect;
 	_agentSaveListDestination = surface;
+    _agentPaintContainmentRows.clear();
+    _agentContainmentDestination = surface;
+    _agentContainmentClip = surface->getSurface()->clip_rect;
 	_agentPaintReportRows.clear();
 	_agentReportPaintEpoch = 0;
 	_agentReportClip = surface->getSurface()->clip_rect;
@@ -1187,7 +1193,7 @@ void TextList::blit(Surface *surface)
 		}
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-		if (_agentPsiTrainingCells || _agentOutfittingColumns==1) _selector->agentTrackPresentation();
+		if (_agentContainmentCells || _agentPsiTrainingCells || _agentOutfittingColumns==1) _selector->agentTrackPresentation();
 #endif
 		_selector->blit(surface);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -1216,6 +1222,9 @@ void TextList::blit(Surface *surface)
 				if (y >= getY())
 				{
 					// only blit arrows that belong to texts that have their first row on-screen
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+                    if (_agentContainmentCells) { _arrowLeft[i]->agentTrackPresentation(); _arrowRight[i]->agentTrackPresentation(); }
+#endif
 					_arrowLeft[i]->blit(surface);
 					_arrowRight[i]->blit(surface);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -1240,6 +1249,10 @@ void TextList::blit(Surface *surface)
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 		_agentPaintOrder.push_back(_up); _agentPaintOrder.push_back(_down);
 		_agentPaintOrder.push_back(_scrollbar);
+        if (_agentContainmentCells && _agentContainmentDrawEpoch != UINT64_MAX) {
+            _agentPaintContainmentRows = _agentDrawContainmentRows;
+            _agentContainmentEpoch = _agentContainmentDrawEpoch;
+        }
 		_agentPaintRows = _agentDrawRows;
 		_agentPaintControls = _agentDrawControls;
 		_agentPaintPurchaseRows = _agentDrawPurchaseRows;
@@ -2344,6 +2357,117 @@ bool TextList::agentPromotionRows(std::vector<AgentOutfittingRow> &rows) const
 		rows.push_back(row);
 	}
 	return true;
+}
+
+void TextList::agentEnableContainmentCells()
+{
+    if (!_agentContainmentCells) {
+        _agentContainmentCells=true;++_agentListRevision;_redraw=true;agentTrackPresentation();
+        _up->agentTrackPresentation();_down->agentTrackPresentation();_scrollbar->agentTrackPresentation();
+    }
+}
+void TextList::agentCaptureContainmentRow(size_t logicalIndex,int y)
+{
+    if(!_agentContainmentCells || !_font || _comboBox || !_selectable || !_bg || !_selector ||
+        _dot || _wrap || _condensed || _flooding || _arrowPos<0 || _arrowType!=ARROW_HORIZONTAL ||
+        _columns.size()!=4 || logicalIndex>=_texts.size() || _texts[logicalIndex].size()!=4 ||
+        std::count(_rows.begin(),_rows.end(),logicalIndex)!=1 || _agentDrawContainmentRows.size()>=128)return;
+    const int step=_font->getHeight()+_font->getSpacing();
+    const auto physical=std::find(_rows.begin(),_rows.end(),logicalIndex);
+    if(step<=0 || physical==_rows.end() || y!=(static_cast<int>(physical-_rows.begin())-static_cast<int>(_scroll))*step ||
+        y<0 || y+step>getHeight() || getWidth()<=0 || getWidth()>640 || getHeight()>400)return;
+    AgentReportCapture capture={};capture.row.logicalIndex=logicalIndex;
+    capture.row.bounds={static_cast<Sint16>(getX()),static_cast<Sint16>(getY()+y),static_cast<Uint16>(getWidth()),static_cast<Uint16>(step)};
+    capture.row.clickBand=capture.row.bounds;capture.row.cells.resize(4);
+    int x=_margin;
+    for(size_t col=0;col<4;++col){
+        const Text *cell=_texts[logicalIndex][col];capture.cells[col]=cell;
+        capture.textRevisions[col]=cell->agentTextRevision();capture.presentationRevisions[col]=cell->agentPresentationRevision();
+        capture.geometry[col]={static_cast<Sint16>(cell->getX()),static_cast<Sint16>(cell->getY()),static_cast<Uint16>(cell->getWidth()),static_cast<Uint16>(cell->getHeight())};
+        auto &value=capture.row.cells[col];const int left=std::max(0,x),right=std::min(getWidth(),x+static_cast<int>(_columns[col]));
+        value.known=cell->agentPresentationPaintedTo(this) && cell->getX()==x && cell->getY()==y &&
+            cell->getWidth()==static_cast<int>(_columns[col]) && _columns[col]>0 && _columns[col]<=640 &&
+            left<right && x>=left && cell->getText().size()<=1024 &&
+            _lang && _lang->getTextDirection()==DIRECTION_LTR &&
+            cell->getAlign()==ALIGN_LEFT && cell->getVerticalAlign()==ALIGN_TOP &&
+            cell->getTextWidth()<=right-left && cell->getTextHeight()<=cell->getHeight() &&
+            y+cell->getTextHeight()<=getHeight();
+        // A visible allocation sliver does not expose a clipped caption's
+        // suffix. Bound the logical text extent, without testing glyph pixels.
+        if(value.known){
+            UString shown=Unicode::convUtf8ToUtf32(cell->getText());shown.erase(std::remove(shown.begin(),shown.end(),Unicode::TOK_COLOR_FLIP),shown.end());
+            value.text=Unicode::convUtf32ToUtf8(shown);value.regions.push_back({static_cast<Sint16>(getX()+left),static_cast<Sint16>(getY()+y),static_cast<Uint16>(right-left),static_cast<Uint16>(step)});
+        }
+        x+=static_cast<int>(_columns[col]);
+    }
+    _agentDrawContainmentRows.push_back(capture);
+}
+bool TextList::agentContainmentRows(const Surface *destination,std::vector<AgentOutfittingRow> &rows,std::uint64_t &epoch) const
+{
+    rows.clear();epoch=0;
+    if(!_agentContainmentCells || !_agentContainmentEpoch || _agentContainmentEpoch!=_agentContainmentDrawEpoch || _agentContainmentEpoch==UINT64_MAX ||
+        destination!=_agentContainmentDestination || !agentPresentationPaintedTo(destination) ||
+        !Observer::agentWidgetVisible(this) || _agentPaintRevision!=_agentListRevision || !Observer::agentPaintHealthy() ||
+        _comboBox || !_selectable || !_bg || !_selector || _dot || _wrap || _condensed || _flooding ||
+        _columns.size()!=4 || _arrowPos<0 || _arrowType!=ARROW_HORIZONTAL)return false;
+    const auto clipped=[&](const SDL_Rect&r){return r.w && r.h && r.x>=_agentContainmentClip.x && r.y>=_agentContainmentClip.y &&
+        r.x+r.w<=_agentContainmentClip.x+_agentContainmentClip.w && r.y+r.h<=_agentContainmentClip.y+_agentContainmentClip.h;};
+    for(const auto &capture:_agentPaintContainmentRows){
+        AgentOutfittingRow row=capture.row;
+        if(row.logicalIndex>=_texts.size() || _texts[row.logicalIndex].size()!=4 || std::count(_rows.begin(),_rows.end(),row.logicalIndex)!=1)return false;
+        for(size_t col=0;col<4;++col){
+            const Text *cell=_texts[row.logicalIndex][col];const auto &g=capture.geometry[col];
+            if(cell!=capture.cells[col] || cell->_redraw || cell->agentTextRevision()!=capture.textRevisions[col] ||
+                cell->agentPresentationRevision()!=capture.presentationRevisions[col] ||
+                (row.cells[col].known&&!cell->agentPresentationPaintedTo(this)) ||
+                cell->getX()!=g.x || cell->getY()!=g.y || cell->getWidth()!=g.w || cell->getHeight()!=g.h){rows.clear();return false;}
+        }
+        if(!clipped(row.bounds))continue;
+        if(row.logicalIndex>=_arrowLeft.size() || row.logicalIndex>=_arrowRight.size()){rows.clear();return false;}
+        // Native arrow buttons are a composite of the list, but can genuinely
+        // cover a long value. Check text extents, not whole column allocations
+        // (stock short numeric values share those allocations with arrows).
+        for(size_t col=0;col<4;++col)if(row.cells[col].known){
+            const Text *cell=_texts[row.logicalIndex][col];
+            const int x=getX()+cell->getX(),y=getY()+cell->getY();
+            const int width=cell->getTextWidth(),height=cell->getTextHeight();
+            for(const ArrowButton *button:{_arrowLeft[row.logicalIndex],_arrowRight[row.logicalIndex]})
+                if(button && button->getVisible() && button->agentPresentationPaintedTo(destination) &&
+                    width>0 && height>0 && x<button->getX()+button->getWidth() && x+width>button->getX() &&
+                    y<button->getY()+button->getHeight() && y+height>button->getY())row.cells[col].known=false;
+        }
+        const auto arrow=[&](const ArrowButton *button)->const Surface*{
+            if(!button || !button->agentPresentationPaintedTo(destination) || !Observer::agentWidgetUncovered(button,_agentPaintOrder))return nullptr;
+            SDL_Rect r={static_cast<Sint16>(button->getX()),static_cast<Sint16>(button->getY()),static_cast<Uint16>(button->getWidth()),static_cast<Uint16>(button->getHeight())};
+            if(!clipped(r) || r.y<row.bounds.y || r.y+r.h>row.bounds.y+row.bounds.h)return nullptr;
+            return button;
+        };
+        row.increase=row.logicalIndex<_arrowRight.size()?arrow(_arrowRight[row.logicalIndex]):nullptr;
+        row.decrease=row.logicalIndex<_arrowLeft.size()?arrow(_arrowLeft[row.logicalIndex]):nullptr;
+        row.selected=_selector->agentPresentationPaintedTo(destination) && _selector->agentContextVisible() &&
+            _selector->getX()==row.bounds.x && _selector->getY()==row.bounds.y && _selector->getWidth()==row.bounds.w && _selector->getHeight()==row.bounds.h;
+        rows.push_back(row);
+    }
+    epoch=_agentContainmentEpoch;return true;
+}
+bool TextList::agentContainmentArrowClick(const Surface *destination,size_t logicalIndex,bool increase,State *state)
+{
+    std::vector<AgentOutfittingRow> rows;std::uint64_t epoch=0;
+    if(!state || !agentContainmentRows(destination,rows,epoch))return false;
+    for(const auto &row:rows)if(row.logicalIndex==logicalIndex){
+        const Surface *shown=increase?row.increase:row.decrease;if(!shown)return false;
+        ArrowButton *button=increase?_arrowRight[logicalIndex]:_arrowLeft[logicalIndex];
+        const int x=button->getX()+button->getWidth()/2,y=button->getY()+button->getHeight()/2;
+        SDL_Event motion={};motion.type=SDL_MOUSEMOTION;motion.motion.x=x;motion.motion.y=y;
+        Action hover(&motion,1.0,1.0,0,0);hover.setSender(this);hover.setMouseAction(x,y,getX(),getY());mouseOver(&hover,state);
+        if(getSelectedRow()!=logicalIndex)return false;
+        SDL_Event down={};down.type=SDL_MOUSEBUTTONDOWN;down.button.button=SDL_BUTTON_LEFT;down.button.x=x;down.button.y=y;
+        Action press(&down,1.0,1.0,0,0);press.setSender(button);press.setMouseAction(x,y,button->getX(),button->getY());button->mousePress(&press,state);
+        SDL_Event up=down;up.type=SDL_MOUSEBUTTONUP;Action release(&up,1.0,1.0,0,0);release.setSender(button);release.setMouseAction(x,y,button->getX(),button->getY());
+        // Ordinary release stops repeat timers before the one-click continuation.
+        button->mouseRelease(&release,state);button->mouseClick(&release,state);return true;
+    }
+    return false;
 }
 
 void TextList::agentEnableReportCells(unsigned columns)

@@ -592,7 +592,11 @@ bool BaseView::agentFacilityPresented(const Surface *destination) const
 }
 bool BaseView::agentFacilityClick(State *state,int x,int y)
 {
-    return _agentFacilityTracked && agentNativeCellClick(state,x,y);
+    return _agentFacilityTracked && agentNativeCellClick(state,x,y,SDL_BUTTON_LEFT);
+}
+bool BaseView::agentFacilityRightClick(State *state,int x,int y)
+{
+    return _agentFacilityTracked && agentNativeCellClick(state,x,y,SDL_BUTTON_RIGHT);
 }
 void BaseView::agentEnablePlacement()
 {
@@ -619,9 +623,9 @@ bool BaseView::agentPlacementPresented(const Surface *destination) const
 }
 bool BaseView::agentPlacementClick(State *state,int x,int y)
 {
-    return _agentPlacementTracked && agentNativeCellClick(state,x,y);
+    return _agentPlacementTracked && agentNativeCellClick(state,x,y,SDL_BUTTON_LEFT);
 }
-bool BaseView::agentNativeCellClick(State *state,int x,int y)
+bool BaseView::agentNativeCellClick(State *state,int x,int y,Uint8 button)
 {
     if(!state || !agentContextVisible() ||
         getWidth()!=BASE_SIZE*GRID_SIZE || getHeight()!=BASE_SIZE*GRID_SIZE ||
@@ -630,7 +634,7 @@ bool BaseView::agentNativeCellClick(State *state,int x,int y)
     SDL_Event motion={};motion.type=SDL_MOUSEMOTION;motion.motion.x=centerX;motion.motion.y=centerY;
     Action hover(&motion,1.0,1.0,0,0);hover.setSender(this);hover.setMouseAction(centerX,centerY,getX(),getY());
     mouseOver(&hover,state);
-    SDL_Event event={};event.type=SDL_MOUSEBUTTONUP;event.button.button=SDL_BUTTON_LEFT;event.button.x=centerX;event.button.y=centerY;
+    SDL_Event event={};event.type=SDL_MOUSEBUTTONUP;event.button.button=button;event.button.x=centerX;event.button.y=centerY;
     Action click(&event,1.0,1.0,0,0);click.setSender(this);click.setMouseAction(centerX,centerY,getX(),getY());
     // Registered ordinary callback owns legality, errors, funds and mutation.
     // Never prefilter via isPlaceable or set the hidden grid selection fields.
