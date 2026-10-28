@@ -1967,7 +1967,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		for (size_t column = 0; column < _texts[logicalIndex].size(); ++column)
 		{
 			const Text *cell = _texts[logicalIndex][column];
-            if (_agentOutfittingColumns==1) {
+            if (_agentOutfittingColumns==1 && !_agentOutfittingPaintedSingleColumn) {
                 if(cell->agentContextVisible() && cell->getText().size()<=1024) {
                     row.cells[column].known=true;
                     UString shown=Unicode::convUtf8ToUtf32(cell->getText());
@@ -3195,15 +3195,16 @@ bool TextList::agentSelectPsiTrainingRow(size_t logicalIndex)
 // gains this route implicitly. The normal renderer/layout is unchanged.
 void TextList::agentEnableFacilityCells()
 {
-    if (_agentOutfittingColumns != 1 || _agentOutfittingEquipment || _agentOutfittingCrew) {
+    if (_agentOutfittingColumns != 1 || _agentOutfittingEquipment || _agentOutfittingCrew || _agentOutfittingPaintedSingleColumn) {
         _agentOutfittingColumns=1; _agentOutfittingEquipment=false; _agentOutfittingCrew=false;
+        _agentOutfittingPaintedSingleColumn=false;
         ++_agentListRevision; _redraw=true; agentTrackPresentation();
     }
 }
 bool TextList::agentFacilityRows(const Surface *destination, std::vector<AgentOutfittingRow> &rows) const
 {
     rows.clear();
-    if (_agentOutfittingColumns!=1 || _agentOutfittingEquipment || _agentOutfittingCrew ||
+    if (_agentOutfittingColumns!=1 || _agentOutfittingEquipment || _agentOutfittingCrew || _agentOutfittingPaintedSingleColumn ||
         _columns.size()!=1 || _comboBox || !_selectable || !_bg || !_selector || _arrowPos!=-1 ||
         _agentPaintRevision!=_agentListRevision || !_agentCoverageHealthy || !Observer::agentPaintHealthy() ||
         !Observer::agentWidgetVisible(this) || !agentPresentationPaintedTo(destination)) return false;
@@ -3237,11 +3238,21 @@ bool TextList::agentSelectFacilityRow(const Surface *destination,size_t logicalI
     return false;
 }
 
+void TextList::agentEnablePaintedSingleColumn()
+{
+    if (_agentOutfittingColumns != 1 || _agentOutfittingEquipment || _agentOutfittingCrew || !_agentOutfittingPaintedSingleColumn)
+    {
+        _agentOutfittingColumns = 1; _agentOutfittingEquipment = false; _agentOutfittingCrew = false;
+        _agentOutfittingPaintedSingleColumn = true;
+        ++_agentListRevision; _redraw = true;
+    }
+}
+
 void TextList::agentEnableOutfitting(unsigned columns, bool equipment, bool crew)
 {
 	if ((columns != 2 && columns != 3 && columns != 5) || (equipment && (columns != 3 || crew))) return;
-	if (_agentOutfittingColumns != columns || _agentOutfittingEquipment != equipment || _agentOutfittingCrew != crew)
-	{ _agentOutfittingColumns = columns; _agentOutfittingEquipment = equipment; _agentOutfittingCrew = crew; ++_agentListRevision; _redraw = true; }
+	if (_agentOutfittingColumns != columns || _agentOutfittingEquipment != equipment || _agentOutfittingCrew != crew || _agentOutfittingPaintedSingleColumn)
+	{ _agentOutfittingPaintedSingleColumn = false; _agentOutfittingColumns = columns; _agentOutfittingEquipment = equipment; _agentOutfittingCrew = crew; ++_agentListRevision; _redraw = true; }
 }
 
 bool TextList::agentOutfittingRows(std::vector<AgentOutfittingRow> &rows) const

@@ -236,6 +236,7 @@ private:
 	void agentCapturePsiRow(size_t logicalIndex, int y);
 	unsigned _agentOutfittingColumns = 0;
 	bool _agentOutfittingEquipment = false, _agentOutfittingCrew = false;
+	bool _agentOutfittingPaintedSingleColumn = false;
 	std::vector<AgentOutfittingRow> _agentDrawOutfittingRows, _agentPaintOutfittingRows;
 	SDL_Rect _agentOutfittingClip = {};
 	SDL_Rect _agentListClip = {};
@@ -257,6 +258,8 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentRows(std::vector<AgentListRow> &rows) const;
 	void agentEnableOutfitting(unsigned columns, bool equipment = false, bool crew = false);
+	/// Strict painted one-column cells, separate from facility logical labels.
+	void agentEnablePaintedSingleColumn();
     // BuildFacilitiesState-only single-cell paint proof. Legacy lists unchanged.
     void agentEnableFacilityCells();
     bool agentFacilityRows(const Surface *destination, std::vector<AgentOutfittingRow> &rows) const;

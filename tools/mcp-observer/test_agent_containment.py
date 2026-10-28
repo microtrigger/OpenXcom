@@ -9,7 +9,7 @@ ACTIONS={'right_click_base_facility_cell','increase_containment_removal','decrea
 class ContainmentTests(unittest.TestCase):
  def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
  def test_schema_fields_and_nullable_cells(self):
-  self.assertEqual(a.SCHEMA,'openxcom-agent-control/46');o=state(screen='manage_containment');self.check(o)
+  self.assertEqual(a.SCHEMA,'openxcom-agent-control/47');o=state(screen='manage_containment');self.check(o)
   for key in o['visible']:
    bad=copy.deepcopy(o);del bad['visible'][key]
    with self.assertRaises(Unavailable):self.check(bad)

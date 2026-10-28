@@ -24,8 +24,8 @@ class BodyValidationTests(unittest.TestCase):
         return a.validate_state(inventory(visible), CHALLENGE, EPOCH)
 
     def test_version_and_unchanged_authority_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/46')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (237, 101, 7))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/47')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (242, 103, 7))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertEqual(a.MAX_PACKET, 49152)
         self.assertEqual(a.MAX_REQUEST, 512)
@@ -78,7 +78,7 @@ class BodyValidationTests(unittest.TestCase):
         native=InventoryFixture(transform=lambda operation,value: dict(value,schema='openxcom-agent-control/11') if operation=='H' else value)
         self.addCleanup(native.close)
         with self.assertRaises(Unavailable):native.client.observe()
-        self.assertEqual(native.requests,[b'H openxcom-agent-control/46'])
+        self.assertEqual(native.requests,[b'H openxcom-agent-control/47'])
         self.assertEqual(native.client.state,'CLOSED')
 
 

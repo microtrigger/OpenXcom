@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/46'
+SCHEMA = 'openxcom-agent-control/47'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -76,7 +76,7 @@ ACTIONS = ('move_cursor', 'next_soldier', 'previous_soldier', 'kneel', 'stand', 
            'open_memorial', 'select_memorial_soldier', 'close_memorial', 'open_soldiers', 'select_soldier', 'close_soldiers', 'previous_personnel',
            'select_diary_mission', 'open_diary_combat', 'open_diary_awards', 'previous_diary_mission', 'next_diary_mission', 'close_diary_mission', 'next_personnel', 'open_soldier_diary', 'open_diary_performance', 'close_soldier_diary', 'close_diary_performance', 'open_soldier_armor', 'close_soldier_info', 'open_crafts',
            'select_craft', 'close_crafts', 'open_craft_crew', 'open_craft_equipment',
-           'open_craft_armor', 'open_craft_weapon_1', 'open_craft_weapon_2', 'select_craft_weapon', 'cancel_craft_weapons', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
+           'open_ufopaedia', 'select_ufopaedia_category', 'close_ufopaedia', 'select_ufopaedia_article', 'close_ufopaedia_select', 'open_craft_armor', 'open_craft_weapon_1', 'open_craft_weapon_2', 'select_craft_weapon', 'cancel_craft_weapons', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
            'close_craft_crew', 'change_craft_equipment', 'close_craft_equipment', 'select_craft_armor_soldier',
            'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor',
            'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')
@@ -180,7 +180,7 @@ OUTFITTING_ROW_ACTIONS = {
     'craft_armor': ('select_craft_armor_soldier',),
     'soldier_armor': ('select_soldier_armor',),
 }
-OUTFITTING_SEMANTIC_LABELS = {'select_craft_weapon': 'Select armament', 'toggle_psi_training': 'Toggle psi training', 'select_soldier': 'Select soldier', 'select_craft': 'Select craft', 'set_craft_soldier': 'Set craft assignment', 'open_craft_soldier_info': 'Inspect soldier', 'change_craft_equipment': 'Change craft equipment', 'select_craft_armor_soldier': 'Select soldier armor', 'select_soldier_armor': 'Select armor'}
+OUTFITTING_SEMANTIC_LABELS = {'select_ufopaedia_category': 'Select category', 'select_ufopaedia_article': 'Select article', 'select_craft_weapon': 'Select armament', 'toggle_psi_training': 'Toggle psi training', 'select_soldier': 'Select soldier', 'select_craft': 'Select craft', 'set_craft_soldier': 'Set craft assignment', 'open_craft_soldier_info': 'Inspect soldier', 'change_craft_equipment': 'Change craft equipment', 'select_craft_armor_soldier': 'Select soldier armor', 'select_soldier_armor': 'Select armor'}
 RESEARCH_NOTICE_STATES = ('new_possible_research', 'new_possible_manufacture')
 RESEARCH_COMPLETION_FIELDS = {'research_complete': 'title topic buttons',
  'new_possible_research': 'title rows scroll buttons',
@@ -229,7 +229,7 @@ ARGUMENT_KINDS.update(choose_visible_craft_destination='visible_row', load_saved
                       change_production_quantity='production_quantity', set_production_sell='boolean_value',
                       change_sale_quantity='sale_quantity', scroll_sell='sale_scroll', change_transfer_quantity='transfer_quantity', change_purchase_quantity='purchase_quantity', scroll_purchase='purchase_scroll',
                       position_purchase_list='purchase_position',
-                      select_craft_weapon='outfitting_row', select_memorial_soldier='project_row', select_soldier='outfitting_row', select_craft='outfitting_row', set_craft_soldier='crew_assignment', open_craft_soldier_info='outfitting_row', change_craft_equipment='equipment_quantity', select_craft_armor_soldier='outfitting_row', select_soldier_armor='outfitting_row')
+                      select_ufopaedia_category='outfitting_row', select_ufopaedia_article='outfitting_row', select_craft_weapon='outfitting_row', select_memorial_soldier='project_row', select_soldier='outfitting_row', select_craft='outfitting_row', set_craft_soldier='crew_assignment', open_craft_soldier_info='outfitting_row', change_craft_equipment='equipment_quantity', select_craft_armor_soldier='outfitting_row', select_soldier_armor='outfitting_row')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
@@ -272,7 +272,9 @@ STATE_ACTIONS = {
     'confirm_new_base': frozenset(('confirm_new_base', 'cancel_new_base_confirmation')),
     'place_lift': frozenset(('place_access_lift_cell',)),
     'dogfight': frozenset(('choose_dogfight_mode',)),
-    'geoscape': frozenset(('open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
+    'ufopaedia_start': frozenset(('select_ufopaedia_category', 'close_ufopaedia', 'scroll_visible_list')),
+    'ufopaedia_select': frozenset(('select_ufopaedia_article', 'close_ufopaedia_select', 'scroll_visible_list')),
+    'geoscape': frozenset(('open_ufopaedia', 'open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
     'basescape': frozenset(('open_new_base', 'select_base', 'click_base_facility_cell', 'right_click_base_facility_cell', 'open_base_info', 'open_build_facilities', 'open_research', 'open_manufacture', 'open_purchase', 'open_sell', 'open_transfer', 'open_soldiers', 'open_crafts', 'return_geoscape')),
     'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers', 'open_monthly_costs')),
     'manage_containment': frozenset(('increase_containment_removal','decrease_containment_removal','scroll_visible_list','remove_selected_aliens','cancel_containment')),
@@ -493,7 +495,7 @@ def validate_geoscape(visible, actions):
         require(type(button['id']) is str and button['id'] in GEOSCAPE_BUTTONS and button['id'] not in seen)
         seen.add(button['id'])
         visible_text(button['label']); require(bool(button['label']))
-    for action, button in (('open_interception', 'intercept'), ('open_funding', 'funding'), ('open_bases', 'bases'), ('open_pause_menu', 'options')):
+    for action, button in (('open_interception', 'intercept'), ('open_funding', 'funding'), ('open_bases', 'bases'), ('open_pause_menu', 'options'), ('open_ufopaedia', 'ufopaedia')):
         require(action not in actions or button in seen)
     speeds = visible['speeds']
     require(type(speeds) is list and len(speeds) <= len(GEOSCAPE_SPEED_HANDLES))
@@ -506,6 +508,37 @@ def validate_geoscape(visible, actions):
         if speed['selected']: selected.append(speed['label'])
     require(len(selected) <= 1 and visible['speed'] == (selected[0] if selected else None))
     require('choose_geoscape_speed' not in actions or bool(speeds))
+
+
+UFOPAEDIA_DIRECTORY = {
+    'ufopaedia_start': ('select_ufopaedia_category', 'close_ufopaedia', 10),
+    'ufopaedia_select': ('select_ufopaedia_article', 'close_ufopaedia_select', 32),
+}
+
+
+def validate_ufopaedia_directory(screen, visible, actions):
+    exact(visible, 'title rows scroll buttons')
+    strategy_text(visible['title'], nullable=True)
+    select, close, limit = UFOPAEDIA_DIRECTORY[screen]
+    rows = visible['rows']
+    require(type(rows) is list and len(rows) <= limit)
+    for index, row in enumerate(rows):
+        exact(row, 'handle cells selected')
+        require(row['handle'] == ROW_HANDLES[index])
+        require(type(row['cells']) is list and len(row['cells']) == 1)
+        strategy_text(row['cells'][0], nullable=True)
+        require(type(row['selected']) is bool)
+        if screen == 'ufopaedia_start': require(row['selected'] is False)
+    exact(visible['scroll'], 'up down')
+    for flag in visible['scroll'].values(): require(type(flag) is bool)
+    require(select not in actions or bool(rows))
+    require('scroll_visible_list' not in actions or any(visible['scroll'].values()))
+    buttons = visible['buttons']
+    require(type(buttons) is list and len(buttons) <= 1)
+    for button in buttons:
+        exact(button, 'id label'); require(button['id'] == 'close')
+        strategy_text(button['label']); require(bool(button['label']))
+    require(close not in actions or bool(buttons))
 
 
 def validate_base_navigation(screen, visible, actions):
@@ -1552,6 +1585,8 @@ def validate_visible(screen, visible, seen, *, presentation=False):
         validate_dogfight(visible, seen)
     elif screen == 'geoscape':
         validate_geoscape(visible, seen)
+    elif screen in UFOPAEDIA_DIRECTORY:
+        validate_ufopaedia_directory(screen, visible, seen)
     elif screen in ('basescape', 'base_info'):
         validate_base_navigation(screen, visible, seen)
     elif screen in PROJECT_BUTTONS:
@@ -1673,7 +1708,7 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
             require(descriptor['label'] == expected)
     if obj['state'] in ('geoscape', 'basescape', 'base_info', 'base_stores', 'base_transfers'):
         buttons = {button['id']: button['label'] for button in obj['visible'].get('buttons', [])}
-        mapping = ({'open_interception':'intercept', 'open_funding': 'funding', 'open_bases': 'bases', 'open_pause_menu': 'options'}
+        mapping = ({'open_ufopaedia':'ufopaedia', 'open_interception':'intercept', 'open_funding': 'funding', 'open_bases': 'bases', 'open_pause_menu': 'options'}
                    if obj['state'] == 'geoscape' else BASE_BUTTON_ACTIONS.get(obj['state'], {}))
         for descriptor in obj['actions']:
             action = descriptor['id']
@@ -1769,6 +1804,15 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
             strategy_text(descriptor['label'])
             expected = ('Scroll visible list' if descriptor['id'] == 'scroll_visible_list' else
                         labels[COMPLETION_BUTTON_ACTIONS[obj['state']][descriptor['id']]])
+            require(descriptor['label'] == expected)
+    if obj['state'] in UFOPAEDIA_DIRECTORY:
+        select, close, _ = UFOPAEDIA_DIRECTORY[obj['state']]
+        buttons = obj['visible']['buttons']
+        require((close in seen) == bool(buttons))
+        for descriptor in obj['actions']:
+            action = descriptor['id']
+            expected = ('Scroll visible list' if action == 'scroll_visible_list' else
+                        OUTFITTING_SEMANTIC_LABELS[select] if action == select else buttons[0]['label'])
             require(descriptor['label'] == expected)
     if obj['state'] in OUTFITTING_FIELDS:
         buttons = {button['id']: button['label'] for button in obj['visible']['buttons']}
@@ -2435,7 +2479,7 @@ class AgentControlClient:
                     self.visible_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
                 if obj['state'] == 'craft_destination_selection':
                     self.visible_rows = frozenset(target['row'] for target in obj['visible']['targets'])
-                if obj['state'] in ('soldier_memorial', 'memorial_soldier_diary', 'memorial_soldier_diary_performance', 'soldier_diary', 'soldier_diary_performance', 'soldier_diary_mission', 'manage_containment', 'build_facilities', 'new_battle_dropdown', 'sell_category', 'purchase_category', 'sell', 'purchase', 'transfer_destination', 'transfer_items', 'intercept_craft', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving', 'cannot_reequip', 'debriefing_soldier_stats', 'statistics') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in RESEARCH_NOTICE_STATES:
+                if obj['state'] in ('soldier_memorial', 'memorial_soldier_diary', 'memorial_soldier_diary_performance', 'soldier_diary', 'soldier_diary_performance', 'soldier_diary_mission', 'manage_containment', 'build_facilities', 'new_battle_dropdown', 'sell_category', 'purchase_category', 'sell', 'purchase', 'transfer_destination', 'transfer_items', 'intercept_craft', 'funding', 'base_stores', 'base_transfers', 'manufacture_start', 'items_arriving', 'cannot_reequip', 'debriefing_soldier_stats', 'statistics') or obj['state'] in PROJECT_LISTS or obj['state'] in OUTFITTING_LISTS or obj['state'] in UFOPAEDIA_DIRECTORY or obj['state'] in RESEARCH_NOTICE_STATES:
                     self.scroll_directions = frozenset(key for key, value in obj['visible']['scroll'].items() if value)
                 if obj['state'] == 'dogfight':
                     self.dogfight_modes = frozenset(button['id'] for button in obj['visible']['buttons'])
@@ -2459,7 +2503,7 @@ class AgentControlClient:
                     self.purchase_rows = frozenset((entry['handle'], direction) for entry in obj['visible']['rows'] for direction in entry['controls'])
                     bar = obj['visible']['scrollbar']
                     self.purchase_targets = frozenset(entry['handle'] for entry in bar['targets']) if bar is not None else frozenset()
-                if obj['state'] in OUTFITTING_LISTS:
+                if obj['state'] in OUTFITTING_LISTS or obj['state'] in UFOPAEDIA_DIRECTORY:
                     self.outfitting_rows = frozenset(row['handle'] for row in obj['visible']['rows'])
                 if obj['state'] == 'craft_equipment':
                     self.equipment_rows = frozenset((row['handle'], direction) for row in obj['visible']['rows'] for direction in row['controls'])

@@ -19,6 +19,9 @@
 
 #include "Ufopaedia.h"
 #include "UfopaediaSelectState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include "../Mod/ArticleDefinition.h"
 #include "../Engine/Game.h"
 #include "../Engine/Options.h"
@@ -66,6 +69,9 @@ namespace OpenXcom
 		_btnOk->onKeyboardPress((ActionHandler)&UfopaediaSelectState::btnOkClick,Options::keyCancel);
 
 		_lstSelection->setColumns(1, 206);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        _lstSelection->agentEnablePaintedSingleColumn();
+#endif
 		_lstSelection->setSelectable(true);
 		_lstSelection->setBackground(_window);
 		_lstSelection->setMargin(18);
@@ -115,5 +121,53 @@ namespace OpenXcom
 			_lstSelection->addRow(1, tr((*it)->title).c_str());
 		}
 	}
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void UfopaediaSelectState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool UfopaediaSelectState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<UfopaediaSelectState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+    // Revalidate only the same player-known filter used by the ordinary UI.
+    // No undiscovered catalog or research requirements enter the projection.
+    ArticleDefinitionList available;
+    Ufopaedia::list(_game->getSavedGame(),_game->getMod(),_section,available);
+    if (available!=_article_list) return false;
+    out=AgentUiState();out.screen="ufopaedia_select";out.actor=this;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle);
+    AgentListProjection list;if (!view.list(_lstSelection,1,false,list)) return false;
+    for (size_t row:out.rows)
+    {
+        if (row>=_article_list.size()) return false;
+        out.widgets.emplace_back(_article_list[row],0);
+    }
+    if (!out.rows.empty()) out.actions.emplace_back("select_ufopaedia_article","Select article","visible_control_semantics","outfitting_row");
+    view.button(_btnOk,"close","close_ufopaedia_select");
+    out.visible="{\"title\":"+title+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool UfopaediaSelectState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="close_ufopaedia_select") { btnOkClick(nullptr);return true; }
+    if(Observer::agentOutfittingScroll(_lstSelection,current,request)) return true;
+    size_t row=0;
+    if(request.action=="select_ufopaedia_article" && Observer::agentOutfittingRow(current,request,row) &&
+        row<_article_list.size() && _lstSelection->agentSelectOutfittingRow(row))
+    { lstSelectionClick(nullptr);return true; }
+    return false;
+}
+#endif
 
 }

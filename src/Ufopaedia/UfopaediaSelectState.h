@@ -37,10 +37,20 @@ namespace OpenXcom
 	class UfopaediaSelectState : public State
 	{
 	public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        void blit() override;
+        bool agentUiState(Observer::AgentUiState &out) const override;
+        bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 		UfopaediaSelectState(const std::string &section);
 		virtual ~UfopaediaSelectState();
 		void init();
 	protected:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        bool _agentDestinationPaintFull=false;
+        std::uint64_t _agentUiRevision=0;
+        std::vector<std::uint64_t> _agentStoredPaintRevisions;
+#endif
 		std::string _section;
 		Window *_window;
 		Text *_txtTitle;
