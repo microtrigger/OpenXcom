@@ -6,7 +6,7 @@ using namespace OpenXcom::Observer;
 static unsigned checks=0;
 static void check(bool ok){++checks;if(!ok){std::cerr<<"FAIL "<<checks<<'\n';std::exit(1);}}
 int main(){AgentRequest r;const std::string t(32,'1'),p="E "+t+" 1 "+t+" "+t+" 1 ";
- check(parseAgentRequest("H openxcom-agent-control/45",r));check(!parseAgentRequest("H openxcom-agent-control/37",r));
+ check(parseAgentRequest("H openxcom-agent-control/46",r));check(!parseAgentRequest("H openxcom-agent-control/37",r));
  for(const std::string a:{"open_soldier_diary","open_diary_performance","close_soldier_diary","close_diary_performance"}){
   check(agentActionId(a));check(std::string(agentArgumentKind(a))=="none");check(parseAgentRequest(p+a,r));check(!parseAgentRequest(p+a+" extra",r));check(!parseAgentRequest(p+a+" soldier_1",r));
  }

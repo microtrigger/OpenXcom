@@ -20,10 +20,10 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/45", "viewport schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/45\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/46", "viewport schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/46\",\"mode\":\"agent-control\"",
         "viewport envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/45", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/46", r) && r.kind == 'H', "exact handshake");
     check(!parseAgentRequest("H openxcom-agent-control/18", r), "prior complete-label-only schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/17", r), "prior geoscape schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/16", r), "previous viewport schema rejected");

@@ -315,7 +315,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
                 'change_purchase_quantity': {'row':'r0','operation':'adjust','value':1},
                 'scroll_purchase': {'direction':'down','amount':'step'},
                 'position_purchase_list': {'target':'t0'},
-                'toggle_psi_training': {'row':'r0'}, 'select_soldier': {'row':'r0'}, 'select_craft': {'row':'r0'},
+                'toggle_psi_training': {'row':'r0'}, 'select_soldier': {'row':'r0'}, 'select_craft': {'row':'r0'}, 'select_craft_weapon': {'row':'r0'},
                 'open_craft_soldier_info': {'row':'r0'}, 'select_craft_armor_soldier': {'row':'r0'},
                 'select_soldier_armor': {'row':'r0'}, 'set_craft_soldier': {'row':'r0','assigned':True},
                 'change_craft_equipment': {'row':'r0','operation':'adjust','value':1}}.get(action, {})
@@ -638,7 +638,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 233); self.assertEqual(len(a.STATE_ACTIONS), 100)
+        self.assertEqual(len(a.ACTIONS), 237); self.assertEqual(len(a.STATE_ACTIONS), 101)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -689,7 +689,7 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 233)
+        self.assertEqual(len(a.ACTIONS), 237)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
             'replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
@@ -703,7 +703,7 @@ class TypedValidationTests(unittest.TestCase):
             'adjust_scientists': 'staff_direction', 'adjust_engineers': 'staff_direction',
             'change_production_quantity':'production_quantity','set_production_sell':'boolean_value',
             'select_memorial_soldier':'project_row','select_diary_mission':'project_row','right_click_base_facility_cell':'facility_cell','increase_containment_removal':'project_row','decrease_containment_removal':'project_row','place_access_lift_cell':'facility_cell','click_base_facility_cell':'facility_cell','place_facility_cell':'facility_cell','select_build_facility':'facility_row','change_sale_quantity':'sale_quantity','scroll_sell':'sale_scroll','change_transfer_quantity':'transfer_quantity','change_purchase_quantity':'purchase_quantity','scroll_purchase':'purchase_scroll','position_purchase_list':'purchase_position',
-            'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row',
+            'toggle_psi_training':'outfitting_row','select_soldier':'outfitting_row','select_craft':'outfitting_row','select_craft_weapon':'outfitting_row',
             'open_craft_soldier_info':'outfitting_row','select_craft_armor_soldier':'outfitting_row',
             'select_soldier_armor':'outfitting_row','set_craft_soldier':'crew_assignment',
             'change_craft_equipment':'equipment_quantity'})
@@ -867,7 +867,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/45')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/46')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -881,7 +881,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/45']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/46']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1607,9 +1607,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/45',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/45'
-send(dict(schema='openxcom-agent-control/45',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/46',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/46'
+send(dict(schema='openxcom-agent-control/46',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1654,9 +1654,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/45',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/45'
-send(dict(schema='openxcom-agent-control/45',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/46',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/46'
+send(dict(schema='openxcom-agent-control/46',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1687,9 +1687,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/45', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/46', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/45'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/46'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

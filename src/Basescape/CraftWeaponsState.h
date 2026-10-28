@@ -24,6 +24,8 @@ namespace OpenXcom
 {
 
 class Base;
+class Craft;
+class CraftWeapon;
 class TextButton;
 class Window;
 class Text;
@@ -37,6 +39,16 @@ class RuleCraftWeapon;
 class CraftWeaponsState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull=false;
+    std::uint64_t _agentUiRevision=0;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    Craft *_agentCraftBinding=nullptr;
+    CraftWeapon *_agentSlotWeaponBinding=nullptr;
+    int _agentSlotAmmoBinding=0;
+    std::vector<int> _agentStockBinding;
+    bool agentBindingsCurrent() const;
+#endif
 	Base *_base;
 	size_t _craft, _weapon;
 
@@ -46,6 +58,11 @@ private:
 	TextList *_lstWeapons;
 	std::vector<RuleCraftWeapon*> _weapons;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Craft Weapons state.
 	CraftWeaponsState(Base *base, size_t craft, size_t weapon);
 	/// Cleans up the Craft Weapons state.

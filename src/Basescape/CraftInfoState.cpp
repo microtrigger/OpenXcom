@@ -427,6 +427,8 @@ bool CraftInfoState::agentUiState(Observer::AgentUiState &out) const
     view.button(_btnCrew,"crew","open_craft_crew");
     view.button(_btnEquip,"equipment","open_craft_equipment");
     view.button(_btnArmor,"armor","open_craft_armor");
+    if (_craft->getWeapons()->size()>0) view.button(_btnW1,"weapon_1","open_craft_weapon_1");
+    if (_craft->getWeapons()->size()>1) view.button(_btnW2,"weapon_2","open_craft_weapon_2");
     view.button(_btnOk,"close","close_craft_info");
     out.visible="{\"name\":"+name+",\"damage\":"+damage+",\"fuel\":"+fuel+",\"weapons\":"+weapons+",\"buttons\":"+view.buttons+"]}";
     return view.finish();
@@ -435,6 +437,8 @@ bool CraftInfoState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="open_craft_weapon_1") { btnW1Click(nullptr);return true; }
+    if(request.action=="open_craft_weapon_2") { btnW2Click(nullptr);return true; }
     if(request.action=="open_craft_crew") { btnCrewClick(nullptr);return true; }
     if(request.action=="open_craft_equipment") { btnEquipClick(nullptr);return true; }
     if(request.action=="open_craft_armor") { btnArmorClick(nullptr);return true; }

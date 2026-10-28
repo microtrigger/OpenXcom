@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/45'
+SCHEMA = 'openxcom-agent-control/46'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -76,7 +76,7 @@ ACTIONS = ('move_cursor', 'next_soldier', 'previous_soldier', 'kneel', 'stand', 
            'open_memorial', 'select_memorial_soldier', 'close_memorial', 'open_soldiers', 'select_soldier', 'close_soldiers', 'previous_personnel',
            'select_diary_mission', 'open_diary_combat', 'open_diary_awards', 'previous_diary_mission', 'next_diary_mission', 'close_diary_mission', 'next_personnel', 'open_soldier_diary', 'open_diary_performance', 'close_soldier_diary', 'close_diary_performance', 'open_soldier_armor', 'close_soldier_info', 'open_crafts',
            'select_craft', 'close_crafts', 'open_craft_crew', 'open_craft_equipment',
-           'open_craft_armor', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
+           'open_craft_armor', 'open_craft_weapon_1', 'open_craft_weapon_2', 'select_craft_weapon', 'cancel_craft_weapons', 'close_craft_info', 'set_craft_soldier', 'open_craft_soldier_info',
            'close_craft_crew', 'change_craft_equipment', 'close_craft_equipment', 'select_craft_armor_soldier',
            'close_craft_armor', 'select_soldier_armor', 'cancel_soldier_armor',
            'dismiss_research_complete', 'view_research_reports', 'dismiss_new_research', 'open_research_allocation', 'dismiss_new_manufacture', 'open_manufacture_allocation', 'dismiss_research_required', 'close_ufopaedia_article', 'previous_ufopaedia_article', 'next_ufopaedia_article', 'scroll_article_text', 'intercept_mission_alert', 'center_mission_alert', 'dismiss_mission_alert')
@@ -137,18 +137,20 @@ OUTFITTING_FIELDS = {
     'soldier_info': 'name rank missions kills craft recovery training stats buttons',
     'crafts': 'title base headings rows scroll buttons',
     'craft_info': 'name damage fuel weapons buttons',
+    'craft_weapons': 'title headings rows scroll buttons',
     'craft_soldiers': 'title headings available used rows scroll buttons',
     'craft_equipment': 'title headings available used crew rows scroll buttons',
     'craft_armor': 'title headings rows scroll buttons',
     'soldier_armor': 'title headings rows scroll buttons',
 }
-OUTFITTING_LISTS = {'allocate_psi_training': (4, 4), 'soldiers': (3, 3), 'crafts': (5, 5), 'craft_soldiers': (3, 3), 'craft_equipment': (2, 3), 'craft_armor': (3, 3), 'soldier_armor': (2, 2)}
+OUTFITTING_LISTS = {'craft_weapons': (3, 3), 'allocate_psi_training': (4, 4), 'soldiers': (3, 3), 'crafts': (5, 5), 'craft_soldiers': (3, 3), 'craft_equipment': (2, 3), 'craft_armor': (3, 3), 'soldier_armor': (2, 2)}
 OUTFITTING_BUTTONS = {
     'allocate_psi_training': ('ok',),
     'soldiers': ('memorial', 'close'),
     'soldier_info': ('previous', 'next', 'armor', 'diary', 'close'),
     'crafts': ('close',),
-    'craft_info': ('crew', 'equipment', 'armor', 'close'),
+    'craft_info': ('crew', 'equipment', 'armor', 'weapon_1', 'weapon_2', 'close'),
+    'craft_weapons': ('cancel',),
     'craft_soldiers': ('close',),
     'craft_equipment': ('close',),
     'craft_armor': ('close',),
@@ -159,7 +161,8 @@ OUTFITTING_BUTTON_ACTIONS = {
     'soldiers': {'open_memorial':'memorial', 'close_soldiers': 'close'},
     'soldier_info': {'previous_personnel': 'previous', 'next_personnel': 'next', 'open_soldier_armor': 'armor', 'open_soldier_diary': 'diary', 'close_soldier_info': 'close'},
     'crafts': {'close_crafts': 'close'},
-    'craft_info': {'open_craft_crew': 'crew', 'open_craft_equipment': 'equipment', 'open_craft_armor': 'armor', 'close_craft_info': 'close'},
+    'craft_weapons': {'cancel_craft_weapons': 'cancel'},
+    'craft_info': {'open_craft_weapon_1': 'weapon_1', 'open_craft_weapon_2': 'weapon_2', 'open_craft_crew': 'crew', 'open_craft_equipment': 'equipment', 'open_craft_armor': 'armor', 'close_craft_info': 'close'},
     'craft_soldiers': {'close_craft_crew': 'close'},
     'craft_equipment': {'close_craft_equipment': 'close'},
     'craft_armor': {'close_craft_armor': 'close'},
@@ -171,12 +174,13 @@ OUTFITTING_ROW_ACTIONS = {
     'soldier_info': (),
     'crafts': ('select_craft',),
     'craft_info': (),
+    'craft_weapons': ('select_craft_weapon',),
     'craft_soldiers': ('set_craft_soldier', 'open_craft_soldier_info'),
     'craft_equipment': ('change_craft_equipment',),
     'craft_armor': ('select_craft_armor_soldier',),
     'soldier_armor': ('select_soldier_armor',),
 }
-OUTFITTING_SEMANTIC_LABELS = {'toggle_psi_training': 'Toggle psi training', 'select_soldier': 'Select soldier', 'select_craft': 'Select craft', 'set_craft_soldier': 'Set craft assignment', 'open_craft_soldier_info': 'Inspect soldier', 'change_craft_equipment': 'Change craft equipment', 'select_craft_armor_soldier': 'Select soldier armor', 'select_soldier_armor': 'Select armor'}
+OUTFITTING_SEMANTIC_LABELS = {'select_craft_weapon': 'Select armament', 'toggle_psi_training': 'Toggle psi training', 'select_soldier': 'Select soldier', 'select_craft': 'Select craft', 'set_craft_soldier': 'Set craft assignment', 'open_craft_soldier_info': 'Inspect soldier', 'change_craft_equipment': 'Change craft equipment', 'select_craft_armor_soldier': 'Select soldier armor', 'select_soldier_armor': 'Select armor'}
 RESEARCH_NOTICE_STATES = ('new_possible_research', 'new_possible_manufacture')
 RESEARCH_COMPLETION_FIELDS = {'research_complete': 'title topic buttons',
  'new_possible_research': 'title rows scroll buttons',
@@ -225,7 +229,7 @@ ARGUMENT_KINDS.update(choose_visible_craft_destination='visible_row', load_saved
                       change_production_quantity='production_quantity', set_production_sell='boolean_value',
                       change_sale_quantity='sale_quantity', scroll_sell='sale_scroll', change_transfer_quantity='transfer_quantity', change_purchase_quantity='purchase_quantity', scroll_purchase='purchase_scroll',
                       position_purchase_list='purchase_position',
-                      select_memorial_soldier='project_row', select_soldier='outfitting_row', select_craft='outfitting_row', set_craft_soldier='crew_assignment', open_craft_soldier_info='outfitting_row', change_craft_equipment='equipment_quantity', select_craft_armor_soldier='outfitting_row', select_soldier_armor='outfitting_row')
+                      select_craft_weapon='outfitting_row', select_memorial_soldier='project_row', select_soldier='outfitting_row', select_craft='outfitting_row', set_craft_soldier='crew_assignment', open_craft_soldier_info='outfitting_row', change_craft_equipment='equipment_quantity', select_craft_armor_soldier='outfitting_row', select_soldier_armor='outfitting_row')
 STATE_FIELDS = {
     'next_turn': ('title', 'turn', 'side', 'message'),
     'main_menu': ('new_battle_label',),
@@ -319,7 +323,8 @@ STATE_ACTIONS = {
     'soldier_diary_performance': frozenset(('scroll_visible_list','previous_personnel','next_personnel','open_diary_combat','open_diary_performance','open_diary_awards','close_diary_performance')),
     'soldier_diary_mission': frozenset(('scroll_visible_list','previous_diary_mission','next_diary_mission','close_diary_mission')),
     'crafts': frozenset(('select_craft', 'close_crafts', 'scroll_visible_list')),
-    'craft_info': frozenset(('open_craft_crew', 'open_craft_equipment', 'open_craft_armor', 'close_craft_info')),
+    'craft_weapons': frozenset(('select_craft_weapon', 'cancel_craft_weapons', 'scroll_visible_list')),
+    'craft_info': frozenset(('open_craft_weapon_1', 'open_craft_weapon_2', 'open_craft_crew', 'open_craft_equipment', 'open_craft_armor', 'close_craft_info')),
     'craft_soldiers': frozenset(('set_craft_soldier', 'open_craft_soldier_info', 'close_craft_crew', 'scroll_visible_list')),
     'craft_equipment': frozenset(('change_craft_equipment', 'close_craft_equipment', 'scroll_visible_list')),
     'craft_armor': frozenset(('select_craft_armor_soldier', 'close_craft_armor', 'scroll_visible_list')),

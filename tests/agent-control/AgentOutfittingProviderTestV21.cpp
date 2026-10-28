@@ -52,7 +52,7 @@ void State::init(){} void State::handle(Action*){} void State::blit(){} void Sta
 #include "CompletionGameIdentity.generated.inc"
 }
 namespace Outfitting {
-struct Craft { std::string status="STR_READY",name="MCP Transport";const std::string &getStatus()const{return status;}std::string getName(Language*)const{return name;} };
+struct Craft { std::vector<void*> weapons;std::vector<void*>*getWeapons(){return &weapons;} std::string status="STR_READY",name="MCP Transport";const std::string &getStatus()const{return status;}std::string getName(Language*)const{return name;} };
 struct Armor { static const std::string NONE;std::string type="STR_NONE_UC",store="STR_NONE";std::string getStoreItem()const{return store;}std::string getType()const{return type;} };const std::string Armor::NONE="STR_NONE";
 struct Soldier {std::string name="MCP Healthy";Craft*craft=nullptr;Armor*armor=nullptr;int wound=0;Craft*getCraft()const{return craft;}void setCraft(Craft*c){craft=c;}Armor*getArmor()const{return armor;}void setArmor(Armor*a){armor=a;}std::string getName()const{return name;} };
 struct ItemContainer {std::map<std::string,int>counts;void addItem(const std::string&k,int n=1){counts[k]+=n;}void removeItem(const std::string&k,int n=1){counts[k]-=n;}};
@@ -98,6 +98,8 @@ bool agentUiState(AgentUiState&)const;
 bool agentDispatch(const AgentRequest&);
 void btnOkClick(Action*);
 void lstSoldiersClick(Action*);
+// Unexercised later-history navigation seams, not acceptance.
+void btnMemorialClick(Action*){++_game->pushes;_game->top=&_game->parent;}
 };
 struct SoldierInfoState:State {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -128,6 +130,8 @@ void btnOkClick(Action*);
 void btnPrevClick(Action*);
 void btnNextClick(Action*);
 void btnArmorClick(Action*);
+bool agentDeadRosterValid()const{return false;}
+void btnDiaryClick(Action*){++_game->pushes;_game->top=&_game->parent;}
 void init();
 };
 struct CraftsState:State {
@@ -174,6 +178,9 @@ bool agentUiState(AgentUiState&)const;
 bool agentDispatch(const AgentRequest&);
 void btnOkClick(Action*);
 void btnCrewClick(Action*);
+// Legacy transport-only fixture seams; armament callbacks have their own current-source oracle.
+void btnW1Click(Action*){++_game->pushes;_game->top=&_game->parent;}
+void btnW2Click(Action*){++_game->pushes;_game->top=&_game->parent;}
 void btnEquipClick(Action*);
 void btnArmorClick(Action*);
 };
@@ -340,6 +347,7 @@ void setup(Outfitting::CraftEquipmentState&s,Paint&p){
  s._items={p.master=="xcom1"?"STR_RIFLE":"STR_GAUSS_RIFLE",p.master=="xcom1"?"STR_TANK_CANNON":"STR_COELACANTH_GAS_CANNON"};for(auto&item:s._items)s._lstEquipment->addRow(3,p.lang.getString(item).c_str(),"10","1");finishSetup(s,p);
 }
 void setup(Outfitting::CraftInfoState&s,Paint&p){
+ s._btnW1=p.button(24,32,14,48,"STR_OK");s._btnW2=p.button(24,32,282,48,"STR_OK");s._btnW1->setVisible(false);s._btnW2->setVisible(false);
  s._btnOk=p.button(64,24,128,168,"STR_OK");s._btnCrew=p.button(64,16,14,96,"STR_CREW");s._btnEquip=p.button(64,16,14,120,"STR_EQUIPMENT_UC");s._btnArmor=p.button(64,16,14,144,"STR_ARMOR");s._edtCraft=p.edit(&s,140,16,80,8,"MCP Transport");s._edtCraft->setAlign(ALIGN_CENTER);s._txtDamage=p.text(100,17,14,24,p.lang.getString("STR_DAMAGE_UC").arg(0),false,"text1");s._txtFuel=p.text(82,17,228,24,p.lang.getString("STR_FUEL").arg(100),false,"text1");
  s._txtW1Name=p.text(95,16,46,48,"",false,"text2");s._txtW1Ammo=p.text(75,24,46,64,"",false,"text3");s._txtW2Name=p.text(95,16,184,48,"",false,"text2");s._txtW2Ammo=p.text(75,24,204,64,"",false,"text3");for(Text*t:{s._txtW1Name,s._txtW1Ammo,s._txtW2Name,s._txtW2Ammo})t->setVisible(false);finishSetup(s,p);
 }
@@ -460,6 +468,44 @@ void games(Font&big,Font&small,Language&lang,const std::string&source,const std:
  {Outfitting::SoldierArmorState s(&base);s._armors={&plain,&armor};Paint p(big,small,lang,source,game,"soldierArmor");setup(s,p);common(s,p,s._txtTitle,s._btnCancel,s._lstArmor,"soldier_armor",{{"cancel_soldier_armor",""},{"select_soldier_armor","r1"},{"select_soldier_armor","r0"},{"cancel_soldier_armor",""}});check(healthy.armor==&plain&&base.items.counts[armor.store]==1,"ordinary extracted armor choice restores stores and equipped armor");}
 }
 }
+// Source-extracted CraftInfo entry provider/dispatcher qualification only.
+// Buttons use real widgets and stock palettes; navigation callbacks remain
+// explicit counters here. The armament modal owns its native callback oracle.
+void craftWeaponEntries(Font&big,Font&small,Language&lang,const std::string&source,const std::string&master)
+{
+ for (unsigned slots=0;slots<=2;++slots)
+ {
+  Outfitting::Game game;game.lang=&lang;Outfitting::active=&game;
+  Outfitting::Craft craft;craft.weapons.resize(slots,nullptr);
+  Outfitting::Base base;base.crafts={&craft};Outfitting::CraftInfoState state(&base);
+  Paint paint(big,small,lang,source,master,"craftInfo");setup(state,paint);
+  state._btnW1->setText("1");state._btnW2->setText("2");
+  state._btnW1->setVisible(slots>0);state._btnW2->setVisible(slots>1);paint.draw();
+  AgentUiState ui;check(state.agentUiState(ui),"slot entry native projection");
+  check(ui.offers("open_craft_weapon_1")==bool(slots>0),"slot one capacity visibility");
+  check(ui.offers("open_craft_weapon_2")==bool(slots>1),"slot two capacity visibility");
+  TableChannel channel(master+"-craft-slot-"+std::to_string(slots));connect(channel,state);
+  record(channel,master,"craft_info","slot_entry_"+std::to_string(slots));
+  for (unsigned slot=0;slot<slots;++slot)
+  {
+   TextButton *button=slot?state._btnW2:state._btnW1;
+   const std::string action=slot?"open_craft_weapon_2":"open_craft_weapon_1";
+   button->setVisible(false);paint.draw();check(state.agentUiState(ui)&&!ui.offers(action),"hidden slot withheld");
+   button->setVisible(true);paint.draw();check(state.agentUiState(ui)&&ui.offers(action),"visible slot restored");
+   channel.read();channel.queue(action);const auto before=game.pushes;
+   Surface cover(button->getWidth(),button->getHeight(),button->getX(),button->getY());
+   cover.setPalette(paint.palette);cover.clear(1);cover.blit(&paint.canvas);game._fpsCounter=&cover;
+   channel.frame();check(YAML::Load(channel.receive())["status"].as<std::string>()=="unavailable"&&game.pushes==before,"occlusion rejects queued slot entry");
+   check(!state.agentUiState(ui)||!ui.offers(action),"covered slot withheld");game._fpsCounter=nullptr;paint.draw();
+   channel.read();channel.queue(action);button->setText("changed");button->setText(slot?"2":"1");paint.draw();
+   channel.frame();check(YAML::Load(channel.receive())["status"].as<std::string>()=="unavailable"&&game.pushes==before,"slot caption ABA rejects queued authority");
+   execute(channel,state,paint,action);check(game.pushes==before+1,"slot dispatch enters callback seam exactly once");
+  }
+  Outfitting::Craft replacement;base.crafts[0]=&replacement;
+  check(!state.agentUiState(ui),"craft replacement invalidates entry");base.crafts[0]=&craft;
+ }
+}
+
 int main(int argc,char**argv){
  check(argc==2,"source root");check(!SDL_Init(0)&&!SDL_GetVideoSurface(),"offscreen only");Options::baseXResolution=320;Options::baseYResolution=200;Options::keyOk=SDLK_RETURN;Options::keyCancel=SDLK_ESCAPE;Options::mousewheelSpeed=3;
  protocolChecks();syntheticTransport();

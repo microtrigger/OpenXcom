@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/45"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/46"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/45\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/46\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -91,6 +91,10 @@ bool agentActionId(const std::string &value)
         value == "open_craft_crew" ||
         value == "open_craft_equipment" ||
         value == "open_craft_armor" ||
+        value == "open_craft_weapon_1" ||
+        value == "open_craft_weapon_2" ||
+        value == "select_craft_weapon" ||
+        value == "cancel_craft_weapons" ||
         value == "close_craft_info" ||
         value == "set_craft_soldier" ||
         value == "open_craft_soldier_info" ||
@@ -122,7 +126,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "choose_dogfight_mode") return "dogfight_mode";
     if (action == "set_craft_soldier") return "crew_assignment";
     if (action == "change_craft_equipment") return "equipment_quantity";
-    if (action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
+    if (action == "select_craft_weapon" || action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "select_build_facility") return "facility_row";

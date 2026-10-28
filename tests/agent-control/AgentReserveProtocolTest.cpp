@@ -5,7 +5,7 @@
 using namespace OpenXcom::Observer;
 int main() {
  AgentRequest r; const std::string t(32, '1'), p = "E " + t + " 1 " + t + " " + t + " 1 ";
- assert(parseAgentRequest("H openxcom-agent-control/45", r));
+ assert(parseAgentRequest("H openxcom-agent-control/46", r));
  assert(!parseAgentRequest("H openxcom-agent-control/29", r));
  for (const std::string action : {"reserve_none", "reserve_snap", "reserve_aimed", "reserve_auto"}) {
   assert(agentActionId(action));

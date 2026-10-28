@@ -17,6 +17,11 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "CraftWeaponsState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#include "../Savegame/SavedGame.h"
+#include <algorithm>
+#endif
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -91,6 +96,9 @@ CraftWeaponsState::CraftWeaponsState(Base *base, size_t craft, size_t weapon) : 
 	_lstWeapons->setSelectable(true);
 	_lstWeapons->setBackground(_window);
 	_lstWeapons->setMargin(8);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstWeapons->agentEnableOutfitting(3);
+#endif
 
 	_lstWeapons->addRow(1, tr("STR_NONE_UC").c_str());
 	_weapons.push_back(0);
@@ -116,6 +124,22 @@ CraftWeaponsState::CraftWeaponsState(Base *base, size_t craft, size_t weapon) : 
 		}
 	}
 	_lstWeapons->onMouseClick((ActionHandler)&CraftWeaponsState::lstWeaponsClick);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCraftBinding=_base->getCrafts()->at(_craft);
+    _agentSlotWeaponBinding=_agentCraftBinding->getWeapons()->at(_weapon);
+    _agentSlotAmmoBinding=_agentSlotWeaponBinding?_agentSlotWeaponBinding->getAmmo():0;
+    if (_agentSlotWeaponBinding)
+    {
+        RuleCraftWeapon *rule=_agentSlotWeaponBinding->getRules();
+        _agentStockBinding.push_back(_base->getStorageItems()->getItem(rule->getLauncherItem()));
+        _agentStockBinding.push_back(_base->getStorageItems()->getItem(rule->getClipItem()));
+    }
+    for (RuleCraftWeapon *rule:_weapons) if (rule)
+    {
+        _agentStockBinding.push_back(_base->getStorageItems()->getItem(rule->getLauncherItem()));
+        _agentStockBinding.push_back(_base->getStorageItems()->getItem(rule->getClipItem()));
+    }
+#endif
 }
 
 /**
@@ -166,5 +190,75 @@ void CraftWeaponsState::lstWeaponsClick(Action *)
 
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool CraftWeaponsState::agentBindingsCurrent() const
+{
+    // The list is a constructor-time projection. Never dispatch its cached
+    // choices after an owning object, slot or stock balance has changed.
+    const auto *save=_game->getSavedGame();
+    if (!save || !_base || std::find(save->getBases()->begin(),save->getBases()->end(),_base)==save->getBases()->end() ||
+        _craft>=_base->getCrafts()->size() || _base->getCrafts()->at(_craft)!=_agentCraftBinding ||
+        !_agentCraftBinding || _weapon>=_agentCraftBinding->getWeapons()->size() ||
+        _agentCraftBinding->getWeapons()->at(_weapon)!=_agentSlotWeaponBinding ||
+        (_agentSlotWeaponBinding && _agentSlotWeaponBinding->getAmmo()!=_agentSlotAmmoBinding)) return false;
+    std::vector<int> stocks;
+    if (_agentSlotWeaponBinding)
+    {
+        RuleCraftWeapon *rule=_agentSlotWeaponBinding->getRules();
+        stocks.push_back(_base->getStorageItems()->getItem(rule->getLauncherItem()));
+        stocks.push_back(_base->getStorageItems()->getItem(rule->getClipItem()));
+    }
+    for (RuleCraftWeapon *rule:_weapons) if (rule)
+    {
+        stocks.push_back(_base->getStorageItems()->getItem(rule->getLauncherItem()));
+        stocks.push_back(_base->getStorageItems()->getItem(rule->getClipItem()));
+    }
+    return stocks==_agentStockBinding;
+}
+void CraftWeaponsState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
+bool CraftWeaponsState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (!_game->isState(const_cast<CraftWeaponsState *>(this)) || _modal || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces) || !agentBindingsCurrent()) return false;
+    out=AgentUiState();out.screen="craft_weapons";out.actor=_agentCraftBinding;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    out.widgets.emplace_back(_base,0);out.widgets.emplace_back(_agentSlotWeaponBinding,0);
+    out.context.push_back(_craft);out.context.push_back(_weapon);
+    AgentOutfittingView view(_game,_surfaces,out);
+    const auto title=view.text(_txtTitle);
+    const std::string headings="["+view.text(_txtArmament)+","+view.text(_txtQuantity)+","+view.text(_txtAmmunition)+"]";
+    AgentListProjection list;if (!view.list(_lstWeapons,3,false,list)) return false;
+    for (size_t row:out.rows)
+    {
+        if (row>=_weapons.size()) return false;
+        out.widgets.emplace_back(_weapons[row],0);
+    }
+    if (!out.rows.empty()) out.actions.emplace_back("select_craft_weapon","Select armament","visible_control_semantics","outfitting_row");
+    view.button(_btnCancel,"cancel","cancel_craft_weapons");
+    out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
+    return view.finish();
+}
+bool CraftWeaponsState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;
+    if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="cancel_craft_weapons") { btnCancelClick(nullptr);return true; }
+    if(Observer::agentOutfittingScroll(_lstWeapons,current,request)) return true;
+    size_t row=0;
+    if(request.action=="select_craft_weapon" && Observer::agentOutfittingRow(current,request,row) &&
+        row<_weapons.size() && _lstWeapons->agentSelectOutfittingRow(row))
+    { lstWeaponsClick(nullptr);return true; }
+    return false;
+}
+#endif
 
 }
