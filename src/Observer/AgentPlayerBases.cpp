@@ -318,9 +318,20 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
                     }
                 }
             }
+            // Ordinary CraftInfo completion estimates, not promises of completion.
+            // Null outside the matching maintenance state or for invalid rates.
+            const auto hours = [](double remaining, double rate) -> std::string {
+                if (!std::isfinite(remaining) || remaining <= 0 || !std::isfinite(rate) || rate <= 0) return "null";
+                const double value = std::ceil(remaining / rate);
+                if (!std::isfinite(value) || value < 0 || value > std::numeric_limits<int>::max()) return "null";
+                return std::to_string(static_cast<int>(value));
+            };
+            const std::string repairHours = c->getStatus() == "STR_REPAIRS" ? hours(c->getDamage(), r->getRepairRate()) : "null";
+            const std::string refuelHours = c->getStatus() == "STR_REFUELLING" ?
+                hours(double(r->getMaxFuel()) - c->getFuel(), double(r->getRefuelRate()) * 2.0) : "null";
             emit(id,record("craft",id,base).n("native_id",c->getId()).s("type",c->getType()).s("name",c->getName(language)).s("status",c->getStatus())
                 .s("location",transfer.empty()?"home_roster":"in_transit").nullable("transfer_id",transfer).n("weapon_slot_count",c->getWeapons()->size()).n("weapon_capacity",r->getWeapons()).d("longitude",c->getLongitude()).d("latitude",c->getLatitude())
-                .n("speed",c->getSpeed()).n("fuel",c->getFuel()).n("fuel_max",r->getMaxFuel()).n("damage",c->getDamage()).n("damage_max",r->getMaxDamage()).n("speed_max",r->getMaxSpeed())
+                .n("speed",c->getSpeed()).n("fuel",c->getFuel()).n("fuel_max",r->getMaxFuel()).n("damage",c->getDamage()).n("damage_max",r->getMaxDamage()).n("speed_max",r->getMaxSpeed()).raw("repair_hours",repairHours).raw("refuel_hours",refuelHours)
                 .n("soldier_capacity",r->getSoldiers()).n("vehicle_capacity",r->getVehicles()).n("item_capacity",r->getMaxItems()).n("space_used",c->getSpaceUsed()).n("space_available",c->getSpaceAvailable())
                 .n("monthly_cost",r->getRentCost()).b("low_fuel",c->getLowFuel()).b("mission_complete",c->getMissionComplete()).raw("crew",crewJson)
                 .nullable("home_base_id",homeId).n("fuel_consumption",c->getFuelConsumption()).raw("fuel_to_home",fuelHome).raw("distance_to_home",distance)

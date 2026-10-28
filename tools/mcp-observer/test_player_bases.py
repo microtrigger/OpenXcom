@@ -10,7 +10,7 @@ TOKEN='a'*32
 def sample(kind, index=0):
  r=dict(kind=kind,id=f'{kind}-{index}',base_id='base-0')
  for key in b.FIELDS[kind].split():
-  if key in ('death','home_base_id','fuel_to_home','distance_to_home'):r[key]=None
+  if key in ('death','home_base_id','fuel_to_home','distance_to_home','repair_hours','refuel_hours'):r[key]=None
   elif key=='destination':r[key]=dict(kind='none',base_id=None,waypoint_id=None)
   elif key=='time' and kind in ('campaign','mission_history'):r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
   elif key in b.BREAKDOWNS:r[key]={'KNOWN':1}
@@ -118,7 +118,7 @@ class BasesTests(unittest.TestCase):
   p['complete']=True
   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
  def test_history_schema_and_closed_nested_fields(self):
-  self.assertEqual(b.SCHEMA,'openxcom-player-bases/6')
+  self.assertEqual(b.SCHEMA,'openxcom-player-bases/7')
   old=page();old['schema']='openxcom-player-bases/1'
   with self.assertRaises(Unavailable):b.page(dump(old),CHALLENGE,EPOCH,None,0,16)
   for kind in ('soldier','soldier_diary','soldier_commendation'):
@@ -196,6 +196,21 @@ class BasesTests(unittest.TestCase):
   for field in ('altitude','enemy_id','target_coordinates','meet_point','detected'):
    bad=copy.deepcopy(r);bad[field]=None
    with self.assertRaises(Unavailable):b.record(bad)
+ def test_craft_maintenance_estimates_nullable_status_and_bounds(self):
+  r=sample('craft');b.record(r)
+  for field,status,values in [('repair_hours','STR_REPAIRS',dict(damage=7)),('refuel_hours','STR_REFUELLING',dict(fuel=2,fuel_max=9))]:
+   good=copy.deepcopy(r);good.update(status=status,**values);good[field]=3;b.record(good)
+   good[field]=None;b.record(good)
+   for bad in [-1,True,1.5,2**31,'3']:
+    wrong=copy.deepcopy(good);wrong[field]=bad
+    with self.assertRaises(Unavailable):b.record(wrong)
+   wrong=copy.deepcopy(good);wrong[field]=3;wrong['status']='STR_READY'
+   with self.assertRaises(Unavailable):b.record(wrong)
+   wrong=copy.deepcopy(good);wrong[field]=3
+   if field=='repair_hours':wrong['damage']=0
+   else:wrong['fuel']=wrong['fuel_max']
+   with self.assertRaises(Unavailable):b.record(wrong)
+
  def test_new_read_records_never_send_ui_actions(self):
   records=[sample(k) for k in ('research_knowledge','research_offer','manufacture_offer','own_waypoint','craft')]
   peer=Peer(records)

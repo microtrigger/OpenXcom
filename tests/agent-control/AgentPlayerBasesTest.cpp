@@ -54,6 +54,7 @@ using namespace OpenXcom;using namespace OpenXcom::Observer;
 static unsigned checks=0;
 void check(bool yes,const char *label){++checks;if(!yes){std::cerr<<"FAIL "<<label<<'\n';std::exit(1);}}
 struct EnemyTarget:Target {mutable unsigned reads=0;std::string getType()const override{++reads;return "PRIVATE_ENEMY_TYPE";}int getMarker()const override{++reads;return 99;}std::string getName(Language*)const override{++reads;return "PRIVATE_ENEMY_NAME";}};
+static void craftServiceChecks();
 static void psiVisibilityChecks();
 static void itemDefinitionChecks(const std::string&output);
 static void opportunityAndRouteChecks(const std::string&output);
@@ -178,6 +179,7 @@ int main(int argc,char **argv){
  check(cause->name=="PRIVATE_DEATH_KILLER"&&cause->mission==932817&&medal->isNew(),"reads preserve cause and medal state");
  if(argc>1){std::ofstream output(std::string(argv[1])+".memorial.json");output<<"[";for(std::size_t i=0;i<again.size();++i){if(i)output<<",";output<<again[i];}output<<"]\n";}
  collector.reset();check(collector.collect(&save,&language,again,reason),"explicit lifecycle reset accepts campaign");
+ craftServiceChecks();
  psiVisibilityChecks();
  opportunityAndRouteChecks(argc>1?std::string(argv[1])+".opportunities.json":"");
  itemDefinitionChecks(argc>1?std::string(argv[1])+".items.json":"");
@@ -299,4 +301,28 @@ static void psiVisibilityChecks()
  Options::psiStrengthEval=false;verify(nullptr,true,true);verify(&mod,true,true);
  for(auto*s:all)s->getCurrentStats()->psiSkill=-5;verify(&mod,false,false);
  check(RNG::getSeed()==seed,"psi eligibility reads preserve RNG");Options::psiStrengthEval=old;
+}
+
+static void craftServiceChecks()
+{
+ Mod mod; Language language; SavedGame save; AgentPlayerBases collector;
+ Base *base=new Base(&mod);save.getBases()->push_back(base);
+ RuleCraft rule("SERVICE_TEST");rule.load(YAML::Load("fuelMax: 100\nrepairRate: 3\nrefuelRate: 7\ndamageMax: 100"),&mod,0);
+ Craft *craft=new Craft(&rule,base,1);base->getCrafts()->push_back(craft);craft->setFuel(65);craft->setDamage(7);
+ const auto seed=RNG::getSeed();
+ const auto verify=[&](const std::string&status,int repair,int refuel){
+  craft->setStatus(status);std::vector<std::string> rows,again;std::string reason;
+  check(collector.collect(&save,&language,rows,reason),"service own-model collect");bool found=false;
+  for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()!="craft")continue;found=true;
+   check(repair<0?r["repair_hours"].IsNull():r["repair_hours"].as<int>()==repair,"native-gated repair hours");
+   check(refuel<0?r["refuel_hours"].IsNull():r["refuel_hours"].as<int>()==refuel,"native-gated refuel half-hour estimate");
+  }
+  check(found&&collector.collect(&save,&language,again,reason)&&again==rows,"service repeat stable");
+  check(RNG::getSeed()==seed&&craft->getStatus()==status,"service reads neither RNG nor status mutation");
+ };
+ verify("STR_READY",-1,-1);verify("STR_REPAIRS",3,-1);verify("STR_REFUELLING",-1,3);verify("STR_OUT",-1,-1);
+ craft->setDamage(0);verify("STR_REPAIRS",-1,-1);craft->setFuel(100);verify("STR_REFUELLING",-1,-1);
+ craft->setDamage(7);craft->setFuel(65);rule.load(YAML::Load("repairRate: 0\nrefuelRate: 0"),&mod,0);verify("STR_REPAIRS",-1,-1);verify("STR_REFUELLING",-1,-1);
+ rule.load(YAML::Load("repairRate: -1\nrefuelRate: -1"),&mod,0);verify("STR_REPAIRS",-1,-1);verify("STR_REFUELLING",-1,-1);
+ check(craft->getDamage()==7&&craft->getFuel()==65,"service reads preserve quantities");
 }

@@ -15,7 +15,7 @@ transfers. In-transit owned soldiers/craft are included. The schema uses positiv
 field allowlists, not recursive save-game dumps. Enemy retaliation/detection
 state and enemy destination graphs are excluded.
 
-Pages use `openxcom-player-bases/6`, a connection epoch, a campaign epoch,
+Pages use `openxcom-player-bases/7`, a connection epoch, a campaign epoch,
 content generation and a frozen snapshot token. A new first page captures
 current state; continuation pages belong to that same detached snapshot.
 Changed captures replace the snapshot; expired continuation tokens fail
@@ -172,3 +172,23 @@ improvement field are `null`, not zero or an inferred value. Ordinary stats
 remain mandatory numbers. Owning all bases does not authorize unrevealed stats.
 The adapter rejects older sub-schemas and invalid/non-psi nulls. These are
 read-only eligibility changes; they grant no action or hidden tactical access.
+
+## Craft maintenance estimates (schema 7)
+
+Owned craft records additionally include nullable `repair_hours` and
+`refuel_hours`. These use the ordinary CraftInfo formulas: ceiling of current
+damage divided by repair rate, and ceiling of missing fuel divided by refuel
+rate and two half-hour ticks per hour. The repair estimate is present only in
+`STR_REPAIRS` with positive damage; refuel only in `STR_REFUELLING` with missing
+fuel. Nonpositive rates, invalid arithmetic or values outside native integer
+range produce null. Other statuses and completed amounts produce null, not zero.
+They are displayed-style estimates, not guarantees about future resources,
+interruptions or actual elapsed completion time. Reading them does not advance
+maintenance or grant any UI action.
+
+The separately authorized full owned-project state includes research `spent`
+and actual project `cost`, including the threshold sampled when that owned
+project was created. These are engine-owned project fields, **not** a visible
+research-screen estimate. Reads sample no RNG and expose no undiscovered
+research graph, future random draw or enemy state.
+

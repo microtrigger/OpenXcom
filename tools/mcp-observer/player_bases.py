@@ -2,7 +2,7 @@
 """Explicit user-authorized strategic ownership read model. Never UI action authority."""
 import math
 from snapshots import Unavailable, exact
-SCHEMA='openxcom-player-bases/6'
+SCHEMA='openxcom-player-bases/7'
 LIMIT=100000
 CAPS='quarters stores laboratories workshops hangars psi_labs containment'
 BREAKDOWNS='neutralizations_by_race neutralizations_by_rank hostile_neutralizations_by_weapon hostile_neutralizations_by_ammo missions_by_region missions_by_country missions_by_type missions_by_ufo'.split()
@@ -18,7 +18,7 @@ FIELDS={
  'soldier_mission':'soldier_id mission_id wounded_days',
  'soldier_encounter':'soldier_id mission_id status unit_name weapon',
  'item_definition':'type base_label inventory_label identified logistics physical technical',
- 'craft':'native_id type name status location transfer_id longitude latitude speed fuel fuel_max damage damage_max speed_max soldier_capacity vehicle_capacity item_capacity space_used space_available monthly_cost weapon_slot_count weapon_capacity low_fuel mission_complete crew home_base_id fuel_consumption fuel_to_home distance_to_home in_dogfight in_battlescape interception_order destination',
+ 'craft':'native_id type name status location transfer_id longitude latitude speed fuel fuel_max damage damage_max speed_max repair_hours refuel_hours soldier_capacity vehicle_capacity item_capacity space_used space_available monthly_cost weapon_slot_count weapon_capacity low_fuel mission_complete crew home_base_id fuel_consumption fuel_to_home distance_to_home in_dogfight in_battlescape interception_order destination',
  'research':'type progress assigned spent cost',
  'research_knowledge':'type name',
  'research_offer':'type name base_cost needs_item destroys_item',
@@ -87,6 +87,8 @@ def record(r):
     need(len(v['compatible_ammo'])==len(set(v['compatible_ammo'])))
   elif key=='home_base_id':
    if v is not None:ident(v)
+  elif key in ('repair_hours','refuel_hours'):
+   if v is not None:integer(v);need(0<=v<=2**31-1)
   elif key in ('fuel_to_home','distance_to_home'):
    if v is not None:(number if key=='distance_to_home' else integer)(v)
   elif key=='destination':
@@ -134,6 +136,8 @@ def record(r):
   else:integer(v)
  if k=='craft':
   need(r['location']in ('home_roster','in_transit'))
+  if r['status']!='STR_REPAIRS' or r['damage']<=0:need(r['repair_hours'] is None)
+  if r['status']!='STR_REFUELLING' or r['fuel_max']<=r['fuel']:need(r['refuel_hours'] is None)
   if r['home_base_id'] is None:need(r['fuel_to_home'] is None and r['distance_to_home'] is None)
   if r['distance_to_home'] is not None:need(r['distance_to_home']>=0)
  if k=='soldier':
