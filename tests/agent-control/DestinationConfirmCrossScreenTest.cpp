@@ -12,6 +12,8 @@
 #include "../../src/Interface/Window.h"
 #include "../../src/Observer/AgentUi.h"
 #include "../../src/Observer/AgentTargetLifetime.h"
+#include "../../src/Observer/AgentGlobeProjection.h"
+#include <cmath>
 #include "../../src/Observer/AgentFrameCommand.h"
 #include <yaml-cpp/yaml.h>
 #include <functional>
@@ -38,7 +40,7 @@ struct Mod { Surface *background; Surface *getSurface(const std::string&){return
 struct Waypoint; struct Base; struct Ufo; struct MissionSite; struct AlienBase;
 struct SavedGame {std::vector<Base*> bases;std::vector<Ufo*> ufos;std::vector<MissionSite*> sites;std::vector<AlienBase*> aliens;
  auto getBases()->std::vector<Base*>*{return &bases;} auto getUfos()->std::vector<Ufo*>*{return &ufos;} auto getMissionSites()->std::vector<MissionSite*>*{return &sites;} auto getAlienBases()->std::vector<AlienBase*>*{return &aliens;}
- bool isResearched(const std::string&){return false;}std::vector<Waypoint*> waypoints; int getId(const std::string&){std::abort();} std::vector<Waypoint*> *getWaypoints(){return &waypoints;}};
+ bool isResearched(const std::string&){return false;}std::vector<Waypoint*> waypoints; int nextId=0;int getId(const std::string&){return ++nextId;} std::vector<Waypoint*> *getWaypoints(){return &waypoints;}};
 struct Game {
     SavedGame save; SavedGame *getSavedGame(){return &save;}
     Screen screen; Mod mod; Language *language; Font *big, *small; SDL_Color *palette;
@@ -76,11 +78,11 @@ struct State : OpenXcom::State {
         if(paintHook)paintHook();
     }
 };
-struct Target {AgentTargetLifetime lifetime; int marker=0; double x=80,y=80;virtual ~Target(){} mutable int nameReads=0;std::string name;std::string getName(Language*)const{++nameReads;return name;}int getMarker(){return marker;}double getLongitude(){return x;}double getLatitude(){return y;}std::weak_ptr<const void> agentLifetime(){return lifetime.token();}};
+struct Target {AgentTargetLifetime lifetime; int marker=0; double x=80,y=80;virtual ~Target(){} mutable int nameReads=0;std::string name;std::string getName(Language*)const{++nameReads;return name;}int getMarker(){return marker;}double getLongitude(){return x;}double getLatitude(){return y;}void setLongitude(double v){x=v;}void setLatitude(double v){y=v;}std::weak_ptr<const void> agentLifetime(){return lifetime.token();}};
 struct Craft;
 struct MissionSite:Target{};struct AlienBase:Target{};
 struct Base:Target {std::vector<Craft*> crafts;std::vector<Craft*>*getCrafts(){return &crafts;}std::string getName()const{return name;}};
-struct Waypoint:Target {int id=1;int getId(){return id;}void setId(int i){id=i;}};
+struct Waypoint:Target {int id=0;int getId(){return id;}void setId(int i){id=i;}};
 struct Ufo:Target {enum{FLYING}; bool getHyperDetected(){return false;}int getStatus(){return FLYING;}int getId(){return 1;}int getSpeed(){return 500;}};
 struct RuleCraft {bool getSpacecraft(){return false;}int getMaxSpeed(){return 1000;}bool isWaterOnly(){return false;}int getWeapons(){return 0;}int getSoldiers(){return 0;}int getVehicles(){return 0;}};
 struct RuleCraftWeapon {std::string getType(){return "STR_NONE_UC";}};
@@ -96,15 +98,21 @@ struct Craft : Target {
  int getNumSoldiers(){return 0;}int getNumVehicles(){return 0;}
 };
 struct MarkerSet {Surface*marker;std::map<int,Surface*>frames,resources;std::map<int,Surface*>*getFrames(){resources=frames;if(!resources.count(0))resources[0]=marker;return &resources;}Surface*getFrame(int n){auto i=frames.find(n);return i==frames.end()?marker:i->second;}};
-struct Globe : Surface {int speed=60,stops=0,rangeCalls=0,invalidates=0;double lastRange=-1;
+struct Globe : InteractiveSurface {int speed=60,stops=0,rangeCalls=0,invalidates=0;double lastRange=-1;
  Game*_game=currentGame; Surface *_markers,*_radars,*_countries; MarkerSet storage;MarkerSet*_markerSet=&storage;
- struct Projection{void clearLayer(int){}}_agentProjection;
+ AgentGlobeProjection _agentProjection;
  struct AgentPaintedTarget{Target*target;std::weak_ptr<const void> lifetime;bool destinationEligible=false;};
  std::vector<AgentPaintedTarget>_agentMarkerPixels;int _agentMarkerWidth=0,_agentMarkerHeight=0;bool _agentTargetCandidates=false;
  bool _agentBlitReady=false,_isMouseScrolling=false,_isMouseScrolled=false;int _rotLon=0,_rotLat=0;unsigned _agentShownViewRevision=0,_agentViewRevision=1;
- Globe():Surface(320,200){_markers=new Surface(320,200);_radars=new Surface(320,200);_countries=new Surface(320,200);storage.marker=new Surface(5,5);for(auto*s:{_markers,_radars,_countries,storage.marker})s->setPalette(_game->palette);storage.marker->clear(90);_markers->agentTrackPresentation();}
+ Globe():InteractiveSurface(320,200){_markers=new Surface(320,200);_radars=new Surface(320,200);_countries=new Surface(320,200);storage.marker=new Surface(5,5);for(auto*s:{_markers,_radars,_countries,storage.marker})s->setPalette(_game->palette);storage.marker->clear(90);_markers->agentTrackPresentation();}
  ~Globe(){delete _markers;delete _radars;delete _countries;delete storage.marker;}
  bool pointBack(double x,double){return x<0;}void polarToCart(double x,double y,Sint16*ox,Sint16*oy){*ox=x;*oy=y;}
+ unsigned agentViewRevision()const{return _agentViewRevision;}
+ bool validPoint=true;int targetQueries=0;std::vector<Target*> clickTargets;
+ void cartToPolar(int x,int y,double*lon,double*lat){*lon=x/100.0;*lat=y/100.0;}
+ bool pointOnVisibleGlobe(int,int)const{return validPoint;}
+ std::vector<Target*> getTargets(int,int,bool craft){if(!craft)std::abort();++targetQueries;return clickTargets;}
+ std::string agentGeography(AgentUiState&,const std::vector<Surface*>&,int=0)const;
  void agentCoverRect(Surface*,Surface*){}
  void drawTarget(Target*,Surface*);void drawMarkers();void blit(Surface*)override;
  std::string agentDestinationTargets(AgentUiState&,const std::vector<Surface*>&,std::vector<Target*>&)const;
@@ -134,9 +142,10 @@ struct MultipleTargetsState:State {
 struct SelectDestinationState : State {
  Craft *_craft;Globe *_globe;InteractiveSurface *_btnRotateLeft,*_btnRotateRight,*_btnRotateUp,*_btnRotateDown,*_btnZoomIn,*_btnZoomOut;
  TextButton *_btnCancel,*_btnCydonia;Window *_window;Text *_txtTitle;
+ std::weak_ptr<const void> _agentCraftLifetime;const void*_agentSave=nullptr;
  bool _agentDestinationPaintFull=false;std::vector<std::uint64_t> _agentStoredPaintRevisions;
  SelectDestinationState(Craft*,Globe*);~SelectDestinationState();void init()override;void btnCancelClick(Action*);
- void globeClick(Action*){std::abort();}void btnRotateLeftPress(Action*){std::abort();}void btnRotateLeftRelease(Action*){std::abort();}void btnRotateRightPress(Action*){std::abort();}void btnRotateRightRelease(Action*){std::abort();}void btnRotateUpPress(Action*){std::abort();}void btnRotateUpRelease(Action*){std::abort();}void btnRotateDownPress(Action*){std::abort();}void btnRotateDownRelease(Action*){std::abort();}void btnZoomInLeftClick(Action*){std::abort();}void btnZoomInRightClick(Action*){std::abort();}void btnZoomOutLeftClick(Action*){std::abort();}void btnZoomOutRightClick(Action*){std::abort();}void btnCydoniaClick(Action*){std::abort();}
+ void globeClick(Action*);void btnRotateLeftPress(Action*){std::abort();}void btnRotateLeftRelease(Action*){std::abort();}void btnRotateRightPress(Action*){std::abort();}void btnRotateRightRelease(Action*){std::abort();}void btnRotateUpPress(Action*){std::abort();}void btnRotateUpRelease(Action*){std::abort();}void btnRotateDownPress(Action*){std::abort();}void btnRotateDownRelease(Action*){std::abort();}void btnZoomInLeftClick(Action*){std::abort();}void btnZoomInRightClick(Action*){std::abort();}void btnZoomOutLeftClick(Action*){std::abort();}void btnZoomOutRightClick(Action*){std::abort();}void btnCydoniaClick(Action*){std::abort();}
  bool agentDestinationFull()const;std::vector<std::uint64_t> agentPaintRevisions()const;void blit()override;
  bool agentUiState(AgentUiState&)const override;bool agentDispatch(const AgentRequest&)override;
  void release(){for(auto*s:_surfaces)delete s;_surfaces.clear();}
@@ -155,7 +164,7 @@ int main(int argc,char**argv){
  for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
  Surface canvas(320,200),background(320,200);SDL_Color palette[256];for(int i=0;i<256;++i)palette[i]={Uint8(i),Uint8(i),Uint8(i),0};canvas.setPalette(palette);background.setPalette(palette);background.clear(40);
  for(const std::string master:{"xcom1","xcom2"}){
- Language language;language.loadFile(std::string(argv[1])+"/bin/standard/"+master+"/Language/en-US.yml");
+ Language language;language.loadFile(std::string(argv[1])+"/standard/"+master+"/Language/en-US.yml");
  Fixture::Game game;game.screen.surface=&canvas;game.mod.background=&background;game.language=&language;game.big=&big;game.small=&small;game.palette=palette;Fixture::currentGame=&game;
  Fixture::Craft craft;Fixture::Target retained;craft.destination=&retained;Fixture::MissionSite visible,hidden;visible.name="VISIBLE TARGET";hidden.name="SECRET TARGET";hidden.marker=-1;game.save.sites={&visible};Fixture::Globe globe;
  auto*picker=new Fixture::SelectDestinationState(&craft,&globe);game.top=picker;picker->init();globe.drawMarkers();globe.blit(&canvas);picker->blit();AgentUiState choice;
@@ -177,9 +186,19 @@ int main(int argc,char**argv){
  confirm->_modal=confirm->_btnOk;check(!observe(confirm,second)&&!confirm->agentDispatch(action("confirm_interception")),"modal refuses authority");confirm->_modal=nullptr;
  Surface otherCanvas(320,200);otherCanvas.setPalette(palette);game.screen.surface=&otherCanvas;check(!observe(confirm,second),"equal geometry different canvas requires own paint");confirm->blit();game.screen.surface=&canvas;check(!observe(confirm,second),"restored old canvas requires current paint");confirm->blit();
  check(confirm->agentDispatch(action("confirm_interception"))&&craft.sets==1&&craft.destination==&visible&&craft.status=="STR_OUT"&&game.pops==5,"native confirm destination/status and exactly two pops");confirm->release();delete confirm;picker->release();delete picker;game.top=nullptr;
+ // Fresh point -> native provisional waypoint -> native Cancel/OK lifecycle.
+ for(bool accept:{false,true}){
+ auto*pointPicker=new Fixture::SelectDestinationState(&craft,&globe);game.top=pointPicker;globe._agentProjection.samples={{120,120,false,false,true,0}};globe.drawMarkers();globe.blit(&canvas);pointPicker->blit();AgentUiState pointUi;
+ check(observe(pointPicker,pointUi)&&pointUi.offers("choose_visible_craft_point"),"point route offered on current paint");AgentRequest pr=action("choose_visible_craft_point");pr.x=120;pr.y=120;const int setsBefore=craft.sets,popsBefore=game.pops;
+ check(pointPicker->agentDispatch(pr)&&craft.sets==setsBefore&&game.save.waypoints.empty(),"point does not persist or retarget craft");auto*pointMultiple=static_cast<Fixture::MultipleTargetsState*>(game.pushed);auto*waypoint=dynamic_cast<Fixture::Waypoint*>(pointMultiple->_targets.at(0));check(waypoint&&waypoint->getId()==0,"native callback owns provisional waypoint");auto lifetime=waypoint->agentLifetime();pointMultiple->init();auto*pointConfirm=static_cast<Fixture::ConfirmDestinationState*>(game.pushed);pointMultiple->release();delete pointMultiple;pointConfirm->blit();
+ check(observe(pointConfirm,pointUi),"point destination confirmation independently painted");
+ if(!accept){check(pointConfirm->agentDispatch(action("cancel_interception_confirmation"))&&lifetime.expired()&&game.save.waypoints.empty()&&craft.sets==setsBefore&&game.pops==popsBefore+2,"Cancel deletes only provisional waypoint and retains craft destination");}
+ else{check(pointConfirm->agentDispatch(action("confirm_interception"))&&!lifetime.expired()&&game.save.waypoints.size()==1&&game.save.waypoints[0]==waypoint&&waypoint->getId()==1&&craft.destination==waypoint&&craft.sets==setsBefore+1&&game.pops==popsBefore+3,"OK persists waypoint once and retargets craft via native handlers");craft.destination=&retained;delete waypoint;game.save.waypoints.clear();}
+ pointConfirm->release();delete pointConfirm;pointPicker->release();delete pointPicker;globe._agentProjection.samples.clear();game.top=nullptr;
+ }
  // Same-address replacement cannot revive the old popup's target authority.
  alignas(Fixture::MissionSite) unsigned char storage[sizeof(Fixture::MissionSite)];auto*old=new(storage)Fixture::MissionSite;old->name="STALE";auto*stale=new Fixture::ConfirmDestinationState(&craft,old);game.top=stale;stale->blit();check(observe(stale,second),"stale test starts painted/live");old->~MissionSite();auto*replacement=new(storage)Fixture::MissionSite;replacement->name="REPLACEMENT";
- check(!observe(stale,second)&&!stale->agentDispatch(action("confirm_interception"))&&!stale->agentDispatch(action("cancel_interception_confirmation"))&&craft.sets==1,"expired weak owner rejects both handlers before stale dynamic_cast");stale->release();delete stale;replacement->~MissionSite();game.top=nullptr;game.save.sites.clear();Fixture::currentGame=nullptr;
+ check(!observe(stale,second)&&!stale->agentDispatch(action("confirm_interception"))&&!stale->agentDispatch(action("cancel_interception_confirmation"))&&craft.sets==2,"expired weak owner rejects both handlers before stale dynamic_cast");stale->release();delete stale;replacement->~MissionSite();game.top=nullptr;game.save.sites.clear();Fixture::currentGame=nullptr;
  }
  check(!SDL_GetVideoSurface(),"no video or game loop");std::cout<<"PASS "<<checks<<" actual singleton-to-confirm checks, two masters; explicit Game/Mod/domain seams\n";
 }

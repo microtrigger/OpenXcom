@@ -19,13 +19,13 @@ def message(text='Jane\nis under alien control', report='alien_control', seq=1):
 
 class DisplayedReportValidationTests(unittest.TestCase):
     def test_exact_compiled_protocol_actions_states_and_tool_count(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/48')
-        self.assertEqual(len(a.ACTIONS), 250)
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/49')
+        self.assertEqual(len(a.ACTIONS), 251)
         self.assertEqual(len(a.STATE_ACTIONS), 105)
         self.assertEqual(len(a.definitions()), 7)
         # Exact native/adapter action parity, not counts inferred from adapters.
         native=(Path(__file__).resolve().parents[2]/'src/Observer/AgentProtocol.cpp').read_text()
-        self.assertIn('return "openxcom-agent-control/48"',native)
+        self.assertIn('return "openxcom-agent-control/49"',native)
         native_actions=set(re.findall(r'value == "([a-z0-9_]+)"',native))
         self.assertEqual(native_actions,set(a.ACTIONS))
         self.assertEqual(set().union(*a.STATE_ACTIONS.values()) | {'move_cursor'},native_actions)

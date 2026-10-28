@@ -6,7 +6,7 @@ using namespace OpenXcom::Observer;
 static unsigned checks=0;
 static void check(bool ok){++checks;if(!ok){std::cerr<<"FAIL "<<checks<<'\n';std::exit(1);}}
 int main(){AgentRequest r;const std::string t(32,'1'),p="E "+t+" 1 "+t+" "+t+" 1 ";
-check(parseAgentRequest("H openxcom-agent-control/48",r));check(!parseAgentRequest("H openxcom-agent-control/36",r));
+check(parseAgentRequest("H openxcom-agent-control/49",r));check(!parseAgentRequest("H openxcom-agent-control/36",r));
 for(const std::string a:{"remove_selected_aliens","cancel_containment"}){check(parseAgentRequest(p+a,r));check(!parseAgentRequest(p+a+" extra",r));}
 for(const std::string a:{"increase_containment_removal","decrease_containment_removal"}){
  check(std::string(agentArgumentKind(a))=="project_row");

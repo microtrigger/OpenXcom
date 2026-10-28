@@ -38,6 +38,8 @@ class SelectDestinationState : public State
 {
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::weak_ptr<const void> _agentCraftLifetime;
+    const void *_agentSave = nullptr;
     bool _agentDestinationPaintFull = false;
     std::vector<std::uint64_t> _agentStoredPaintRevisions;
     bool agentDestinationFull() const;

@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/48"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/49"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/48\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/49\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -38,7 +38,7 @@ bool agentActionId(const std::string &value)
         value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
         value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||
         value == "cancel_menu" || value == "dismiss_error" || value == "select_difficulty" ||
-        value == "set_ironman" || value == "start_new_game" || value == "place_base_site" || value == "open_new_base" || value == "cancel_new_base" || value == "confirm_new_base" || value == "cancel_new_base_confirmation" || value == "place_access_lift_cell" ||
+        value == "set_ironman" || value == "start_new_game" || value == "place_base_site" || value == "choose_visible_craft_point" || value == "open_new_base" || value == "cancel_new_base" || value == "confirm_new_base" || value == "cancel_new_base_confirmation" || value == "place_access_lift_cell" ||
         value == "replace_base_name" || value == "confirm_base_name" ||
         value == "load_saved_game" || value == "select_new_save_slot" || value == "replace_new_save_name" || value == "save_new_game" ||
         value == "open_new_battle_choice" || value == "choose_visible_row" || value == "open_psi_training_base" || value == "choose_visible_craft_destination" || value == "scroll_visible_list" ||
@@ -160,7 +160,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
     if (action == "replace_target_name" || action == "replace_base_name" || action == "replace_new_save_name") return "text";
-    if (action == "place_base_site") return "point";
+    if (action == "place_base_site" || action == "choose_visible_craft_point") return "point";
     return agentActionId(action) ? "none" : "unsupported";
 }
 bool agentInputText(const std::string &value)

@@ -38,7 +38,7 @@ int main()
     check(ring.read(epoch,0,16,page)&&page.gap&&page.oldest==6&&page.newest==261,"bounded retention gap explicit");
     check(!ring.read(std::string(32,'b'),0,16,page),"wrong epoch");
     AgentRequest request;
-    check(parseAgentRequest("H openxcom-agent-control/48",request),"current generation-bound protocol");
+    check(parseAgentRequest("H openxcom-agent-control/49",request),"current generation-bound protocol");
     for(unsigned v=1;v<41;++v)check(!parseAgentRequest("H openxcom-agent-control/"+std::to_string(v),request),"old ABI refused");
     check(parseAgentRequest("E "+epoch+" 1 "+epoch+" "+epoch+" 0 acknowledge_message",request),"bounded no-argument acknowledgement");
     check(!parseAgentRequest("E "+epoch+" 1 "+epoch+" "+epoch+" 0 acknowledge_message true",request),"no fake approval argument");

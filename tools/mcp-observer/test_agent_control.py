@@ -203,7 +203,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
         elif screen == 'alien_base_discovered': visible.update(message='X-Com agents have located an alien base in Shown Region')
         elif screen == 'ufo_lost': visible.update(message='UFO-1\nTracking lost')
         elif screen == 'craft_error': visible.update(message='Not enough ammunition to rearm craft at base')
-        elif screen == 'craft_destination_selection': visible.update(title='SELECT DESTINATION', targets=[dict(row='r0', x=100, y=70, width=4, height=4)])
+        elif screen == 'craft_destination_selection': visible.update(title='SELECT DESTINATION', targets=[dict(row='r0', x=100, y=70, width=4, height=4)], globe=dict(width=256,height=200,sample_step=16,samples=[dict(x=64,y=80,terrain='textured'),dict(x=80,y=80,terrain='untextured')]))
         elif screen == 'geoscape_craft_navigation': visible.update(title='INTERCEPTOR-1',status='Status: Patrolling',redirect=None)
         elif screen == 'craft_patrol': visible.update(message='INTERCEPTOR-1\nhas reached\nWAY POINT-1',patrolling='Now patrolling')
         elif screen == 'low_fuel': visible.update(title='Low Fuel',message='INTERCEPTOR-1 is returning to base')
@@ -249,6 +249,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
     def action_label(action):
         if action in a.TARGET_SEMANTICS:return a.TARGET_SEMANTICS[action]
         if screen=="target_info":return "Intercept" if action=="open_target_interception" else "OK"
+        if action == 'choose_visible_craft_point': return 'Choose visible destination point'
         if action == 'choose_visible_craft_destination': return 'Select visible target'
         if action == 'open_psi_training_base': return 'Open psi training base'
         if action == 'choose_dogfight_mode': return 'Choose dogfight mode'
@@ -309,7 +310,7 @@ def arguments(obj=None, command_id=COMMAND, action='kneel', args=None):
     obj = state() if obj is None else obj
     if args is None:
         args = {'move_cursor': {'x':0,'y':0}, 'select_difficulty': {'value': 'beginner'}, 'set_ironman': {'value': False},
-                'click_visible_globe_target':{'row':'r0'},'choose_globe_target':{'row':'r0'},'replace_target_name':{'text':'Test'},'replace_base_name': {'text': 'Alpha'}, 'replace_new_save_name': {'text': 'MCP Test'}, 'load_saved_game': {'row': 'r0'}, 'place_base_site': {'x': 64, 'y': 80},
+                'click_visible_globe_target':{'row':'r0'},'choose_globe_target':{'row':'r0'},'replace_target_name':{'text':'Test'},'replace_base_name': {'text': 'Alpha'}, 'replace_new_save_name': {'text': 'MCP Test'}, 'load_saved_game': {'row': 'r0'}, 'place_base_site': {'x': 64, 'y': 80}, 'choose_visible_craft_point': {'x':64,'y':80},
                 'open_new_battle_choice': {'control': 'mission'}, 'choose_visible_row': {'row': 'r0'}, 'open_psi_training_base': {'row': 'r0'}, 'choose_visible_craft_destination': {'row': 'r0'},
                 'scroll_visible_list': {'direction': 'down'}, 'scroll_article_text': {'direction': 'down'}, 'map_primary': {'cell':'g0'},
                 'map_secondary': {'cell':'g0'}, 'center_enemy': {'button':'e0'},
@@ -651,7 +652,7 @@ class ValidationTests(unittest.TestCase):
             'save_in_progress': set(), 'load_in_progress': set(),
             'error_message': {'dismiss_error'},
         }
-        self.assertEqual(len(a.ACTIONS), 250); self.assertEqual(len(a.STATE_ACTIONS), 105)
+        self.assertEqual(len(a.ACTIONS), 251); self.assertEqual(len(a.STATE_ACTIONS), 105)
         for screen, actions in expected.items():
             self.assertEqual(a.STATE_ACTIONS[screen], actions)
             obj = state(screen=screen); a.validate_state(obj, CHALLENGE, EPOCH)
@@ -702,10 +703,10 @@ class ValidationTests(unittest.TestCase):
 
 class TypedValidationTests(unittest.TestCase):
     def test_exact_action_kind_catalog_not_peer_defined(self):
-        self.assertEqual(len(a.ACTIONS), 250)
+        self.assertEqual(len(a.ACTIONS), 251)
         self.assertEqual({k: v for k, v in a.ARGUMENT_KINDS.items() if v != 'none'}, {
             'move_cursor': 'cursor_position', 'select_difficulty': 'difficulty', 'set_ironman': 'boolean',
-            'click_visible_globe_target':'visible_row','choose_globe_target':'outfitting_row','replace_target_name':'text','replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point',
+            'click_visible_globe_target':'visible_row','choose_globe_target':'outfitting_row','replace_target_name':'text','replace_base_name': 'text', 'replace_new_save_name': 'text', 'load_saved_game': 'visible_row', 'place_base_site': 'point', 'choose_visible_craft_point': 'point',
             'open_new_battle_choice': 'choice_control', 'choose_visible_row': 'visible_row', 'open_psi_training_base': 'visible_row', 'choose_visible_craft_destination': 'visible_row',
             'scroll_visible_list': 'scroll_direction', 'scroll_article_text': 'scroll_direction', 'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
             'center_enemy': 'enemy_button', 'open_hand_action_menu': 'hand', 'choose_weapon_action': 'weapon_action',
@@ -880,7 +881,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/48')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/49')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -894,7 +895,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/48']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/49']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1620,9 +1621,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/48',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/48'
-send(dict(schema='openxcom-agent-control/48',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/49',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/49'
+send(dict(schema='openxcom-agent-control/49',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1667,9 +1668,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/48',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/48'
-send(dict(schema='openxcom-agent-control/48',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/49',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/49'
+send(dict(schema='openxcom-agent-control/49',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1700,9 +1701,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/48', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/49', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/48'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/49'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

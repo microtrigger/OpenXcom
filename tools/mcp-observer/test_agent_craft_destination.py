@@ -132,8 +132,8 @@ class CraftDestinationTests(unittest.TestCase):
             old = request
         self.assertEqual(sum(packet.startswith(b'E ') for packet in peer.requests), 3)
 
-    def test_picker_never_advertises_destination_or_map_controls(self):
-        self.assertEqual(a.STATE_ACTIONS['craft_destination_selection'], frozenset(ACTIONS | {'choose_visible_craft_destination'}))
+    def test_picker_only_advertises_bounded_destination_controls(self):
+        self.assertEqual(a.STATE_ACTIONS['craft_destination_selection'], frozenset(ACTIONS | {'choose_visible_craft_destination','choose_visible_craft_point'}))
         for action in ('open_craft_destination', 'select_destination', 'confirm_destination',
                        'create_waypoint', 'map_primary', 'return_to_base', 'patrol', 'cydonia'):
             obj = state(screen='craft_destination_selection')

@@ -10,7 +10,7 @@ NEW={'open_soldier_diary','open_diary_performance','close_soldier_diary','close_
 class DiaryTests(unittest.TestCase):
  def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
  def test_exact_schemas_old_refusal_and_unknown_model(self):
-  self.assertEqual(a.SCHEMA,'openxcom-agent-control/48')
+  self.assertEqual(a.SCHEMA,'openxcom-agent-control/49')
   for screen in SCREENS:
    o=state(screen=screen);self.check(o)
    for key in o['visible']:

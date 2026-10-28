@@ -5,7 +5,7 @@
 using namespace OpenXcom::Observer;
 int main() {
  AgentRequest r;const std::string t(32,'1'),p="E "+t+" 1 "+t+" "+t+" 1 ";
- assert(parseAgentRequest("H openxcom-agent-control/48",r));
+ assert(parseAgentRequest("H openxcom-agent-control/49",r));
  assert(!parseAgentRequest("H openxcom-agent-control/33",r));
  for(const std::string a:{"confirm_dismantle_facility","cancel_dismantle_facility"}) {
   assert(parseAgentRequest(p+a,r)); assert(std::string(agentArgumentKind(a))=="none");

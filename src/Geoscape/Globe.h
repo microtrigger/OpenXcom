@@ -138,7 +138,7 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	bool agentCursorMotionSafe() const override { return InteractiveSurface::agentCursorMotionSafe() && !_isMouseScrolling && !_isMouseScrolled; }
 	void agentRecordOccluders(const std::vector<Surface *> &paintOrder, bool safe = true);
-	std::string agentGeography(Observer::AgentUiState &ui, const std::vector<Surface *> &overlays) const;
+	std::string agentGeography(Observer::AgentUiState &ui, const std::vector<Surface *> &overlays, int minimumY = 0) const;
 	std::uint64_t agentViewRevision() const { return _agentViewRevision; }
     std::string agentDestinationTargets(Observer::AgentUiState &ui,
         const std::vector<Surface *> &overlays, std::vector<Target *> &targets) const;

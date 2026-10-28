@@ -2144,7 +2144,7 @@ std::string Globe::agentGeoscapeTargets(Observer::AgentUiState &ui,
     }
     return rows+"]";
 }
-std::string Globe::agentGeography(Observer::AgentUiState &ui,const std::vector<Surface *> &overlays) const
+std::string Globe::agentGeography(Observer::AgentUiState &ui,const std::vector<Surface *> &overlays, int minimumY) const
 {
     using namespace Observer;
     if (!_agentBlitReady || _agentShownViewRevision!=_agentViewRevision || !agentPaintHealthy() ||
@@ -2154,7 +2154,7 @@ std::string Globe::agentGeography(Observer::AgentUiState &ui,const std::vector<S
     std::string samples;
     for (const auto &sample:_agentProjection.samples)
     {
-        if (!_agentProjection.visible(sample)) continue;
+        if (sample.y < minimumY || !_agentProjection.visible(sample)) continue;
         bool covered=false;
         for(const Surface *overlay:overlays) if(overlay && overlay->getVisible() &&
             sample.x>=overlay->getX() && sample.y>=overlay->getY() &&

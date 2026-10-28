@@ -52,6 +52,10 @@ namespace OpenXcom
  */
 SelectDestinationState::SelectDestinationState(Craft *craft, Globe *globe) : _craft(craft), _globe(globe)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_craft) _agentCraftLifetime = _craft->agentLifetime();
+    _agentSave = _game->getSavedGame();
+#endif
 	int dx = _game->getScreen()->getDX();
 	int dy = _game->getScreen()->getDY();
 	_screen = false;
@@ -391,12 +395,15 @@ void SelectDestinationState::blit()
 bool SelectDestinationState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (!_game->isState(const_cast<SelectDestinationState *>(this)) || _modal || !agentPaintHealthy() ||
+    if (!_game->isState(const_cast<SelectDestinationState *>(this)) || _modal || _agentCraftLifetime.expired() || !agentPaintHealthy() ||
+        !_agentSave || _agentSave != _game->getSavedGame() ||
         !_agentDestinationPaintFull || !agentDestinationFull() ||
         _agentStoredPaintRevisions != agentPaintRevisions()) return false;
     out = AgentUiState();
     out.screen = "craft_destination_selection";
     out.actor = _globe; // Private callback target identity, never serialized.
+    out.save = _game->getSavedGame();
+    out.uiRevision = _globe->agentViewRevision();
     out.context.push_back(reinterpret_cast<std::uintptr_t>(_craft));
     const Surface *destination = _game->getScreen()->getSurface();
     if (!_window->agentPresentationPaintedTo(destination)) return false;
@@ -453,9 +460,25 @@ bool SelectDestinationState::agentUiState(Observer::AgentUiState &out) const
     if (!visibleTargets.empty())
         out.actions.emplace_back("choose_visible_craft_destination", "Select visible target",
             "visible_control_semantics", "visible_row");
-    out.visible = "{\"title\":" + title + ",\"buttons\":" + buttons + ",\"targets\":" + targets + "}";
+    // Retain craft identity after the marker lifetimes: marker row indices are
+    // unchanged and expired/reused crafts invalidate all retained grants.
+    out.targetLifetimes.push_back(_agentCraftLifetime);
+    AgentUiState geographyProjection;
+    const std::string geography = _globe->agentGeography(geographyProjection, painted, 28);
+    if (geography != "null")
+    {
+        for (const auto &region : geographyProjection.regions)
+        {
+            out.points.emplace_back(region.x, region.y);
+            out.regions.push_back(region);
+        }
+        out.actions.emplace_back("choose_visible_craft_point", "Choose visible destination point",
+            "visible_control_semantics", "point");
+    }
+    out.visible = "{\"title\":" + title + ",\"buttons\":" + buttons + ",\"targets\":" + targets +
+        ",\"globe\":" + geography + "}";
     const std::string payload = out.payload();
-    if (payload.size() > 9000) return false;
+    if (payload.size() > 30000) return false;
     std::size_t asciiBytes = 0;
     for (unsigned char c : payload)
         if ((asciiBytes += c < 128 ? 1 : 6) > 30000) return false;
@@ -467,6 +490,24 @@ bool SelectDestinationState::agentDispatch(const Observer::AgentRequest &request
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
     if (request.action == "cancel_craft_destination") { btnCancelClick(nullptr); return true; }
+    if (request.action == "choose_visible_craft_point")
+    {
+        // Exact freshly painted sample membership, not a world eligibility
+        // preflight. Only the ordinary UI handler resolves nearby targets or
+        // constructs a provisional waypoint, with its native Cancel/OK lifetime.
+        bool offered = false;
+        for (const auto &point : current.points)
+            if (point.first == request.x && point.second == request.y) offered = true;
+        if (!offered || request.y < 28 || !_globe->pointOnVisibleGlobe(request.x, request.y)) return false;
+        SDL_Event event = {};
+        event.type = SDL_MOUSEBUTTONUP;
+        event.button.button = SDL_BUTTON_LEFT;
+        Action action(&event, 1.0, 1.0, 0, 0);
+        action.setMouseAction(request.x, request.y, _globe->getX(), _globe->getY());
+        action.setSender(_globe);
+        globeClick(&action);
+        return true;
+    }
     if (request.action == "choose_visible_craft_destination")
     {
         Observer::AgentUiState projection;
