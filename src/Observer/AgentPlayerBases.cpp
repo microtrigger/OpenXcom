@@ -6,11 +6,18 @@
 #include "../Savegame/GameTime.h"
 #include "../Savegame/Waypoint.h"
 #include "../Engine/Language.h"
+#include "../Engine/Options.h"
+#include "../Mod/ArticleDefinition.h"
+#include "../Ufopaedia/Ufopaedia.h"
 #include "../Savegame/Base.h"
 #include "../Savegame/BaseFacility.h"
 #include "../Savegame/Soldier.h"
 #include "../Savegame/SoldierDiary.h"
 #include "../Savegame/SoldierDeath.h"
+#include "../Savegame/MissionStatistics.h"
+#include "../Savegame/BattleUnitStatistics.h"
+#include "../Mod/RuleCommendations.h"
+#include "../Engine/LocalizedText.h"
 #include "../Savegame/Craft.h"
 #include "../Savegame/CraftWeapon.h"
 #include "../Savegame/Vehicle.h"
@@ -142,9 +149,41 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             emit(waypoint.second,record("own_waypoint",waypoint.second,"").n("native_id",waypoint.first->getId())
                 .s("name",waypoint.first->getName(language)).d("longitude",waypoint.first->getLongitude()).d("latitude",waypoint.first->getLatitude()));
         }
+        // Only the completed campaign archive is consulted here, never the
+        // current battle, enemy targets, positions or tactical object graph.
+        auto *missionStatistics=save->getMissionStatistics();
+        if(!missionStatistics || missionStatistics->size()>MaxRecords)throw std::runtime_error("record_limit");
+        std::map<int,const MissionStatistics*> completedMissions;
+        std::map<int,std::string> missionIds;
+        for(const auto *mission:*missionStatistics){
+            if(!mission || mission->id<0 || !completedMissions.emplace(mission->id,mission).second)throw std::runtime_error("invalid_base_data");
+        }
+        const auto historyIdentity=[&](const std::string &kind,const std::string &scope,const std::string &key){
+            if(key.size()>4096)throw std::runtime_error("record_limit");
+            return logicalIdentity(kind,scope,key);
+        };
+        for(const auto &entry:completedMissions){
+            const auto *mission=entry.second;const auto id=historyIdentity("mission_history","",std::to_string(entry.first));missionIds[entry.first]=id;
+            const auto &t=mission->time;
+            const auto when=Object().n("year",t.getYear()).n("month",t.getMonth()).n("day",t.getDay()).n("hour",t.getHour()).n("minute",t.getMinute()).n("second",t.getSecond()).end();
+            emit(id,record("mission_history",id,"").n("native_id",mission->id).s("title",mission->getMissionName(language)).s("type",mission->type)
+                .raw("time",when).s("region",mission->region).s("country",mission->country)
+                .raw("ufo",mission->isUfoMission()?quote(language->getString(mission->ufo)):"null")
+                .b("success",mission->success).s("rating",mission->getRatingString(language)).n("score",mission->score)
+                .raw("alien_race",mission->alienRace=="STR_UNKNOWN"?"null":quote(language->getString(mission->alienRace)))
+                .s("daylight",mission->isDarkness()?"night":"day").n("loot_value",mission->lootValue).b("valiant_crux",mission->valiantCrux));
+        }
+        const Mod *historyMod=bases->empty()?nullptr:bases->front()->getMod();
+        std::set<std::string> ownItemTypes;
+        const auto ownItem=[&](const std::string &type){
+            if(type.empty())return;
+            if(type.size()>4096 || ownItemTypes.size()>=MaxRecords)throw std::runtime_error("record_limit");
+            ownItemTypes.insert(type);
+        };
         const auto stock=[&](ItemContainer *items,const std::string &owner,const char *kind,const std::string &base){
             if(!items || items->getContents()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(const auto &item:*items->getContents()){
+                if(item.second>0)ownItem(item.first);
                 const auto id=identify("stock",&item);emit(id,record("stock",id,base).s("owner_id",owner).s("owner_kind",kind).s("type",item.first).n("quantity",item.second));
             }
         };
@@ -154,6 +193,7 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
                 // Base defense vehicles may alias loaded craft vehicles. Only the
                 // authoritative first owner gets a record; no tactical graph.
                 if(recordIds.count(id))continue;
+                ownItem(v->getRules()->getType());
                 emit(id,record("vehicle",id,base).s("owner_id",owner).s("owner_kind",kind).s("type",v->getRules()->getType()).n("ammo",v->getAmmo()).n("size",v->getSize()));
             }
         };
@@ -182,18 +222,67 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             const auto work=kills.size()+medals->size()+diary->getMissionIdList().size();
             if(work>MaxRecords || historyWork>MaxRecords-work)throw std::runtime_error("record_limit");historyWork+=work;
             for(const auto *kill:kills)if(!kill)throw std::runtime_error("invalid_base_data");
+            // Indexed equivalent of the native archive-by-diary aggregate
+            // joins. Count repeated diary references exactly as native getters
+            // do, but avoid quadratic work on long completed histories.
+            std::set<int> ownMissions;
+            std::map<std::string,int> byRegion,byCountry,byType,byUfo;
+            long long wins=0,missionScore=0;
+            for(int nativeId:diary->getMissionIdList()){
+                const auto found=completedMissions.find(nativeId);
+                if(found==completedMissions.end())throw std::runtime_error("invalid_base_data");
+                ownMissions.insert(nativeId);const auto *mission=found->second;
+                wins+=mission->success?1:0;missionScore+=mission->score;
+                ++byRegion[mission->region];++byCountry[mission->country];++byType[mission->type];++byUfo[mission->ufo];
+            }
             const auto did="soldier_diary_"+std::to_string(s->getId());
             const auto fired=diary->getShotsFiredTotal(),landed=diary->getShotsLandedTotal();
             emit(did,record("soldier_diary",did,base).s("soldier_id",id).n("missions",diary->getMissionTotal()).n("months_service",diary->getMonthsService())
                 .n("days_wounded",diary->getDaysWoundedTotal()).n("shots_fired",fired).n("shots_landed",landed).n("accuracy",fired?100LL*landed/fired:0)
-                .n("kills",diary->getKillTotal()).n("stuns",diary->getStunTotal()).n("panics",diary->getPanickTotal()).n("mind_controls",diary->getControlTotal()));
+                .n("kills",diary->getKillTotal()).n("stuns",diary->getStunTotal()).n("panics",diary->getPanickTotal()).n("mind_controls",diary->getControlTotal())
+                .n("wins",wins).n("score",missionScore)
+                .raw("neutralizations_by_race",quantities(diary->getAlienRaceTotal())).raw("neutralizations_by_rank",quantities(diary->getAlienRankTotal()))
+                .raw("hostile_neutralizations_by_weapon",quantities(diary->getWeaponTotal())).raw("hostile_neutralizations_by_ammo",quantities(diary->getWeaponAmmoTotal()))
+                .raw("missions_by_region",quantities(byRegion)).raw("missions_by_country",quantities(byCountry))
+                .raw("missions_by_type",quantities(byType)).raw("missions_by_ufo",quantities(byUfo)));
+            for(int nativeId:ownMissions){
+                const auto found=completedMissions.find(nativeId);
+                const auto relation=historyIdentity("soldier_mission",id,std::to_string(nativeId));
+                const auto wound=found->second->injuryList.find(s->getId());
+                emit(relation,record("soldier_mission",relation,base).s("soldier_id",id).s("mission_id",missionIds.at(nativeId))
+                    .n("wounded_days",wound==found->second->injuryList.end()?0:wound->second));
+            }
+            std::map<std::string,std::size_t> occurrences;
+            for(const auto *kill:kills){
+                if(!ownMissions.count(kill->mission) || !completedMissions.count(kill->mission))throw std::runtime_error("invalid_base_data");
+                // Identity uses only fields that produce the native history
+                // caption, never a tactical unit ID, turn, faction or position.
+                Object identity;identity.n("mission",kill->mission).s("status",kill->getKillStatusString()).s("weapon",kill->weapon);
+                if(!kill->name.empty())identity.s("name",kill->name);
+                else if(!kill->type.empty())identity.s("type",kill->type);
+                else identity.s("race",kill->race).s("rank",kill->rank);
+                const auto key=identity.end();if(key.size()>4096)throw std::runtime_error("record_limit");
+                const auto occurrence=occurrences[key]++;
+                const auto encounter=historyIdentity("soldier_encounter",id,key+":"+std::to_string(occurrence));
+                emit(encounter,record("soldier_encounter",encounter,base).s("soldier_id",id).s("mission_id",missionIds.at(kill->mission))
+                    .s("status",language->getString(kill->getKillStatusString())).s("unit_name",kill->getUnitName(language)).s("weapon",language->getString(kill->weapon)));
+            }
             for(const SoldierCommendations *medal:*medals){
                 if(!medal)throw std::runtime_error("invalid_base_data");const auto mid=identify("soldier_commendation",medal);
-                emit(mid,record("soldier_commendation",mid,base).s("soldier_id",id).s("type",medal->getType()).n("decoration_level",medal->getDecorationLevelInt()).b("is_new",medal->isNew()));
+                const bool hasNoun=medal->getNoun()!="noNoun";
+                const std::string noun=hasNoun?std::string(language->getString(medal->getNoun())):std::string();
+                const std::string name=hasNoun?std::string(language->getString(medal->getType()).arg(noun)):std::string(language->getString(medal->getType()));
+                const RuleCommendations *rule=nullptr;
+                if(historyMod){const auto &rules=historyMod->getCommendationsList();const auto found=rules.find(medal->getType());if(found!=rules.end())rule=found->second;}
+                std::string description="null";
+                if(rule)description=quote(hasNoun?std::string(language->getString(rule->getDescription()).arg(noun)):std::string(language->getString(rule->getDescription())));
+                emit(mid,record("soldier_commendation",mid,base).s("soldier_id",id).s("type",medal->getType()).n("decoration_level",medal->getDecorationLevelInt()).b("is_new",medal->isNew())
+                    .raw("noun",hasNoun?quote(noun):"null").s("name",name).raw("description",description).s("decoration_description",language->getString(medal->getDecorationDescription())));
             }
             if(s->getEquipmentLayout()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(EquipmentLayoutItem *e:*s->getEquipmentLayout()){
                 if(!e)throw std::runtime_error("invalid_base_data");const auto eid=identify("equipment_layout",e);
+                if(!base.empty()){ownItem(e->getItemType());if(e->getAmmoItem()!="NONE")ownItem(e->getAmmoItem());}
                 emit(eid,record("equipment_layout",eid,base).s("soldier_id",id).s("item_type",e->getItemType()).s("slot",e->getSlot()).n("x",e->getSlotX()).n("y",e->getSlotY()).s("ammo_item",e->getAmmoItem()).n("fuse_timer",e->getFuseTimer()));
             }
         };
@@ -231,6 +320,7 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             stock(c->getItems(),id,"craft",base);vehicles(*c->getVehicles(),id,"craft",base);
             if(c->getWeapons()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(std::size_t i=0;i<c->getWeapons()->size();++i){CraftWeapon *w=c->getWeapons()->at(i);if(!w)continue;if(!w->getRules())throw std::runtime_error("invalid_base_data");const auto wid=identify("weapon",w);const auto *wr=w->getRules();
+                ownItem(wr->getLauncherItem());ownItem(wr->getClipItem());
                 emit(wid,record("weapon",wid,base).s("craft_id",id).s("type",wr->getType()).n("slot",i).n("ammo",w->getAmmo()).n("ammo_max",wr->getAmmoMax()).n("rearm_rate",wr->getRearmRate()).b("rearming",w->isRearming()).s("launcher_item",wr->getLauncherItem()).s("clip_item",wr->getClipItem()));
             }
         };
@@ -320,11 +410,72 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             for(Transfer *t:*base->getTransfers()){
                 const auto id=identify("transfer",t);const auto type=t->getType();const char *name=nullptr;
                 switch(type){case TRANSFER_ITEM:name="item";break;case TRANSFER_CRAFT:name="craft";break;case TRANSFER_SOLDIER:name="soldier";break;case TRANSFER_SCIENTIST:name="scientist";break;case TRANSFER_ENGINEER:name="engineer";break;default:throw std::runtime_error("invalid_base_data");}
+                if(type==TRANSFER_ITEM && t->getQuantity()>0)ownItem(t->getItems());
                 emit(id,record("transfer",id,bid).s("transfer_type",name).n("hours",t->getHours()).n("quantity",t->getQuantity()).nullable("item_type",type==TRANSFER_ITEM?t->getItems():"").nullable("craft_id",t->getCraft()?craftIds.at(t->getCraft()):"").nullable("soldier_id",t->getSoldier()?soldierIds.at(t->getSoldier()):""));
                 if(t->getSoldier())soldier(t->getSoldier(),bid,id);if(t->getCraft())craft(t->getCraft(),bid,id);
             }
         }
         for(Soldier *s:*save->getDeadSoldiers())soldier(s,"","");
+        // Only tangible own stock, gear and transit references establish this
+        // bounded item set. Do not recursively expand offers or rule graphs.
+        const auto itemArticle=[&](const std::string &type)->const ArticleDefinition*{
+            if(!historyMod)return nullptr;
+            const auto *article=historyMod->getUfopaediaArticle(type,false);
+            return article && article->id==type &&
+                (article->getType()==UFOPAEDIA_TYPE_ITEM || article->getType()==UFOPAEDIA_TYPE_TFTD_ITEM) &&
+                article->section!=UFOPAEDIA_NOT_AVAILABLE && save->isResearched(article->_requires)?article:nullptr;
+        };
+        const auto damageLabel=[&](ItemDamageType type)->std::string{
+            const char *label="STR_UNKNOWN";
+            switch(type){case DT_AP:label="STR_DAMAGE_ARMOR_PIERCING";break;case DT_IN:label="STR_DAMAGE_INCENDIARY";break;
+                case DT_HE:label="STR_DAMAGE_HIGH_EXPLOSIVE";break;case DT_LASER:label="STR_DAMAGE_LASER_BEAM";break;
+                case DT_PLASMA:label="STR_DAMAGE_PLASMA_BEAM";break;case DT_STUN:label="STR_DAMAGE_STUN";break;
+                case DT_MELEE:label="STR_DAMAGE_MELEE";break;case DT_ACID:label="STR_DAMAGE_ACID";break;
+                case DT_SMOKE:label="STR_DAMAGE_SMOKE";break;default:break;}
+            return language->getString(label);
+        };
+        for(const auto &type:ownItemTypes){
+            RuleItem *rule=historyMod?historyMod->getItem(type,false):nullptr;
+            if(!rule)throw std::runtime_error("invalid_base_data");
+            const bool identified=save->isResearched(rule->getRequirements());
+            const bool purchasable=identified && rule->getBuyCost()!=0;
+            const bool sellable=Options::canSellLiveAliens || !rule->isAlien();
+            const auto logistics=Object().d("storage_size",rule->getSize())
+                .raw("sell_price",sellable?std::to_string(rule->getSellCost()):"null")
+                .raw("purchase_price",purchasable?std::to_string(rule->getBuyCost()):"null")
+                .raw("purchase_delivery_hours",purchasable?std::to_string(rule->getTransferTime()):"null").end();
+            const auto medikit=rule->getBattleType()==BT_MEDIKIT?Object().n("heal",rule->getHealQuantity())
+                .n("painkiller",rule->getPainKillerQuantity()).n("stimulant",rule->getStimulantQuantity()).end():std::string("null");
+            const auto physical=Object().n("weight",rule->getWeight()).n("width",rule->getInventoryWidth()).n("height",rule->getInventoryHeight())
+                .n("clip_capacity",rule->getClipSize()).raw("medikit",medikit).end();
+            std::string technical="null";
+            if(const ArticleDefinition *article=itemArticle(type)){
+                std::string modes="[";
+                const auto mode=[&](const char *name,int accuracy,int tu){if(tu<=0)return;if(modes.size()>1)modes+=",";
+                    modes+=Object().s("mode",name).n("accuracy",accuracy).n("tu",tu).s("tu_unit",rule->getFlatRate()?"absolute":"percent").end();};
+                if(rule->getBattleType()==BT_FIREARM){mode("auto",rule->getAccuracyAuto(),rule->getTUAuto());mode("snap",rule->getAccuracySnap(),rule->getTUSnap());mode("aimed",rule->getAccuracyAimed(),rule->getTUAimed());}
+                modes+="]";
+                const auto *ammo=rule->getCompatibleAmmo();
+                if(!ammo || ammo->size()>MaxRecords)throw std::runtime_error("record_limit");
+                const auto battleType=rule->getBattleType();
+                const bool ownDamage=(battleType==BT_FIREARM && ammo->empty()) || battleType==BT_AMMO || battleType==BT_GRENADE || battleType==BT_PROXIMITYGRENADE || battleType==BT_MELEE;
+                std::string damage="null";
+                if(ownDamage){
+                    const bool showPellets=article->getType()==UFOPAEDIA_TYPE_ITEM || battleType==BT_FIREARM;
+                    damage=Object().s("type",damageLabel(rule->getDamageType())).n("power",rule->getPower())
+                        .raw("pellets",showPellets && rule->getShotgunPellets()!=0?std::to_string(rule->getShotgunPellets()):"null").end();
+                }
+                std::string compatible="[";std::set<std::string> included;
+                if(battleType==BT_FIREARM)for(size_t i=0;i<std::min<size_t>(3,ammo->size());++i){const auto &ammoType=ammo->at(i);
+                    if(ownItemTypes.count(ammoType) && itemArticle(ammoType) && included.insert(ammoType).second){if(compatible.size()>1)compatible+=",";compatible+=quote(ammoType);}}
+                compatible+="]";
+                technical=Object().s("article_id",article->id).raw("fire_modes",modes).raw("damage",damage).raw("compatible_ammo",compatible).end();
+            }
+            const auto id=logicalIdentity("item_definition","",type);
+            emit(id,record("item_definition",id,"").s("type",type).s("base_label",language->getString(type))
+                .s("inventory_label",language->getString(identified?rule->getName():"STR_ALIEN_ARTIFACT")).b("identified",identified)
+                .raw("logistics",logistics).raw("physical",physical).raw("technical",technical));
+        }
         std::sort(records.begin(),records.end());
         for(auto i=_identities.begin();i!=_identities.end();)if(!_seen.count(i->first))i=_identities.erase(i);else ++i;
         return true;

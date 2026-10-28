@@ -15,7 +15,7 @@ transfers. In-transit owned soldiers/craft are included. The schema uses positiv
 field allowlists, not recursive save-game dumps. Enemy retaliation/detection
 state and enemy destination graphs are excluded.
 
-Pages use `openxcom-player-bases/4`, a connection epoch, a campaign epoch,
+Pages use `openxcom-player-bases/5`, a connection epoch, a campaign epoch,
 content generation and a frozen snapshot token. A new first page captures
 current state; continuation pages belong to that same detached snapshot.
 Changed captures replace the snapshot; expired continuation tokens fail
@@ -24,8 +24,10 @@ No snapshot ID or entity ID grants action authority.
 
 ## Record coverage
 
-Every record has `kind`, `id`, and `base_id`. The campaign record has an empty
-`base_id`; each base record refers to itself. Type, rank, status, progress,
+Every record has `kind`, `id`, and `base_id`. Campaign-wide knowledge, waypoint,
+completed-mission and owned-item definition records have an empty `base_id`;
+each base record refers to itself. Memorial soldier/history records also have
+an empty base reference because deceased personnel no longer occupy a base. Type, rank, status, progress,
 category, and item identifiers are engine identifiers, not promises of localized
 on-screen text.
 
@@ -35,8 +37,12 @@ on-screen text.
 | `base` | Name, longitude/latitude, grid size; total and available soldiers/scientists/engineers, allocated scientists/engineers; capacity/used/free for quarters, stores, laboratories, workshops, hangars, psi labs and containment; craft/personnel/facility/total maintenance; expense-ledger craft rentals and soldier-type/engineer/scientist salaries with type, unit cost, quantity and total; defense and short-/long-range detection capability. |
 | `facility` | Type, x/y, size, remaining/total construction days, build/monthly cost; quarters/stores/laboratories/workshops/hangars/psi-lab/containment capacities; radar range/chance, defense, hit ratio, lift/hyperwave/mind-shield/grav-shield flags. |
 | `soldier` | Native ID, type, name, rank identifier/value, armor, gender/look, missions/kills, recovery days, psi-training flag and improvement values; craft reference; home/in-transit location and transfer reference; initial/current stats, a non-consuming recent-promotion flag, and nullable death status/time. Stats contain TU, stamina, health, bravery, reactions, firing, throwing, strength, psi strength/skill and melee. |
-| `soldier_diary` | Soldier reference; own aggregate missions, service months, wounded days, shots fired/landed, accuracy, kills, stuns, panics and mind controls. No individual kill or mission records. |
-| `soldier_commendation` | Soldier reference, award type, decoration level and unconsumed new-award flag. No enemy-specific award noun. |
+| `soldier_diary` | Soldier reference; own aggregate missions, service months, wounded days, shots fired/landed, accuracy, kills, stuns, panics and mind controls. Wins and score plus bounded native neutralization and completed-mission breakdowns. These counts describe recorded events, not unique victims; hostile weapon/ammo totals have a different native filter from race/rank totals. |
+| `soldier_commendation` | Soldier reference, award type, decoration level and unconsumed new-award flag. Localized earned-award name, noun, description and decoration label; no future award criteria. |
+| `mission_history` | Completed campaign archive only: native ID, title/type, date, region/country, nullable shown UFO/race labels, success/rating/score, day/night and recorded loot/award outcome. No active targets or tactical links. |
+| `soldier_mission` | Own soldier and completed-mission references, with that soldier’s recorded wounded days; no whole injury map. |
+| `soldier_encounter` | Archived Diary mission-row status, unit-name and weapon presentation strings, linked to the own soldier and completed mission. No raw victim ID, coordinates, turn, faction graph or current BattleUnit. |
+| `item_definition` | Metadata for own stock, transit and remembered equipment references only: separate store/inventory labels and identification, logistics, physical dimensions/nominal capacities, and nullable research-gated technical article fields. No full rule catalog. |
 | `equipment_layout` | Soldier reference, item type, slot, slot x/y, ammo item and fuse timer. This is the saved equipment layout, not tactical inventory. |
 | `craft` | Home-base reference, native fuel consumption and nullable return-to-home fuel/distance estimates, own dogfight/battlescape flags and interception order, safe tagged destination; Native ID, type, name, status, home-roster/in-transit location and transfer reference; weapon-slot count/capacity; own longitude/latitude/speed; fuel/max fuel, damage/max damage, maximum speed; soldier/vehicle/item capacities and used/available space; monthly cost, low-fuel and mission-complete flags; crew references. |
 | `stock` | Owner reference/kind, item type and quantity; separate records for base and craft stores. |
@@ -117,7 +123,39 @@ checks in both games read two owned bases from Geoscape and an ordinary options
 window, with unchanged owned state and stable repeated snapshots. Populated
 waypoint, foreign-destination and operational-flag edge cases remain native-fixture
 evidence rather than live qualification of those conditions. The broader test
-suite is not fully passing. Detailed own mission and award breakdowns, translated
-award information, and item metadata beyond the current allowlist remain separate
-work. This is broader owned state, not exhaustive serialization or a relaxation
+suite is not fully passing. These earlier checks do not qualify schema 5 additions. Item metadata remains
+an explicit player-known allowlist rather than exhaustive raw-rule serialization. This is broader owned state, not exhaustive serialization or a relaxation
 of visible-action and enemy-information boundaries.
+
+## Detailed owned-history boundary
+
+History is the campaign’s completed record and the same earned-award presentation
+used by the soldier Diary. A recorded enemy name or race in that history is not
+permission to inspect present tactical enemies. No live BattleGame graph, target
+lookup, future award criteria or mutation is used. Missing or invalid historical
+references fail explicitly rather than silently binding to another mission.
+Schema 5 has focused native model, wire and strict adapter qualification.
+Short live checks in both games cover owned item definitions and empty histories
+from two bases and another ordinary window, without state changes. Populated
+mission/encounter/award and research-gate edge cases have synthetic native
+qualification, not populated live acceptance. The full regression suite remains
+not fully passing; unchanged baseline diagnostics are not treated as success.
+
+## Owned-item definition boundary
+
+An item reference does not automatically unlock technical knowledge. Remembered
+equipment-layout references do not prove the item remains physically in stock. Store labels
+are distinct from the inventory’s unidentified-artifact label. Technical fields
+require a matching, available item article in the ordinary UFO/TFTD Ufopaedia;
+compatible-ammo links additionally require that ammo’s independently available
+article and an owned reference. The link list follows the native article’s first
+three slots, not an exhaustive mod compatibility graph. TFTD standalone-ammo
+pellets remain null even where a firearm ammo panel could show a multiplier. Research requirements,
+future unlocks, AI parameters and hidden simulation fields are not serialized.
+
+Physical dimensions, weight and nominal clip/medikit capacities are definition
+values, not current tactical rounds or charges. Purchase delivery hours, when
+available, describe nominal purchase delivery, not a base-to-base transfer quote.
+A purchase price or offer never grants action authority or bypasses native checks.
+Technical damage and firing-mode values are article baselines, not the current
+soldier’s hit chance or a prediction about an unseen target.

@@ -2,17 +2,22 @@
 """Explicit user-authorized strategic ownership read model. Never UI action authority."""
 import math
 from snapshots import Unavailable, exact
-SCHEMA='openxcom-player-bases/4'
+SCHEMA='openxcom-player-bases/5'
 LIMIT=100000
 CAPS='quarters stores laboratories workshops hangars psi_labs containment'
+BREAKDOWNS='neutralizations_by_race neutralizations_by_rank hostile_neutralizations_by_weapon hostile_neutralizations_by_ammo missions_by_region missions_by_country missions_by_type missions_by_ufo'.split()
 STATS='tu stamina health bravery reactions firing throwing strength psi_strength psi_skill melee'
 FIELDS={
  'campaign':'funds time monthly_income monthly_maintenance',
  'base':'name longitude latitude grid_size personnel capacities maintenance expense_ledger defense short_range_detection long_range_detection',
  'facility':'type x y size build_days_remaining build_days_total build_cost monthly_cost capacities radar_range radar_chance defense hit_ratio lift hyperwave mind_shield grav_shield',
  'soldier':'native_id type name rank armor rank_value gender look missions kills recovery_days psi_improvement psi_strength_improvement psi_training craft_id location transfer_id initial_stats current_stats recently_promoted death',
- 'soldier_diary':'soldier_id missions months_service days_wounded shots_fired shots_landed accuracy kills stuns panics mind_controls',
- 'soldier_commendation':'soldier_id type decoration_level is_new',
+ 'soldier_diary':'soldier_id missions months_service days_wounded shots_fired shots_landed accuracy kills stuns panics mind_controls wins score '+ ' '.join(BREAKDOWNS),
+ 'soldier_commendation':'soldier_id type decoration_level is_new noun name description decoration_description',
+ 'mission_history':'native_id title type time region country ufo success rating score alien_race daylight loot_value valiant_crux',
+ 'soldier_mission':'soldier_id mission_id wounded_days',
+ 'soldier_encounter':'soldier_id mission_id status unit_name weapon',
+ 'item_definition':'type base_label inventory_label identified logistics physical technical',
  'craft':'native_id type name status location transfer_id longitude latitude speed fuel fuel_max damage damage_max speed_max soldier_capacity vehicle_capacity item_capacity space_used space_available monthly_cost weapon_slot_count weapon_capacity low_fuel mission_complete crew home_base_id fuel_consumption fuel_to_home distance_to_home in_dogfight in_battlescape interception_order destination',
  'research':'type progress assigned spent cost',
  'research_knowledge':'type name',
@@ -26,8 +31,8 @@ FIELDS={
  'vehicle':'owner_id owner_kind type ammo size',
  'equipment_layout':'soldier_id item_type slot ammo_item x y fuse_timer',
 }
-STRINGS=set('name type rank armor status progress category owner_id owner_kind craft_id soldier_id item_type slot ammo_item launcher_item clip_item transfer_id location transfer_type'.split())
-BOOLS=set('lift hyperwave mind_shield grav_shield psi_training low_fuel mission_complete infinite sell rearming recently_promoted is_new needs_item destroys_item in_dogfight in_battlescape'.split())
+STRINGS=set('name type rank armor status progress category owner_id owner_kind craft_id soldier_id item_type slot ammo_item launcher_item clip_item transfer_id location transfer_type title region country rating daylight unit_name weapon decoration_description base_label inventory_label'.split())
+BOOLS=set('lift hyperwave mind_shield grav_shield psi_training low_fuel mission_complete infinite sell rearming recently_promoted is_new needs_item destroys_item in_dogfight in_battlescape success valiant_crux identified'.split())
 NULLABLE={'craft_id','soldier_id','item_type','transfer_id'}
 def need(ok):
  if not ok:raise Unavailable('Unavailable')
@@ -45,13 +50,42 @@ def record(r):
  need(type(r)is dict and type(r.get('kind'))is str and r['kind']in FIELDS)
  k=r['kind'];exact(r,'kind id base_id '+FIELDS[k]);ident(r['id']);
  if k=='campaign':need(r['id']=='campaign_0' and r['base_id']=='')
- elif k in ('research_knowledge','own_waypoint'):need(r['base_id']=='')
- elif k in ('soldier','soldier_diary','soldier_commendation') and r['base_id']=='':pass
+ elif k in ('research_knowledge','own_waypoint','mission_history','item_definition'):need(r['base_id']=='')
+ elif k in ('soldier','soldier_diary','soldier_commendation','soldier_mission','soldier_encounter') and r['base_id']=='':pass
  else:ident(r['base_id'])
  if k=='base':need(r['id']==r['base_id'] and r['grid_size']==6)
  for key,v in r.items():
   if key in ('kind','id','base_id'):continue
-  if key=='home_base_id':
+  if key in ('mission_id','soldier_id') and k in ('soldier_mission','soldier_encounter'):
+   ident(v)
+  elif key in ('noun','description') and k=='soldier_commendation':string(v,True)
+  elif key in ('ufo','alien_race') and k=='mission_history':string(v,True)
+  elif key in BREAKDOWNS:
+   need(type(v)is dict and len(v)<=1000)
+   for a,b in v.items():string(a);integer(b)
+  elif key=='logistics':
+   exact(v,'storage_size sell_price purchase_price purchase_delivery_hours');number(v['storage_size'])
+   for field in ('sell_price','purchase_price','purchase_delivery_hours'):
+    if v[field] is not None:integer(v[field])
+   need((v['purchase_price'] is None)==(v['purchase_delivery_hours'] is None))
+  elif key=='physical':
+   exact(v,'weight width height clip_capacity medikit')
+   for field in ('weight','width','height','clip_capacity'):integer(v[field])
+   if v['medikit'] is not None:objnums(v['medikit'],'heal painkiller stimulant')
+  elif key=='technical':
+   if v is not None:
+    exact(v,'article_id fire_modes damage compatible_ammo');string(v['article_id'])
+    need(type(v['fire_modes'])is list and len(v['fire_modes'])<=3);modes=[]
+    for mode in v['fire_modes']:
+     exact(mode,'mode accuracy tu tu_unit');need(mode['mode'] in ('auto','snap','aimed') and mode['tu_unit'] in ('absolute','percent'));integer(mode['accuracy']);integer(mode['tu']);modes.append(mode['mode'])
+    need(modes==[x for x in ('auto','snap','aimed') if x in modes])
+    if v['damage'] is not None:
+     exact(v['damage'],'type power pellets');string(v['damage']['type']);integer(v['damage']['power'])
+     if v['damage']['pellets'] is not None:integer(v['damage']['pellets'])
+    need(type(v['compatible_ammo'])is list and len(v['compatible_ammo'])<=3)
+    for ammo in v['compatible_ammo']:string(ammo)
+    need(len(v['compatible_ammo'])==len(set(v['compatible_ammo'])))
+  elif key=='home_base_id':
    if v is not None:ident(v)
   elif key in ('fuel_to_home','distance_to_home'):
    if v is not None:(number if key=='distance_to_home' else integer)(v)
@@ -63,7 +97,7 @@ def record(r):
   elif key=='death':
    if v is not None:
     exact(v,'status time');need(v['status'] in ('kia','mia'));objnums(v['time'],'year month day hour minute second')
-  elif key=='time' and k=='campaign':objnums(v,'year month day hour minute second')
+  elif key=='time' and k in ('campaign','mission_history'):objnums(v,'year month day hour minute second')
   elif key=='personnel':objnums(v,'soldiers scientists engineers available_soldiers available_scientists available_engineers allocated_scientists allocated_engineers')
   elif key=='capacities':
    exact(v,CAPS)
@@ -101,6 +135,7 @@ def record(r):
   need((r['base_id']=='') == (r['location']=='memorial'))
   need((r['death'] is not None) == (r['location']=='memorial'))
   if r['location']=='memorial':need(r['craft_id'] is None and r['transfer_id'] is None)
+ if k=='mission_history':need(r['daylight'] in ('day','night'))
  if k=='transfer':need(r['transfer_type']in ('item','craft','soldier','scientist','engineer'))
  return r
 
@@ -134,6 +169,6 @@ def page(raw,challenge,epoch,snapshot,offset,limit):
  return o
 
 def definition():
- return {'name':'read_player_bases','description':'Read all player-owned bases and their facilities, personnel, own-soldier service aggregates, commendations and memorial, craft and safe own destinations, owned waypoints, stock, transfers, discovered research and currently offered research/manufacturing independently of the open UI, focus or paint. User-authorized strategic ownership data only: no tactical/enemy state. This grants no mutation or construction authority. First call omits snapshot with offset0; follow returned snapshot and next_offset until complete. Pages belong to a frozen content generation. New first reads sample current data; unchanged data retain generation. Unavailable/expired snapshots are explicit, never empty-success or silent truncation. Mutations still require ordinary fresh UI controls.',
+ return {'name':'read_player_bases','description':'Read all player-owned bases and their facilities, personnel, own-soldier service aggregates, commendations and memorial, craft and safe own destinations, owned waypoints, stock, transfers, discovered research and currently offered research/manufacturing, completed mission and own-soldier history, and player-known owned-item definitions independently of the open UI, focus or paint. User-authorized strategic ownership data only: no tactical/enemy state. This grants no mutation or construction authority. First call omits snapshot with offset0; follow returned snapshot and next_offset until complete. Pages belong to a frozen content generation. New first reads sample current data; unchanged data retain generation. Unavailable/expired snapshots are explicit, never empty-success or silent truncation. Mutations still require ordinary fresh UI controls.',
  'inputSchema':{'type':'object','properties':{'snapshot':{'type':'string','pattern':'^[0-9a-f]{32}$'},'offset':{'type':'integer','minimum':0,'maximum':LIMIT},'limit':{'type':'integer','minimum':1,'maximum':16}},'additionalProperties':False},
  'annotations':{'readOnlyHint':True,'destructiveHint':False,'idempotentHint':True,'openWorldHint':False}}

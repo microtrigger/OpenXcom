@@ -28,6 +28,7 @@
 #include "../../src/Savegame/BaseFacility.h"
 #include "../../src/Savegame/Craft.h"
 #include "../../src/Savegame/Waypoint.h"
+#include "../../src/Savegame/MissionStatistics.h"
 #include "../../src/Savegame/CraftWeapon.h"
 #include "../../src/Savegame/Soldier.h"
 #include "../../src/Savegame/SoldierDiary.h"
@@ -44,6 +45,8 @@
 #include "../../src/Mod/RuleCraftWeapon.h"
 #include "../../src/Mod/RuleSoldier.h"
 #include "../../src/Mod/RuleItem.h"
+#include "../../src/Mod/ArticleDefinition.h"
+#include "../../src/Mod/RuleCommendations.h"
 #include "../../src/Mod/RuleResearch.h"
 #include "../../src/Mod/RuleManufacture.h"
 #include "../../src/Mod/Armor.h"
@@ -51,6 +54,7 @@ using namespace OpenXcom;using namespace OpenXcom::Observer;
 static unsigned checks=0;
 void check(bool yes,const char *label){++checks;if(!yes){std::cerr<<"FAIL "<<label<<'\n';std::exit(1);}}
 struct EnemyTarget:Target {mutable unsigned reads=0;std::string getType()const override{++reads;return "PRIVATE_ENEMY_TYPE";}int getMarker()const override{++reads;return 99;}std::string getName(Language*)const override{++reads;return "PRIVATE_ENEMY_NAME";}};
+static void itemDefinitionChecks(const std::string&output);
 static void opportunityAndRouteChecks(const std::string&output);
 int main(int argc,char **argv){
  Mod mod;Language language;EnemyTarget enemy;SavedGame save;AgentPlayerBases collector;
@@ -67,6 +71,7 @@ int main(int argc,char **argv){
  Craft *c=new Craft(&craftRule,a,17);c->setName("OWN CRAFT NAME");c->setFuel(500);c->setDamage(8);c->setDestination(&enemy);a->getCrafts()->push_back(c);c->getItems()->addItem("OWN_ITEM",2);
  // id0 avoids random generation; all properties are native mutable setup only.
  Soldier *s=new Soldier(&soldierRule,&armor,0);s->setName("OWN SOLDIER NAME");s->setCraft(c);s->getCurrentStats()->psiStrength=81;s->promoteRank();s->promoteRank();a->getSoldiers()->push_back(s);s->getEquipmentLayout()->push_back(new EquipmentLayoutItem("OWN_ITEM","STR_RIGHT_HAND",0,0,"",-1));
+ auto*noAmmoLayout=new EquipmentLayoutItem(YAML::Load("itemType: OWN_ITEM\nslot: STR_BELT\nslotX: 0\nslotY: 0"));s->getEquipmentLayout()->push_back(noAmmoLayout);check(noAmmoLayout->getAmmoItem()=="NONE","native loaded layout missing ammo uses NONE sentinel");
  c->getVehicles()->push_back(new Vehicle(item,8,4));
  RuleCraftWeapon weaponRule("OWN_WEAPON");weaponRule.load(YAML::Load("ammoMax: 20\nrearmRate: 4\nlauncher: OWN_ITEM\nclip: OWN_ITEM"),&mod);c->getWeapons()->at(0)=new CraftWeapon(&weaponRule,9);
  auto *research=new ResearchProject(&researchRule,250);research->setAssigned(3);research->setSpent(12);a->addResearch(research);
@@ -75,12 +80,15 @@ int main(int argc,char **argv){
  Craft *incoming=new Craft(&craftRule,b,19);incoming->setName("INCOMING CRAFT");Transfer *craftTransfer=new Transfer(14);craftTransfer->setCraft(incoming);b->getTransfers()->push_back(craftTransfer);
  Soldier *incomingSoldier=new Soldier(&soldierRule,&armor,1);incomingSoldier->setName("INCOMING SOLDIER");incomingSoldier->setCraft(incoming);Transfer *soldierTransfer=new Transfer(14);soldierTransfer->setSoldier(incomingSoldier);b->getTransfers()->push_back(soldierTransfer);
  Transfer *engineers=new Transfer(5);engineers->setEngineers(3);b->getTransfers()->push_back(engineers);
+ for(int mid:{932817,932818}){auto*m=new MissionStatistics();m->id=mid;m->type="OWN_COMPLETED_MISSION";m->region="OWN_REGION";m->country="OWN_COUNTRY";m->success=mid==932817;m->score=mid==932817?120:-20;m->rating="OWN_RATING";m->lootValue=300;m->valiantCrux=true;save.getMissionStatistics()->push_back(m);}
  s->getDiary()->load(YAML::Load("missionIdList: [932817, 932818]\nmonthsService: 6\ndaysWoundedTotal: 13\nshotsFiredCounterTotal: 20\nshotsLandedCounterTotal: 7"),&mod);
- for(const auto status:{STATUS_DEAD,STATUS_UNCONSCIOUS,STATUS_PANICKING,STATUS_TURNING}){auto*k=new BattleUnitKills();k->name="PRIVATE_HISTORY_NAME";k->race="PRIVATE_HISTORY_RACE";k->rank="PRIVATE_HISTORY_RANK";k->type="PRIVATE_HISTORY_TYPE";k->weapon="PRIVATE_HISTORY_WEAPON";k->id=782931;k->mission=932817;k->turn=293817;k->status=status;s->getDiary()->getKills().push_back(k);}
- auto *friendly=new BattleUnitKills();friendly->faction=FACTION_PLAYER;friendly->status=STATUS_DEAD;s->getDiary()->getKills().push_back(friendly);
- auto *medal=new SoldierCommendations("OWN_MEDAL","PRIVATE_MEDAL_NOUN");medal->addDecoration();s->getDiary()->getSoldierCommendations()->push_back(medal);
- auto *secondMedal=new SoldierCommendations("OWN_SECOND_MEDAL","PRIVATE_MEDAL_NOUN_2");s->getDiary()->getSoldierCommendations()->push_back(secondMedal);
+ for(const auto status:{STATUS_DEAD,STATUS_UNCONSCIOUS,STATUS_PANICKING,STATUS_TURNING}){auto*k=new BattleUnitKills();k->name="OWN_HISTORY_NAME";k->race="OWN_HISTORY_RACE";k->rank="OWN_HISTORY_RANK";k->type="PRIVATE_HISTORY_TYPE";k->weapon="OWN_HISTORY_WEAPON";k->id=782931;k->mission=932817;k->turn=293817;k->status=status;s->getDiary()->getKills().push_back(k);}
+ auto *friendly=new BattleUnitKills();friendly->mission=932817;friendly->name="OWN_FRIENDLY_NAME";friendly->faction=FACTION_PLAYER;friendly->status=STATUS_DEAD;s->getDiary()->getKills().push_back(friendly);
+ auto *medal=new SoldierCommendations("OWN_MEDAL","OWN_MEDAL_NOUN");medal->addDecoration();s->getDiary()->getSoldierCommendations()->push_back(medal);
+ auto*medalRule=new RuleCommendations;medalRule->load(YAML::Load("description: OWN_MEDAL_DESCRIPTION"));mod._commendations["OWN_MEDAL"]=medalRule;
+ auto *secondMedal=new SoldierCommendations("OWN_SECOND_MEDAL","OWN_MEDAL_NOUN_2");s->getDiary()->getSoldierCommendations()->push_back(secondMedal);
  Soldier *mia=new Soldier(&soldierRule,&armor,2);mia->setName("MEMORIAL MIA");a->getSoldiers()->push_back(mia);save.killSoldier(mia,nullptr);
+ incomingSoldier->getDiary()->load(YAML::Load("missionIdList: [932818]"),&mod);mia->getDiary()->load(YAML::Load("missionIdList: [932817]"),&mod);
  // MonthlyCosts ledger uses native catalog order, researched filters and
  // quantities including incoming transfers. No external rules/resources.
  mod._costEngineer=30000;mod._costScientist=25000;
@@ -91,12 +99,14 @@ int main(int argc,char **argv){
  catalogSoldier("OWN_SOLDIER",20000,"[]");catalogSoldier("AVAILABLE_ZERO_SOLDIER",21000,"[OWN_RESEARCH]");catalogSoldier("PRIVATE_LOCKED_SOLDIER",999,"[PRIVATE_UNRESEARCHED]");catalogSoldier("ZERO_COST_SOLDIER",0,"[]");
  save.addFinishedResearchSimple(&researchRule);
  RuleCountry countryRule("PRIVATE_COUNTRY");auto *country=new Country(&countryRule,false);country->getFunding().push_back(123456);save.getCountries()->push_back(country);
+ const auto originalDiary=YAML::Dump(s->getDiary()->save());
  const auto seed=RNG::getSeed();const auto funds=save.getFunds();enemy.reads=0;
  check(collector.collect(&save,&language,rows,reason),"native two-base snapshot");
  if(argc>1){std::ofstream output(argv[1]);output<<"[";for(std::size_t i=0;i<rows.size();++i){if(i)output<<",";output<<rows[i];}output<<"]\n";}
  std::map<std::string,int> kinds;std::map<std::string,YAML::Node> byId;std::string researchId,facilityId;
- for(const auto &raw:rows){auto r=YAML::Load(raw);const auto kind=r["kind"].as<std::string>();++kinds[kind];byId[r["id"].as<std::string>()]=r;if(kind=="research")researchId=r["id"].as<std::string>();if(kind=="facility"&&r["build_days_remaining"].as<int>()==7)facilityId=r["id"].as<std::string>();check(raw.find("PRIVATE_ENEMY")==std::string::npos&&raw.find("retaliation")==std::string::npos,"no enemy graph fields");check(raw.find("PRIVATE_HISTORY")==std::string::npos&&raw.find("PRIVATE_MEDAL_NOUN")==std::string::npos&&raw.find("932817")==std::string::npos&&raw.find("782931")==std::string::npos,"history identities and medal noun excluded");}
- for(const auto &kind:{"campaign","base","facility","soldier","craft","research","production","transfer","stock","vehicle","weapon","equipment_layout","soldier_diary","soldier_commendation"})check(kinds[kind]>0,"all allowlisted record kinds populated");
+ for(const auto &raw:rows){auto r=YAML::Load(raw);const auto kind=r["kind"].as<std::string>();++kinds[kind];byId[r["id"].as<std::string>()]=r;if(kind=="research")researchId=r["id"].as<std::string>();if(kind=="facility"&&r["build_days_remaining"].as<int>()==7)facilityId=r["id"].as<std::string>();check(raw.find("PRIVATE_ENEMY")==std::string::npos&&raw.find("retaliation")==std::string::npos,"no enemy graph fields");check(raw.find("PRIVATE_HISTORY_TYPE")==std::string::npos&&raw.find("293817")==std::string::npos&&raw.find("782931")==std::string::npos,"raw tactical identity and turn excluded from authorized history captions");}
+ for(const auto &kind:{"campaign","base","facility","soldier","craft","research","production","transfer","stock","vehicle","weapon","equipment_layout","soldier_diary","soldier_commendation","mission_history","soldier_mission","soldier_encounter"})check(kinds[kind]>0,"all allowlisted record kinds populated");
+ for(const auto&r:byId)if(r.second["kind"].as<std::string>()=="item_definition")check(r.second["type"].as<std::string>()!="NONE","layout no-ammo sentinel is not a tangible item definition");
  check(kinds["base"]==2&&kinds["craft"]==2&&kinds["transfer"]==5,"all bases and in-transit craft captured");
  check(byId.at("campaign_0")["monthly_income"].as<int>()==123456 && byId.at("campaign_0")["monthly_maintenance"].as<int>()==save.getBaseMaintenance(),"campaign own-income and all-base native maintenance");
  for(const auto &entry:byId){const auto &row=entry.second;if(row["kind"].as<std::string>()!="base")continue;
@@ -118,6 +128,22 @@ int main(int argc,char **argv){
  check(diary["kills"].as<int>()==1&&diary["stuns"].as<int>()==1&&diary["panics"].as<int>()==1&&diary["mind_controls"].as<int>()==1,"aggregate enemy outcomes omit friendly entry and identities");
  const auto memorial=byId.at("soldier_2");check(memorial["location"].as<std::string>()=="memorial"&&memorial["base_id"].as<std::string>().empty()&&memorial["craft_id"].IsNull()&&memorial["transfer_id"].IsNull()&&memorial["death"]["status"].as<std::string>()=="mia", "campaign memorial unknown base and cause-presence MIA");
  check(memorial["death"]["time"]["year"].as<int>()==save.getTime()->getYear(),"native death timestamp");
+
+ check(YAML::Dump(s->getDiary()->save())==originalDiary,"full native diary serialized state unchanged by read");
+ const auto nativeMap=[&](const char*key,const std::map<std::string,int>&expected){std::map<std::string,int>actual;for(auto it=diary[key].begin();it!=diary[key].end();++it)actual[it->first.as<std::string>()]=it->second.as<int>();check(actual==expected,"diary breakdown exactly matches native aggregate getter");};
+ nativeMap("neutralizations_by_race",s->getDiary()->getAlienRaceTotal());nativeMap("neutralizations_by_rank",s->getDiary()->getAlienRankTotal());nativeMap("hostile_neutralizations_by_weapon",s->getDiary()->getWeaponTotal());nativeMap("hostile_neutralizations_by_ammo",s->getDiary()->getWeaponAmmoTotal());nativeMap("missions_by_region",s->getDiary()->getRegionTotal(save.getMissionStatistics()));nativeMap("missions_by_country",s->getDiary()->getCountryTotal(save.getMissionStatistics()));nativeMap("missions_by_type",s->getDiary()->getTypeTotal(save.getMissionStatistics()));nativeMap("missions_by_ufo",s->getDiary()->getUFOTotal(save.getMissionStatistics()));
+ check(diary["wins"].as<int>()==1&&diary["score"].as<int>()==100,"completed history aggregate wins and score");
+ check(kinds["mission_history"]==2&&kinds["soldier_mission"]==4&&kinds["soldier_encounter"]==5,"living transit memorial histories joined to completed archive");
+ for(const auto&r:byId){auto n=r.second;const auto kind=n["kind"].as<std::string>();if(kind=="soldier_mission")check(n["wounded_days"].as<int>()==0,"missing injury key yields zero without insertion");if(kind=="soldier_encounter")check(!n["turn"]&&!n["victim_id"]&&!n["faction"]&&!n["type"]&&!n["coordinates"],"encounter closed presentation-only shape");if(kind=="soldier_commendation")check((n["type"].as<std::string>()=="OWN_SECOND_MEDAL"?n["description"].IsNull():n["description"].as<std::string>()==std::string(language.getString("OWN_MEDAL_DESCRIPTION")))&&!n["noun"].IsNull(),"commendation description displayed when rule exists else null with displayed noun");}
+ for(auto*m:*save.getMissionStatistics())check(m->injuryList.empty(),"history reads never insert missing injury key");
+ std::reverse(save.getMissionStatistics()->begin(),save.getMissionStatistics()->end());std::reverse(s->getDiary()->getKills().begin(),s->getDiary()->getKills().end());
+ check(collector.collect(&save,&language,again,reason)&&again==rows,"archive and encounter reorder retain exact record IDs");
+ auto*duplicate=new BattleUnitKills(*s->getDiary()->getKills().back());s->getDiary()->getKills().push_back(duplicate);
+ check(collector.collect(&save,&language,again,reason),"duplicate displayed encounter represented separately");const auto duplicateRows=again;std::reverse(s->getDiary()->getKills().begin(),s->getDiary()->getKills().end());check(collector.collect(&save,&language,again,reason)&&again==duplicateRows,"duplicate encounter ordinal identity survives reorder");
+ auto&killRows=s->getDiary()->getKills();killRows.erase(std::find(killRows.begin(),killRows.end(),duplicate));delete duplicate;
+ auto*arch=save.getMissionStatistics()->front();const int oldId=arch->id;arch->id=save.getMissionStatistics()->back()->id;check(!collector.collect(&save,&language,again,reason)&&again.empty()&&reason=="invalid_base_data","duplicate archive native IDs fail whole read");arch->id=oldId;
+ auto&missionIds=s->getDiary()->getMissionIdList();const int oldMission=missionIds.front();missionIds.front()=999999;check(!collector.collect(&save,&language,again,reason)&&again.empty()&&reason=="invalid_base_data","dangling soldier mission fails whole read");missionIds.front()=oldMission;
+ auto*k=killRows.front();const int oldKillMission=k->mission;k->mission=999999;check(!collector.collect(&save,&language,again,reason)&&again.empty()&&reason=="invalid_base_data","dangling encounter mission fails whole read");k->mission=oldKillMission;
  check(collector.collect(&save,&language,again,reason)&&again==rows,"unchanged repeated reads exact stable");
  mod._costEngineer+=100;check(collector.collect(&save,&language,again,reason)&&again!=rows,"changed salary yields changed snapshot content for controller generation");mod._costEngineer-=100;
  check(collector.collect(&save,&language,again,reason)&&again==rows,"restored salary yields exact original records");
@@ -142,7 +168,7 @@ int main(int argc,char **argv){
  auto *cause=new BattleUnitKills();cause->name="PRIVATE_DEATH_KILLER";cause->race="PRIVATE_DEATH_RACE";cause->mission=932817;cause->id=782931;
  save.killSoldier(s,cause);check(collector.collect(&save,&language,again,reason),"native live-to-memorial transition");
  bool deadFound=false,diaryFound=false;std::set<std::string> originalMedals;for(const auto&r:byId)if(r.second["kind"].as<std::string>()=="soldier_commendation")originalMedals.insert(r.first);
- for(const auto &raw:again){auto r=YAML::Load(raw);check(raw.find("PRIVATE_")==std::string::npos&&raw.find("932817")==std::string::npos&&raw.find("782931")==std::string::npos,"death source secrets never serialized");const auto id=r["id"].as<std::string>();
+ for(const auto &raw:again){auto r=YAML::Load(raw);check(raw.find("PRIVATE_")==std::string::npos&&raw.find("782931")==std::string::npos,"death source secrets never serialized");const auto id=r["id"].as<std::string>();
  if(id=="soldier_0"){deadFound=true;check(r["location"].as<std::string>()=="memorial"&&r["base_id"].as<std::string>().empty()&&r["death"]["status"].as<std::string>()=="kia"&&r["craft_id"].IsNull()&&r["transfer_id"].IsNull(),"native ID persists with KIA and unknown base");}
  if(id=="soldier_diary_0"){diaryFound=true;check(r["base_id"].as<std::string>().empty()&&r["missions"].as<int>()==2,"diary ID persists across death");}
  if(r["kind"].as<std::string>()=="soldier_commendation")check(originalMedals.count(id)&&r["base_id"].as<std::string>().empty()&&r["is_new"].as<bool>(),"commendation ID and new flag persist into memorial");}
@@ -152,6 +178,7 @@ int main(int argc,char **argv){
  if(argc>1){std::ofstream output(std::string(argv[1])+".memorial.json");output<<"[";for(std::size_t i=0;i<again.size();++i){if(i)output<<",";output<<again[i];}output<<"]\n";}
  collector.reset();check(collector.collect(&save,&language,again,reason),"explicit lifecycle reset accepts campaign");
  opportunityAndRouteChecks(argc>1?std::string(argv[1])+".opportunities.json":"");
+ itemDefinitionChecks(argc>1?std::string(argv[1])+".items.json":"");
  std::cout<<"PASS "<<checks<<" native all-player-bases read-only checks; synthetic in-memory rules, no Game/window/player-save execution\n";
 }
 
@@ -205,5 +232,33 @@ static void opportunityAndRouteChecks(const std::string&output)
  routed(b,"base",bid);routed(point,"waypoint",wid);routed(nullptr,"none","");routed(&enemy,"other","");
  check(save.getFunds()==0&&RNG::getSeed()==seed&&a->getStorageItems()->getItem("OWN_SAMPLE")==2&&project->getSpent()==7&&production->getTimeSpent()==2&&c->getFuel()==700,"catalogue telemetry reads preserve funds RNG stocks research production and fuel");
  check(collector.collect(&save,&language,again,reason)&&again==rows,"repeated final offer/route reads exact stable");
+ if(!output.empty()){std::ofstream file(output);file<<"[";for(size_t i=0;i<rows.size();++i)file<<(i?",":"")<<rows[i];file<<"]\n";}
+}
+
+static void itemDefinitionChecks(const std::string&output)
+{
+ Mod mod;Language language;SavedGame save;AgentPlayerBases collector;std::vector<std::string> rows,again;std::string reason;
+ auto*base=new Base(&mod);save.getBases()->push_back(base);
+ const auto item=[&](const std::string&id,const std::string&yaml){auto*r=new RuleItem(id);r->load(YAML::Load(yaml),&mod,0);mod._items[id]=r;mod._itemsIndex.push_back(id);base->getStorageItems()->addItem(id,1);return r;};
+ const auto article=[&](const std::string&id,const std::string&requirements,const std::string&section){auto*a=new ArticleDefinitionItem;a->load(YAML::Load("id: "+id+"\nsection: "+section+"\nrequires: "+requirements),0);mod._ufopaediaArticles[id]=a;mod._ufopaediaIndex.push_back(id);return a;};
+ auto*knowledge=new RuleResearch("OWN_ITEM_KNOWLEDGE");knowledge->load(YAML::Load("cost: 10"),0);mod._research[knowledge->getName()]=knowledge;
+ item("OWN_GUN","battleType: 1\ncompatibleAmmo: [OWN_AMMO1, OWN_AMMO2, OWN_AMMO3, OWN_AMMO4]\naccuracySnap: 60\ntuSnap: 25\naccuracyAuto: 35\ntuAuto: 40\naccuracyAimed: 90\ntuAimed: 80\nweight: 7\ninvWidth: 2\ninvHeight: 3\nsize: 0.4\ncostBuy: 123\ncostSell: 45\ntransferTime: 12");article("OWN_GUN","[]","STR_WEAPONS");
+ for(int i=1;i<=4;++i){auto id="OWN_AMMO"+std::to_string(i);item(id,"battleType: 2\nclipSize: 6\npower: 50\ndamageType: 2");article(id,"[]","STR_WEAPONS");}
+ item("OWN_UNKNOWN","name: PRIVATE_ITEM_NAME\nrequires: [OWN_ITEM_KNOWLEDGE]\nbattleType: 1\nclipSize: -1\npower: 987654\naccuracySnap: 99\ntuSnap: 7\ncostBuy: 919191");article("OWN_UNKNOWN","[OWN_ITEM_KNOWLEDGE]","STR_WEAPONS");
+ item("OWN_HIDDEN_ARTICLE","battleType: 2\npower: 888888");article("OWN_HIDDEN_ARTICLE","[]","STR_NOT_AVAILABLE");
+ item("OWN_WRONG_ARTICLE","battleType: 2\npower: 777777");auto*wrong=new ArticleDefinitionText;wrong->load(YAML::Load("id: OWN_WRONG_ARTICLE\nsection: STR_WEAPONS"),0);mod._ufopaediaArticles[wrong->id]=wrong;mod._ufopaediaIndex.push_back(wrong->id);
+ item("OWN_MEDIKIT","battleType: 6\nheal: 4\npainKiller: 5\nstimulant: 6");item("OWN_LIVE","liveAlien: true\ncostSell: 600");
+ const auto seed=RNG::getSeed();const auto funds=save.getFunds();const bool sell=Options::canSellLiveAliens;Options::canSellLiveAliens=false;
+ const auto collect=[&](){check(collector.collect(&save,&language,rows,reason),"native referenced item definitions snapshot");};collect();
+ std::map<std::string,YAML::Node> defs;for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()=="item_definition")defs[r["type"].as<std::string>()]=r;check(raw.find("PRIVATE_ITEM_NAME")==std::string::npos&&raw.find("987654")==std::string::npos&&raw.find("919191")==std::string::npos,"unidentified item secret name technical and purchase metadata absent");}
+ check(defs.size()==10,"only tangible referenced item definitions emitted");auto gun=defs.at("OWN_GUN");check(gun["physical"]["weight"].as<int>()==7&&gun["physical"]["width"].as<int>()==2&&gun["physical"]["height"].as<int>()==3,"nominal inventory physical dimensions and weight");
+ check(gun["technical"]["fire_modes"].size()==3&&gun["technical"]["compatible_ammo"].size()==3,"native article three fire modes and first-three ammo boundary");for(auto a:gun["technical"]["compatible_ammo"])check(a.as<std::string>()!="OWN_AMMO4","fourth compatible ammo outside native article omitted");
+ auto unknown=defs.at("OWN_UNKNOWN");check(!unknown["identified"].as<bool>()&&unknown["technical"].IsNull()&&unknown["logistics"]["purchase_price"].IsNull()&&unknown["logistics"]["purchase_delivery_hours"].IsNull(),"unknown item technical and purchase pair null");check(unknown["inventory_label"].as<std::string>()==std::string(language.getString("STR_ALIEN_ARTIFACT")),"unidentified native inventory caption");
+ check(defs.at("OWN_HIDDEN_ARTICLE")["technical"].IsNull()&&defs.at("OWN_WRONG_ARTICLE")["technical"].IsNull(),"hidden or non-item articles grant no technical metadata");check(defs.at("OWN_LIVE")["logistics"]["sell_price"].IsNull(),"live alien sale policy respected");check(defs.at("OWN_MEDIKIT")["physical"]["medikit"]["heal"].as<int>()==4,"nominal medikit capacity not battle charges");
+
+ auto*ammoArticle=mod._ufopaediaArticles.at("OWN_AMMO2");ammoArticle->_requires.push_back("OWN_ITEM_KNOWLEDGE");collect();for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()=="item_definition"&&r["type"].as<std::string>()=="OWN_GUN"){check(r["technical"]["compatible_ammo"].size()==2,"ammo independently gated by own available article");for(auto a:r["technical"]["compatible_ammo"])check(a.as<std::string>()!="OWN_AMMO2"&&a.as<std::string>()!="OWN_AMMO4","hidden ammo not replaced by fourth native entry");}}ammoArticle->_requires.clear();
+ const auto originalId=unknown["id"].as<std::string>();save.addFinishedResearchSimple(knowledge);collect();bool found=false;for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()=="item_definition"&&r["type"].as<std::string>()=="OWN_UNKNOWN"){found=true;check(r["id"].as<std::string>()==originalId&&r["identified"].as<bool>()&&!r["technical"].IsNull()&&r["logistics"]["purchase_price"].as<int>()==919191,"research availability reveals item metadata without changing logical identity");}}
+ item("NONE","size: 0.1");collect();bool realNone=false;for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()=="item_definition"&&r["type"].as<std::string>()=="NONE")realNone=true;}check(realNone,"genuine stocked item named NONE is not globally filtered");
+ check(found&&RNG::getSeed()==seed&&save.getFunds()==funds&&base->getStorageItems()->getItem("OWN_GUN")==1,"item reads leave RNG funds and stocks unchanged");check(collector.collect(&save,&language,again,reason)&&again==rows,"item metadata repeat reads exact stable");Options::canSellLiveAliens=sell;
  if(!output.empty()){std::ofstream file(output);file<<"[";for(size_t i=0;i<rows.size();++i)file<<(i?",":"")<<rows[i];file<<"]\n";}
 }

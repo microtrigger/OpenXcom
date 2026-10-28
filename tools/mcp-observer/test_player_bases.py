@@ -12,7 +12,13 @@ def sample(kind, index=0):
  for key in b.FIELDS[kind].split():
   if key in ('death','home_base_id','fuel_to_home','distance_to_home'):r[key]=None
   elif key=='destination':r[key]=dict(kind='none',base_id=None,waypoint_id=None)
-  elif key=='time' and kind=='campaign':r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
+  elif key=='time' and kind in ('campaign','mission_history'):r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
+  elif key in b.BREAKDOWNS:r[key]={'KNOWN':1}
+  elif key in ('noun','description','ufo','alien_race'):r[key]=None
+  elif key=='mission_id':r[key]='mission-0'
+  elif key=='logistics':r[key]=dict(storage_size=0.1,sell_price=10,purchase_price=None,purchase_delivery_hours=None)
+  elif key=='physical':r[key]=dict(weight=1,width=1,height=1,clip_capacity=0,medikit=None)
+  elif key=='technical':r[key]=None
   elif key=='personnel':r[key]={x:0 for x in 'soldiers scientists engineers available_soldiers available_scientists available_engineers allocated_scientists allocated_engineers'.split()}
   elif key=='capacities':r[key]={x:dict(capacity=0,used=0,free=0) if kind=='base' else 0 for x in b.CAPS.split()}
   elif key=='expense_ledger':r[key]=dict(crafts=[dict(type='CRAFT',unit_cost=100,quantity=0,total=0)],salaries=[dict(type='STR_ENGINEERS',unit_cost=10,quantity=2,total=20),dict(type='STR_SCIENTISTS',unit_cost=20,quantity=1,total=20)])
@@ -24,7 +30,8 @@ def sample(kind, index=0):
   elif key in b.STRINGS and not(key=='slot' and kind=='weapon'):r[key]='shown'
   else:r[key]=0
  if kind=='campaign':r['id']='campaign_0';r['base_id']=''
- if kind in ('research_knowledge','own_waypoint'):r['base_id']=''
+ if kind in ('research_knowledge','own_waypoint','mission_history','item_definition'):r['base_id']=''
+ if kind=='mission_history':r['daylight']='day'
  if kind=='base':r['grid_size']=6;r['id']=r['base_id']
  if kind in ('soldier','craft'):r['location']='home_roster' if kind=='craft' else 'home';r['transfer_id']=None
  if kind=='transfer':r['transfer_type']='item';r['item_type']='ITEM';r['craft_id']=None;r['soldier_id']=None
@@ -74,7 +81,7 @@ class BasesTests(unittest.TestCase):
   for transform in (lambda v:v.update(enemy_cost=0),lambda v:v['crafts'].append(copy.deepcopy(v['crafts'][0])),lambda v:v['salaries'][0].update(hidden_rule=True),lambda v:v.update(crafts=[dict(type=str(i),unit_cost=0,quantity=0,total=0) for i in range(257)])):
    bad=copy.deepcopy(r);transform(bad['expense_ledger'])
    with self.assertRaises(Unavailable):b.record(bad)
-  for old in ('openxcom-player-bases/1','openxcom-player-bases/2','openxcom-player-bases/3'):
+  for old in ('openxcom-player-bases/1','openxcom-player-bases/2','openxcom-player-bases/3','openxcom-player-bases/4'):
    p=page();p['schema']=old
    with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
   peer=Peer([sample('campaign'),r])
@@ -95,11 +102,11 @@ class BasesTests(unittest.TestCase):
   p['complete']=True
   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
  def test_history_schema_and_closed_nested_fields(self):
-  self.assertEqual(b.SCHEMA,'openxcom-player-bases/4')
+  self.assertEqual(b.SCHEMA,'openxcom-player-bases/5')
   old=page();old['schema']='openxcom-player-bases/1'
   with self.assertRaises(Unavailable):b.page(dump(old),CHALLENGE,EPOCH,None,0,16)
   for kind in ('soldier','soldier_diary','soldier_commendation'):
-   for key in ('enemy_type','noun','kill_records','mission_ids','target_id','position','capability','actions'):
+   for key in ('enemy_type','kill_records','mission_ids','target_id','position','capability','actions') + (() if kind=='soldier_commendation' else ('noun',)):
     bad=sample(kind);bad[key]='private'
     with self.assertRaises(Unavailable):b.record(bad)
   for key in ('recently_promoted',):
@@ -178,6 +185,55 @@ class BasesTests(unittest.TestCase):
   peer=Peer(records)
   try:
    result=peer.client.read_player_bases();self.assertEqual(result['records'],records)
+   self.assertIsNone(peer.client.capability);self.assertEqual(peer.client.commands,{})
+   self.assertEqual([p.split()[0] for p in peer.requests],[b'H',b'B'])
+  finally:peer.close()
+ def test_archived_history_refs_maps_and_localized_awards(self):
+  for kind in ('mission_history','soldier_mission','soldier_encounter'):
+   r=sample(kind);b.record(r)
+   if kind!='mission_history':r['base_id']='';b.record(r)
+   for key in ('enemy_id','victim_id','turn','coordinates','raw_rank','raw_race','capability'):
+    bad=copy.deepcopy(r);bad[key]=1
+    with self.assertRaises(Unavailable):b.record(bad)
+  for key,value in (('base_id','base-0'),('daylight','dusk'),('success',1),('time',{}),('score',True),('ufo',4)):
+   bad=sample('mission_history');bad[key]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  for kind in ('soldier_mission','soldier_encounter'):
+   for key in ('mission_id','soldier_id'):
+    for value in ('',None,'x'*513,3):
+     bad=sample(kind);bad[key]=value
+     with self.assertRaises(Unavailable):b.record(bad)
+  for key in b.BREAKDOWNS:
+   r=sample('soldier_diary');r[key]={str(i):1 for i in range(1000)};b.record(r)
+   for value in ({'a':True},{'a':1.5},{'a':None},{str(i):1 for i in range(1001)},[]):
+    r[key]=value
+    with self.assertRaises(Unavailable):b.record(r)
+  for description in (None,'Award description'):
+   r=sample('soldier_commendation');r.update(noun='Localized noun',description=description,name='Award',decoration_description='Level');b.record(r)
+  r['noun']=True
+  with self.assertRaises(Unavailable):b.record(r)
+ def test_owned_item_grouped_metadata_closed_and_unknown_technical(self):
+  item=sample('item_definition');b.record(item)
+  technical=dict(article_id='KNOWN_ARTICLE',fire_modes=[dict(mode='snap',accuracy=60,tu=20,tu_unit='percent')],damage=dict(type='AP',power=30,pellets=None),compatible_ammo=['OWN_AMMO'])
+  item.update(identified=True,technical=technical);item['physical']['medikit']=dict(heal=3,painkiller=2,stimulant=1);b.record(item)
+  for group,field,value in (('logistics','storage_size',float('inf')),('logistics','sell_price',True),('logistics','purchase_price',10),('physical','weight',False),('physical','medikit',dict(heal=1,painkiller=1,stimulant=True)),('technical','article_id',None),('technical','compatible_ammo',['A']*2),('technical','compatible_ammo',['A','B','C','D'])):
+   bad=copy.deepcopy(item);bad[group][field]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  for group in ('logistics','physical','technical'):
+   bad=copy.deepcopy(item);bad[group]['hidden_rules']=[]
+   with self.assertRaises(Unavailable):b.record(bad)
+  for modes in ([dict(mode='burst',accuracy=1,tu=1,tu_unit='percent')],[dict(mode='snap',accuracy=True,tu=1,tu_unit='percent')],[dict(mode='snap',accuracy=1,tu=1,tu_unit='seconds')],[dict(mode=x,accuracy=1,tu=1,tu_unit='percent') for x in ('aimed','snap')],[dict(mode='snap',accuracy=1,tu=1,tu_unit='percent')]*2):
+   bad=copy.deepcopy(item);bad['technical']['fire_modes']=modes
+   with self.assertRaises(Unavailable):b.record(bad)
+  for field,value in (('power',True),('pellets',1.2),('raw_damage_type',1)):
+   bad=copy.deepcopy(item);bad['technical']['damage'][field]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  item['technical']['damage']=None;item['logistics'].update(purchase_price=-1,purchase_delivery_hours=0);b.record(item)
+ def test_history_and_item_records_do_not_create_authority(self):
+  records=[sample(k) for k in ('mission_history','soldier_mission','soldier_encounter','item_definition')]
+  peer=Peer(records)
+  try:
+   self.assertEqual(peer.client.read_player_bases()['records'],records)
    self.assertIsNone(peer.client.capability);self.assertEqual(peer.client.commands,{})
    self.assertEqual([p.split()[0] for p in peer.requests],[b'H',b'B'])
   finally:peer.close()
