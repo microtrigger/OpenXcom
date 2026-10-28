@@ -2,7 +2,7 @@
 """Explicit user-authorized strategic ownership read model. Never UI action authority."""
 import math
 from snapshots import Unavailable, exact
-SCHEMA='openxcom-player-bases/3'
+SCHEMA='openxcom-player-bases/4'
 LIMIT=100000
 CAPS='quarters stores laboratories workshops hangars psi_labs containment'
 STATS='tu stamina health bravery reactions firing throwing strength psi_strength psi_skill melee'
@@ -13,8 +13,12 @@ FIELDS={
  'soldier':'native_id type name rank armor rank_value gender look missions kills recovery_days psi_improvement psi_strength_improvement psi_training craft_id location transfer_id initial_stats current_stats recently_promoted death',
  'soldier_diary':'soldier_id missions months_service days_wounded shots_fired shots_landed accuracy kills stuns panics mind_controls',
  'soldier_commendation':'soldier_id type decoration_level is_new',
- 'craft':'native_id type name status location transfer_id longitude latitude speed fuel fuel_max damage damage_max speed_max soldier_capacity vehicle_capacity item_capacity space_used space_available monthly_cost weapon_slot_count weapon_capacity low_fuel mission_complete crew',
+ 'craft':'native_id type name status location transfer_id longitude latitude speed fuel fuel_max damage damage_max speed_max soldier_capacity vehicle_capacity item_capacity space_used space_available monthly_cost weapon_slot_count weapon_capacity low_fuel mission_complete crew home_base_id fuel_consumption fuel_to_home distance_to_home in_dogfight in_battlescape interception_order destination',
  'research':'type progress assigned spent cost',
+ 'research_knowledge':'type name',
+ 'research_offer':'type name base_cost needs_item destroys_item',
+ 'manufacture_offer':'type name category required_space hours_per_unit cost_per_unit required_items produced_items',
+ 'own_waypoint':'native_id name longitude latitude',
  'production':'type category amount_total amount_produced time_spent assigned_engineers unit_time unit_cost required_space infinite sell required_items produced_items',
  'transfer':'transfer_type hours quantity item_type craft_id soldier_id',
  'stock':'owner_id owner_kind type quantity',
@@ -23,7 +27,7 @@ FIELDS={
  'equipment_layout':'soldier_id item_type slot ammo_item x y fuse_timer',
 }
 STRINGS=set('name type rank armor status progress category owner_id owner_kind craft_id soldier_id item_type slot ammo_item launcher_item clip_item transfer_id location transfer_type'.split())
-BOOLS=set('lift hyperwave mind_shield grav_shield psi_training low_fuel mission_complete infinite sell rearming recently_promoted is_new'.split())
+BOOLS=set('lift hyperwave mind_shield grav_shield psi_training low_fuel mission_complete infinite sell rearming recently_promoted is_new needs_item destroys_item in_dogfight in_battlescape'.split())
 NULLABLE={'craft_id','soldier_id','item_type','transfer_id'}
 def need(ok):
  if not ok:raise Unavailable('Unavailable')
@@ -41,12 +45,22 @@ def record(r):
  need(type(r)is dict and type(r.get('kind'))is str and r['kind']in FIELDS)
  k=r['kind'];exact(r,'kind id base_id '+FIELDS[k]);ident(r['id']);
  if k=='campaign':need(r['id']=='campaign_0' and r['base_id']=='')
+ elif k in ('research_knowledge','own_waypoint'):need(r['base_id']=='')
  elif k in ('soldier','soldier_diary','soldier_commendation') and r['base_id']=='':pass
  else:ident(r['base_id'])
  if k=='base':need(r['id']==r['base_id'] and r['grid_size']==6)
  for key,v in r.items():
   if key in ('kind','id','base_id'):continue
-  if key=='death':
+  if key=='home_base_id':
+   if v is not None:ident(v)
+  elif key in ('fuel_to_home','distance_to_home'):
+   if v is not None:(number if key=='distance_to_home' else integer)(v)
+  elif key=='destination':
+   exact(v,'kind base_id waypoint_id');need(v['kind'] in ('none','base','waypoint','other'))
+   for field,kind in (('base_id','base'),('waypoint_id','waypoint')):
+    if v['kind']==kind:ident(v[field])
+    else:need(v[field] is None)
+  elif key=='death':
    if v is not None:
     exact(v,'status time');need(v['status'] in ('kia','mia'));objnums(v['time'],'year month day hour minute second')
   elif key=='time' and k=='campaign':objnums(v,'year month day hour minute second')
@@ -68,7 +82,7 @@ def record(r):
   elif key=='maintenance':objnums(v,'craft personnel facilities total')
   elif key in ('initial_stats','current_stats'):objnums(v,STATS)
   elif key in ('required_items','produced_items'):
-   need(type(v)is dict and len(v)<=4096)
+   need(type(v)is dict and len(v)<=(1000 if k=='manufacture_offer' else 4096))
    for a,b in v.items():string(a);integer(b)
   elif key=='crew':
    need(type(v)is list and len(v)<=4096)
@@ -78,7 +92,10 @@ def record(r):
   elif key in BOOLS:need(type(v)is bool)
   elif key in STRINGS and not(key=='slot' and k=='weapon'):string(v,key in NULLABLE and k in ('transfer','soldier','craft'))
   else:integer(v)
- if k=='craft':need(r['location']in ('home_roster','in_transit'))
+ if k=='craft':
+  need(r['location']in ('home_roster','in_transit'))
+  if r['home_base_id'] is None:need(r['fuel_to_home'] is None and r['distance_to_home'] is None)
+  if r['distance_to_home'] is not None:need(r['distance_to_home']>=0)
  if k=='soldier':
   need(r['location'] in ('home','in_transit','memorial'))
   need((r['base_id']=='') == (r['location']=='memorial'))
@@ -117,6 +134,6 @@ def page(raw,challenge,epoch,snapshot,offset,limit):
  return o
 
 def definition():
- return {'name':'read_player_bases','description':'Read all player-owned bases and their facilities, personnel, own-soldier service aggregates, commendations and memorial, craft, stock, transfers, research and manufacturing independently of the open UI, focus or paint. User-authorized strategic ownership data only: no tactical/enemy state. This grants no mutation or construction authority. First call omits snapshot with offset0; follow returned snapshot and next_offset until complete. Pages belong to a frozen content generation. New first reads sample current data; unchanged data retain generation. Unavailable/expired snapshots are explicit, never empty-success or silent truncation. Mutations still require ordinary fresh UI controls.',
+ return {'name':'read_player_bases','description':'Read all player-owned bases and their facilities, personnel, own-soldier service aggregates, commendations and memorial, craft and safe own destinations, owned waypoints, stock, transfers, discovered research and currently offered research/manufacturing independently of the open UI, focus or paint. User-authorized strategic ownership data only: no tactical/enemy state. This grants no mutation or construction authority. First call omits snapshot with offset0; follow returned snapshot and next_offset until complete. Pages belong to a frozen content generation. New first reads sample current data; unchanged data retain generation. Unavailable/expired snapshots are explicit, never empty-success or silent truncation. Mutations still require ordinary fresh UI controls.',
  'inputSchema':{'type':'object','properties':{'snapshot':{'type':'string','pattern':'^[0-9a-f]{32}$'},'offset':{'type':'integer','minimum':0,'maximum':LIMIT},'limit':{'type':'integer','minimum':1,'maximum':16}},'additionalProperties':False},
  'annotations':{'readOnlyHint':True,'destructiveHint':False,'idempotentHint':True,'openWorldHint':False}}

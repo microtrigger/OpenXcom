@@ -27,6 +27,7 @@
 #include "../../src/Savegame/Base.h"
 #include "../../src/Savegame/BaseFacility.h"
 #include "../../src/Savegame/Craft.h"
+#include "../../src/Savegame/Waypoint.h"
 #include "../../src/Savegame/CraftWeapon.h"
 #include "../../src/Savegame/Soldier.h"
 #include "../../src/Savegame/SoldierDiary.h"
@@ -49,7 +50,8 @@
 using namespace OpenXcom;using namespace OpenXcom::Observer;
 static unsigned checks=0;
 void check(bool yes,const char *label){++checks;if(!yes){std::cerr<<"FAIL "<<label<<'\n';std::exit(1);}}
-struct EnemyTarget:Target {mutable unsigned reads=0;std::string getType()const override{++reads;return "PRIVATE_ENEMY_TYPE";}int getMarker()const override{++reads;return 99;}};
+struct EnemyTarget:Target {mutable unsigned reads=0;std::string getType()const override{++reads;return "PRIVATE_ENEMY_TYPE";}int getMarker()const override{++reads;return 99;}std::string getName(Language*)const override{++reads;return "PRIVATE_ENEMY_NAME";}};
+static void opportunityAndRouteChecks(const std::string&output);
 int main(int argc,char **argv){
  Mod mod;Language language;EnemyTarget enemy;SavedGame save;AgentPlayerBases collector;
  std::vector<std::string> rows,again;std::string reason;
@@ -93,7 +95,7 @@ int main(int argc,char **argv){
  check(collector.collect(&save,&language,rows,reason),"native two-base snapshot");
  if(argc>1){std::ofstream output(argv[1]);output<<"[";for(std::size_t i=0;i<rows.size();++i){if(i)output<<",";output<<rows[i];}output<<"]\n";}
  std::map<std::string,int> kinds;std::map<std::string,YAML::Node> byId;std::string researchId,facilityId;
- for(const auto &raw:rows){auto r=YAML::Load(raw);const auto kind=r["kind"].as<std::string>();++kinds[kind];byId[r["id"].as<std::string>()]=r;if(kind=="research")researchId=r["id"].as<std::string>();if(kind=="facility"&&r["build_days_remaining"].as<int>()==7)facilityId=r["id"].as<std::string>();check(raw.find("PRIVATE_ENEMY")==std::string::npos&&raw.find("retaliation")==std::string::npos&&raw.find("destination")==std::string::npos,"no enemy graph fields");check(raw.find("PRIVATE_HISTORY")==std::string::npos&&raw.find("PRIVATE_MEDAL_NOUN")==std::string::npos&&raw.find("932817")==std::string::npos&&raw.find("782931")==std::string::npos,"history identities and medal noun excluded");}
+ for(const auto &raw:rows){auto r=YAML::Load(raw);const auto kind=r["kind"].as<std::string>();++kinds[kind];byId[r["id"].as<std::string>()]=r;if(kind=="research")researchId=r["id"].as<std::string>();if(kind=="facility"&&r["build_days_remaining"].as<int>()==7)facilityId=r["id"].as<std::string>();check(raw.find("PRIVATE_ENEMY")==std::string::npos&&raw.find("retaliation")==std::string::npos,"no enemy graph fields");check(raw.find("PRIVATE_HISTORY")==std::string::npos&&raw.find("PRIVATE_MEDAL_NOUN")==std::string::npos&&raw.find("932817")==std::string::npos&&raw.find("782931")==std::string::npos,"history identities and medal noun excluded");}
  for(const auto &kind:{"campaign","base","facility","soldier","craft","research","production","transfer","stock","vehicle","weapon","equipment_layout","soldier_diary","soldier_commendation"})check(kinds[kind]>0,"all allowlisted record kinds populated");
  check(kinds["base"]==2&&kinds["craft"]==2&&kinds["transfer"]==5,"all bases and in-transit craft captured");
  check(byId.at("campaign_0")["monthly_income"].as<int>()==123456 && byId.at("campaign_0")["monthly_maintenance"].as<int>()==save.getBaseMaintenance(),"campaign own-income and all-base native maintenance");
@@ -149,5 +151,59 @@ int main(int argc,char **argv){
  check(cause->name=="PRIVATE_DEATH_KILLER"&&cause->mission==932817&&medal->isNew(),"reads preserve cause and medal state");
  if(argc>1){std::ofstream output(std::string(argv[1])+".memorial.json");output<<"[";for(std::size_t i=0;i<again.size();++i){if(i)output<<",";output<<again[i];}output<<"]\n";}
  collector.reset();check(collector.collect(&save,&language,again,reason),"explicit lifecycle reset accepts campaign");
+ opportunityAndRouteChecks(argc>1?std::string(argv[1])+".opportunities.json":"");
  std::cout<<"PASS "<<checks<<" native all-player-bases read-only checks; synthetic in-memory rules, no Game/window/player-save execution\n";
+}
+
+// Independent native model fixture for authorized own research/catalogue/route
+// reads. All setup mutators below are test setup, never part of collection.
+static void opportunityAndRouteChecks(const std::string&output)
+{
+ Mod mod;Language language;EnemyTarget enemy;SavedGame save;AgentPlayerBases collector;std::vector<std::string> rows,again;std::string reason;
+ const auto researchRule=[&](const std::string&id,const std::string&yaml){auto*r=new RuleResearch(id);r->load(YAML::Load(yaml),0);mod._research[id]=r;mod._researchIndex.push_back(id);return r;};
+ const auto productionRule=[&](const std::string&id,const std::string&yaml){auto*r=new RuleManufacture(id);r->load(YAML::Load(yaml),0);mod._manufacture[id]=r;mod._manufactureIndex.push_back(id);return r;};
+ for(const auto&id:{"OWN_SAMPLE","OWN_ITEM"}){auto*r=new RuleItem(id);r->load(YAML::Load("size: 0.5"),&mod,0);mod._items[id]=r;mod._itemsIndex.push_back(id);}
+ auto*known=researchRule("OWN_KNOWN","cost: 100");auto*helper=researchRule("OWN_HELPER_FLAG","cost: 0\nrequires: [OWN_KNOWN]");
+ researchRule("OWN_SAMPLE","cost: 250\nneedItem: true\ndestroyItem: true\ndependencies: [OWN_KNOWN]");
+ auto*active=researchRule("OWN_ACTIVE_RESEARCH","cost: 75\ndependencies: [OWN_KNOWN]");
+ researchRule("OWN_OPEN_RESEARCH","cost: 200\ndependencies: [OWN_KNOWN]");
+ researchRule("PRIVATE_LOCKED_TECH","cost: 999\ndependencies: [UNKNOWN_PREREQUISITE]");
+ researchRule("PRIVATE_UNOFFERED_HELPER","cost: 0\nrequires: [OWN_KNOWN]");
+ auto*manufacture=productionRule("OWN_MAKE","category: STR_CRAFT_ARMAMENT\nrequires: [OWN_KNOWN]\nspace: 2000\ntime: 80\ncost: 9999999\nrequiredItems: {OWN_ITEM: 20}\nproducedItems: {OWN_SAMPLE: 2}");
+ productionRule("OWN_OPEN_MAKE","category: STR_EQUIPMENT\nrequires: [OWN_KNOWN]\nspace: 3\ntime: 4\ncost: 17\nproducedItems: {OWN_ITEM: 1}");
+ productionRule("PRIVATE_LOCKED_MAKE","requires: [UNKNOWN_PREREQUISITE]\nspace: 1\ntime: 2\ncost: 3");
+ save.addFinishedResearchSimple(known);save.addFinishedResearchSimple(helper);save.setFunds(0);
+ auto*a=new Base(&mod);auto*b=new Base(&mod);a->setName("OFFER A");b->setName("OFFER B");a->setLongitude(0.2);b->setLongitude(0.4);save.getBases()->push_back(a);save.getBases()->push_back(b);a->getStorageItems()->addItem("OWN_SAMPLE",2);
+ auto*project=new ResearchProject(active,75);project->setAssigned(1);project->setSpent(7);b->addResearch(project);auto*production=new Production(manufacture,3);production->setTimeSpent(2);b->addProduction(production);
+ auto*point=new Waypoint;point->setId(44);point->setName("OWN WAYPOINT");point->setLongitude(0.8);point->setLatitude(0.3);save.getWaypoints()->push_back(point);
+ auto*secondPoint=new Waypoint;secondPoint->setId(45);secondPoint->setName("SECOND WAYPOINT");secondPoint->setLongitude(0.9);save.getWaypoints()->push_back(secondPoint);
+ RuleCraft rule("OWN_ROUTE_CRAFT");rule.load(YAML::Load("speedMax: 2000\nfuelMax: 1000\ncostRent: 0"),&mod,0);RuleCraft zeroRule("OWN_ZERO_SPEED");zeroRule.load(YAML::Load("speedMax: 0\nfuelMax: 1000"),&mod,0);
+ auto*c=new Craft(&rule,a,71);c->setLongitude(0.25);c->setLatitude(0.1);c->setFuel(700);c->setSpeed(1500);c->setInDogfight(true);c->setInBattlescape(true);c->setInterceptionOrder(7);c->setDestination(&enemy);a->getCrafts()->push_back(c);
+ auto*orphan=new Craft(&rule,nullptr,72);orphan->setFuel(400);a->getCrafts()->push_back(orphan);auto*zero=new Craft(&zeroRule,a,73);zero->setFuel(50);a->getCrafts()->push_back(zero);
+ const auto seed=RNG::getSeed();enemy.reads=0;
+ const auto collect=[&](){check(collector.collect(&save,&language,rows,reason),"native own opportunities and safe routes snapshot");};collect();
+ std::map<std::string,YAML::Node> records;std::string aid,bid,wid,cid,orphanId,zeroId;for(const auto&raw:rows){auto row=YAML::Load(raw);records[row["id"].as<std::string>()]=row;const auto kind=row["kind"].as<std::string>();if(kind=="base"){if(row["name"].as<std::string>()=="OFFER A")aid=row["id"].as<std::string>();else bid=row["id"].as<std::string>();}if(kind=="own_waypoint"&&row["native_id"].as<int>()==44)wid=row["id"].as<std::string>();if(kind=="craft"){const int id=row["native_id"].as<int>();if(id==71)cid=row["id"].as<std::string>();if(id==72)orphanId=row["id"].as<std::string>();if(id==73)zeroId=row["id"].as<std::string>();}check(raw.find("PRIVATE_")==std::string::npos&&raw.find("UNKNOWN_PREREQUISITE")==std::string::npos,"unavailable tech and foreign target details absent");}
+ check(!aid.empty()&&!bid.empty()&&!wid.empty()&&!cid.empty()&&!orphanId.empty()&&!zeroId.empty(),"owned stable references resolved for both bases waypoints and craft");
+ std::set<std::string>knowledge;for(const auto&r:records)if(r.second["kind"].as<std::string>()=="research_knowledge"){knowledge.insert(r.second["type"].as<std::string>());check(r.second["base_id"].as<std::string>().empty(),"research knowledge has campaign scope");}
+ check(knowledge==std::set<std::string>({"OWN_KNOWN","OWN_HELPER_FLAG"}),"actual discovered helper flags included without unknown research catalogue");
+ for(const auto pair:{std::make_pair(a,aid),std::make_pair(b,bid)}){
+  std::vector<RuleResearch*>nativeResearch;save.getAvailableResearchProjects(nativeResearch,&mod,pair.first,true);std::set<std::string>expectedResearch;for(auto*r:nativeResearch)if(r->getRequirements().empty())expectedResearch.insert(r->getName());
+  std::vector<RuleManufacture*>nativeManufacture;save.getAvailableProductions(nativeManufacture,&mod,pair.first);std::set<std::string>expectedManufacture;for(auto*r:nativeManufacture)expectedManufacture.insert(r->getName());
+  std::set<std::string>shownResearch,shownManufacture;for(const auto&r:records){auto row=r.second;if(row["base_id"].as<std::string>()!=pair.second)continue;const auto kind=row["kind"].as<std::string>();if(kind=="research_offer")shownResearch.insert(row["type"].as<std::string>());if(kind=="manufacture_offer")shownManufacture.insert(row["type"].as<std::string>());}
+  check(shownResearch==expectedResearch&&shownManufacture==expectedManufacture,"per-base offers exactly match native UI availability queries and hidden-helper filter");
+  if(pair.first==a)check(shownResearch.count("OWN_SAMPLE")&&shownResearch.count("OWN_ACTIVE_RESEARCH")&&shownManufacture.count("OWN_MAKE"),"base A has item research and opportunities absent from base B active projects");else check(!shownResearch.count("OWN_SAMPLE")&&!shownResearch.count("OWN_ACTIVE_RESEARCH")&&!shownManufacture.count("OWN_MAKE"),"base B missing item and active research/manufacture are excluded natively");
+ }
+ bool manufactureFound=false,researchFound=false;for(const auto&r:records){auto row=r.second;const auto kind=row["kind"].as<std::string>();if(kind=="manufacture_offer"&&row["type"].as<std::string>()=="OWN_MAKE"){manufactureFound=true;check(row["required_space"].as<int>()==2000&&row["hours_per_unit"].as<int>()==80&&row["cost_per_unit"].as<int>()==9999999&&row["required_items"]["OWN_ITEM"].as<int>()==20&&row["produced_items"]["OWN_SAMPLE"].as<int>()==2,"offer includes pure rule requirements despite zero funds materials and workshop capacity");}if(kind=="research_offer"&&row["type"].as<std::string>()=="OWN_SAMPLE"){researchFound=true;check(row["base_cost"].as<int>()==250&&row["needs_item"].as<bool>()&&row["destroys_item"].as<bool>(),"research offer exact native item and cost requirements");}}
+ check(manufactureFound&&researchFound,"both typed opportunity requirement records present");
+ auto craftRow=records.at(cid);check(craftRow["home_base_id"].as<std::string>()==aid&&craftRow["fuel_consumption"].as<int>()==c->getFuelConsumption()&&craftRow["fuel_to_home"].as<int>()==c->getFuelLimit()&&craftRow["distance_to_home"].as<double>()==c->getDistanceFromBase(),"own craft native fuel and distance telemetry matches getters");
+ check(craftRow["in_dogfight"].as<bool>()&&craftRow["in_battlescape"].as<bool>()&&craftRow["interception_order"].as<int>()==7,"own craft engagement flags and order allowlisted");check(craftRow["destination"]["kind"].as<std::string>()=="other"&&craftRow["destination"]["base_id"].IsNull()&&craftRow["destination"]["waypoint_id"].IsNull()&&enemy.reads==0,"foreign destination classified by pointer only without target getters");
+ check(records.at(orphanId)["home_base_id"].IsNull()&&records.at(orphanId)["fuel_to_home"].IsNull()&&records.at(orphanId)["distance_to_home"].IsNull(),"null home craft avoids unsafe native distance and fuel estimation");check(records.at(zeroId)["fuel_to_home"].IsNull(),"zero max-speed craft avoids division-by-zero native fuel estimate");
+ const auto original=rows;auto&discovered=const_cast<std::vector<const RuleResearch*>&>(save.getDiscoveredResearch());std::reverse(discovered.begin(),discovered.end());std::reverse(mod._researchIndex.begin(),mod._researchIndex.end());std::reverse(mod._manufactureIndex.begin(),mod._manufactureIndex.end());std::reverse(save.getBases()->begin(),save.getBases()->end());std::reverse(save.getWaypoints()->begin(),save.getWaypoints()->end());collect();check(rows==original,"knowledge rule base and waypoint reorder retain exact stable IDs and serialized snapshot");
+ check(records.at(wid)["base_id"].as<std::string>().empty()&&records.at(wid)["name"].as<std::string>()=="OWN WAYPOINT"&&records.at(wid)["longitude"].as<double>()==point->getLongitude()&&records.at(wid)["latitude"].as<double>()==point->getLatitude(),"own waypoint record contains only own scoped name and coordinates");
+ a->getStorageItems()->removeItem("OWN_SAMPLE",2);collect();bool sampleAbsent=true;for(const auto&raw:rows){auto row=YAML::Load(raw);if(row["kind"].as<std::string>()=="research_offer"&&row["type"].as<std::string>()=="OWN_SAMPLE")sampleAbsent=false;}check(sampleAbsent,"needed-item research opportunity disappears with missing owned item");a->getStorageItems()->addItem("OWN_SAMPLE",2);collect();std::set<std::string> beforeOffers,afterOffers;for(const auto&raw:original){auto row=YAML::Load(raw);if(row["kind"].as<std::string>()=="research_offer"||row["kind"].as<std::string>()=="manufacture_offer")beforeOffers.insert(raw);}for(const auto&raw:rows){auto row=YAML::Load(raw);if(row["kind"].as<std::string>()=="research_offer"||row["kind"].as<std::string>()=="manufacture_offer")afterOffers.insert(raw);}check(afterOffers==beforeOffers,"reappearing opportunity retains same logical identity and exact offer records (recreated stock has new identity)");
+ const auto routed=[&](Target*target,const std::string&kind,const std::string&reference){c->setDestination(target);enemy.reads=0;collect();for(const auto&raw:rows){auto row=YAML::Load(raw);if(row["id"].as<std::string>()!=cid)continue;auto dest=row["destination"];check(dest["kind"].as<std::string>()==kind,"destination enum from owned pointer membership");if(kind=="base")check(dest["base_id"].as<std::string>()==reference&&dest["waypoint_id"].IsNull(),"own base route binds known base ID only");if(kind=="waypoint")check(dest["waypoint_id"].as<std::string>()==reference&&dest["base_id"].IsNull(),"own waypoint route binds known waypoint ID only");if(kind=="none")check(dest["base_id"].IsNull()&&dest["waypoint_id"].IsNull(),"no route has nullable references");}check(enemy.reads==0,"route capture never invokes foreign target getters");};
+ routed(b,"base",bid);routed(point,"waypoint",wid);routed(nullptr,"none","");routed(&enemy,"other","");
+ check(save.getFunds()==0&&RNG::getSeed()==seed&&a->getStorageItems()->getItem("OWN_SAMPLE")==2&&project->getSpent()==7&&production->getTimeSpent()==2&&c->getFuel()==700,"catalogue telemetry reads preserve funds RNG stocks research production and fuel");
+ check(collector.collect(&save,&language,again,reason)&&again==rows,"repeated final offer/route reads exact stable");
+ if(!output.empty()){std::ofstream file(output);file<<"[";for(size_t i=0;i<rows.size();++i)file<<(i?",":"")<<rows[i];file<<"]\n";}
 }

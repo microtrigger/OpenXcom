@@ -131,6 +131,10 @@ public:
 	int getFuelConsumption(int speed) const;
 	/// Gets the craft's minimum fuel limit.
 	int getFuelLimit() const;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    /// Pure cached denominator for bounded own-craft fuel-return observation.
+    double agentMaxSpeedRadian() const { return _speedMaxRadian; }
+#endif
 	/// Gets the craft's minimum fuel limit to go to a base.
 	int getFuelLimit(Base *base) const;
 

@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 namespace OpenXcom {
 class SavedGame;
@@ -19,6 +20,8 @@ class AgentPlayerBases {
     typedef std::pair<std::string, const void *> Key;
     std::map<Key, Identity> _identities;
     std::set<Key> _seen;
+    std::map<std::tuple<std::string,std::string,std::string>,std::string> _logicalIdentities;
+    std::string logicalIdentity(const std::string &kind,const std::string &scope,const std::string &type);
     SavedGame *_save = nullptr;
     std::uint64_t _next = 0;
     std::thread::id _thread;

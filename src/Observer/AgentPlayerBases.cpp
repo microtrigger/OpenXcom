@@ -4,6 +4,8 @@
 #include "AgentProtocol.h"
 #include "../Savegame/SavedGame.h"
 #include "../Savegame/GameTime.h"
+#include "../Savegame/Waypoint.h"
+#include "../Engine/Language.h"
 #include "../Savegame/Base.h"
 #include "../Savegame/BaseFacility.h"
 #include "../Savegame/Soldier.h"
@@ -65,7 +67,7 @@ std::string quantities(const std::map<std::string,int> &items){
 }
 std::string capacity(double total,double used){return Object().d("capacity",total).d("used",used).d("free",total-used).end();}
 }
-void AgentPlayerBases::reset(){_identities.clear();_seen.clear();_save=nullptr;_next=0;_thread=std::thread::id();}
+void AgentPlayerBases::reset(){_identities.clear();_logicalIdentities.clear();_seen.clear();_save=nullptr;_next=0;_thread=std::thread::id();}
 std::string AgentPlayerBases::identify(const std::string &kind,const void *pointer,const std::weak_ptr<const void> &lifetime,bool tracked){
     if(!pointer)throw std::runtime_error("invalid_base_data");
     const Key key(kind,pointer);_seen.insert(key);auto found=_identities.find(key);
@@ -73,6 +75,13 @@ std::string AgentPlayerBases::identify(const std::string &kind,const void *point
         !found->second.lifetime.owner_before(lifetime) && !lifetime.owner_before(found->second.lifetime)))) return found->second.id;
     if(_next>=9007199254740991ULL || _identities.size()>=MaxRecords)throw std::runtime_error("record_limit");
     Identity value;value.id=kind+"_"+std::to_string(++_next);value.lifetime=lifetime;value.tracked=tracked;_identities[key]=value;return value.id;
+}
+std::string AgentPlayerBases::logicalIdentity(const std::string &kind,const std::string &scope,const std::string &type){
+    if(type.empty() || type.size()>4096)throw std::runtime_error("invalid_base_data");
+    const auto key=std::make_tuple(kind,scope,type);const auto found=_logicalIdentities.find(key);
+    if(found!=_logicalIdentities.end())return found->second;
+    if(_next>=9007199254740991ULL || _logicalIdentities.size()>=MaxRecords)throw std::runtime_error("record_limit");
+    const auto id=kind+"_"+std::to_string(++_next);_logicalIdentities[key]=id;return id;
 }
 bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<std::string> &records,std::string &reason){
     records.clear();reason.clear();
@@ -83,6 +92,7 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
         if(!language)throw std::runtime_error("invalid_base_data");
         const auto *bases=static_cast<const SavedGame*>(save)->getBases();
         if(!bases || bases->size()>64)throw std::runtime_error("record_limit");
+        std::map<Waypoint*,std::string> waypointIds;
         std::map<Base*,std::string> baseIds;std::map<Craft*,std::string> craftIds;std::map<Soldier*,std::string> soldierIds;
         std::map<std::string,Soldier*> nativeSoldiers;
         const auto soldierId=[&](Soldier *s)->std::string {
@@ -102,6 +112,11 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
                 if(Craft*c=t->getCraft())craftIds[c]=identify("craft",c,c->agentLifetime(),true);
             }
         }
+        if(save->getWaypoints()->size()>MaxRecords)throw std::runtime_error("record_limit");
+        for(Waypoint *waypoint:*save->getWaypoints()){
+            if(!waypoint || waypointIds.count(waypoint))throw std::runtime_error("invalid_base_data");
+            waypointIds[waypoint]=identify("own_waypoint",waypoint,waypoint->agentLifetime(),true);
+        }
         if(save->getDeadSoldiers()->size()>MaxRecords)throw std::runtime_error("record_limit");
         for(Soldier *s:*save->getDeadSoldiers()){
             if(!s || !s->getDeath() || soldierIds.count(s))throw std::runtime_error("invalid_base_data");
@@ -115,6 +130,18 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
         const auto *time=save->getTime();if(!time)throw std::runtime_error("invalid_base_data");
         Object date;date.n("year",time->getYear()).n("month",time->getMonth()).n("day",time->getDay()).n("hour",time->getHour()).n("minute",time->getMinute()).n("second",time->getSecond());
         emit("campaign_0",record("campaign","campaign_0","").n("funds",save->getFunds()).n("monthly_income",save->getCountryFunding()).n("monthly_maintenance",save->getBaseMaintenance()).raw("time",date.end()));
+        if(save->getDiscoveredResearch().size()>MaxRecords)throw std::runtime_error("record_limit");
+        std::set<std::string> discoveredTypes;
+        for(const RuleResearch *rule:save->getDiscoveredResearch()){
+            if(!rule)throw std::runtime_error("invalid_base_data");
+            const auto &type=rule->getName();if(!discoveredTypes.insert(type).second)continue;
+            const auto id=logicalIdentity("research_knowledge","",type);
+            emit(id,record("research_knowledge",id,"").s("type",type).s("name",language->getString(type)));
+        }
+        for(const auto &waypoint:waypointIds){
+            emit(waypoint.second,record("own_waypoint",waypoint.second,"").n("native_id",waypoint.first->getId())
+                .s("name",waypoint.first->getName(language)).d("longitude",waypoint.first->getLongitude()).d("latitude",waypoint.first->getLatitude()));
+        }
         const auto stock=[&](ItemContainer *items,const std::string &owner,const char *kind,const std::string &base){
             if(!items || items->getContents()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(const auto &item:*items->getContents()){
@@ -174,11 +201,33 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             if(!c || !c->getRules())throw std::runtime_error("invalid_base_data");const auto id=craftIds.at(c);const auto *r=c->getRules();
             std::vector<std::string> crew;for(const auto &s:soldierIds)if(s.first->getCraft()==c)crew.push_back(s.second);std::sort(crew.begin(),crew.end());
             std::string crewJson="[";for(const auto &s:crew){if(crewJson.size()>1)crewJson+=",";crewJson+=quote(s);}crewJson+="]";
+            // Compare target addresses only against explicit player-owned registries.
+            // Never ask an unrecognized destination for type, name, position or ID.
+            const Target *destination=c->getDestination();std::string destinationKind=destination?"other":"none",destinationBase,destinationWaypoint;
+            for(const auto &entry:baseIds)if(destination==entry.first){destinationKind="base";destinationBase=entry.second;break;}
+            for(const auto &entry:waypointIds)if(destination==entry.first){destinationKind="waypoint";destinationWaypoint=entry.second;break;}
+            const auto route=Object().s("kind",destinationKind).nullable("base_id",destinationBase).nullable("waypoint_id",destinationWaypoint).end();
+            const auto home=baseIds.find(c->getBase());std::string homeId,distance="null",fuelHome="null";
+            if(home!=baseIds.end()){
+                homeId=home->second;
+                const double radians=c->getDistance(home->first);
+                if(std::isfinite(radians) && radians>=0){
+                    std::ostringstream number;number.imbue(std::locale::classic());number<<std::setprecision(17)<<radians;distance=number.str();
+                    const double denominator=c->agentMaxSpeedRadian();
+                    if(std::isfinite(denominator) && denominator>0){
+                        const double estimate=std::floor(c->getFuelConsumption(r->getMaxSpeed())*radians/denominator);
+                        if(std::isfinite(estimate) && estimate>=std::numeric_limits<int>::min() && estimate<=std::numeric_limits<int>::max())
+                            fuelHome=std::to_string(c->getFuelLimit(home->first));
+                    }
+                }
+            }
             emit(id,record("craft",id,base).n("native_id",c->getId()).s("type",c->getType()).s("name",c->getName(language)).s("status",c->getStatus())
                 .s("location",transfer.empty()?"home_roster":"in_transit").nullable("transfer_id",transfer).n("weapon_slot_count",c->getWeapons()->size()).n("weapon_capacity",r->getWeapons()).d("longitude",c->getLongitude()).d("latitude",c->getLatitude())
                 .n("speed",c->getSpeed()).n("fuel",c->getFuel()).n("fuel_max",r->getMaxFuel()).n("damage",c->getDamage()).n("damage_max",r->getMaxDamage()).n("speed_max",r->getMaxSpeed())
                 .n("soldier_capacity",r->getSoldiers()).n("vehicle_capacity",r->getVehicles()).n("item_capacity",r->getMaxItems()).n("space_used",c->getSpaceUsed()).n("space_available",c->getSpaceAvailable())
-                .n("monthly_cost",r->getRentCost()).b("low_fuel",c->getLowFuel()).b("mission_complete",c->getMissionComplete()).raw("crew",crewJson));
+                .n("monthly_cost",r->getRentCost()).b("low_fuel",c->getLowFuel()).b("mission_complete",c->getMissionComplete()).raw("crew",crewJson)
+                .nullable("home_base_id",homeId).n("fuel_consumption",c->getFuelConsumption()).raw("fuel_to_home",fuelHome).raw("distance_to_home",distance)
+                .b("in_dogfight",c->isInDogfight()).b("in_battlescape",c->isInBattlescape()).n("interception_order",c->getInterceptionOrder()).raw("destination",route));
             stock(c->getItems(),id,"craft",base);vehicles(*c->getVehicles(),id,"craft",base);
             if(c->getWeapons()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(std::size_t i=0;i<c->getWeapons()->size();++i){CraftWeapon *w=c->getWeapons()->at(i);if(!w)continue;if(!w->getRules())throw std::runtime_error("invalid_base_data");const auto wid=identify("weapon",w);const auto *wr=w->getRules();
@@ -190,6 +239,31 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             // MonthlyCostsState, independent of the currently selected UI base.
             const Mod *mod=base->getMod();
             if(!mod)throw std::runtime_error("invalid_base_data");
+            if(mod->getResearchList().size()>MaxRecords || mod->getManufactureList().size()>MaxRecords)throw std::runtime_error("record_limit");
+            // Match the ordinary NewResearchListState query and its final
+            // requires filter. Offers are not a promise of resources/capacity.
+            std::vector<RuleResearch*> researchOffers;
+            save->getAvailableResearchProjects(researchOffers,mod,base,true);
+            std::set<std::string> researchTypes;
+            for(const RuleResearch *rule:researchOffers){
+                if(!rule)throw std::runtime_error("invalid_base_data");
+                if(!rule->getRequirements().empty())continue;
+                const auto &type=rule->getName();if(!researchTypes.insert(type).second)continue;
+                const auto id=logicalIdentity("research_offer",bid,type);
+                emit(id,record("research_offer",id,bid).s("type",type).s("name",language->getString(type))
+                    .n("base_cost",rule->getCost()).b("needs_item",rule->needItem()).b("destroys_item",rule->destroyItem()));
+            }
+            std::vector<RuleManufacture*> manufactureOffers;
+            save->getAvailableProductions(manufactureOffers,mod,base);
+            std::set<std::string> manufactureTypes;
+            for(const RuleManufacture *rule:manufactureOffers){
+                if(!rule)throw std::runtime_error("invalid_base_data");
+                const auto type=rule->getName();if(!manufactureTypes.insert(type).second)continue;
+                const auto id=logicalIdentity("manufacture_offer",bid,type);
+                emit(id,record("manufacture_offer",id,bid).s("type",type).s("name",language->getString(type)).s("category",rule->getCategory())
+                    .n("required_space",rule->getRequiredSpace()).n("hours_per_unit",rule->getManufactureTime()).n("cost_per_unit",rule->getManufactureCost())
+                    .raw("required_items",quantities(rule->getRequiredItems())).raw("produced_items",quantities(rule->getProducedItems())));
+            }
             std::string craftLedger="[",salaryLedger="[";
             std::set<std::string> craftTypes,salaryTypes;
             const auto appendCost=[&](std::string &list,std::set<std::string> &types,const std::string &type,int unit,int quantity){

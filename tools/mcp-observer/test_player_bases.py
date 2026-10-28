@@ -10,7 +10,8 @@ TOKEN='a'*32
 def sample(kind, index=0):
  r=dict(kind=kind,id=f'{kind}-{index}',base_id='base-0')
  for key in b.FIELDS[kind].split():
-  if key=='death':r[key]=None
+  if key in ('death','home_base_id','fuel_to_home','distance_to_home'):r[key]=None
+  elif key=='destination':r[key]=dict(kind='none',base_id=None,waypoint_id=None)
   elif key=='time' and kind=='campaign':r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
   elif key=='personnel':r[key]={x:0 for x in 'soldiers scientists engineers available_soldiers available_scientists available_engineers allocated_scientists allocated_engineers'.split()}
   elif key=='capacities':r[key]={x:dict(capacity=0,used=0,free=0) if kind=='base' else 0 for x in b.CAPS.split()}
@@ -23,6 +24,7 @@ def sample(kind, index=0):
   elif key in b.STRINGS and not(key=='slot' and kind=='weapon'):r[key]='shown'
   else:r[key]=0
  if kind=='campaign':r['id']='campaign_0';r['base_id']=''
+ if kind in ('research_knowledge','own_waypoint'):r['base_id']=''
  if kind=='base':r['grid_size']=6;r['id']=r['base_id']
  if kind in ('soldier','craft'):r['location']='home_roster' if kind=='craft' else 'home';r['transfer_id']=None
  if kind=='transfer':r['transfer_type']='item';r['item_type']='ITEM';r['craft_id']=None;r['soldier_id']=None
@@ -61,7 +63,7 @@ class BasesTests(unittest.TestCase):
    for key in tuple(r):
     bad=copy.deepcopy(r);del bad[key]
     with self.assertRaises(Unavailable):b.record(bad)
-   for key in ('enemy','destination','target','tactical','hidden_aliens','occupancy_prediction'):
+   for key in ('enemy','target','tactical','hidden_aliens','occupancy_prediction') + (() if k=='craft' else ('destination',)):
     bad=copy.deepcopy(r);bad[key]=None
     with self.assertRaises(Unavailable):b.record(bad)
  def test_expense_ledger_closed_bounds_products_and_old_schema(self):
@@ -72,7 +74,7 @@ class BasesTests(unittest.TestCase):
   for transform in (lambda v:v.update(enemy_cost=0),lambda v:v['crafts'].append(copy.deepcopy(v['crafts'][0])),lambda v:v['salaries'][0].update(hidden_rule=True),lambda v:v.update(crafts=[dict(type=str(i),unit_cost=0,quantity=0,total=0) for i in range(257)])):
    bad=copy.deepcopy(r);transform(bad['expense_ledger'])
    with self.assertRaises(Unavailable):b.record(bad)
-  for old in ('openxcom-player-bases/1','openxcom-player-bases/2'):
+  for old in ('openxcom-player-bases/1','openxcom-player-bases/2','openxcom-player-bases/3'):
    p=page();p['schema']=old
    with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
   peer=Peer([sample('campaign'),r])
@@ -81,7 +83,8 @@ class BasesTests(unittest.TestCase):
   finally:peer.close()
  def test_multi_base_and_related_entities(self):
   records=[sample(k) for k in b.FIELDS];second=sample('base');second['id']=second['base_id']='base-1';records.append(second)
-  b.page(dump(page(records)),CHALLENGE,EPOCH,None,0,16)
+  for offset in range(0,len(records),16):
+   b.page(dump(page(records[offset:offset+16],offset,len(records))),CHALLENGE,EPOCH,None if offset==0 else TOKEN,offset,16)
  def test_page_exact_consistency_and_errors(self):
   b.page(dump(page()),CHALLENGE,EPOCH,None,0,16)
   for key,value in [('epoch','f'*32),('challenge','f'*32),('next_offset',2),('complete',False),('total',0),('records',[sample('base'),sample('base')])]:
@@ -92,7 +95,7 @@ class BasesTests(unittest.TestCase):
   p['complete']=True
   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
  def test_history_schema_and_closed_nested_fields(self):
-  self.assertEqual(b.SCHEMA,'openxcom-player-bases/3')
+  self.assertEqual(b.SCHEMA,'openxcom-player-bases/4')
   old=page();old['schema']='openxcom-player-bases/1'
   with self.assertRaises(Unavailable):b.page(dump(old),CHALLENGE,EPOCH,None,0,16)
   for kind in ('soldier','soldier_diary','soldier_commendation'):
@@ -126,6 +129,58 @@ class BasesTests(unittest.TestCase):
    r=sample(kind);r['base_id']='';b.record(r)
   bad=sample('base');bad['base_id']=''
   with self.assertRaises(Unavailable):b.record(bad)
+ def test_known_research_offers_are_closed_read_records(self):
+  for kind in ('research_knowledge','research_offer','manufacture_offer','own_waypoint'):
+   r=sample(kind);b.record(r)
+   for field in ('unlock_graph','future_research','enemy_target','actions','capability','rule_pointer'):
+    bad=copy.deepcopy(r);bad[field]=[]
+    with self.assertRaises(Unavailable):b.record(bad)
+  for kind in ('research_knowledge','own_waypoint'):
+   bad=sample(kind);bad['base_id']='base-0'
+   with self.assertRaises(Unavailable):b.record(bad)
+  for kind in ('research_offer','manufacture_offer'):
+   bad=sample(kind);bad['base_id']=''
+   with self.assertRaises(Unavailable):b.record(bad)
+  for field in ('needs_item','destroys_item'):
+   for value in (0,1,None,'true'):
+    bad=sample('research_offer');bad[field]=value
+    with self.assertRaises(Unavailable):b.record(bad)
+  for kind,field in (('research_offer','base_cost'),('manufacture_offer','hours_per_unit'),('manufacture_offer','cost_per_unit')):
+   for value in (True,1.2,None,'1'):
+    bad=sample(kind);bad[field]=value
+    with self.assertRaises(Unavailable):b.record(bad)
+  r=sample('manufacture_offer');r['required_items']={str(i):1 for i in range(1000)};b.record(r)
+  r['required_items']['overflow']=1
+  with self.assertRaises(Unavailable):b.record(r)
+  r=sample('production');r['required_items']={str(i):1 for i in range(1001)};b.record(r)
+ def test_safe_craft_destination_closed_and_nullable_home_metrics(self):
+  r=sample('craft')
+  for kind in ('none','base','waypoint','other'):
+   r['destination']=dict(kind=kind,base_id='base-1' if kind=='base' else None,waypoint_id='waypoint-1' if kind=='waypoint' else None);b.record(r)
+  for home in (None,'base-0'):
+   for fuel,distance in ((None,None),(None,0.2),(12,0.2)):
+    r.update(home_base_id=home,fuel_to_home=fuel,distance_to_home=distance)
+    if home is None and (fuel is not None or distance is not None):
+     with self.assertRaises(Unavailable):b.record(r)
+    else:b.record(r)
+  r.update(home_base_id='base-0',fuel_consumption=-1,fuel_to_home=-2,distance_to_home=0);b.record(r)
+  for field,value in (('fuel_to_home',True),('distance_to_home',float('nan')),('distance_to_home',-0.1),('in_dogfight',1),('in_battlescape',None),('interception_order','1'),('home_base_id','')):
+   bad=copy.deepcopy(r);bad[field]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  for destination in (dict(kind='ufo',base_id=None,waypoint_id=None),dict(kind='base',base_id=None,waypoint_id=None),dict(kind='other',base_id='base-1',waypoint_id=None),dict(kind='waypoint',base_id=None,waypoint_id=''),dict(kind='none',base_id=None,waypoint_id=None,longitude=1),dict(kind='base',base_id='base-1',waypoint_id='waypoint-1')):
+   bad=copy.deepcopy(r);bad['destination']=destination
+   with self.assertRaises(Unavailable):b.record(bad)
+  for field in ('altitude','enemy_id','target_coordinates','meet_point','detected'):
+   bad=copy.deepcopy(r);bad[field]=None
+   with self.assertRaises(Unavailable):b.record(bad)
+ def test_new_read_records_never_send_ui_actions(self):
+  records=[sample(k) for k in ('research_knowledge','research_offer','manufacture_offer','own_waypoint','craft')]
+  peer=Peer(records)
+  try:
+   result=peer.client.read_player_bases();self.assertEqual(result['records'],records)
+   self.assertIsNone(peer.client.capability);self.assertEqual(peer.client.commands,{})
+   self.assertEqual([p.split()[0] for p in peer.requests],[b'H',b'B'])
+  finally:peer.close()
  def test_arguments_no_authority_or_bad_pagination(self):
   b.arguments({});b.arguments(dict(snapshot=TOKEN,offset=16,limit=1))
   for args in ({'offset':1},{'limit':0},{'limit':17},{'snapshot':'x'},{'offset':True},{'capability':TOKEN},{'execute':True}):

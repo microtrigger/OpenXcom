@@ -15,7 +15,7 @@ transfers. In-transit owned soldiers/craft are included. The schema uses positiv
 field allowlists, not recursive save-game dumps. Enemy retaliation/detection
 state and enemy destination graphs are excluded.
 
-Pages use `openxcom-player-bases/3`, a connection epoch, a campaign epoch,
+Pages use `openxcom-player-bases/4`, a connection epoch, a campaign epoch,
 content generation and a frozen snapshot token. A new first page captures
 current state; continuation pages belong to that same detached snapshot.
 Changed captures replace the snapshot; expired continuation tokens fail
@@ -38,13 +38,17 @@ on-screen text.
 | `soldier_diary` | Soldier reference; own aggregate missions, service months, wounded days, shots fired/landed, accuracy, kills, stuns, panics and mind controls. No individual kill or mission records. |
 | `soldier_commendation` | Soldier reference, award type, decoration level and unconsumed new-award flag. No enemy-specific award noun. |
 | `equipment_layout` | Soldier reference, item type, slot, slot x/y, ammo item and fuse timer. This is the saved equipment layout, not tactical inventory. |
-| `craft` | Native ID, type, name, status, home-roster/in-transit location and transfer reference; weapon-slot count/capacity; own longitude/latitude/speed; fuel/max fuel, damage/max damage, maximum speed; soldier/vehicle/item capacities and used/available space; monthly cost, low-fuel and mission-complete flags; crew references. |
+| `craft` | Home-base reference, native fuel consumption and nullable return-to-home fuel/distance estimates, own dogfight/battlescape flags and interception order, safe tagged destination; Native ID, type, name, status, home-roster/in-transit location and transfer reference; weapon-slot count/capacity; own longitude/latitude/speed; fuel/max fuel, damage/max damage, maximum speed; soldier/vehicle/item capacities and used/available space; monthly cost, low-fuel and mission-complete flags; crew references. |
 | `stock` | Owner reference/kind, item type and quantity; separate records for base and craft stores. |
 | `vehicle` | Owner reference/kind, type, ammo and size. Aliased vehicle objects are emitted once under their first collected owner. |
 | `weapon` | Craft reference, type, slot index, ammo/max ammo, rearm rate/rearming flag, launcher item and clip item. Empty slots have no weapon record; the craft slot count preserves their extent. |
 | `research` | Project type, progress identifier, assigned scientists, spent effort and actual project cost. |
 | `production` | Type/category, total/produced amounts, time spent, assigned engineers, unit time/cost, required space, infinite/sell flags, required-item and produced-item quantities. |
 | `transfer` | Item/craft/soldier/scientist/engineer type, remaining hours, quantity and nullable item/craft/soldier references. Incoming owned soldiers and craft have their own records and associated equipment. |
+| `research_knowledge` | Actually discovered research type and localized name; campaign-owned, no undiscovered technology or dependency/unlock graph. |
+| `research_offer` | Per-base currently known ordinary research-list type/name, base cost and item requirement/destruction flags. |
+| `manufacture_offer` | Per-base currently known ordinary manufacture-list type/name/category, required space, unit hours/cost and item input/output quantities. |
+| `own_waypoint` | Player-owned waypoint native ID, name, longitude and latitude. |
 
 Aggregate values retain native game semantics, including reservations and incoming
 transfers where the native capacity/personnel calculation includes them. A craft's
@@ -64,8 +68,11 @@ as the memorial UI; cause contents are not inspected. Individual kill records,
 mission IDs/locations, enemy identities and enemy-specific award nouns are
 not collected. Reads must not consume
 promotion flags, advance simulation, change allocations/funds, invoke RNG or
-serialize tactical objects. Craft destinations, enemy retaliation/detection state,
-battle-state graphs and fog-of-war information are excluded. Radar capability
+serialize tactical objects. Craft destinations are tagged as none, an owned base, a player-owned waypoint,
+or other. Only pointer equality against owned registries classifies them; the
+collector never dereferences a foreign destination or exports its identity,
+coordinates or type. Enemy retaliation/detection state, battle-state graphs and
+fog-of-war information remain excluded. Radar capability
 numbers describe owned facilities, not actual enemy detection results.
 
 Campaign replacement resets identity bindings even when allocation addresses
@@ -81,72 +88,36 @@ Stable IDs are never setters or UI capabilities. Ordinary UI actions retain thei
 separate freshness, visibility and overlay requirements. The all-base read does
 not authorize a native action against any hidden base or closed window.
 
-## Qualification status
+## Knowledge and craft semantics
 
-The native collector test suite passes 71 checks. Its real-object fixture covers
-22 records across all 12 record kinds, two bases and all five transfer types.
-Controller routing/pagination tests are a separate seam and must not be treated
-as substitute evidence for that native collector coverage.
+The research offer query and final filtering match the ordinary New Research
+list. Manufacture offers use the ordinary available-production query. An offer
+means it belongs to that known list, not that funds, space, materials or other
+native action conditions will permit execution. The read does not unlock
+research, allocate staff, create projects, consume items or reveal future rules.
+Discovered helper flags already recorded in campaign knowledge are not a dump
+of the undiscovered rule graph.
 
-UFO and TFTD live qualification each captured 52 records over four pages from the Options
-window, without navigating individual bases. Repeated unchanged paused reads
-retained the snapshot token and generation. Selling one pistol clip in UFO and one dart clip in TFTD through the
-actually visible Sell window changed its stock from 8 to 7 and increased funds
-by 52; the subsequent snapshot advanced its generation from 2 to 3 while retaining
-all entity IDs. The previous continuation token was rejected as expired.
+Craft home calculations use only an owned base. The cached maximum-speed
+radian denominator and computed estimate must be finite, positive where needed,
+and within integer bounds before the native return-fuel calculation is used;
+otherwise estimates remain null. No altitude, meetpoint, UFO target or foreign
+target method is called. Own operational flags do not grant tactical visibility.
 
-These live runs each used one newly created test base; multi-base coverage is
-provided by the separate native fixture, not claimed from those live runs. No
-gameplay visual fallback was used. Both also verified a read before any UI read
-at the main menu returns `no_campaign`, and a draft sale does not mutate stock
-or generation. Facility-placement preview work has
-78 native checks and a successful build, but is not live-qualified; it is separate
-from the read-only snapshot evidence above. These results do not claim exhaustive
-base-state coverage or acceptance of every UI mutation.
+## Qualification and remaining scope
 
-Regression comparison against `baseline-f7566924` is scoped, not a full-suite
-pass. The common 191-test sample has the same two failures and one error in
-baseline and current code:
+Earlier read-only, ledger and bounded base-action qualifications remain
+historical evidence, including independent reads from other windows and later
+two-base live scenarios in both games. They do not by themselves qualify every
+new schema field. Native fixtures, wire/adapter seams and live runs are distinct
+forms of evidence; none is a claim that the full regression suite passes.
 
-- `test_agent_control.ListValidationTests.test_closed_list_action_matrix_kinds_and_sources`
-  fails the Geoscape action-catalog expectation in both.
-- `test_agent_events.EventClientTests.test_history_retained_independently_and_exact_public_ring_gap`
-  errors when event reading is unavailable and also fails during worker teardown
-  in both.
-
-The 14 new focused tests pass, producing the selected 205-test current sample;
-that sample still has the two failures and one error above. Separately, the
-18-test standalone gameplay sample has the same two errors in baseline and
-current code:
-
-- `GameplayClientTests.test_hidden_hand_and_event_only_handles_cannot_broaden_action_grant`
-- `GameplayValidationTests.test_action_catalog_requires_the_corresponding_visible_set`
-
-These comparisons establish matching outcomes for the named samples, not that
-all tests pass or that every other regression has been excluded.
-
-Schema 2 adds the owned-soldier history slice. Its native fixture passes 156
-checks with a frozen unchanged input closure, including native death transition,
-MIA/KIA, stable memorial identities, unconsumed promotion/award flags and
-exclusion canaries. The strict adapter accepts all 28 fixture records and all 27
-post-transition records; nine focused adapter tests pass normally and optimized.
-The production build passes.
-
-Short UFO and TFTD live runs each read 60 records, including eight soldiers and
-eight diary aggregates. Snapshot content and generation stayed unchanged across
-Basescape, facility selection, General Stores preview and Cancel/Close. New
-campaigns have no medals or memorial entries: those populated-history cases
-are native-fixture qualification, not live death/award acceptance. Gameplay used
-MCP with passive video. One read-only visual diagnostic in TFTD identified
-missing visibly displayed facility rows; no visual gameplay action was used.
-That list-projection gap was subsequently repaired and qualified separately; see [ordinary coverage](ordinary-coverage-status.md).
-
-
-Schema 3 adds the owned expense-ledger slice described in
-[Monthly Costs](monthly-costs-contract.md). It preserves the native researched,
-nonzero-cost rule selection, including eligible zero-quantity rows and counts
-that include applicable incoming craft/personnel. Campaign monthly income and
-maintenance are explicit, not reconstructed from visible text. Locked rules
-remain excluded. This independent read never authorizes a hidden UI action.
-The focused native ledger fixture passes 206 checks; prior schema-2 history
-results above remain historical qualification, not current schema literals.
+Schema 4 has focused native model, wire and adapter qualification. Short live
+checks in both games read two owned bases from Geoscape and an ordinary options
+window, with unchanged owned state and stable repeated snapshots. Populated
+waypoint, foreign-destination and operational-flag edge cases remain native-fixture
+evidence rather than live qualification of those conditions. The broader test
+suite is not fully passing. Detailed own mission and award breakdowns, translated
+award information, and item metadata beyond the current allowlist remain separate
+work. This is broader owned state, not exhaustive serialization or a relaxation
+of visible-action and enemy-information boundaries.
