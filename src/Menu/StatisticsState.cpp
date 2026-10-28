@@ -89,6 +89,7 @@ StatisticsState::StatisticsState()
 
 	listStats();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstStats->agentEnableReportCells(2);
     for (Surface *widget : std::vector<Surface *>{_window, _txtTitle, _btnOk, _lstStats})
         widget->agentTrackPresentation();
 #endif
@@ -352,7 +353,7 @@ bool StatisticsState::agentDestinationFull() const
 
 std::vector<std::uint64_t> StatisticsState::agentPaintRevisions() const
 {
-    return {_window->agentPresentationRevision(), _lstStats->agentPresentationRevision(),
+    return {_window->agentPresentationRevision(), _lstStats->agentPresentationRevision(), _lstStats->agentListRevision(),
         _txtTitle->agentPresentationRevision(), _txtTitle->agentTextRevision(),
         _btnOk->agentPresentationRevision(), _btnOk->agentLabelRevision()};
 }
@@ -427,7 +428,56 @@ bool StatisticsState::agentUiState(Observer::AgentUiState &out) const
     };
     button(_btnOk, "ok", "close_statistics");
     buttons += "]";
-    out.visible = "{\"title\":" + title + ",\"buttons\":" + buttons + "}";
+        out.widgets.emplace_back(_lstStats, _lstStats->agentListRevision());
+    out.widgets.emplace_back(_lstStats, _lstStats->agentPresentationRevision());
+    std::vector<AgentOutfittingRow> projected;
+    std::uint64_t tableEpoch = 0;
+    const bool shown = _lstStats->agentPresentationPaintedTo(destination) &&
+        _lstStats->agentReportRows(projected, tableEpoch) && projected.size() <= 128;
+    std::string rows = "[";
+    if (shown) for (const auto &row : projected)
+    {
+        if (row.cells.size() != 2) return false;
+        std::string value = "{\"cells\":[";
+        bool witness = false;
+        for (size_t column = 0; column < 2; ++column)
+        {
+            if (column) value += ",";
+            const auto &cell = row.cells[column];
+            AgentUiState part;
+            for (const auto &band : cell.regions)
+                part.regions.push_back({band.x, band.y, band.w, band.h});
+            const bool admitted = cell.known && cell.text.size() <= 1024 && !part.regions.empty() &&
+                agentRegionsUncovered(part.regions, _lstStats, painted) && _game->agentNonCursorOverlayClear(part);
+            witness = witness || admitted;
+            value += admitted ? agentJsonString(cell.text) : "null";
+        }
+        if (!witness) continue;
+        if (rows.size() > 1) rows += ",";
+        rows += value + "]}";
+        if (rows.size() > 9000) return false;
+    }
+    rows += "]";
+    out.context.push_back(tableEpoch);
+    const Surface *up = nullptr, *down = nullptr;
+    _lstStats->agentScrollControls(up, down);
+    const auto arrow = [&](const Surface *widget) -> bool {
+        if (!widget || !widget->agentPresentationPaintedTo(destination) || !agentWidgetUncovered(widget, painted)) return false;
+        AgentUiState part; agentIncludeWidget(part, widget);
+        if (part.regions.empty() || !_game->agentOverlayClear(part)) return false;
+        const auto size = out.regions.size();
+        out.regions.insert(out.regions.end(), part.regions.begin(), part.regions.end());
+        if (!agentRegionsDisjoint(out)) { out.regions.resize(size); return false; }
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        return true;
+    };
+    const bool canUp = arrow(up), canDown = arrow(down);
+    out.context.insert(out.context.begin(), {canUp ? 1u : 0u, canDown ? 1u : 0u});
+    if (canUp || canDown)
+        out.actions.emplace_back("scroll_visible_list", "Scroll visible list", "visible_control_semantics", "scroll_direction");
+    const std::string scroll = std::string("{\"up\":") + (canUp ? "true" : "false") +
+        ",\"down\":" + (canDown ? "true" : "false") + "}";
+    out.visible = "{\"title\":" + title + ",\"table\":{\"status\":" + agentJsonString(shown ? "shown" : "unavailable") + ",\"rows\":" + rows + "},\"scroll\":" + scroll + ",\"buttons\":" + buttons + "}";
     const std::string payload = out.payload();
     if (payload.size() > 9000) return false;
     std::size_t asciiBytes = 0;
@@ -441,6 +491,11 @@ bool StatisticsState::agentDispatch(const Observer::AgentRequest &request)
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
     if (request.action == "close_statistics") { btnOkClick(nullptr); return true; }
+    if (request.action == "scroll_visible_list" && current.context.size() >= 2)
+    {
+        if (request.choice == "up" && current.context[0]) { _lstStats->scrollUp(false, false); return true; }
+        if (request.choice == "down" && current.context[1]) { _lstStats->scrollDown(false, false); return true; }
+    }
     return false;
 }
 #endif

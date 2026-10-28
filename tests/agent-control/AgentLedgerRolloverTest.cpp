@@ -12,8 +12,8 @@ static std::string token(unsigned n){std::ostringstream s;s<<std::hex<<std::setw
 int main(){
  AgentRequest r;const std::string id=token(1),epoch=token(2),cap=token(3),challenge=token(4);
  const std::string prefix="E "+id+" 1 "+epoch+" "+cap+" 12 ";
- check(std::string(agentProtocolSchema())=="openxcom-agent-control/44");
- check(parseAgentRequest("H openxcom-agent-control/44",r));check(!parseAgentRequest("H openxcom-agent-control/40",r));
+ check(std::string(agentProtocolSchema())=="openxcom-agent-control/45");
+ check(parseAgentRequest("H openxcom-agent-control/45",r));check(!parseAgentRequest("H openxcom-agent-control/40",r));
  check(parseAgentRequest(prefix+"open_hand_action_menu right",r)&&r.commandGeneration==1&&r.choice=="right");
  check(parseAgentRequest(prefix+"end_turn",r)&&r.commandGeneration==1);
  check(!parseAgentRequest("E "+id+" "+epoch+" "+cap+" 12 end_turn",r));

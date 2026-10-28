@@ -14,7 +14,7 @@ def additional_site(obj):
 class NewBaseTests(unittest.TestCase):
     def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
     def test_closed_fields_old_schema_and_first_base_preserved(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/44')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/45')
         for screen in ('build_base','confirm_new_base','place_lift'):
             obj=state(screen=screen);self.check(obj)
             for key in obj['visible']:

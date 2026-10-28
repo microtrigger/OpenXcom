@@ -2634,6 +2634,7 @@ void TextList::agentEnableReportCells(unsigned columns, bool allowMissingCells, 
 		_agentReportRequireTextExtent = requireTextExtent;
 		_agentReportCells = true; ++_agentListRevision; _redraw = true;
 		agentTrackPresentation();
+        _up->agentTrackPresentation(); _down->agentTrackPresentation(); _scrollbar->agentTrackPresentation();
 	}
 }
 

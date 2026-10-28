@@ -130,6 +130,7 @@ SoldierMemorialState::SoldierMemorialState()
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     for (Surface *surface : _surfaces) surface->agentTrackPresentation();
     _btnOk->agentEnableNamedControl();
+    _btnStatistics->agentEnableNamedControl();
     _lstSoldiers->agentEnableReportCells(5, false, true);
     _lstSoldiers->agentEnableReportSelection();
     if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
@@ -221,6 +222,7 @@ std::vector<std::uint64_t> SoldierMemorialState::agentPaintRevisions() const
     for (const Text *text : {_txtTitle, _txtName, _txtRank, _txtDate, _txtRecruited, _txtLost}) revisions.push_back(text->agentTextRevision());
     revisions.push_back(_lstSoldiers->agentListRevision());
     revisions.push_back(_btnOk->agentLabelRevision());
+    revisions.push_back(_btnStatistics->agentLabelRevision());
     return revisions;
 }
 void SoldierMemorialState::blit()
@@ -290,7 +292,8 @@ bool SoldierMemorialState::agentUiState(Observer::AgentUiState &out) const
         const auto label=agentProjectNamedButton(widget,logical,painted,out,allowed);if(label.empty()||label.size()>1024)return;
         if(buttons.size()>1)buttons+=",";buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";out.actions.emplace_back(action,label,"visible_text");
     };
-    button(_btnOk,"ok","close_memorial");buttons+="]";
+    button(_btnOk,"ok","close_memorial");
+    button(_btnStatistics,"statistics","open_statistics");buttons+="]";
     out.visible="{\"title\":"+title+",\"recruited\":"+recruited+",\"lost\":"+lost+",\"headings\":["+name+","+rank+","+date+"],\"rows\":"+rows+",\"scroll\":{\"up\":"+(canUp?"true":"false")+",\"down\":"+(canDown?"true":"false")+"},\"buttons\":"+buttons+"}";
     return tableHealthy&&out.visible.size()<=32768&&agentRegionsDisjoint(out)&&(!out.actions.empty()||title!="null"||rows!="[]");
 }
@@ -303,6 +306,7 @@ bool SoldierMemorialState::agentDispatch(const Observer::AgentRequest &request)
         }return false;
     }
     if(request.action=="close_memorial"){btnOkClick(nullptr);return true;}
+    if(request.action=="open_statistics"){btnStatisticsClick(nullptr);return true;}
     if(request.action=="scroll_visible_list"&&fresh.context.size()>=3){
         if(request.choice=="up"&&fresh.context[fresh.context.size()-2]){_lstSoldiers->scrollUp(false,false);return true;}
         if(request.choice=="down"&&fresh.context.back()){_lstSoldiers->scrollDown(false,false);return true;}

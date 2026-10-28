@@ -129,6 +129,6 @@ class PromotionsTests(unittest.TestCase):
             with self.subTest(screen=screen),self.assertRaises(Unavailable):self.checked(obj)
 
     def test_catalog_adds_one_action_no_state(self):
-        self.assertEqual(len(a.ACTIONS),232);self.assertEqual(len(a.STATE_ACTIONS),100)
+        self.assertEqual(len(a.ACTIONS),233);self.assertEqual(len(a.STATE_ACTIONS),100)
 
 if __name__=='__main__':unittest.main()

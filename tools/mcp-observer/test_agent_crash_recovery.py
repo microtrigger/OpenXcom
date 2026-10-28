@@ -15,7 +15,7 @@ class CrashRecoveryTests(unittest.TestCase):
         return a.validate_state(copy.deepcopy(obj), CHALLENGE, EPOCH)
 
     def test_fresh_nullable_caption_and_exact_catalog(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/44')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/45')
         self.assertEqual(a.STATE_ACTIONS['crash_recovery'], {ACTION})
         self.assertEqual(a.ARGUMENT_KINDS[ACTION], 'none')
         for caption in (None, '', 'ALIEN SUB is recovered', 'é' * 512):

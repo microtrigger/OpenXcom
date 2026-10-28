@@ -7,7 +7,7 @@ static unsigned checks=0;
 static void check(bool ok){++checks;if(!ok){std::cerr<<"FAIL "<<checks<<'\n';std::exit(1);}}
 int main(){
  AgentRequest r;const std::string token(32,'1'),prefix="E "+token+" 1 "+token+" "+token+" 1 ";
- check(parseAgentRequest("H openxcom-agent-control/44",r));check(!parseAgentRequest("H openxcom-agent-control/39",r));
+ check(parseAgentRequest("H openxcom-agent-control/45",r));check(!parseAgentRequest("H openxcom-agent-control/39",r));
  for(const std::string action:{"open_memorial","close_memorial"}){
   check(agentActionId(action));check(std::string(agentArgumentKind(action))=="none");
   check(parseAgentRequest(prefix+action,r));check(!parseAgentRequest(prefix+action+" extra",r));
