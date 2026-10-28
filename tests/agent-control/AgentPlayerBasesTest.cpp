@@ -16,6 +16,8 @@
 #include "../../src/Mod/Unit.h"
 #include "../../src/Mod/RuleAlienMission.h"
 #include "../../src/Savegame/GameTime.h"
+#include "../../src/Savegame/Country.h"
+#include "../../src/Mod/RuleCountry.h"
 // Synthetic rules injected in test-only access; getters/models stay native.
 #define private public
 #include "../../src/Mod/Mod.h"
@@ -77,6 +79,16 @@ int main(int argc,char **argv){
  auto *medal=new SoldierCommendations("OWN_MEDAL","PRIVATE_MEDAL_NOUN");medal->addDecoration();s->getDiary()->getSoldierCommendations()->push_back(medal);
  auto *secondMedal=new SoldierCommendations("OWN_SECOND_MEDAL","PRIVATE_MEDAL_NOUN_2");s->getDiary()->getSoldierCommendations()->push_back(secondMedal);
  Soldier *mia=new Soldier(&soldierRule,&armor,2);mia->setName("MEMORIAL MIA");a->getSoldiers()->push_back(mia);save.killSoldier(mia,nullptr);
+ // MonthlyCosts ledger uses native catalog order, researched filters and
+ // quantities including incoming transfers. No external rules/resources.
+ mod._costEngineer=30000;mod._costScientist=25000;
+ soldierRule.load(YAML::Load("costSalary: 20000"),&mod);
+ const auto catalogCraft=[&](const std::string &type,int cost,const std::string &requires){auto*r=new RuleCraft(type);r->load(YAML::Load("costRent: "+std::to_string(cost)+"\nrequires: "+requires),&mod,0);mod._crafts[type]=r;mod._craftsIndex.push_back(type);};
+ const auto catalogSoldier=[&](const std::string &type,int cost,const std::string &requires){auto*r=new RuleSoldier(type);r->load(YAML::Load("costSalary: "+std::to_string(cost)+"\nrequires: "+requires),&mod);mod._soldiers[type]=r;mod._soldiersIndex.push_back(type);};
+ catalogCraft("OWN_CRAFT",10000,"[]");catalogCraft("AVAILABLE_ZERO_CRAFT",12000,"[OWN_RESEARCH]");catalogCraft("PRIVATE_LOCKED_CRAFT",999,"[PRIVATE_UNRESEARCHED]");catalogCraft("ZERO_COST_CRAFT",0,"[]");
+ catalogSoldier("OWN_SOLDIER",20000,"[]");catalogSoldier("AVAILABLE_ZERO_SOLDIER",21000,"[OWN_RESEARCH]");catalogSoldier("PRIVATE_LOCKED_SOLDIER",999,"[PRIVATE_UNRESEARCHED]");catalogSoldier("ZERO_COST_SOLDIER",0,"[]");
+ save.addFinishedResearchSimple(&researchRule);
+ RuleCountry countryRule("PRIVATE_COUNTRY");auto *country=new Country(&countryRule,false);country->getFunding().push_back(123456);save.getCountries()->push_back(country);
  const auto seed=RNG::getSeed();const auto funds=save.getFunds();enemy.reads=0;
  check(collector.collect(&save,&language,rows,reason),"native two-base snapshot");
  if(argc>1){std::ofstream output(argv[1]);output<<"[";for(std::size_t i=0;i<rows.size();++i){if(i)output<<",";output<<rows[i];}output<<"]\n";}
@@ -84,6 +96,20 @@ int main(int argc,char **argv){
  for(const auto &raw:rows){auto r=YAML::Load(raw);const auto kind=r["kind"].as<std::string>();++kinds[kind];byId[r["id"].as<std::string>()]=r;if(kind=="research")researchId=r["id"].as<std::string>();if(kind=="facility"&&r["build_days_remaining"].as<int>()==7)facilityId=r["id"].as<std::string>();check(raw.find("PRIVATE_ENEMY")==std::string::npos&&raw.find("retaliation")==std::string::npos&&raw.find("destination")==std::string::npos,"no enemy graph fields");check(raw.find("PRIVATE_HISTORY")==std::string::npos&&raw.find("PRIVATE_MEDAL_NOUN")==std::string::npos&&raw.find("932817")==std::string::npos&&raw.find("782931")==std::string::npos,"history identities and medal noun excluded");}
  for(const auto &kind:{"campaign","base","facility","soldier","craft","research","production","transfer","stock","vehicle","weapon","equipment_layout","soldier_diary","soldier_commendation"})check(kinds[kind]>0,"all allowlisted record kinds populated");
  check(kinds["base"]==2&&kinds["craft"]==2&&kinds["transfer"]==5,"all bases and in-transit craft captured");
+ check(byId.at("campaign_0")["monthly_income"].as<int>()==123456 && byId.at("campaign_0")["monthly_maintenance"].as<int>()==save.getBaseMaintenance(),"campaign own-income and all-base native maintenance");
+ for(const auto &entry:byId){const auto &row=entry.second;if(row["kind"].as<std::string>()!="base")continue;
+  const bool first=row["name"].as<std::string>()=="FIRST BASE";Base*owned=first?a:b;const auto ledger=row["expense_ledger"],crafts=ledger["crafts"],salaries=ledger["salaries"];
+  check(crafts.size()==2&&salaries.size()==4,"researched nonzero catalog only, plus both staff rows");
+  check(crafts[0]["type"].as<std::string>()=="OWN_CRAFT"&&crafts[1]["type"].as<std::string>()=="AVAILABLE_ZERO_CRAFT","craft native catalog order retained");
+  check(salaries[0]["type"].as<std::string>()=="OWN_SOLDIER"&&salaries[1]["type"].as<std::string>()=="AVAILABLE_ZERO_SOLDIER"&&salaries[2]["type"].as<std::string>()=="STR_ENGINEERS"&&salaries[3]["type"].as<std::string>()=="STR_SCIENTISTS","salary rule IDs and explicit staff ordering");
+  check(crafts[0]["quantity"].as<int>()==1&&crafts[0]["unit_cost"].as<int>()==10000&&crafts[0]["total"].as<int>()==10000,"home and incoming craft quantities charged natively");
+  check(crafts[1]["quantity"].as<int>()==0&&crafts[1]["total"].as<int>()==0&&salaries[1]["quantity"].as<int>()==0,"available zero-quantity rows included");
+  check(salaries[0]["quantity"].as<int>()==1&&salaries[0]["total"].as<int>()==20000,"home and incoming soldier salaries");
+  check(salaries[2]["quantity"].as<int>()==owned->getTotalEngineers()&&salaries[3]["quantity"].as<int>()==owned->getTotalScientists(),"allocated and incoming native staff totals");
+  long long sum=0;for(const auto &x:crafts)sum+=x["total"].as<long long>();for(const auto &x:salaries)sum+=x["total"].as<long long>();sum+=row["maintenance"]["facilities"].as<int>();
+  check(sum==row["maintenance"]["total"].as<int>(),"expense rows reconcile native base maintenance");
+ }
+ for(const auto &raw:rows)check(raw.find("PRIVATE_LOCKED")==std::string::npos&&raw.find("PRIVATE_UNRESEARCHED")==std::string::npos&&raw.find("ZERO_COST_")==std::string::npos&&raw.find("PRIVATE_COUNTRY")==std::string::npos,"ledger omits locked and zero-cost rules and country identity");
  check(byId.at(facilityId)["build_days_remaining"].as<int>()==7,"construction time model read");
  check(byId.at("soldier_0")["recently_promoted"].as<bool>()&&byId.at("soldier_0")["death"].IsNull(),"live pure promotion and null death");
  const auto diary=byId.at("soldier_diary_0");check(diary["missions"].as<int>()==2&&diary["months_service"].as<int>()==6&&diary["days_wounded"].as<int>()==13&&diary["shots_fired"].as<int>()==20&&diary["shots_landed"].as<int>()==7&&diary["accuracy"].as<int>()==35,"exact native diary aggregates");
@@ -91,6 +117,13 @@ int main(int argc,char **argv){
  const auto memorial=byId.at("soldier_2");check(memorial["location"].as<std::string>()=="memorial"&&memorial["base_id"].as<std::string>().empty()&&memorial["craft_id"].IsNull()&&memorial["transfer_id"].IsNull()&&memorial["death"]["status"].as<std::string>()=="mia", "campaign memorial unknown base and cause-presence MIA");
  check(memorial["death"]["time"]["year"].as<int>()==save.getTime()->getYear(),"native death timestamp");
  check(collector.collect(&save,&language,again,reason)&&again==rows,"unchanged repeated reads exact stable");
+ mod._costEngineer+=100;check(collector.collect(&save,&language,again,reason)&&again!=rows,"changed salary yields changed snapshot content for controller generation");mod._costEngineer-=100;
+ check(collector.collect(&save,&language,again,reason)&&again==rows,"restored salary yields exact original records");
+ mod._craftsIndex.push_back("OWN_CRAFT");check(!collector.collect(&save,&language,again,reason)&&again.empty()&&reason=="invalid_base_data","duplicate ledger types fail closed");mod._craftsIndex.pop_back();
+ const auto originalCatalog=mod._craftsIndex;
+ for(int i=0;i<255;++i)catalogCraft("BOUND_CRAFT_"+std::to_string(i),1,"[]");
+ check(!collector.collect(&save,&language,again,reason)&&again.empty()&&reason=="record_limit","ledger cardinality/bytes bounded no truncation");mod._craftsIndex=originalCatalog;
+ check(collector.collect(&save,&language,again,reason)&&again==rows,"limit failure does not alter owned state or stable records");
  std::reverse(s->getDiary()->getSoldierCommendations()->begin(),s->getDiary()->getSoldierCommendations()->end());
  check(collector.collect(&save,&language,again,reason)&&again==rows,"medal reorder stable identity and snapshot");
  check(medal->isNew()&&secondMedal->isNew()&&medal->getDecorationLevelInt()==1&&s->getRecentlyPromoted(),"reads do not consume medals or promotion");

@@ -20,7 +20,7 @@ struct AgentController {
 int main(){using namespace OpenXcom;using namespace OpenXcom::Observer;
  Game g;SavedGame save;g.save=&save;AgentController c;c._game=&g;AgentRequest r;r.snapshot="-";r.challenge=std::string(32,'c');r.limit=1;
  AgentPlayerBases::capture={"{\"kind\":\"fixture1\"}","{\"kind\":\"fixture2\"}"};c.playerBasesPage(r);
- assert(c.packet.find("openxcom-player-bases/2")!=std::string::npos);
+ assert(c.packet.find("openxcom-player-bases/3")!=std::string::npos);
  assert(c._basesGeneration==1&&c.packet.find("\"complete\":false")!=std::string::npos&&c.packet.find("\"next_offset\":1")!=std::string::npos);const auto token=c._basesSnapshot;
  c.playerBasesPage(r);assert(c._basesGeneration==1&&c._basesSnapshot==token);
  AgentPlayerBases::capture.push_back("{\"kind\":\"new\"}");r.snapshot=token;r.after=1;c.playerBasesPage(r);assert(c._basesGeneration==1&&c.packet.find("\"total\":2")!=std::string::npos&&c.packet.find("\"complete\":true")!=std::string::npos);

@@ -253,7 +253,7 @@ void AgentController::playerBasesPage(const AgentRequest &request)
     records+="]";
     if(status!="ok") { records="[]"; next=request.after; }
     const bool ok=status=="ok";
-    sendPacket("{\"schema\":\"openxcom-player-bases/2\",\"type\":\"player_bases\",\"epoch\":"+agentJsonString(_epoch)+
+    sendPacket("{\"schema\":\"openxcom-player-bases/3\",\"type\":\"player_bases\",\"epoch\":"+agentJsonString(_epoch)+
         ",\"challenge\":"+agentJsonString(request.challenge)+",\"campaign_epoch\":"+agentJsonString(_basesEpoch)+
         ",\"status\":"+agentJsonString(status)+",\"reason\":"+(ok?"null":agentJsonString(reason))+
         ",\"snapshot\":"+(ok?agentJsonString(_basesSnapshot):"null")+",\"generation\":"+std::to_string(_basesGeneration)+

@@ -14,6 +14,7 @@ def sample(kind, index=0):
   elif key=='time' and kind=='campaign':r[key]={x:0 for x in ('year','month','day','hour','minute','second')}
   elif key=='personnel':r[key]={x:0 for x in 'soldiers scientists engineers available_soldiers available_scientists available_engineers allocated_scientists allocated_engineers'.split()}
   elif key=='capacities':r[key]={x:dict(capacity=0,used=0,free=0) if kind=='base' else 0 for x in b.CAPS.split()}
+  elif key=='expense_ledger':r[key]=dict(crafts=[dict(type='CRAFT',unit_cost=100,quantity=0,total=0)],salaries=[dict(type='STR_ENGINEERS',unit_cost=10,quantity=2,total=20),dict(type='STR_SCIENTISTS',unit_cost=20,quantity=1,total=20)])
   elif key=='maintenance':r[key]={x:0 for x in ('craft','personnel','facilities','total')}
   elif key in ('initial_stats','current_stats'):r[key]={x:0 for x in b.STATS.split()}
   elif key in ('required_items','produced_items'):r[key]={'ITEM':1}
@@ -63,6 +64,21 @@ class BasesTests(unittest.TestCase):
    for key in ('enemy','destination','target','tactical','hidden_aliens','occupancy_prediction'):
     bad=copy.deepcopy(r);bad[key]=None
     with self.assertRaises(Unavailable):b.record(bad)
+ def test_expense_ledger_closed_bounds_products_and_old_schema(self):
+  r=sample('base');b.record(r)
+  for field,value in [('unit_cost',True),('quantity',-1),('quantity',1.0),('total',1),('type','')]:
+   bad=copy.deepcopy(r);bad['expense_ledger']['crafts'][0][field]=value
+   with self.assertRaises(Unavailable):b.record(bad)
+  for transform in (lambda v:v.update(enemy_cost=0),lambda v:v['crafts'].append(copy.deepcopy(v['crafts'][0])),lambda v:v['salaries'][0].update(hidden_rule=True),lambda v:v.update(crafts=[dict(type=str(i),unit_cost=0,quantity=0,total=0) for i in range(257)])):
+   bad=copy.deepcopy(r);transform(bad['expense_ledger'])
+   with self.assertRaises(Unavailable):b.record(bad)
+  for old in ('openxcom-player-bases/1','openxcom-player-bases/2'):
+   p=page();p['schema']=old
+   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
+  peer=Peer([sample('campaign'),r])
+  try:
+   o=peer.client.read_player_bases();self.assertEqual(o['records'][1]['expense_ledger'],r['expense_ledger']);self.assertIsNone(peer.client.capability);self.assertFalse(any(x.startswith(b'E ') for x in peer.requests))
+  finally:peer.close()
  def test_multi_base_and_related_entities(self):
   records=[sample(k) for k in b.FIELDS];second=sample('base');second['id']=second['base_id']='base-1';records.append(second)
   b.page(dump(page(records)),CHALLENGE,EPOCH,None,0,16)
@@ -76,7 +92,7 @@ class BasesTests(unittest.TestCase):
   p['complete']=True
   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
  def test_history_schema_and_closed_nested_fields(self):
-  self.assertEqual(b.SCHEMA,'openxcom-player-bases/2')
+  self.assertEqual(b.SCHEMA,'openxcom-player-bases/3')
   old=page();old['schema']='openxcom-player-bases/1'
   with self.assertRaises(Unavailable):b.page(dump(old),CHALLENGE,EPOCH,None,0,16)
   for kind in ('soldier','soldier_diary','soldier_commendation'):

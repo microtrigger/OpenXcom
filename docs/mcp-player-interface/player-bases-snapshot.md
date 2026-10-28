@@ -15,7 +15,7 @@ transfers. In-transit owned soldiers/craft are included. The schema uses positiv
 field allowlists, not recursive save-game dumps. Enemy retaliation/detection
 state and enemy destination graphs are excluded.
 
-Pages use `openxcom-player-bases/2`, a connection epoch, a campaign epoch,
+Pages use `openxcom-player-bases/3`, a connection epoch, a campaign epoch,
 content generation and a frozen snapshot token. A new first page captures
 current state; continuation pages belong to that same detached snapshot.
 Changed captures replace the snapshot; expired continuation tokens fail
@@ -31,8 +31,8 @@ on-screen text.
 
 | Kind | Collected fields beyond the common envelope |
 | --- | --- |
-| `campaign` | Funds and campaign date/time. |
-| `base` | Name, longitude/latitude, grid size; total and available soldiers/scientists/engineers, allocated scientists/engineers; capacity/used/free for quarters, stores, laboratories, workshops, hangars, psi labs and containment; craft/personnel/facility/total maintenance; defense and short-/long-range detection capability. |
+| `campaign` | Funds, campaign date/time, monthly country income and total monthly base maintenance. |
+| `base` | Name, longitude/latitude, grid size; total and available soldiers/scientists/engineers, allocated scientists/engineers; capacity/used/free for quarters, stores, laboratories, workshops, hangars, psi labs and containment; craft/personnel/facility/total maintenance; expense-ledger craft rentals and soldier-type/engineer/scientist salaries with type, unit cost, quantity and total; defense and short-/long-range detection capability. |
 | `facility` | Type, x/y, size, remaining/total construction days, build/monthly cost; quarters/stores/laboratories/workshops/hangars/psi-lab/containment capacities; radar range/chance, defense, hit ratio, lift/hyperwave/mind-shield/grav-shield flags. |
 | `soldier` | Native ID, type, name, rank identifier/value, armor, gender/look, missions/kills, recovery days, psi-training flag and improvement values; craft reference; home/in-transit location and transfer reference; initial/current stats, a non-consuming recent-promotion flag, and nullable death status/time. Stats contain TU, stamina, health, bravery, reactions, firing, throwing, strength, psi strength/skill and melee. |
 | `soldier_diary` | Soldier reference; own aggregate missions, service months, wounded days, shots fired/landed, accuracy, kills, stuns, panics and mind controls. No individual kill or mission records. |
@@ -139,4 +139,14 @@ campaigns have no medals or memorial entries: those populated-history cases
 are native-fixture qualification, not live death/award acceptance. Gameplay used
 MCP with passive video. One read-only visual diagnostic in TFTD identified
 missing visibly displayed facility rows; no visual gameplay action was used.
-That list-projection gap remains open and is separate from the history read.
+That list-projection gap was subsequently repaired and qualified separately; see [ordinary coverage](ordinary-coverage-status.md).
+
+
+Schema 3 adds the owned expense-ledger slice described in
+[Monthly Costs](monthly-costs-contract.md). It preserves the native researched,
+nonzero-cost rule selection, including eligible zero-quantity rows and counts
+that include applicable incoming craft/personnel. Campaign monthly income and
+maintenance are explicit, not reconstructed from visible text. Locked rules
+remain excluded. This independent read never authorizes a hidden UI action.
+The focused native ledger fixture passes 206 checks; prior schema-2 history
+results above remain historical qualification, not current schema literals.

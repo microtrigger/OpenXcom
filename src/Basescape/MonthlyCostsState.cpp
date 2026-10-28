@@ -32,6 +32,14 @@
 #include "../Mod/RuleCraft.h"
 #include "../Mod/RuleSoldier.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#include <typeinfo>
+#endif
+
 namespace OpenXcom
 {
 
@@ -158,6 +166,16 @@ MonthlyCostsState::MonthlyCostsState(Base *base) : _base(base)
 	_lstTotal->setColumns(2, 44, 55);
 	_lstTotal->setDot(true);
 	_lstTotal->addRow(2, tr("STR_TOTAL").c_str(), Unicode::formatFunding(_base->getMonthlyMaintenace()).c_str());
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    _btnOk->agentEnableNamedControl();
+    _lstCrafts->agentEnableReportCells(4);
+    _lstSalaries->agentEnableReportCells(4);
+    _lstMaintenance->agentEnableReportCells(2);
+    _lstTotal->agentEnableReportCells(2);
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -176,5 +194,121 @@ void MonthlyCostsState::btnOkClick(Action *)
 {
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool MonthlyCostsState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> MonthlyCostsState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    for (const Text *text : {_txtTitle, _txtCost, _txtQuantity, _txtTotal, _txtRental, _txtSalaries, _txtIncome, _txtMaintenance})
+        revisions.push_back(text->agentTextRevision());
+    for (const TextList *list : {_lstCrafts, _lstSalaries, _lstMaintenance, _lstTotal})
+        revisions.push_back(list->agentListRevision());
+    revisions.push_back(_btnOk->agentLabelRevision());
+    return revisions;
+}
+void MonthlyCostsState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool MonthlyCostsState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(MonthlyCostsState) || _modal || _window->agentPopupActive() ||
+        !_game->isState(const_cast<MonthlyCostsState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out = AgentUiState(); out.screen = "monthly_costs"; out.actor = _base;
+    const auto painted = agentFlattenPaintOrder(_surfaces);
+    const Surface *logical = _game->getScreen()->getSurface();
+    if (!agentWidgetVisible(_window) || !_window->agentPresentationPaintedTo(logical)) return false;
+    for (const Surface *surface : painted) out.widgets.emplace_back(surface, surface->agentPresentationRevision());
+    if (_game->getCursor()) out.widgets.emplace_back(_game->getCursor(), _game->getCursor()->agentPresentationRevision());
+    if (_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(), _game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
+    const auto text = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        const auto value = agentTextJson(widget);
+        if (value == "null" || !agentWidgetVisible(widget) || !widget->agentPresentationPaintedTo(logical)) return "null";
+        // Stock small-text allocations have a ninth padding/descender row,
+        // while adjoining native sections advance eight pixels. Observe the
+        // current logical caption's row band, not neighboring decorative ink.
+        const int height=widget->getHeight()==9 ? 8 : widget->getHeight();
+        AgentUiState part;part.regions.push_back({widget->getX(),widget->getY(),widget->getWidth(),height});
+        if (!agentRegionsUncovered(part.regions,widget,painted) || !allowed(part)) return "null";
+        // These observations do not authorize row input. Keep their native
+        // overlapping text allocations separate from named-button authority.
+        return value;
+    };
+    const auto title = text(_txtTitle), cost = text(_txtCost), quantity = text(_txtQuantity), total = text(_txtTotal);
+    const auto rental = text(_txtRental), salaries = text(_txtSalaries), income = text(_txtIncome), maintenance = text(_txtMaintenance);
+    const auto table = [&](const TextList *list, unsigned columns) -> std::string {
+        out.widgets.emplace_back(list, list->agentListRevision());
+        std::vector<AgentOutfittingRow> rows; std::uint64_t epoch = 0;
+        if (!list->agentPresentationPaintedTo(logical) || !list->agentReportRows(rows, epoch) || rows.size() > 32) return "[]";
+        out.context.push_back(epoch);
+        std::string values = "[";
+        for (const auto &row : rows) {
+            if (row.cells.size() != columns) return "[]";
+            bool witness = false;
+            std::string value = "{\"cells\":[";
+            for (unsigned column = 0; column < columns; ++column) {
+                if (column) value += ",";
+                const auto &cell = row.cells[column];
+                bool known = cell.known && cell.text.size() <= 1024 && !cell.regions.empty();
+                bool visible = !cell.regions.empty();
+                for (const SDL_Rect &band : cell.regions) {
+                    AgentUiState part; part.regions.push_back({band.x, band.y, band.w, band.h});
+                    if (!agentRegionsUncovered(part.regions, list, painted) || !allowed(part)) { known = false; visible = false; }
+                }
+                witness = witness || visible;
+                value += known ? agentJsonString(cell.text) : "null";
+            }
+            value += "]}";
+            if (!witness) continue;
+            if (values.size() > 1) values += ",";
+            values += value;
+            if (values.size() > 8192) return "[]";
+        }
+        return values + "]";
+    };
+    const auto crafts = table(_lstCrafts, 4), salary = table(_lstSalaries, 4);
+    const auto upkeep = table(_lstMaintenance, 2), totals = table(_lstTotal, 2);
+    std::string buttons = "[";
+    const auto label = agentProjectNamedButton(_btnOk, logical, painted, out, allowed);
+    if (!label.empty() && label.size() <= 1024) {
+        buttons += "{\"id\":\"ok\",\"label\":" + agentJsonString(label) + "}";
+        out.actions.emplace_back("close_monthly_costs", label, "visible_text");
+    }
+    buttons += "]";
+    out.visible = "{\"title\":" + title + ",\"headings\":[" + cost + "," + quantity + "," + total +
+        "],\"craft_rental_label\":" + rental + ",\"salaries_label\":" + salaries + ",\"income\":" + income +
+        ",\"maintenance\":" + maintenance + ",\"craft_rows\":" + crafts + ",\"salary_rows\":" + salary +
+        ",\"maintenance_rows\":" + upkeep + ",\"total_rows\":" + totals + ",\"buttons\":" + buttons + "}";
+    return out.visible.size() <= 32768 && agentRegionsDisjoint(out) &&
+        (!out.actions.empty() || title != "null" || cost != "null" || quantity != "null" || total != "null" ||
+         rental != "null" || salaries != "null" || income != "null" || maintenance != "null" ||
+         crafts != "[]" || salary != "[]" || upkeep != "[]" || totals != "[]");
+}
+bool MonthlyCostsState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;
+    if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if (request.action == "close_monthly_costs") { btnOkClick(nullptr); return true; }
+    return false;
+}
+#endif
 
 }

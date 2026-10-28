@@ -18,6 +18,7 @@
 #include "../Savegame/Transfer.h"
 #include "../Savegame/EquipmentLayoutItem.h"
 #include "../Mod/RuleBaseFacility.h"
+#include "../Mod/Mod.h"
 #include "../Mod/RuleSoldier.h"
 #include "../Mod/RuleCraft.h"
 #include "../Mod/RuleCraftWeapon.h"
@@ -113,7 +114,7 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
         };
         const auto *time=save->getTime();if(!time)throw std::runtime_error("invalid_base_data");
         Object date;date.n("year",time->getYear()).n("month",time->getMonth()).n("day",time->getDay()).n("hour",time->getHour()).n("minute",time->getMinute()).n("second",time->getSecond());
-        emit("campaign_0",record("campaign","campaign_0","").n("funds",save->getFunds()).raw("time",date.end()));
+        emit("campaign_0",record("campaign","campaign_0","").n("funds",save->getFunds()).n("monthly_income",save->getCountryFunding()).n("monthly_maintenance",save->getBaseMaintenance()).raw("time",date.end()));
         const auto stock=[&](ItemContainer *items,const std::string &owner,const char *kind,const std::string &base){
             if(!items || items->getContents()->size()>MaxRecords)throw std::runtime_error("record_limit");
             for(const auto &item:*items->getContents()){
@@ -185,6 +186,37 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             }
         };
         for(Base *base:*bases){const auto bid=baseIds.at(base);
+            // Same researched, nonzero-cost rule rows and quantity getters as
+            // MonthlyCostsState, independent of the currently selected UI base.
+            const Mod *mod=base->getMod();
+            if(!mod)throw std::runtime_error("invalid_base_data");
+            std::string craftLedger="[",salaryLedger="[";
+            std::set<std::string> craftTypes,salaryTypes;
+            const auto appendCost=[&](std::string &list,std::set<std::string> &types,const std::string &type,int unit,int quantity){
+                if(types.size()>=256)throw std::runtime_error("record_limit");
+                if(type.empty() || quantity<0 || !types.insert(type).second)throw std::runtime_error("invalid_base_data");
+                const std::int64_t total=std::int64_t(unit)*quantity;
+                if(total>9007199254740991LL || total< -9007199254740991LL)throw std::runtime_error("invalid_base_data");
+                if(list.size()>1)list+=",";
+                list+=Object().s("type",type).n("unit_cost",unit).n("quantity",quantity).n("total",total).end();
+                if(list.size()>MaxRecordBytes)throw std::runtime_error("record_limit");
+            };
+            if(mod->getCraftsList().size()>MaxRecords || mod->getSoldiersList().size()>MaxRecords)throw std::runtime_error("record_limit");
+            for(const auto &type:mod->getCraftsList()){
+                const RuleCraft *rule=mod->getCraft(type);
+                if(!rule)throw std::runtime_error("invalid_base_data");
+                if(rule->getRentCost()!=0 && save->isResearched(rule->getRequirements()))
+                    appendCost(craftLedger,craftTypes,type,rule->getRentCost(),base->getCraftCount(type));
+            }
+            for(const auto &type:mod->getSoldiersList()){
+                const RuleSoldier *rule=mod->getSoldier(type);
+                if(!rule)throw std::runtime_error("invalid_base_data");
+                if(rule->getSalaryCost()!=0 && save->isResearched(rule->getRequirements()))
+                    appendCost(salaryLedger,salaryTypes,type,rule->getSalaryCost(),base->getSoldierCount(type));
+            }
+            appendCost(salaryLedger,salaryTypes,"STR_ENGINEERS",mod->getEngineerCost(),base->getTotalEngineers());
+            appendCost(salaryLedger,salaryTypes,"STR_SCIENTISTS",mod->getScientistCost(),base->getTotalScientists());
+            const auto ledger=Object().raw("crafts",craftLedger+"]").raw("salaries",salaryLedger+"]").end();
             Object personnel;personnel.n("soldiers",base->getTotalSoldiers()).n("scientists",base->getTotalScientists()).n("engineers",base->getTotalEngineers())
                 .n("available_soldiers",base->getAvailableSoldiers()).n("available_scientists",base->getAvailableScientists()).n("available_engineers",base->getAvailableEngineers())
                 .n("allocated_scientists",base->getAllocatedScientists()).n("allocated_engineers",base->getAllocatedEngineers());
@@ -193,7 +225,7 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
                 .raw("hangars",capacity(base->getAvailableHangars(),base->getUsedHangars())).raw("psi_labs",capacity(base->getAvailablePsiLabs(),base->getUsedPsiLabs())).raw("containment",capacity(base->getAvailableContainment(),base->getUsedContainment()));
             Object maintenance;maintenance.n("craft",base->getCraftMaintenance()).n("personnel",base->getPersonnelMaintenance()).n("facilities",base->getFacilityMaintenance()).n("total",base->getMonthlyMaintenace());
             emit(bid,record("base",bid,bid).s("name",base->getName(language)).d("longitude",base->getLongitude()).d("latitude",base->getLatitude()).n("grid_size",6)
-                .raw("personnel",personnel.end()).raw("capacities",capacities.end()).raw("maintenance",maintenance.end()).n("defense",base->getDefenseValue()).n("short_range_detection",base->getShortRangeDetection()).n("long_range_detection",base->getLongRangeDetection()));
+                .raw("expense_ledger",ledger).raw("personnel",personnel.end()).raw("capacities",capacities.end()).raw("maintenance",maintenance.end()).n("defense",base->getDefenseValue()).n("short_range_detection",base->getShortRangeDetection()).n("long_range_detection",base->getLongRangeDetection()));
             if(base->getFacilities()->size()>MaxRecords || base->getResearch().size()>MaxRecords || base->getProductions().size()>MaxRecords)throw std::runtime_error("record_limit");
             for(BaseFacility *f:*base->getFacilities()){
                 if(!f || !f->getRules())throw std::runtime_error("invalid_base_data");const auto id=identify("facility",f);const auto *r=f->getRules();

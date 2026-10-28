@@ -201,6 +201,10 @@ BaseInfoState::BaseInfoState(Base *base, BasescapeState *state) : _base(base), _
 
 	_btnMonthlyCosts->setText(tr("STR_MONTHLY_COSTS"));
 	_btnMonthlyCosts->onMouseClick((ActionHandler)&BaseInfoState::btnMonthlyCostsClick);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _btnMonthlyCosts->agentEnableNamedControl();
+    _btnMonthlyCosts->agentTrackPresentation();
+#endif
 
 	_edtBase->setBig();
 	_edtBase->onChange((ActionHandler)&BaseInfoState::edtBaseChange);
@@ -561,7 +565,15 @@ bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
     metric(_txtQuarters,_numQuarters); metric(_txtStores,_numStores); metric(_txtLaboratories,_numLaboratories); metric(_txtWorkshops,_numWorkshops);
     if (Options::storageLimitsEnforced) metric(_txtContainment,_numContainment);
     metric(_txtHangars,_numHangars); metric(_txtDefense,_numDefense); metric(_txtShortRange,_numShortRange); metric(_txtLongRange,_numLongRange); metrics+="]";
-    button(_btnOk,"ok","close_base_info"); button(_btnStores,"stores","open_base_stores"); button(_btnTransfers,"transfers","open_base_transfers"); buttons+="]";
+    button(_btnOk,"ok","close_base_info"); button(_btnStores,"stores","open_base_stores"); button(_btnTransfers,"transfers","open_base_transfers");
+    const auto monthlyLabel=agentProjectNamedButton(_btnMonthlyCosts,_game->getScreen()->getSurface(),painted,out,
+        [this](const AgentUiState &part){return _game->agentOverlayClear(part);});
+    if(!monthlyLabel.empty() && monthlyLabel.size()<=1024) {
+        if(buttons.size()>1)buttons+=",";
+        buttons+="{\"id\":\"monthly_costs\",\"label\":"+agentJsonString(monthlyLabel)+"}";
+        out.actions.emplace_back("open_monthly_costs",monthlyLabel,"visible_text");
+    }
+    buttons+="]";
     out.visible="{\"base_name\":"+name+",\"base_slots\":"+slots+",\"personnel_heading\":"+personnel+",\"space_heading\":"+space+",\"metrics\":"+metrics+",\"buttons\":"+buttons+"}";
     return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size()<=32768;
 }
@@ -579,6 +591,7 @@ bool BaseInfoState::agentDispatch(const Observer::AgentRequest &request)
     }
     if (request.action=="close_base_info") { btnOkClick(nullptr); return true; }
     if (request.action=="open_base_stores") { btnStoresClick(nullptr); return true; }
+    if (request.action=="open_monthly_costs") { btnMonthlyCostsClick(nullptr); return true; }
     if (request.action=="open_base_transfers") { btnTransfersClick(nullptr); return true; }
     return false;
 }

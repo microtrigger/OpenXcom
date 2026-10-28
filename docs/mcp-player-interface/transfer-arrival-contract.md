@@ -36,8 +36,10 @@ claim that every heading or arbitrary arrival list is readable.
 Loading verifies the prior saves' content through ordinary UI and owned-state
 reads; no identity continuity across replacement of SavedGame is asserted.
 The original save hashes remain unchanged. Each run creates a distinct new
-save and verifies its presence in the UI. These new arrival-complete saves have
-not yet been reloaded, and save contents were not parsed.
+save and verifies its presence in the UI. The subsequent
+[Monthly Costs](monthly-costs-contract.md) stage loads these arrival-complete
+saves normally in both games and verifies their two-base owned state. Save
+contents were not parsed, and cross-load ID continuity is not claimed.
 
 Gameplay uses MCP without visual fallback. Full/overfull capacity, personnel,
 craft, alien containment, multiple simultaneous arrivals and debrief-loot

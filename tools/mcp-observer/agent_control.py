@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/35'
+SCHEMA = 'openxcom-agent-control/36'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -54,7 +54,7 @@ ACTIONS = ('move_cursor', 'next_soldier', 'previous_soldier', 'kneel', 'stand', 
            'view_level_up', 'view_level_down', 'toggle_layers', 'open_minimap',
            'close_minimap', 'minimap_center', 'camera_pan', 'unit_up', 'unit_down',
            'choose_dogfight_mode', 'choose_geoscape_speed', 'open_bases', 'select_base', 'open_base_info',
-           'close_base_info', 'return_geoscape', 'open_base_stores', 'close_base_stores',
+           'close_base_info', 'open_monthly_costs', 'close_monthly_costs', 'return_geoscape', 'open_base_stores', 'close_base_stores',
            'open_base_transfers', 'close_base_transfers',
            'open_research', 'open_new_research', 'select_research_project', 'adjust_scientists',
            'accept_research', 'cancel_research_project', 'close_research_list',
@@ -93,9 +93,9 @@ MINIMAP_TARGET_HANDLES = tuple(f'm{index}' for index in range(160))
 DOGFIGHT_MODES = ('standoff', 'cautious', 'standard', 'aggressive', 'disengage')
 GEOSCAPE_SPEED_HANDLES = tuple(f's{index}' for index in range(6))
 BASE_TARGET_HANDLES = tuple(f'b{index}' for index in range(8))
-BASE_BUTTONS = {'basescape': ('new_base', 'base_info', 'build_facilities', 'research', 'manufacture', 'purchase', 'sell', 'transfer', 'soldiers', 'crafts', 'geoscape'), 'base_info': ('ok', 'stores', 'transfers')}
+BASE_BUTTONS = {'basescape': ('new_base', 'base_info', 'build_facilities', 'research', 'manufacture', 'purchase', 'sell', 'transfer', 'soldiers', 'crafts', 'geoscape'), 'base_info': ('ok', 'stores', 'transfers', 'monthly_costs')}
 BASE_BUTTON_ACTIONS = {'basescape': {'open_new_base': 'new_base', 'open_base_info': 'base_info', 'open_build_facilities': 'build_facilities', 'open_research': 'research', 'open_manufacture': 'manufacture', 'open_purchase': 'purchase', 'open_sell': 'sell', 'open_transfer': 'transfer', 'open_soldiers': 'soldiers', 'open_crafts': 'crafts', 'return_geoscape': 'geoscape'},
-                       'base_info': {'close_base_info': 'ok', 'open_base_stores': 'stores', 'open_base_transfers': 'transfers'}}
+                       'base_info': {'close_base_info': 'ok', 'open_base_stores': 'stores', 'open_base_transfers': 'transfers', 'open_monthly_costs': 'monthly_costs'}}
 STAFF_DIRECTIONS = ('increase', 'decrease')
 PROJECT_LISTS = {'research': (3, 3), 'new_research': (0, 1), 'manufacture': (4, 5), 'new_manufacture': (0, 2)}
 PROJECT_BUTTONS = {
@@ -267,7 +267,8 @@ STATE_ACTIONS = {
     'dogfight': frozenset(('choose_dogfight_mode',)),
     'geoscape': frozenset(('open_interception', 'open_funding', 'choose_geoscape_speed', 'open_bases', 'open_pause_menu')),
     'basescape': frozenset(('open_new_base', 'select_base', 'click_base_facility_cell', 'open_base_info', 'open_build_facilities', 'open_research', 'open_manufacture', 'open_purchase', 'open_sell', 'open_transfer', 'open_soldiers', 'open_crafts', 'return_geoscape')),
-    'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers')),
+    'base_info': frozenset(('select_base', 'close_base_info', 'open_base_stores', 'open_base_transfers', 'open_monthly_costs')),
+    'monthly_costs': frozenset(('close_monthly_costs',)),
     'base_stores': frozenset(('scroll_visible_list', 'close_base_stores')),
     'base_transfers': frozenset(('scroll_visible_list', 'close_base_transfers')),
     'research': frozenset(('open_new_research', 'select_research_project', 'scroll_visible_list', 'close_research_list')),
@@ -1067,6 +1068,20 @@ def validate_new_base_buttons(buttons, actions, mapping):
     for action, button in mapping.items():require(action not in actions or button in seen)
 
 
+def validate_monthly_costs(visible, actions):
+    exact(visible, 'title headings craft_rental_label salaries_label income maintenance craft_rows salary_rows maintenance_rows total_rows buttons')
+    for key in ('title', 'craft_rental_label', 'salaries_label', 'income', 'maintenance'):
+        strategy_text(visible[key], nullable=True)
+    require(type(visible['headings']) is list and len(visible['headings']) == 3)
+    for cell in visible['headings']: strategy_text(cell, nullable=True)
+    for key, columns in (('craft_rows', 4), ('salary_rows', 4), ('maintenance_rows', 2), ('total_rows', 2)):
+        rows = visible[key]; require(type(rows) is list and len(rows) <= 32)
+        for row in rows:
+            exact(row, 'cells'); require(type(row['cells']) is list and len(row['cells']) == columns)
+            for cell in row['cells']: strategy_text(cell, nullable=True)
+    validate_new_base_buttons(visible['buttons'], actions, {'close_monthly_costs':'ok'})
+
+
 def validate_new_base_confirmation(visible, actions):
     exact(visible, 'cost area buttons')
     strategy_text(visible['cost'], nullable=True); strategy_text(visible['area'], nullable=True)
@@ -1433,6 +1448,8 @@ def validate_visible(screen, visible, seen, *, presentation=False):
         validate_interception(screen, visible, seen, presentation=presentation)
     elif screen in TRANSFER_BUTTON_ACTIONS:
         validate_transfer(screen, visible, seen)
+    elif screen == 'monthly_costs':
+        validate_monthly_costs(visible, seen)
     elif screen == 'dismantle_facility':
         validate_dismantle(visible, seen)
     elif screen in ('build_facilities', 'place_facility'):
@@ -1544,6 +1561,9 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
                 require(descriptor['label'] == obj['visible']['speeds'][0]['label'])
             elif action == 'click_base_facility_cell': require(descriptor['label'] == 'Select visible base facility')
             elif action == 'select_base': require(descriptor['label'] == 'Select base')
+    if obj['state'] == 'monthly_costs':
+        for descriptor in obj['actions']:
+            require(descriptor['label'] == obj['visible']['buttons'][0]['label'])
     if obj['state'] in PROJECT_BUTTONS:
         buttons = {button['id']: button['label'] for button in obj['visible']['buttons']}
         for descriptor in obj['actions']:

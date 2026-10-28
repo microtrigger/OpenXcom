@@ -2,13 +2,13 @@
 """Explicit user-authorized strategic ownership read model. Never UI action authority."""
 import math
 from snapshots import Unavailable, exact
-SCHEMA='openxcom-player-bases/2'
+SCHEMA='openxcom-player-bases/3'
 LIMIT=100000
 CAPS='quarters stores laboratories workshops hangars psi_labs containment'
 STATS='tu stamina health bravery reactions firing throwing strength psi_strength psi_skill melee'
 FIELDS={
- 'campaign':'funds time',
- 'base':'name longitude latitude grid_size personnel capacities maintenance defense short_range_detection long_range_detection',
+ 'campaign':'funds time monthly_income monthly_maintenance',
+ 'base':'name longitude latitude grid_size personnel capacities maintenance expense_ledger defense short_range_detection long_range_detection',
  'facility':'type x y size build_days_remaining build_days_total build_cost monthly_cost capacities radar_range radar_chance defense hit_ratio lift hyperwave mind_shield grav_shield',
  'soldier':'native_id type name rank armor rank_value gender look missions kills recovery_days psi_improvement psi_strength_improvement psi_training craft_id location transfer_id initial_stats current_stats recently_promoted death',
  'soldier_diary':'soldier_id missions months_service days_wounded shots_fired shots_landed accuracy kills stuns panics mind_controls',
@@ -56,6 +56,15 @@ def record(r):
    for entry in v.values():
     if k=='base':objnums(entry,'capacity used free',True)
     else:integer(entry)
+  elif key=='expense_ledger':
+   exact(v,'crafts salaries')
+   for rows in v.values():
+    need(type(rows)is list and len(rows)<=256);seen=set()
+    for row in rows:
+     exact(row,'type unit_cost quantity total');string(row['type']);need(bool(row['type']) and row['type'] not in seen);seen.add(row['type'])
+     for field in ('unit_cost','quantity','total'):integer(row[field])
+     need(-(2**31)<=row['unit_cost']<=2**31-1 and 0<=row['quantity']<=2**31-1)
+     need(row['total']==row['unit_cost']*row['quantity'])
   elif key=='maintenance':objnums(v,'craft personnel facilities total')
   elif key in ('initial_stats','current_stats'):objnums(v,STATS)
   elif key in ('required_items','produced_items'):

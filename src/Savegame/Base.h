@@ -81,6 +81,8 @@ public:
 	std::string getName(Language *lang = 0) const;
 	/// Gets the base's marker sprite.
 	int getMarker() const;
+	/// Immutable rules binding for read-only owned-base accounting.
+	const Mod *getMod() const { return _mod; }
 	/// Gets the base's facilities.
 	std::vector<BaseFacility*> *getFacilities();
 	/// Gets the base's soldiers.

@@ -26,6 +26,8 @@ class AgentPlayerBases {
         const std::weak_ptr<const void> &lifetime = std::weak_ptr<const void>(), bool tracked = false);
 public:
     // Main game thread only. Complete sorted typed records, never truncation.
+    // Includes own monthly totals and researched MonthlyCosts rule ledgers;
+    // at most 256 unique types per ledger list, within the record byte bound.
     // false clears records and supplies a bounded reason. No campaign is valid
     // failure, not a request to create/load a campaign.
     bool collect(SavedGame *save, Language *language, std::vector<std::string> &records, std::string &reason);

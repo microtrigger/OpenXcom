@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/35"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/36"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/35\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/36\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -54,6 +54,7 @@ bool agentActionId(const std::string &value)
         value == "return_geoscape" || value == "open_base_info" || value == "close_base_info" ||
         value == "open_base_stores" || value == "close_base_stores" ||
         value == "open_base_transfers" || value == "close_base_transfers" ||
+        value == "open_monthly_costs" || value == "close_monthly_costs" ||
         value == "open_research" || value == "open_new_research" || value == "select_research_project" ||
         value == "adjust_scientists" || value == "accept_research" || value == "cancel_research_project" ||
         value == "close_research_list" || value == "open_manufacture" || value == "open_new_production" ||
