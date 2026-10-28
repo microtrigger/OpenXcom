@@ -56,7 +56,7 @@ def main():
             if child.is_file() and source in child.parents: pending.append(child)
     files = list(seen)
     files += [fixture, helper, Path(__file__).resolve(), data / 'common/Language/Font.dat']
-    files += [source / ('bin/standard/' + game + '/Language/en-US.yml') for game in ('xcom1', 'xcom2')]
+    files += [data / ('standard/' + game + '/Language/en-US.yml') for game in ('xcom1', 'xcom2')]
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     hashes = {str(p): sha(p) for p in files}
     resource_names = ('common','UFO','TFTD') if args.master == 'both' else ('common','UFO' if args.master == 'xcom1' else 'TFTD')
@@ -95,13 +95,17 @@ def main():
     save()
     if build.returncode:
         raise SystemExit(build.stderr)
-    test = subprocess.run([str(output / 'test'), str(source), args.master], cwd=data / 'common', env=env, capture_output=True, text=True)
-    (output / 'test.log').write_text(test.stdout + test.stderr)
-    result['test_exit'] = test.returncode
+    tests = []
+    for master in (('xcom1', 'xcom2') if args.master == 'both' else (args.master,)):
+        test = subprocess.run([str(output / 'test'), str(data), master], cwd=data / 'common', env=env, capture_output=True, text=True)
+        (output / (master + '-test.log')).write_text(test.stdout + test.stderr)
+        tests.append({'master': master, 'exit': test.returncode, 'output': test.stdout + test.stderr})
+    result['variants'] = tests
+    result['test_exit'] = max(t['exit'] for t in tests)
     result['inputs_unchanged'] = all(sha(Path(p)) == h for p, h in hashes.items()) and all(sha(Path(p)) == h for p,h in asset_hashes.items())
-    result['all_passed'] = result['inputs_unchanged'] and test.returncode == 0 and 'PASS ' in test.stdout
+    result['all_passed'] = result['inputs_unchanged'] and all(t['exit'] == 0 and 'PASS ' in t['output'] for t in tests)
     save()
-    print(test.stdout + test.stderr)
+    print('\n'.join(t['master'] + ': ' + t['output'] for t in tests))
     return 0 if result['all_passed'] else 1
 
 
