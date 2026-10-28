@@ -37,6 +37,7 @@
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 #include "../Observer/AgentUi.h"
 #include <typeinfo>
+#include <algorithm>
 #include "../Engine/Screen.h"
 #include "../Interface/Cursor.h"
 #include "../Interface/FpsCounter.h"
@@ -114,6 +115,7 @@ PlaceFacilityState::PlaceFacilityState(Base *base, RuleBaseFacility *rule) : _ba
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     for (Surface *surface : _surfaces) surface->agentTrackPresentation();
     _btnCancel->agentEnableNamedControl();
+    _view->agentEnablePlacement();
     if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
     if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
 #endif
@@ -213,6 +215,7 @@ std::vector<std::uint64_t> PlaceFacilityState::agentPaintRevisions() const
     std::vector<std::uint64_t> revisions;
     for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
         revisions.push_back(surface->agentPresentationRevision());
+    if(const Surface *selector=_view->agentPlacementSelector())revisions.push_back(selector->agentPresentationRevision());
     revisions.push_back(_txtFacility->agentTextRevision());
     revisions.push_back(_txtCost->agentTextRevision());
     revisions.push_back(_numCost->agentTextRevision());
@@ -242,6 +245,7 @@ bool PlaceFacilityState::agentUiState(Observer::AgentUiState &out) const
     for (const Surface *surface : painted) out.widgets.emplace_back(surface, surface->agentPresentationRevision());
     if (_game->getCursor()) out.widgets.emplace_back(_game->getCursor(), _game->getCursor()->agentPresentationRevision());
     if (_game->getFpsCounter()) out.widgets.emplace_back(_game->getFpsCounter(), _game->getFpsCounter()->agentPresentationRevision());
+    if(const Surface *selector=_view->agentPlacementSelector())out.widgets.emplace_back(selector,selector->agentPresentationRevision());
     const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
     const auto text = [&](const Text *widget) -> std::string {
         out.widgets.emplace_back(widget, widget->agentTextRevision());
@@ -261,6 +265,24 @@ bool PlaceFacilityState::agentUiState(Observer::AgentUiState &out) const
     const auto time = text(_numTime);
     const auto maintenance_label = text(_txtMaintenance);
     const auto maintenance = text(_numMaintenance);
+    std::string grid="null";
+    if(_view->agentPlacementPresented(logical)) {
+        std::string cells="[";
+        for(int y=0;y<6;++y)for(int x=0;x<6;++x){
+            AgentUiState cell;cell.regions.push_back({_view->getX()+32*x,_view->getY()+32*y,32,32});
+            if(!agentRegionsUncovered(cell.regions,_view,painted) || !allowed(cell))continue;
+            const auto old=out.regions.size();out.regions.insert(out.regions.end(),cell.regions.begin(),cell.regions.end());
+            if(!agentRegionsDisjoint(out)){out.regions.resize(old);continue;}
+            if(cells.size()>1)cells+=",";
+            cells+="{\"x\":"+std::to_string(x)+",\"y\":"+std::to_string(y)+"}";
+            out.context.push_back(y*6+x);
+        }
+        cells+="]";
+        if(!out.context.empty()) {
+            grid="{\"columns\":6,\"rows\":6,\"origin_x\":"+std::to_string(_view->getX())+",\"origin_y\":"+std::to_string(_view->getY())+",\"cell_size\":32,\"cells\":"+cells+"}";
+            out.actions.emplace_back("place_facility_cell","Place facility in visible cell","visible_control_semantics","facility_cell");
+        }
+    }
     std::string buttons = "[";
     const auto label = agentProjectNamedButton(_btnCancel, logical, painted, out, allowed);
     if (!label.empty() && label.size() <= 1024) {
@@ -268,13 +290,18 @@ bool PlaceFacilityState::agentUiState(Observer::AgentUiState &out) const
         out.actions.emplace_back("cancel_place_facility", label, "visible_text");
     }
     buttons += "]";
-    out.visible = "{\"facility\":" + facility + ",\"cost_label\":" + cost_label + ",\"cost\":" + cost + ",\"time_label\":" + time_label + ",\"time\":" + time + ",\"maintenance_label\":" + maintenance_label + ",\"maintenance\":" + maintenance + ",\"buttons\":" + buttons + "}";
+    out.visible = "{\"facility\":" + facility + ",\"cost_label\":" + cost_label + ",\"cost\":" + cost + ",\"time_label\":" + time_label + ",\"time\":" + time + ",\"maintenance_label\":" + maintenance_label + ",\"maintenance\":" + maintenance + ",\"grid\":" + grid + ",\"buttons\":" + buttons + "}";
     return !out.regions.empty() && agentRegionsDisjoint(out) && out.visible.size() <= 32768;
 }
 bool PlaceFacilityState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState fresh;
     if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if(request.action=="place_facility_cell") {
+        if(request.x<0 || request.y<0 || request.x>5 || request.y>5 ||
+            std::find(fresh.context.begin(),fresh.context.end(),request.y*6+request.x)==fresh.context.end())return false;
+        return _view->agentPlacementClick(this,request.x,request.y);
+    }
     if (request.action == "cancel_place_facility") { btnCancelClick(nullptr); return true; }
     return false;
 }

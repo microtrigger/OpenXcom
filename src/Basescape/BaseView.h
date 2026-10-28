@@ -38,6 +38,9 @@ class Timer;
 class BaseView : public InteractiveSurface
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentPlacementTracked = false;
+#endif
 	static const int BASE_SIZE = 6;
 	static const int GRID_SIZE = 32;
 
@@ -54,6 +57,13 @@ private:
 	/// Updates the neighborFacility's build time. This is for internal use only (reCalcQueuedBuildings()).
 	void updateNeighborFacilityBuildTime(BaseFacility* facility, BaseFacility* neighbor);
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Placement-only semantic view witness; never exports occupancy or rules.
+    void agentEnablePlacement();
+    bool agentPlacementPresented(const Surface *destination) const;
+    const Surface *agentPlacementSelector() const;
+    bool agentPlacementClick(State *state, int x, int y);
+#endif
 	/// Creates a new base view at the specified position and size.
 	BaseView(int width, int height, int x = 0, int y = 0);
 	/// Cleans up the base view.

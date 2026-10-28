@@ -12,7 +12,7 @@ from test_agent_events import page, presentation, validate
 
 class DebriefProjectionTests(unittest.TestCase):
     def test_identity_counts_and_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/32')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/33')
         self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (188, 81, 5))
         self.assertEqual(a.STATE_ACTIONS['debriefing'], {'close_debriefing'})
         self.assertEqual(a.ARGUMENT_KINDS['close_debriefing'], 'none')

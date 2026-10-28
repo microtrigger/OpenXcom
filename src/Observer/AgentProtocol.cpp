@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/32"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/33"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/32\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/33\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -62,7 +62,7 @@ bool agentActionId(const std::string &value)
         value == "close_production_list" || value == "change_production_quantity" ||
         value == "set_production_sell" || value == "open_purchase" || value == "change_purchase_quantity" ||
         value == "accept_purchase" || value == "cancel_purchase" || value == "open_purchase_category" ||
-        value == "open_build_facilities" || value == "select_build_facility" || value == "close_build_facilities" || value == "cancel_place_facility" ||
+        value == "open_build_facilities" || value == "select_build_facility" || value == "close_build_facilities" || value == "cancel_place_facility" || value == "place_facility_cell" ||
         value == "open_sell" || value == "change_sale_quantity" || value == "accept_sell" || value == "cancel_sell" || value == "open_sell_category" || value == "scroll_sell" ||
         value == "scroll_purchase" || value == "position_purchase_list" ||
         value == "dismiss_items_arriving" || value == "open_arrival_base" ||
@@ -121,6 +121,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "change_production_quantity") return "production_quantity";
     if (action == "change_transfer_quantity") return "transfer_quantity";
     if (action == "select_build_facility") return "facility_row";
+    if (action == "place_facility_cell") return "facility_cell";
     if (action == "change_sale_quantity") return "sale_quantity";
     if (action == "scroll_sell") return "sale_scroll";
     if (action == "change_purchase_quantity") return "purchase_quantity";
@@ -379,6 +380,12 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
                 request.text += static_cast<char>(digits.find(hex[i]) * 16 + digits.find(hex[i+1]));
         }
         if (!agentInputText(request.text)) return false;
+    }
+    else if(kind=="facility_cell")
+    {
+        std::uint64_t x,y;
+        if(parts.size()!=8 || !decimal(parts[6],5,x) || !decimal(parts[7],5,y))return false;
+        request.x=static_cast<int>(x);request.y=static_cast<int>(y);
     }
     else if (kind == "point" || kind == "cursor_position")
     {

@@ -14,11 +14,11 @@ research requirements, placement eligibility or internal facility list is
 serialized. Freshness, current-paint, top-state and real-overlay guards remain
 required.
 
-This bounded slice does **not** expose a base grid, place a facility, spend
-funds, or establish construction. The separately authorized read-only all-base snapshot provides owned layouts;
-a qualified visible-grid action target and ordinary placement route are still
-necessary for mutations. Choosing a row or seeing a
-preview is not a completed construction.
+Selection and preview alone do **not** place a facility, spend funds or
+establish construction. Schema 33 separately adds the visible-grid action
+specified in [facility placement](facility-placement-contract.md). The
+read-only all-base snapshot supplies owned layouts for planning, not action
+authority. Choosing a row or seeing a preview is not completed construction.
 
 The facility list uses the GUI caption actually drawn in the current viewport,
 its native row index and active click band. It does not require pixel-perfect

@@ -60,7 +60,12 @@ struct State:OpenXcom::State {Game *_game=currentGame;using OpenXcom::State::_su
  void release(){for(auto*s:_surfaces)delete s;_surfaces.clear();}
 };
 // BaseView deliberately a rendering/selection setup seam; viewClick is excluded.
-struct BaseView:InteractiveSurface {BaseView(int w,int h,int x,int y):InteractiveSurface(w,h,x,y){}void setTexture(int){}void setBase(Base*){}void setSelectable(int){}};
+struct BaseView:InteractiveSurface {BaseView(int w,int h,int x,int y):InteractiveSurface(w,h,x,y){}void setTexture(int){}void setBase(Base*){}void setSelectable(int){}
+ // This preview fixture intentionally cannot qualify placement; the separate
+ // AgentPlaceFacilityTest uses real native BaseView/eligibility/click handlers.
+ void agentEnablePlacement(){}bool agentPlacementPresented(const Surface*)const{return false;}
+ const Surface *agentPlacementSelector()const{return nullptr;}bool agentPlacementClick(OpenXcom::State*,int,int){return false;}
+};
 struct PlaceFacilityState:State {Base *_base;RuleBaseFacility *_rule;BaseView *_view;TextButton *_btnCancel;Window *_window;
  Text *_txtFacility,*_txtCost,*_numCost,*_txtTime,*_numTime,*_txtMaintenance,*_numMaintenance;
  bool _agentDestinationPaintFull=false;std::vector<std::uint64_t> _agentStoredPaintRevisions;

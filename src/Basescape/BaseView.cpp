@@ -31,6 +31,9 @@
 #include "../Engine/Timer.h"
 #include "../Engine/Options.h"
 #include <climits>
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#endif
 
 namespace OpenXcom
 {
@@ -498,6 +501,9 @@ void BaseView::draw()
  */
 void BaseView::blit(Surface *surface)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (_agentPlacementTracked && _selSize>0 && _selector) _selector->agentTrackPresentation();
+#endif
 	Surface::blit(surface);
 	if (_selector != 0)
 	{
@@ -567,5 +573,46 @@ void BaseView::setSecondaryColor(Uint8 color)
 {
 	_selectorColor = color;
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+void BaseView::agentEnablePlacement()
+{
+    _agentPlacementTracked=true;agentTrackPresentation();
+    if(_selSize>0 && _selector)_selector->agentTrackPresentation();
+}
+const Surface *BaseView::agentPlacementSelector() const
+{
+    return _agentPlacementTracked && _selSize>0 ? _selector : nullptr;
+}
+bool BaseView::agentPlacementPresented(const Surface *destination) const
+{
+    if(!_agentPlacementTracked || !_base || !_texture || _selSize<=0 || !_selector ||
+        getWidth()!=BASE_SIZE*GRID_SIZE || getHeight()!=BASE_SIZE*GRID_SIZE ||
+        getX()<0 || getY()<0 || getX()>448 || getY()>208 ||
+        !Observer::agentWidgetVisible(this) || !agentPresentationPaintedTo(destination))return false;
+    // The blinking footprint is part of this native view, not a foreign
+    // overlay. If visible it must be a current, contained ordinary paint.
+    if(_selector->getVisible() && (!_selector->agentPresentationPaintedTo(destination) ||
+        _selector->getX()<getX() || _selector->getY()<getY() ||
+        _selector->getX()+_selector->getWidth()>getX()+getWidth() ||
+        _selector->getY()+_selector->getHeight()>getY()+getHeight()))return false;
+    return true;
+}
+bool BaseView::agentPlacementClick(State *state,int x,int y)
+{
+    if(!_agentPlacementTracked || !state || !agentContextVisible() ||
+        getWidth()!=BASE_SIZE*GRID_SIZE || getHeight()!=BASE_SIZE*GRID_SIZE ||
+        x<0 || y<0 || x>=BASE_SIZE || y>=BASE_SIZE)return false;
+    const int centerX=getX()+x*GRID_SIZE+GRID_SIZE/2,centerY=getY()+y*GRID_SIZE+GRID_SIZE/2;
+    SDL_Event motion={};motion.type=SDL_MOUSEMOTION;motion.motion.x=centerX;motion.motion.y=centerY;
+    Action hover(&motion,1.0,1.0,0,0);hover.setSender(this);hover.setMouseAction(centerX,centerY,getX(),getY());
+    mouseOver(&hover,state);
+    SDL_Event event={};event.type=SDL_MOUSEBUTTONUP;event.button.button=SDL_BUTTON_LEFT;event.button.x=centerX;event.button.y=centerY;
+    Action click(&event,1.0,1.0,0,0);click.setSender(this);click.setMouseAction(centerX,centerY,getX(),getY());
+    // Registered ordinary callback owns legality, errors, funds and mutation.
+    // Never prefilter via isPlaceable or set the hidden grid selection fields.
+    mouseClick(&click,state);return true;
+}
+#endif
 
 }
