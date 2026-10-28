@@ -84,21 +84,61 @@ python -m unittest discover -s tests/agent-control -p test_native_test_runner.py
 python -O -m unittest discover -s tests/agent-control -p test_native_test_runner.py
 ```
 
-## Containment harness integration: pending
+## Containment harness integration
 
-The core is intended to run the original native containment compile/link/test
-sequence, not replace its assertions with a demonstration. Integration is **not
-yet completed or qualified**: the gameplay API dependencies and publication
-boundary must first be reviewed. No containment recipe or harness is shipped in
-this initial three-file core.
+The tool branch contains two harnesses that call `run_recipe` for **each real
+compile/link/test step**. They do not wrap the old runner in a single opaque step
+and do not replace its native assertions. Gameplay fixture sources and assets
+remain external dependencies supplied explicitly by the caller.
 
-The proposed separate tool-branch harness prepares its generated fixture inputs
-in a private temporary input directory, records their source dependencies,
-collects the exact linked object closure from the reviewed build, and passes
-compile/link/test argv steps to `run_recipe`. All generated source and object
-inputs must appear in `inputs`; their contents are not embedded in a public
-recipe. Qualification details (native fixture limitations, assertions and live
-versus offscreen scope) remain a separate harness receipt, not an inflated claim
-inside the generic runner's `all_passed`. Refactor and acceptance against that
-original containment scenario follow dependency review; gameplay source and
-resources must not be bundled into this tool branch.
+```text
+python tests/agent-control/run-containment-tests.py --source gameplay-source --build gameplay-build --sdk native-sdk --data runtime-data --output new-native-output
+python tests/agent-control/run-containment-fixture-tests.py --source gameplay-source --sdk native-sdk --output new-prepare-output
+```
+
+All argument paths are relative to the invocation directory. `--sdk` must name
+the prefix containing `include` and `lib/x86_64-linux-gnu`. `--data` must contain
+`common` and `standard/xcom1` / `standard/xcom2`. The native harness also expects
+the original test fixture's sibling resource layout, through `data.parent`.
+Only use an explicitly reviewed compatible source/build/resource set. Output
+must be new, outside source; the native harness requires its parent to exist.
+
+The native harness preserves the original source extraction, State cursor seam,
+actual fixture assertions, native objects and cost/resource subset limitations.
+It prepares generated source in a separate temporary input directory, records
+those files and the generator/core/link recipe in the hash manifest alongside
+the original source/resource/object closure, then sends five compile steps,
+link and native test execution to the generic core. Temporary generated inputs
+are removed after the run; their hashes remain in the private receipts and they
+can be regenerated from the recorded inputs. No source or gameplay modifications
+are made by the harness.
+
+The prepare-only harness uses the core for fixture compilation, linking, `nm`,
+an explicit symbol-verification subprocess, six argument-alias checks and the
+three selected architecture tests in normal and optimized Python. It does not
+execute campaign setup. Its manifest includes the production source subtree
+read by the architecture tests, not just their Python entrypoints. Resource-
+dependent mission architecture and live acceptance remain separate suites.
+
+`RESULT.json` is written by the generic core. `QUALIFICATION.json` separately
+records fixture limitations and expressly denies live/Game acceptance. The
+explicit manifests are not complete compiler, SDK-header, dynamic-library or
+toolchain transitive dependency closures; unchanged hashes prove only listed
+input bytes. Environment overlays and generated absolute private paths appear
+only in memory or local receipts, not this distributed source. Review outputs
+before any sharing.
+
+**Minimum published gameplay API dependency:**
+[`faa62d0224c0b7d6a247eab558da0dde190ec420`](https://github.com/microtrigger/OpenXcom/commit/faa62d0224c0b7d6a247eab558da0dde190ec420).
+The supplied native build must match the supplied source. This minimum API pin
+is not a claim that every later local qualification used that exact revision.
+In particular, local schema39 source/build qualification is distinct from the
+published schema37 dependency. Runtime receipts deliberately say
+`source_revision: caller-supplied; inspect recorded input hashes`, rather than
+invent a reviewed revision for an arbitrary caller checkout. Use the recorded
+source/object hashes to establish the precise tested closure; do not attribute
+a later local result to this minimum commit without checking the full chain.
+
+Neither harness downloads dependencies, changes permissions, or bypasses host
+security/network restrictions. Executed helper source and binaries are trusted
+code, not sandboxed by the generic runner.
