@@ -146,6 +146,10 @@ void BattlescapeButton::toggle(bool press)
  */
 void BattlescapeButton::allowToggleInversion()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    _agentTogglePainted = false;
+#endif
 	_toggleMode = INVERT_TOGGLE;
 }
 
@@ -154,6 +158,10 @@ void BattlescapeButton::allowToggleInversion()
  */
 void BattlescapeButton::allowClickInversion()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    _agentTogglePainted = false;
+#endif
 	_toggleMode = INVERT_CLICK;
 }
 
@@ -257,13 +265,14 @@ void BattlescapeButton::blit(Surface *surface)
 		Surface::blit(surface);
 	}
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-    if (source && source->agentPresentationPaintedTo(surface) && agentContextVisible() && _group && *_group)
+    if (source && source->agentPresentationPaintedTo(surface) && agentContextVisible() &&
+        ((_group && *_group) || (!_group && _toggleMode == INVERT_TOGGLE)))
     {
         _agentShownInverted = _inverted;
         _agentToggleSource = source;
         _agentToggleDestination = surface;
         _agentToggleGroup = _group;
-        _agentToggleSelected = *_group;
+        _agentToggleSelected = _group ? *_group : nullptr;
         _agentToggleRevision = agentPresentationRevision();
         _agentTogglePainted = true;
     }
@@ -281,6 +290,18 @@ bool BattlescapeButton::agentTogglePainted(const Surface *destination) const
         _agentToggleDestination && getX() >= 0 && getY() >= 0 &&
         getX() + getWidth() <= _agentToggleDestination->getWidth() &&
         getY() + getHeight() <= _agentToggleDestination->getHeight();
+}
+// Separate proof for the independent kneel-reservation toggle. Radio callers
+// still require a non-null, unchanged group in agentTogglePainted above.
+bool BattlescapeButton::agentStandaloneTogglePainted(const Surface *destination) const
+{
+    const Surface *source = _inverted ? _altSurface : this;
+    return !_group && !_agentToggleGroup && _toggleMode == INVERT_TOGGLE &&
+        _agentTogglePainted && destination == _agentToggleDestination && _agentShownInverted == _inverted &&
+        agentPresentationRevision() == _agentToggleRevision && agentContextVisible() &&
+        source && source == _agentToggleSource && source->agentPresentationPaintedTo(destination) &&
+        destination && getX() >= 0 && getY() >= 0 &&
+        getX() + getWidth() <= destination->getWidth() && getY() + getHeight() <= destination->getHeight();
 }
 #endif
 

@@ -2960,6 +2960,18 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
             out.actions.push_back(Observer::AgentUiAction("reserve_auto", "Reserve Auto Shot time units", "visible_control_semantics"));
         }
     }
+    // Separate displayed toggle; do not infer it from the save or soldier pose.
+    const bool kneelReserveShown = Observer::agentWidgetUncovered(_btnReserveKneel, _surfaces) &&
+        _btnReserveKneel->agentStandaloneTogglePainted(_game->getScreen()->getSurface());
+    out.visible.pop_back();
+    out.visible += ",\"kneel_reserve_indicator\":" + (kneelReserveShown ?
+        Observer::agentJsonString(_btnReserveKneel->agentShownToggled() ? "on" : "off") : "null") + "}";
+    if (kneelReserveShown)
+    {
+        Observer::agentIncludeWidget(out, _btnReserveKneel);
+        if (!_firstInit && _save->getSide() == FACTION_PLAYER && allowButtons())
+            out.actions.push_back(Observer::AgentUiAction("toggle_kneel_reserve", "Toggle kneeling time-unit reserve", "visible_control_semantics"));
+    }
     // Only admitted camera-grid points carry map-action authority.
     // Keep unrelated tactical animation outside the control binding.
     std::string focus, mapContext;
@@ -3092,6 +3104,16 @@ bool BattlescapeState::agentDispatch(const Observer::AgentRequest &request)
             request.action == "reserve_snap" ? _btnReserveSnap :
             request.action == "reserve_aimed" ? _btnReserveAimed : _btnReserveAuto);
         btnReserveClick(&action);
+        return true;
+    }
+    if (request.action == "toggle_kneel_reserve")
+    {
+        SDL_Event event = {};
+        event.type = SDL_MOUSEBUTTONDOWN;
+        event.button.button = SDL_BUTTON_LEFT;
+        Action action(&event, 1.0, 1.0, 0, 0);
+        action.setSender(_btnReserveKneel);
+        btnReserveKneelClick(&action);
         return true;
     }
     if (request.action == "map_primary" || request.action == "map_secondary")

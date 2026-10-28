@@ -47,6 +47,7 @@ public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentContextVisible() const override;
     bool agentTogglePainted(const Surface *destination) const;
+    bool agentStandaloneTogglePainted(const Surface *destination) const;
     bool agentShownToggled() const { return _agentShownInverted; }
 private:
     bool _agentTogglePainted = false, _agentShownInverted = false;

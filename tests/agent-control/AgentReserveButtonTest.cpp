@@ -58,6 +58,25 @@ int main() {
         }
         check(group==to&&to->agentShownToggled()&&selected==1,"all four native radio transitions exact");
     }
+    Button kneel(65);kneel.drawRect(0,0,12,12,32);kneel.initSurfaces();kneel.allowToggleInversion();
+    check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone prepaint denied");
+    kneel.blit(&canvas);
+    check(kneel.agentStandaloneTogglePainted(&canvas)&&!kneel.agentShownToggled(),"standalone off shown");
+    check(!kneel.agentTogglePainted(&canvas),"standalone never admitted as radio");
+    check(!none.agentStandaloneTogglePainted(&canvas),"radio never admitted as standalone");
+    check(!kneel.agentStandaloneTogglePainted(&other),"standalone wrong destination denied");
+    kneel.toggle(true);check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone mutation needs paint");kneel.blit(&canvas);
+    check(kneel.agentStandaloneTogglePainted(&canvas)&&kneel.agentShownToggled(),"standalone on shown");
+    kneel.toggle(false);kneel.toggle(true);check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone ABA denied");kneel.blit(&canvas);
+    SDL_SetClipRect(canvas.getSurface(),&clip);kneel.blit(&canvas);SDL_SetClipRect(canvas.getSurface(),nullptr);
+    check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone clipped frame denied");kneel.blit(&canvas);
+    SDL_SetClipRect(kneel.alternate()->getSurface(),&clip);kneel.blit(&canvas);SDL_SetClipRect(kneel.alternate()->getSurface(),nullptr);
+    check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone clipped source denied");kneel.blit(&canvas);
+    kneel.setVisible(false);kneel.blit(&canvas);check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone hidden denied");kneel.setVisible(true);
+    check(!kneel.agentStandaloneTogglePainted(&canvas),"standalone unhide needs paint");kneel.blit(&canvas);
+    kneel.allowClickInversion();kneel.blit(&canvas);check(!kneel.agentStandaloneTogglePainted(&canvas),"momentary click is not toggle");kneel.allowToggleInversion();
+    check(!kneel.agentStandaloneTogglePainted(&canvas),"mode restoration needs paint");kneel.blit(&canvas);
+    kneel.toggle(false);kneel.blit(&canvas);check(kneel.agentStandaloneTogglePainted(&canvas)&&!kneel.agentShownToggled(),"standalone off restored");
     check(Observer::agentPaintHealthy()&&!SDL_WasInit(SDL_INIT_VIDEO),"healthy no GUI");
     std::cout<<"AgentReserveButtonTest PASS "<<checks<<" checks\n";
 }

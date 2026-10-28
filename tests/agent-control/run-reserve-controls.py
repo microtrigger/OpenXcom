@@ -12,7 +12,7 @@ def fn(sig):
  return t[i:j]
 provider=block('    // Read the drawn radio-button selection','    // Only admitted camera-grid points')
 dispatch=block('    if (request.action == "reserve_none"','    if (request.action == "map_primary"')
-(o/'Methods.inc').write_text('void BattlescapeState::project(Observer::AgentUiState &out) const {\n'+provider+'}\n'+ 'bool BattlescapeState::dispatch(const Observer::AgentRequest &request) { Observer::AgentUiState shown;project(shown);if(!shown.offers(request.action))return false;\n'+dispatch+'return false;}\n'+fn('bool BattlescapeState::allowButtons(bool allowSaving) const')+'\n'+fn('void BattlescapeState::btnReserveClick(Action *action)'))
+(o/'Methods.inc').write_text('void BattlescapeState::project(Observer::AgentUiState &out) const {\n'+provider+'}\n'+ 'bool BattlescapeState::dispatch(const Observer::AgentRequest &request) { Observer::AgentUiState shown;project(shown);if(!shown.offers(request.action))return false;\n'+dispatch+'return false;}\n'+fn('bool BattlescapeState::allowButtons(bool allowSaving) const')+'\n'+fn('void BattlescapeState::btnReserveClick(Action *action)')+'\n'+fn('void BattlescapeState::btnReserveKneelClick(Action *action)'))
 files=[s/'tests/agent-control/AgentReserveControlsTest.cpp',s/'src/Battlescape/BattlescapeState.cpp']
 result={'passed':False,'seams':['synthetic SDL Action/button, save, map, battle game and widget visibility','literal reserve provider, dispatch branch, allowButtons and btnReserveClick bodies','full paint/overlay and controller freshness require separate qualification'],'hashes':{str(f.relative_to(s)):hashlib.sha256(f.read_bytes()).hexdigest() for f in files}}
 try:
