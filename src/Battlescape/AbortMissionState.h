@@ -34,6 +34,12 @@ class BattlescapeState;
 class AbortMissionState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentDestinationPaintFull = false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 	Window *_window;
 	Text *_txtInEntrance, *_txtInExit, *_txtOutside, *_txtAbort;
 	TextButton *_btnOk, *_btnCancel;
@@ -41,6 +47,11 @@ private:
 	BattlescapeState *_state;
 	int _inEntrance, _inExit, _outside;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Abort Mission state.
 	AbortMissionState(SavedBattleGame *battleGame, BattlescapeState *state);
 	/// Cleans up the Abort Mission state.

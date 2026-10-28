@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/41"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/42"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/41\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/42\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -27,7 +27,7 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "move_cursor" || value == "choose_dogfight_mode" || value == "open_interception" || value == "open_contact_interception" || value == "cancel_interception" ||
+    return value == "open_abort_mission" || value == "confirm_abort_mission" || value == "cancel_abort_mission" || value == "move_cursor" || value == "choose_dogfight_mode" || value == "open_interception" || value == "open_contact_interception" || value == "cancel_interception" ||
         value == "open_intercept_base" || value == "confirm_interception" || value == "cancel_interception_confirmation" ||
         value == "open_transfer" || value == "cancel_transfer_destination" ||
         value == "change_transfer_quantity" || value == "review_transfer" ||

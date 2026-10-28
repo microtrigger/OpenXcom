@@ -3065,6 +3065,13 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         out.actions.push_back(Observer::AgentUiAction("open_pause_menu", "Options", "visible_control_semantics"));
         Observer::agentIncludeWidget(out, _btnHelp);
     }
+    // Ordinary toolbar abort route, not an Options-menu operation.
+    if (!_firstInit && _save->getSide() == FACTION_PLAYER && allowButtons() &&
+        Observer::agentWidgetUncovered(_btnAbort, _surfaces))
+    {
+        out.actions.push_back(Observer::AgentUiAction("open_abort_mission", "Abort mission", "visible_control_semantics"));
+        Observer::agentIncludeWidget(out, _btnAbort);
+    }
     // Capture private freshness generations at observation time. Normal init
     // may reapply reserve settings after it last painted the HUD; those writes
     // must not make every future fresh observation permanently stale.
@@ -3155,6 +3162,7 @@ bool BattlescapeState::agentDispatch(const std::string &action)
     else if (action == "previous_soldier") btnPrevSoldierClick(0);
     else if ((action == "kneel" && !_agentShownKneeled) || (action == "stand" && _agentShownKneeled)) btnKneelClick(0);
     else if (action == "open_pause_menu") btnHelpClick(0);
+    else if (action == "open_abort_mission") btnAbortClick(0);
     else if (action == "open_inventory") btnInventoryClick(0);
     else if (action == "end_turn") btnEndTurnClick(0);
     else return false;

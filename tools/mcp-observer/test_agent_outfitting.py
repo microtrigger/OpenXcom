@@ -72,8 +72,8 @@ class OutfittingContractTests(unittest.TestCase):
         with self.assertRaises(Unavailable): validate(page([event(obj)]))
 
     def test_closed_wire_catalog_and_four_tools(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/42')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (230, 98, 7))
         self.assertEqual(set(a.OUTFITTING_FIELDS), set(STATES) | {'memorial_soldier_info'})
         self.assertEqual(a.OUTFITTING_LISTS, ROWS)
         self.assertEqual(len(NEW_ACTIONS), 23)

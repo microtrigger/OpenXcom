@@ -8,7 +8,7 @@ ACTION='acknowledge_lost_in_service'
 class LostInServiceTests(unittest.TestCase):
     def checked(self,obj):return a.validate_state(json.loads(json.dumps(obj)),CHALLENGE,EPOCH)
     def test_exact_nullable_title_only_catalog(self):
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS)),(227,97))
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS)),(230,98))
         self.assertEqual(a.STATE_ACTIONS['lost_in_service'],{ACTION})
         self.assertEqual(a.ARGUMENT_KINDS[ACTION],'none')
         for title in (None,'','Lost in Service','é'*512):

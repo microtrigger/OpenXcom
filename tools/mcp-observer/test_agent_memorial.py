@@ -9,7 +9,7 @@ SCREENS=('soldier_memorial','memorial_soldier_info','memorial_soldier_diary','me
 class MemorialTests(unittest.TestCase):
  def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
  def test_closed_states_old_schema_and_no_hidden_identity(self):
-  self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
+  self.assertEqual(a.SCHEMA,'openxcom-agent-control/42')
   for screen in SCREENS:
    o=state(screen=screen);self.check(o)
    for key in o['visible']:

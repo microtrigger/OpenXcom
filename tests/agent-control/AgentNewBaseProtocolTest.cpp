@@ -4,7 +4,7 @@
 #include <iostream>
 using namespace OpenXcom::Observer;
 int main(){AgentRequest r;const std::string t(32,'1'),p="E "+t+" 1 "+t+" "+t+" 1 ";
-assert(parseAgentRequest("H openxcom-agent-control/41",r));assert(!parseAgentRequest("H openxcom-agent-control/34",r));
+assert(parseAgentRequest("H openxcom-agent-control/42",r));assert(!parseAgentRequest("H openxcom-agent-control/34",r));
 for(const std::string a:{"open_new_base","cancel_new_base","confirm_new_base","cancel_new_base_confirmation"}){assert(parseAgentRequest(p+a,r));assert(!parseAgentRequest(p+a+" extra",r));}
 assert(std::string(agentArgumentKind("place_access_lift_cell"))=="facility_cell");
 for(int y=0;y<6;++y)for(int x=0;x<6;++x){assert(parseAgentRequest(p+"place_access_lift_cell "+std::to_string(x)+" "+std::to_string(y),r));assert(r.x==x&&r.y==y);}
