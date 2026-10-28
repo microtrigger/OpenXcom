@@ -26,7 +26,7 @@ def main():
     support = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(support)
     block = support.block
-    signatures = ['bool DebriefingState::agentUiState(', 'bool DebriefingState::agentDispatch(', 'void DebriefingState::btnOkClick(']
+    signatures = ['bool DebriefingState::agentUiState(', 'bool DebriefingState::agentDispatch(const std::string', 'bool DebriefingState::agentDispatch(const Observer::AgentRequest', 'bool DebriefingState::agentSoldierStatsUi(', 'void DebriefingState::btnStatsClick(', 'void DebriefingState::applyVisibility(', 'void DebriefingState::btnOkClick(']
     body = (source / 'src/Battlescape/DebriefingState.cpp').read_text()
     constructor = block(body, 'DebriefingState::DebriefingState(')
     for list_name, columns in (('_lstStats',3),('_lstRecovery',3),('_lstTotal',2)):
@@ -41,7 +41,7 @@ def main():
         'bool State::agentCursorMotionSafe(', 'void State::setModal(', 'void State::think(',
         'bool State::isScreen(', 'void State::toggleScreen(', 'void State::hideAll(', 'void State::showAll(',
     ]))
-    fixture = source / 'tests/agent-control/AgentDebriefReportTest.cpp'
+    fixture = source / 'tests/agent-control/AgentDebriefStatsTest.cpp'
     # Seal only actual translation units, extracted methods and transitive headers.
     files = [source / ('src/' + u + '.cpp') for u in ['Observer/AgentSoundPlayback'] + support.UNITS]
     files += [source / n for n in ('src/Battlescape/DebriefingState.cpp','src/Engine/Game.cpp','src/Engine/State.cpp')]
@@ -66,7 +66,7 @@ def main():
         raise RuntimeError('No runtime assets sealed')
     result = {'all_passed': False, 'source_sha256': hashes, 'live_acceptance': False,
               'game_executed': False, 'master': args.master, 'runtime_asset_sha256': asset_hashes, 'limitations': [
-                  'Actual source provider/callback and native SDL widgets; synthetic layout constructor.',
+                  'Actual source provider/callback and native SDL widgets; synthetic layout constructor; actual applyVisibility and btnStatsClick bodies.',
                   'Game/SavedGame and followup construction are explicit seams; no prepareDebriefing or hidden data read.',
                   'Actual debrief OK callback retained; offscreen synthetic current UI rows only, no battle or save.',
                   'Synthetic grayscale palette; no real encounter or stock pixel-appearance qualification.',
