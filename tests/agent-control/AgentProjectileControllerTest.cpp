@@ -29,12 +29,12 @@ struct Harness {
  std::string receive(){char b[49152];auto n=recv(peer,b,sizeof(b),MSG_DONTWAIT);if(n<0){check(errno==EAGAIN||errno==EWOULDBLOCK,"nonblocking receive");return "";}return n?std::string(b,n):"EOF";}
  void frame(){c->beginFrame();c->presented();}
  void read(){send("R "+token(99));c->poll();frame();grant=receive();check(has(grant,"\"capability\":\""),"fresh grant");}
- void queue(unsigned n=1){id=token(n);packet="E "+id+" "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" close_debriefing";send(packet);c->poll();check(receive().empty(),"initial E stays silent while queued");check(!state.calls,"receipt does not dispatch");}
+ void queue(unsigned n=1){id=token(n);packet="E "+id+" 1 "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" close_debriefing";send(packet);c->poll();check(receive().empty(),"initial E stays silent while queued");check(!state.calls,"receipt does not dispatch");}
  void refused(){check(has(receive(),"\"status\":\"unavailable\""),"terminal predispatch refusal");check(!state.calls,"no dispatch on refusal");frame();check(!state.calls,"refusal cannot revive");}
 };
 int main(){
  {Harness h;h.state.dirty=true;h.queue();h.state.dirty=false;h.frame();check(h.state.calls==1,"dirty between-frame redraw repaired at fresh frame");check(h.receive().empty(),"preaction frame is not outcome");h.frame();std::string terminal=h.receive();check(has(terminal,"\"status\":\"dispatched\""),"later frame supplies outcome");h.send(h.packet);h.c->poll();check(h.receive()==terminal&&h.state.calls==1,"completed duplicate never repeats");}
- {Harness h;h.queue();h.send(h.packet);h.c->poll();check(has(h.receive(),"\"pending\""),"queued duplicate pending receipt");h.send("S "+h.id);h.c->poll();check(has(h.receive(),"\"pending\""),"S pending receipt");h.send("V "+token(90)+" "+h.epoch+" 0 16");h.c->poll();check(has(h.receive(),"\"events\""),"V works while queued");h.frame();check(h.state.calls==1,"duplicates and V preserve one dispatch");h.frame();check(has(h.receive(),"\"dispatched\""),"single terminal outcome");}
+ {Harness h;h.queue();h.send(h.packet);h.c->poll();check(has(h.receive(),"\"pending\""),"queued duplicate pending receipt");h.send("S 1 "+h.id);h.c->poll();check(has(h.receive(),"\"pending\""),"S pending receipt");h.send("V "+token(90)+" "+h.epoch+" 0 16");h.c->poll();check(has(h.receive(),"\"events\""),"V works while queued");h.frame();check(h.state.calls==1,"duplicates and V preserve one dispatch");h.frame();check(has(h.receive(),"\"dispatched\""),"single terminal outcome");}
  {Harness h;h.queue();agentTestTime+=1001;h.c->poll();h.refused();}
  {Harness h;h.queue();agentTestTime+=500;h.send(h.packet);h.c->poll();h.receive();agentTestTime+=501;h.c->poll();h.refused();}
  {Harness h;h.queue();SDL_Event e={};e.type=SDL_MOUSEMOTION;h.c->beforeEvent(e);h.frame();h.refused();}
@@ -58,7 +58,7 @@ int main(){
  {Harness h;h.queue();h.game.audio.events.push_back(AgentAudioEvents::Event());h.c->poll();h.frame();check(h.state.calls==1,"independent audio does not invalidate queued control");}
  {Harness h;agentTestTime+=119999;h.queue();agentTestTime+=2;h.c->poll();h.refused();}
  {Harness h;h.queue();agentTestTime+=1000;h.frame();check(h.state.calls==1,"queue exact deadline remains bounded and valid");}
- {Harness h;h.queue();agentTestTime+=1001;h.c->poll();std::string terminal=h.receive();check(has(terminal,"unavailable"),"expired queue terminal receipt");h.send("S "+h.id);h.c->poll();check(h.receive()==terminal,"expired receipt cached");h.send(h.packet);h.c->poll();check(h.receive()==terminal&&!h.state.calls,"expired duplicate cannot reschedule");}
+ {Harness h;h.queue();agentTestTime+=1001;h.c->poll();std::string terminal=h.receive();check(has(terminal,"unavailable"),"expired queue terminal receipt");h.send("S 1 "+h.id);h.c->poll();check(h.receive()==terminal,"expired receipt cached");h.send(h.packet);h.c->poll();check(h.receive()==terminal&&!h.state.calls,"expired duplicate cannot reschedule");}
  {Harness h;h.queue();h.send("V "+token(80)+" "+h.epoch+" 0 16");::close(h.peer);h.peer=-1;h.frame();check(!h.state.calls&&!h.c->enabled(),"EOF with unread packet cannot hide peer closure");}
  {Harness h;h.queue();h.send("R "+token(70));h.c->poll();check(has(h.receive(),"error"),"new read cannot grant over queued action");h.frame();h.refused();}
  {Harness h;h.queue();std::string other=h.packet;other.replace(2,32,token(2));h.send(other);h.c->poll();check(has(h.receive(),"unavailable"),"second command cannot occupy queue");h.frame();h.refused();}

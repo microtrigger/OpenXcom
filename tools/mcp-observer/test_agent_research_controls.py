@@ -22,8 +22,8 @@ def checked(obj):return a.validate_state(obj,CHALLENGE,EPOCH)
 
 class ResearchControlValidation(unittest.TestCase):
     def test_wire19_no_new_actions_states_tools_or_event_shapes(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227,97,6))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227, 97, 7))
         obj=row_control();self.assertEqual(checked(obj),obj)
         obj['schema']='openxcom-agent-control/18'
         with self.assertRaises(Unavailable):checked(obj)
@@ -119,7 +119,7 @@ class ResearchControlClient(unittest.TestCase):
         peer=self.fixture();old=peer.client.observe();fresh=peer.client.observe()
         with self.assertRaises(Unavailable):peer.client.execute(**arguments(old,action='select_research_project'))
         args=arguments(fresh,action='select_research_project');first=peer.client.execute(**args);self.assertEqual(peer.client.execute(**args),first)
-        self.assertEqual(peer.requests[-1],('S '+COMMAND).encode())
+        self.assertEqual(peer.requests[-1],('S 1 '+COMMAND).encode())
         with self.assertRaises(Unavailable):peer.client.execute(**dict(args,args={'row':'r1'}))
         self.assertEqual(len([x for x in peer.requests if x.startswith(b'E ')]),1)
 

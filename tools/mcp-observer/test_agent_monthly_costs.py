@@ -8,7 +8,7 @@ from test_agent_control import state, arguments, NativeFixture, CHALLENGE, EPOCH
 class MonthlyCostsTests(unittest.TestCase):
  def check(self,o):return a.validate_state(o,CHALLENGE,EPOCH)
  def test_schema_closed_fields_and_nullable_report(self):
-  self.assertEqual(a.SCHEMA,'openxcom-agent-control/40')
+  self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
   o=state(screen='monthly_costs');self.check(o)
   for key in o['visible']:
    bad=copy.deepcopy(o);del bad['visible'][key]

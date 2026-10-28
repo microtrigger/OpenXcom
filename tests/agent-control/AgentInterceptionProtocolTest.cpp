@@ -5,7 +5,7 @@
 using namespace OpenXcom::Observer;
 namespace {unsigned checks=0;void check(bool ok){++checks;if(!ok){std::cerr<<"FAIL "<<checks<<'\n';std::exit(1);}}}
 int main(){
- AgentRequest r;const std::string t(32,'1'),p="E "+t+" "+t+" "+t+" 1 ";
+ AgentRequest r;const std::string t(32,'1'),p="E "+t+" 1 "+t+" "+t+" 1 ";
  for(const std::string a:{"open_contact_interception","cancel_interception","open_intercept_base","confirm_interception","cancel_interception_confirmation"}){
   check(agentActionId(a));check(std::string(agentArgumentKind(a))=="none");check(parseAgentRequest(p+a,r)&&r.action==a);
   for(const std::string extra:{"r0","0","true","1 2","target","extra"})check(!parseAgentRequest(p+a+" "+extra,r));

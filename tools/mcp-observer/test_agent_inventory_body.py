@@ -24,8 +24,8 @@ class BodyValidationTests(unittest.TestCase):
         return a.validate_state(inventory(visible), CHALLENGE, EPOCH)
 
     def test_version_and_unchanged_authority_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertEqual(a.MAX_PACKET, 49152)
         self.assertEqual(a.MAX_REQUEST, 512)
@@ -78,7 +78,7 @@ class BodyValidationTests(unittest.TestCase):
         native=InventoryFixture(transform=lambda operation,value: dict(value,schema='openxcom-agent-control/11') if operation=='H' else value)
         self.addCleanup(native.close)
         with self.assertRaises(Unavailable):native.client.observe()
-        self.assertEqual(native.requests,[b'H openxcom-agent-control/40'])
+        self.assertEqual(native.requests,[b'H openxcom-agent-control/41'])
         self.assertEqual(native.client.state,'CLOSED')
 
 
@@ -115,7 +115,7 @@ class BodyClientTests(unittest.TestCase):
         with self.assertRaises(Unavailable):native.client.execute(**dict(args,args={'target':'v1'}))
         self.assertEqual(len(native.requests),count)
         self.assertEqual(native.client.execute(**args),original)
-        self.assertEqual(native.requests[count:],[('S '+COMMAND).encode()])
+        self.assertEqual(native.requests[count:],[('S 1 '+COMMAND).encode()])
 
     def test_body_history_read_is_immutable_and_grant_neutral(self):
         native=self.fixture();obj=native.client.observe()

@@ -72,14 +72,14 @@ class OutfittingContractTests(unittest.TestCase):
         with self.assertRaises(Unavailable): validate(page([event(obj)]))
 
     def test_closed_wire_catalog_and_four_tools(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual(set(a.OUTFITTING_FIELDS), set(STATES) | {'memorial_soldier_info'})
         self.assertEqual(a.OUTFITTING_LISTS, ROWS)
         self.assertEqual(len(NEW_ACTIONS), 23)
         self.assertTrue(set(NEW_ACTIONS) <= set(a.ACTIONS))
         self.assertEqual({x['name'] for x in a.definitions()},
-                         {'read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases'})
+                         {'read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases', 'retire_action_receipts'})
         for version in range(1, 40):
             obj = state(screen='soldiers'); obj['schema'] = f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable): checked(obj)

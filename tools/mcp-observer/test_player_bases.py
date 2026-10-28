@@ -48,7 +48,7 @@ class Peer:
   parent,self.sock=socket.socketpair(socket.AF_UNIX,socket.SOCK_SEQPACKET);self.client=a.AgentControlClient(parent,timeout=.3,startup_timeout=.3);self.requests=[];self.errors=[];self.sock.settimeout(2);self.t=threading.Thread(target=self.run);self.t.start()
  def run(self):
   try:
-   self.sock.send(dump(dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
+   self.sock.send(dump(dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output')))
    while True:
     raw=self.sock.recv(512)
     if not raw:return
@@ -81,13 +81,29 @@ class BasesTests(unittest.TestCase):
   for transform in (lambda v:v.update(enemy_cost=0),lambda v:v['crafts'].append(copy.deepcopy(v['crafts'][0])),lambda v:v['salaries'][0].update(hidden_rule=True),lambda v:v.update(crafts=[dict(type=str(i),unit_cost=0,quantity=0,total=0) for i in range(257)])):
    bad=copy.deepcopy(r);transform(bad['expense_ledger'])
    with self.assertRaises(Unavailable):b.record(bad)
-  for old in ('openxcom-player-bases/1','openxcom-player-bases/2','openxcom-player-bases/3','openxcom-player-bases/4'):
+  for old in ('openxcom-player-bases/1','openxcom-player-bases/2','openxcom-player-bases/3','openxcom-player-bases/4','openxcom-player-bases/5'):
    p=page();p['schema']=old
    with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
   peer=Peer([sample('campaign'),r])
   try:
    o=peer.client.read_player_bases();self.assertEqual(o['records'][1]['expense_ledger'],r['expense_ledger']);self.assertIsNone(peer.client.capability);self.assertFalse(any(x.startswith(b'E ') for x in peer.requests))
   finally:peer.close()
+ def test_nullable_unrevealed_psi_stats(self):
+  r=sample('soldier')
+  for scope in ('initial_stats','current_stats'):
+   r[scope]['psi_strength']=None;r[scope]['psi_skill']=None
+  r['psi_improvement']=None;r['psi_strength_improvement']=None
+  b.record(r)
+  for scope in ('initial_stats','current_stats'):
+   for stat in b.STATS.split():
+    bad=copy.deepcopy(r);bad[scope][stat]='hidden'
+    with self.assertRaises(Unavailable):b.record(bad)
+    if stat not in ('psi_strength','psi_skill'):
+     bad=copy.deepcopy(r);bad[scope][stat]=None
+     with self.assertRaises(Unavailable):b.record(bad)
+  for key in ('psi_improvement','psi_strength_improvement'):
+   bad=copy.deepcopy(r);bad[key]=True
+   with self.assertRaises(Unavailable):b.record(bad)
  def test_multi_base_and_related_entities(self):
   records=[sample(k) for k in b.FIELDS];second=sample('base');second['id']=second['base_id']='base-1';records.append(second)
   for offset in range(0,len(records),16):
@@ -102,7 +118,7 @@ class BasesTests(unittest.TestCase):
   p['complete']=True
   with self.assertRaises(Unavailable):b.page(dump(p),CHALLENGE,EPOCH,None,0,16)
  def test_history_schema_and_closed_nested_fields(self):
-  self.assertEqual(b.SCHEMA,'openxcom-player-bases/5')
+  self.assertEqual(b.SCHEMA,'openxcom-player-bases/6')
   old=page();old['schema']='openxcom-player-bases/1'
   with self.assertRaises(Unavailable):b.page(dump(old),CHALLENGE,EPOCH,None,0,16)
   for kind in ('soldier','soldier_diary','soldier_commendation'):

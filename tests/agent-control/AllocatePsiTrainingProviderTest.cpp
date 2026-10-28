@@ -109,7 +109,7 @@ int main(int argc,char **argv){
     for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
     Surface canvas(320,200),background(320,200);SDL_Color palette[256];for(int i=0;i<256;++i)palette[i]={Uint8(i),Uint8(i),Uint8(i),0};
     canvas.setPalette(palette);background.setPalette(palette);background.clear(40);
-    const std::string token(32,'1'),prefix="E "+token+" "+token+" "+token+" 1 ";AgentRequest request;
+    const std::string token(32,'1'),prefix="E "+token+" 1 "+token+" "+token+" 1 ";AgentRequest request;
     check(parseAgentRequest(prefix+"close_psi_training_allocation",request),"close empty args parsed");
     check(!parseAgentRequest(prefix+"close_psi_training_allocation extra",request),"close extra args rejected");
     check(parseAgentRequest(prefix+"toggle_psi_training r0",request),"toggle visible row parsed");

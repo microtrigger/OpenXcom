@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/40'
+SCHEMA = 'openxcom-agent-control/41'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -346,7 +346,7 @@ GEOSCAPE_FIELDS = ('hour', 'minute', 'second', 'weekday', 'day', 'month', 'year'
 GEOSCAPE_BUTTONS = ('intercept', 'bases', 'graphs', 'ufopaedia', 'options', 'funding')
 STATUSES = ('pending', 'dispatched', 'unavailable', 'unknown_after_dispatch', 'unknown')
 TERMINAL_STATUSES = ('dispatched', 'unavailable', 'unknown_after_dispatch')
-TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases')
+TOOL_NAMES = ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases', 'retire_action_receipts')
 FAILURES = (OSError, ValueError, UnicodeError, RecursionError, TypeError)
 
 
@@ -407,7 +407,8 @@ def identity(obj):
 
 def validate_hello(raw):
     obj = parse(raw)
-    exact(obj, 'schema mode epoch ledger_capacity audio_history')
+    exact(obj, 'schema mode epoch ledger_capacity audio_history command_generation')
+    integer(obj['command_generation'], 1, 1)
     identity(obj)
     token(obj['epoch'])
     integer(obj['ledger_capacity'], MAX_COMMANDS, MAX_COMMANDS)
@@ -1764,9 +1765,10 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
     return obj
 
 
-def validate_result(raw, command_id, epoch):
+def validate_result(raw, command_id, epoch, command_generation=1):
     obj = parse(raw)
-    exact(obj, 'schema mode type command_id status event_sequence observation semantics')
+    exact(obj, 'schema mode type command_id status event_sequence observation semantics command_generation')
+    integer(obj['command_generation'], command_generation, command_generation)
     identity(obj)
     require(obj['type'] == 'result' and obj['semantics'] == 'dispatch_not_success')
     token(obj['command_id'])
@@ -1910,7 +1912,9 @@ def validate_events(raw, challenge, epoch, after, limit, audio_history):
 
 
 def validate_action_arguments(arguments):
-    exact(arguments, 'command_id epoch capability revision action args')
+    require(type(arguments) is dict)
+    exact({k:v for k,v in arguments.items() if k != 'command_generation'}, 'command_id epoch capability revision action args')
+    integer(arguments.get('command_generation', 1), 1, MAX_COUNTER)
     for name in ('command_id', 'epoch', 'capability'):
         token(arguments[name])
     integer(arguments['revision'], 0, MAX_COUNTER)
@@ -2022,7 +2026,7 @@ def canonical_action_request(arguments):
     elif kind in ('choice_control', 'visible_row', 'scroll_direction', 'grid_cell', 'enemy_button', 'hand', 'weapon_action', 'grenade_timer', 'inventory_target', 'camera_direction', 'minimap_target', 'geoscape_speed', 'dogfight_mode', 'base_target', 'facility_row', 'project_row', 'outfitting_row', 'staff_direction'):
         suffix = ' ' + args[{'choice_control': 'control', 'visible_row': 'row', 'scroll_direction': 'direction',
                                  'grid_cell': 'cell', 'enemy_button': 'button', 'hand': 'hand', 'weapon_action': 'row', 'grenade_timer': 'timer', 'inventory_target': 'target', 'camera_direction': 'direction', 'minimap_target': 'target', 'geoscape_speed': 'speed', 'dogfight_mode': 'mode', 'base_target': 'target', 'facility_row': 'row', 'project_row': 'row', 'outfitting_row': 'row', 'staff_direction': 'direction'}[kind]]
-    request = ('E {command_id} {epoch} {capability} {revision} {action}'.format(**arguments) + suffix).encode('ascii')
+    request = ('E {command_id} {command_generation} {epoch} {capability} {revision} {action}'.format(**dict(arguments, command_generation=arguments.get('command_generation', 1))) + suffix).encode('ascii')
     require(len(request) <= MAX_REQUEST)
     return request
 
@@ -2077,13 +2081,14 @@ def definitions():
         purchase_position=arg_schema({'target': {'type': 'string', 'enum': list(PURCHASE_SCROLL_HANDLES)}}))
     execute_schema = {
         'type': 'object', 'properties': {
-            'command_id': dict(opaque), 'epoch': dict(opaque), 'capability': dict(opaque),
+            'command_id': dict(opaque), 'command_generation': {'type':'integer','minimum':1,'maximum':MAX_COUNTER,'default':1}, 'epoch': dict(opaque), 'capability': dict(opaque),
             'revision': {'type': 'integer', 'minimum': 0, 'maximum': MAX_COUNTER},
             'action': {'type': 'string', 'enum': list(ACTIONS)}, 'args': {'type': 'object'}},
         'required': ['command_id', 'epoch', 'capability', 'revision', 'action', 'args'], 'additionalProperties': False,
         'oneOf': [{'properties': {'action': {'enum': [action for action in ACTIONS if ARGUMENT_KINDS[action] == kind]},
                                   'args': schema}} for kind, schema in argument_schemas.items()]}
     return [
+        {'name': 'retire_action_receipts', 'description': 'Explicitly acknowledge every retained dispatched receipt and retire this bounded command generation. Requires all results known dispatched; never retries a gameplay action. Returns the next command_generation; obtain a fresh UI observation before acting. Command identity is (generation, command_id). Old generations cannot execute or query retired receipts. An interrupted transition is reconciled only through its retained status, never repeated game actions.', 'inputSchema': arg_schema({'acknowledge': {'type':'boolean','enum':[True]}}), 'annotations': {'readOnlyHint':False,'destructiveHint':False,'idempotentHint':False,'openWorldHint':False}},
         {'name': 'read_ui_state',
          'description': 'Explicit agent-control protocol /' + SCHEMA.rsplit('/', 1)[1] + ': read one fresh, bounded semantic UI presentation and the currently exposed visible UI action IDs; listing does not predict action success or hidden eligibility. Includes visible text/numbers, public UI revision and lifecycle event sequence; the read_public_events cursor is separate. Battlescape adds a camera-derived grid and bounded unclassified presented fragments when available. Its required viewport map_context pairs revision-local grid handles with projected cell positions, independently known or unknown floor/west/north/object parts, nullable selected-own position and unknown/own/generic visible unit markers. Visible is not a hostile classification; enemy selection remains the separate enemy HUD buttons. HiddenMovement suppresses geometry and context. Grid geometry alone is not terrain visibility, passability or legal movement; map_context supplies no window state, door-open state, armor, path cost, actor IDs or hidden occupancy absence. Campaign setup exposes visible difficulty choices and Ironman state, clipped drawn Globe geometry in its viewport, and the base-name field. New Battle exposes five bounded dropdowns with only fully rendered local rows; Funding exposes a read-only table and ordinary scroll/OK controls. Geoscape exposes shown time-speed controls, Funding, Bases and Pause. Base screens expose painted local selection slots, displayed metrics and read-only Stores/Transfers projections. Battlescape additionally exposes only current painted hand/ammo controls, numbered enemy HUD buttons and a camera-geometry focus grid handle. Weapon action menus expose bounded rendered Fire/Prime/Throw rows through choose_weapon_action; the tactical grenade timer exposes only fully shown button labels and fresh local tN handles; actual warning text has a separate read-only state and retained displayed-message event. These are not target identities or success predictions. Timed Infobox and Infobox OK expose only the actual displayed message; only a visible OK button can offer acknowledge_message. Debriefing exposes only complete shown title/rating/Stats label, an unavailable table, and the visible ordinary OK control. Inventory exposes the two painted hands, shown stock body cells and current painted ground page through local vN targets, actual shown text and held-sprite evidence; unknown item/held projection never asserts emptiness or eligibility. Standalone hover obtains ordinary rendered inspection text. Tactical viewport controls add ordinary view-level, layer-mode, camera pan and vertical-unit commands; layers_indicator1/2 is the painted display mode, never a world level. The minimap exposes its actual level label, bounded draw-derived terrain rectangles and generic unit/item markers with fresh local mN center targets; these reveal no identity, faction, world position, legal destination or item contents. Research and Manufacture expose bounded current/new project lists, actual displayed allocation/details and explicit ordinary accept/cancel/stop controls. New Research rows are in top-to-bottom admitted ordinary click-band order. A null first cell is an admitted row control with unavailable complete text, never a project name; select_research_project has the semantic label Select research project there. Other project tables retain complete string cells. Project labels and grant-local rows reveal no stable identity or hidden recipe; rendered counts remain text, without computed eligibility. Unsupported screens have an empty catalog. Manufacture additionally exposes shown quantity direction controls and Sell state. Purchase exposes bounded nullable displayed cells independently of shown quantity arrows, a category dropdown and local scroll-position targets. Empty or unknown text never establishes item identity, stock or eligibility. Strategic arrivals expose a painted read-only table with exactly three independently nullable cells per row and ordinary OK/Go To Base controls. A row retains at least one completely shown nonempty cell; null supplies no missing name, quantity or destination. Button authority is independent of full row text and grants no row selection or destination identity. Production completion exposes the shown message and ordinary destination label, without a hidden completion enum. UFO contact exposes nullable shown labels and independently admitted buttons; only Cancel is actionable and the contact detail table stays unavailable. Error messages add an independently proved nullable heading, never reconstruction of a clipped message. Personnel and transport outfitting expose only painted names, nullable stat/text cells and grant-local row controls. Unknown labels never establish soldier, craft, armor or item identity. Desired crew assignment and bounded equipment quantity commands use shared ordinary rules; listed controls do not predict capacity, wounds or stock. Equipment changes are immediate, armor choice applies immediately, and close only returns. Campaign Save/Load uses only currently offered ordinary UI actions and fresh local visible file rows; no unrestricted paths or implicit overwrite authority are exposed. Arbitrary settings and unlisted strategy actions remain unavailable. read_player_bases separately reads current player-owned base data without requiring navigation; that read never grants a UI mutation capability. This replaces any previous one-use capability. After every action, read again before another action. Mutating transport uncertainty permanently closes this channel. Only the exact read_recovery_required classification preserves the same owned channel without grants for one explicit read retirement and fresh-read attempt; it never reuses a previous grant or retries an action. All other uncertainty remains fail-closed.',
          'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False},
@@ -2094,7 +2099,7 @@ def definitions():
          'annotations': {'readOnlyHint': False, 'destructiveHint': True, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_ui_action_result',
          'description': 'Read a known command receipt without replaying it. The separate observation describes visible UI after dispatch; dispatched is not gameplay success. Public event_sequence is not a simulation counter. This tool never reconnects or retries an uncertain action.',
-         'inputSchema': {'type': 'object', 'properties': {'command_id': dict(opaque)},
+         'inputSchema': {'type': 'object', 'properties': {'command_id': dict(opaque), 'command_generation': {'type':'integer','minimum':1,'maximum':MAX_COUNTER,'default':1}},
                          'required': ['command_id'], 'additionalProperties': False},
          'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': False}},
         {'name': 'read_public_events',
@@ -2179,6 +2184,8 @@ class AgentControlClient:
         self.public_event_oldest, self.public_event_newest = 1, 0
         self.public_event_records = {}
         self.commands = {}
+        self.command_generation = 1
+        self._rollover_pending = None
         self.flight = threading.Lock()
 
     def close(self):
@@ -2498,8 +2505,92 @@ class AgentControlClient:
                 self.close()
                 raise classified(code_for(failure, 'validation_error')) from None
 
-    def execute(self, command_id, epoch, capability, revision, action, args):
-        arguments = dict(command_id=command_id, epoch=epoch, capability=capability, revision=revision, action=action, args=args)
+    def _validate_rollover(self, raw, pending):
+        obj = parse(raw)
+        exact(obj, 'schema mode type epoch challenge status previous_generation generation retired_count')
+        identity(obj)
+        require(obj['type'] == 'ledger_rollover' and obj['epoch'] == self.epoch
+                and obj['challenge'] == pending['challenge'])
+        integer(obj['previous_generation'], pending['generation'], pending['generation'])
+        integer(obj['generation'], 1, MAX_COUNTER)
+        integer(obj['retired_count'], 0, MAX_COMMANDS)
+        require(obj['status'] in ('retired', 'blocked', 'unknown'))
+        if obj['status'] == 'retired':
+            require(obj['generation'] == pending['generation'] + 1
+                    and obj['retired_count'] == pending['count'])
+        else:
+            require(obj['generation'] == pending['generation'] and obj['retired_count'] == 0)
+        return obj
+
+    def retire_receipts(self, acknowledge):
+        """Explicit acknowledgement, no gameplay dispatch and no automatic retry.
+
+        Identity is (generation,id). A generation remains bounded and immutable
+        until both endpoints confirm every final dispatched receipt. A timeout
+        retains all evidence and permits only reconciliation of this transition.
+        """
+        require(acknowledge is True)
+        with self.exclusive():
+            pending = self._rollover_pending
+            recovering = pending is not None
+            if not recovering:
+                require(self.state in ('READY', 'NEED_CONTEXT') and self._handshake_complete
+                        and self._read_recovery is None and self._no_unresolved_actions()
+                        and 0 < len(self.commands) <= MAX_COMMANDS and self.command_generation < MAX_COUNTER)
+                pending = dict(challenge=secrets.token_hex(16), generation=self.command_generation,
+                               count=len(self.commands), awaiting_ack=False)
+                self._rollover_pending = pending
+            else:
+                require(self.state == 'ROLLOVER_RECOVERY_REQUIRED')
+            self.capability = None
+            self.capability_deadline = 0.0
+            self.available_actions = frozenset()
+            self.state = 'ROLLOVER_RECOVERY_REQUIRED'
+            try:
+                deadline = time.monotonic() + self.timeout
+                if recovering and pending['awaiting_ack']:
+                    # Drain exactly the outstanding transition response. Never
+                    # resend L or a gameplay action after an uncertain send.
+                    raw = self.packet(deadline)
+                    pending['awaiting_ack'] = False
+                    self._validate_rollover(raw, pending)
+                prefix = 'K' if recovering else 'L'
+                request = '%s %s %s %d' % (prefix, pending['challenge'], self.epoch, pending['generation'])
+                if not recovering:
+                    request += ' %d' % pending['count']
+                # exchange() can time out after consuming its response. Record
+                # consumption first, so reconciliation queries K instead of
+                # waiting forever for an ACK already removed from the socket.
+                ensure(self.channel is not None, 'channel_closed')
+                if select.select([self.channel], [], [], 0)[0]:
+                    peek = self.channel.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+                    raise classified('unexpected_packet' if peek else self.empty_packet_code())
+                ensure(time.monotonic() < deadline, 'transport_timeout')
+                wire = request.encode('ascii')
+                pending['awaiting_ack'] = True
+                ensure(self.channel.send(wire) == len(wire), 'transport_io')
+                raw = self.packet(deadline)
+                pending['awaiting_ack'] = False
+                obj = self._validate_rollover(raw, pending)
+                ensure(time.monotonic() < deadline, 'transport_timeout')
+                ensure(not select.select([self.channel], [], [], 0)[0], 'unexpected_packet')
+                if obj['status'] == 'retired':
+                    self.commands.clear()
+                    self.command_generation = obj['generation']
+                    self._rollover_pending = None
+                    self.state = 'NEED_CONTEXT'
+                elif obj['status'] == 'blocked' and not recovering:
+                    self._rollover_pending = None
+                    self.state = 'NEED_CONTEXT'
+                # Unknown status cannot release evidence or authorize actions.
+                return obj
+            except FAILURES as failure:
+                if code_for(failure) != 'transport_timeout':
+                    self.close()
+                raise classified(code_for(failure, 'validation_error')) from None
+
+    def execute(self, command_id, epoch, capability, revision, action, args, command_generation=1):
+        arguments = dict(command_id=command_id, epoch=epoch, capability=capability, revision=revision, action=action, args=args, command_generation=command_generation)
         try:
             validate_action_arguments(arguments)
         except Unavailable:
@@ -2510,6 +2601,7 @@ class AgentControlClient:
         arguments['args'] = args
         request = canonical_action_request(arguments)
         with self.exclusive():
+            ensure(command_generation == self.command_generation and self._rollover_pending is None, 'stale_authority')
             previous = self.commands.get(command_id)
             if previous is not None:
                 ensure(previous['request'] == request, 'command_conflict')
@@ -2578,7 +2670,7 @@ class AgentControlClient:
             elif action in ('inventory_hover', 'inventory_activate'):
                 require_target(args['target'] in self.inventory_targets)
             if len(self.commands) >= MAX_COMMANDS:
-                self.close()
+                # Retain channel/receipts so explicit safe retirement remains possible.
                 raise classified('resource_limit')
             # Spend the grant and reserve the ID before the only send attempt.
             self.capability = None
@@ -2616,7 +2708,7 @@ class AgentControlClient:
                 attempted = True
             try:
                 obj = validate_result(self.exchange(request, self.action_timeout, before_send=mark_send_attempted),
-                                      command_id, self.epoch)
+                                      command_id, self.epoch, self.command_generation)
                 require(obj['status'] in TERMINAL_STATUSES)
                 return self._accept_result(obj)
             except FAILURES as failure:
@@ -2628,15 +2720,17 @@ class AgentControlClient:
                 error.failure_outcome = 'not_sent'
                 raise error from None
 
-    def read_result(self, command_id):
+    def read_result(self, command_id, command_generation=1):
         token(command_id)
+        integer(command_generation, 1, MAX_COUNTER)
         with self.exclusive():
+            ensure(command_generation == self.command_generation and self._rollover_pending is None, 'stale_authority')
             require(command_id in self.commands)
             return self._read_result(command_id)
 
     def _read_result(self, command_id):
         try:
-            obj = validate_result(self.exchange(('S ' + command_id).encode('ascii')), command_id, self.epoch)
+            obj = validate_result(self.exchange(('S ' + str(self.command_generation) + ' ' + command_id).encode('ascii')), command_id, self.epoch, self.command_generation)
             return self._accept_result(obj)
         except FAILURES as failure:
             self.close()

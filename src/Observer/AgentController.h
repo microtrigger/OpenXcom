@@ -17,6 +17,9 @@ class AgentController {
 #endif
     std::string _epoch, _capability, _readChallenge, _pendingId;
     AgentLedger _ledger;
+    std::uint64_t _commandGeneration = 1, _lastRetiredGeneration = 0;
+    std::string _lastRolloverRequest, _lastRolloverResponse, _lastRolloverChallenge;
+    void rollover(const AgentRequest &request, const std::string &packet);
     AgentFrameCommand _queued;
     bool _dispatchInProgress = false;
     std::uint64_t _presentationSerial = 0, _dispatchPresentation = 0;

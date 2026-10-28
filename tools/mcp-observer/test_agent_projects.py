@@ -51,8 +51,8 @@ def sized_project(size):
 
 class ProjectsContractTests(unittest.TestCase):
     def test_wire_catalog_limits_and_exact_new_kinds(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227,97,6))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227, 97, 7))
         self.assertEqual(len(NEW_STATES),7);self.assertEqual(len(NEW_ACTIONS),16)
         typed={'select_research_project':'project_row','select_production_project':'project_row',
                'adjust_scientists':'staff_direction','adjust_engineers':'staff_direction'}
@@ -63,7 +63,7 @@ class ProjectsContractTests(unittest.TestCase):
         for version in range(1,22):
             obj=state(screen='research');obj['schema']=f'openxcom-agent-control/{version}'
             with self.subTest(version=version),self.assertRaises(Unavailable):checked(obj)
-            with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
+            with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output')))
 
     def test_canonical_request_and_schema_exact_domains(self):
         for action in NEW_ACTIONS:
@@ -72,7 +72,7 @@ class ProjectsContractTests(unittest.TestCase):
             for args in choices:
                 request=a.canonical_action_request(arguments(action=action,args=args))
                 self.assertTrue(request.endswith((action+(' '+next(iter(args.values())) if args else '')).encode()))
-        branches=a.definitions()[1]['inputSchema']['oneOf']
+        branches=next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']['oneOf']
         for action,key,values in [('select_research_project','row',list(a.ROW_HANDLES)),('adjust_engineers','direction',list(a.STAFF_DIRECTIONS))]:
             branch=next(x for x in branches if action in x['properties']['action']['enum'])
             self.assertEqual(branch['properties']['args']['properties'][key]['enum'],values)
@@ -307,7 +307,7 @@ class ProjectsClientTests(unittest.TestCase):
 
     def test_exact_duplicate_status_only_changed_row_conflicts(self):
         peer=self.fixture(screen='research');obj=peer.client.observe();args=arguments(obj,action='select_research_project')
-        self.assertEqual(peer.client.execute(**args),peer.client.execute(**args));self.assertEqual(peer.requests[-1],('S '+COMMAND).encode())
+        self.assertEqual(peer.client.execute(**args),peer.client.execute(**args));self.assertEqual(peer.requests[-1],('S 1 '+COMMAND).encode())
         with self.assertRaises(Unavailable):peer.client.execute(**dict(args,args={'row':'r1'}))
         self.assertEqual(len([x for x in peer.requests if x.startswith(b'E ')]),1)
 

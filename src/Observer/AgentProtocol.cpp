@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/40"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/41"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/40\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/41\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -194,7 +194,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     if (packet.empty() || packet.size() > 512 || packet.find_first_of("\r\n\t") != std::string::npos ||
         packet.find('\0') != std::string::npos) return false;
     if (packet == std::string("H ") + agentProtocolSchema()) { request.kind = 'H'; return true; }
-    if (packet.size() == 34 && packet[1] == ' ' && (packet[0] == 'R' || packet[0] == 'S'))
+    if (packet.size() == 34 && packet[1] == ' ' && packet[0] == 'R')
     {
         const std::string value = packet.substr(2);
         if (!agentToken(value)) return false;
@@ -208,6 +208,24 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
     {
         if (!canonical.empty()) canonical += " ";
         canonical += part; parts.push_back(part);
+    }
+    if (canonical == packet && parts.size() == 3 && parts[0] == "S")
+    {
+        if (!decimal(parts[1], 9007199254740991ULL, request.commandGeneration) || !request.commandGeneration || !agentToken(parts[2])) return false;
+        request.kind='S'; request.id=parts[2]; return true;
+    }
+    if (canonical == packet && (parts[0] == "L" || parts[0] == "K"))
+    {
+        const bool retire=parts[0]=="L";
+        if (parts.size() != (retire ? 5u : 4u) || !agentToken(parts[1]) || !agentToken(parts[2]) ||
+            !decimal(parts[3],9007199254740991ULL,request.commandGeneration) || !request.commandGeneration) return false;
+        if (retire && (!decimal(parts[4],256,request.acknowledgedCount) || !request.acknowledgedCount)) return false;
+        request.kind=retire?'L':'K'; request.challenge=parts[1]; request.epoch=parts[2]; return true;
+    }
+    if (canonical == packet && parts.size() >= 7 && parts[0] == "E")
+    {
+        if (!decimal(parts[2],9007199254740991ULL,request.commandGeneration) || !request.commandGeneration) return false;
+        parts.erase(parts.begin()+2); // Existing action-specific argument grammar stays unchanged.
     }
     if (canonical == packet && parts.size() == 5 && parts[0] == "B")
     {
@@ -227,7 +245,7 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         request.kind = 'V'; request.challenge = parts[1]; request.epoch = parts[2];
         request.limit = static_cast<unsigned>(limit); return true;
     }
-    if (canonical != packet || parts.size() < 6 || parts.size() > 9 || parts[0] != "E") return false;
+    if (!request.commandGeneration || canonical != packet || parts.size() < 6 || parts.size() > 9 || parts[0] != "E") return false;
     request.id = parts[1]; request.epoch = parts[2]; request.capability = parts[3]; request.action = parts[5];
     if (!agentToken(request.id) || !agentToken(request.epoch) || !agentToken(request.capability) ||
         !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
@@ -409,6 +427,12 @@ AgentLedger::Admission AgentLedger::begin(const std::string &id, const std::stri
     if (_entries.size() >= 256) return Full;
     _entries[id].request = request;
     return Fresh;
+}
+bool AgentLedger::retireAcknowledged(std::size_t count)
+{
+    if (!count || count != _entries.size()) return false;
+    for (const auto &entry : _entries) if (!entry.second.terminalDispatched) return false;
+    _entries.clear(); return true;
 }
 AgentLedger::Entry *AgentLedger::find(const std::string &id)
 {

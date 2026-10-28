@@ -19,19 +19,19 @@ def message(text='Jane\nis under alien control', report='alien_control', seq=1):
 
 class DisplayedReportValidationTests(unittest.TestCase):
     def test_exact_compiled_protocol_actions_states_and_tool_count(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
         self.assertEqual(len(a.ACTIONS), 227)
         self.assertEqual(len(a.STATE_ACTIONS), 97)
-        self.assertEqual(len(a.definitions()), 6)
+        self.assertEqual(len(a.definitions()), 7)
         # Exact native/adapter action parity, not counts inferred from adapters.
         native=(Path(__file__).resolve().parents[2]/'src/Observer/AgentProtocol.cpp').read_text()
-        self.assertIn('return "openxcom-agent-control/40"',native)
+        self.assertIn('return "openxcom-agent-control/41"',native)
         native_actions=set(re.findall(r'value == "([a-z0-9_]+)"',native))
         self.assertEqual(native_actions,set(a.ACTIONS))
         self.assertEqual(set().union(*a.STATE_ACTIONS.values()) | {'move_cursor'},native_actions)
         self.assertEqual({tool['name'] for tool in a.definitions()},
                          {'read_ui_state','execute_ui_action','read_ui_action_result',
-                          'read_public_events','read_public_audio','read_player_bases'})
+                          'read_public_events','read_public_audio','read_player_bases', 'retire_action_receipts'})
         self.assertEqual(a.ARGUMENT_KINDS['acknowledge_message'], 'none')
         self.assertEqual(a.STATE_ACTIONS['infobox'], frozenset())
         self.assertEqual(a.STATE_ACTIONS['infobox_ok'], {'acknowledge_message'})
@@ -123,7 +123,7 @@ class DisplayedReportValidationTests(unittest.TestCase):
     def test_earlier_schema_rejected_in_every_response_envelope(self):
         for version in range(1, 10):
             old = f'openxcom-agent-control/{version}'
-            hello = dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')
+            hello = dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output')
             with self.subTest(version=version), self.assertRaises(Unavailable): a.validate_hello(dump(hello))
             with self.assertRaises(Unavailable): a.validate_ready(dump(dict(schema=old, mode=a.MODE, status='ready')))
             obj = state(screen='infobox'); obj['schema'] = old
@@ -155,7 +155,7 @@ class DisplayedReportClientTests(unittest.TestCase):
         fresh = native.client.observe()
         self.assertEqual(native.client.execute(**args), receipt)
         self.assertEqual(native.client.capability, fresh['capability'])
-        self.assertEqual(native.requests[-1], ('S ' + COMMAND).encode())
+        self.assertEqual(native.requests[-1], ('S 1 ' + COMMAND).encode())
         self.assertEqual(sum(request.startswith(b'E ') for request in native.requests), 1)
 
     def test_stale_acknowledgment_is_rejected_without_send(self):

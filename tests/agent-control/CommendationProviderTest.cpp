@@ -115,7 +115,7 @@ int main(int argc,char **argv){
     for(int i=0;i<256;++i)palette[i]={Uint8(i),Uint8(i),Uint8(i),0};
     canvas.setPalette(palette);background.setPalette(palette);background.clear(40);
     AgentRequest request;
-    const std::string token(32,'1'),prefix="E "+token+" "+token+" "+token+" 1 ";
+    const std::string token(32,'1'),prefix="E "+token+" 1 "+token+" "+token+" 1 ";
     for(const std::string action:{"close_commendations"}){
         check(parseAgentRequest(prefix+action,request),"empty argument protocol accepted");
         for(const std::string extra:{" extra"," r0"," true"," 0","\n"})

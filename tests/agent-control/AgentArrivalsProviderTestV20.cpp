@@ -135,7 +135,7 @@ void validate(const AgentUiState&ui,const std::string&screen){
 }
 void click(TextButton*b,OpenXcom::State*s){SDL_Event e={};e.type=SDL_MOUSEBUTTONDOWN;e.button.button=SDL_BUTTON_LEFT;e.button.x=b->getX()+b->getWidth()/2;e.button.y=b->getY()+b->getHeight()/2;Action down(&e,1,1,0,0);b->handle(&down,s);e.type=SDL_MOUSEBUTTONUP;Action up(&e,1,1,0,0);b->handle(&up,s);}
 std::string receipt(TableChannel&c,Paint&p){c.frame();check(c.receive().empty(),"E gets no receipt on dispatch frame");p.draw();c.frame();auto result=c.receive();check(!result.empty()&&YAML::Load(result)["status"].as<std::string>()=="dispatched","E receipt after subsequent painted frame");return result;}
-std::string status(TableChannel&c){const auto end=c.request.find(' ',2);c.send("S "+c.request.substr(2,end-2));c.controller->poll();return c.receive();}
+std::string status(TableChannel&c){const auto end=c.request.find(' ',2);c.send("S 1 "+c.request.substr(2,end-2));c.controller->poll();return c.receive();}
 template<class State>void lifecycle(State&s,Paint&p,Text*message,TextButton*button,const std::string&action,const std::string&screen,const std::string&game,const std::string&variant,bool destination=false){
  Completion::Game&g=*s._game;auto&geo=*s._state;TableChannel c(game+"-"+screen+"-"+variant+"-lifecycle");connect(c,s);AgentUiState ui;
  check(s.agentUiState(ui),"stock popup projectable");validate(ui,screen);check(ui.offers(action),"tested action has complete stock caption");record(c,game,screen,variant+"_lifecycle_initial");

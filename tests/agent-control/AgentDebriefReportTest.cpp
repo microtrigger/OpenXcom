@@ -73,13 +73,14 @@ public:
 };
 #include "AgentDebriefMethods.generated.inc"
 }
-int main(){
+int main(int argc, char **argv){
+ check(argc==3,"data directory and game variant supplied");
  FileMap::load("debrief-report-test","./",true);
  Logger::logFile()="/tmp/openxcom-v8c-debrief-widget.log";
  check(SDL_Init(0)==0&&!SDL_GetVideoSurface(),"no video initialization");
  Options::baseXResolution=320;Options::baseYResolution=200;
  Font big,small;for(const auto&f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
- Language lang;Surface canvas(320,200),cover(40,12,16,180);Window window(nullptr,320,200);window.setColor(16);
+ Language lang;lang.loadFile(std::string(argv[1])+"/standard/"+argv[2]+"/Language/en-US.yml");Surface canvas(320,200),cover(40,12,16,180);Window window(nullptr,320,200);window.setColor(16);
  Text title(300,17,16,8),rating(200,9,64,180);TextButton ok(40,12,16,180),stats(40,12,264,180);
  title.initText(&big,&small,&lang);title.setBig();title.setText("Aliens defeated");
  rating.initText(&big,&small,&lang);rating.setText("Rating> Good");
@@ -103,6 +104,27 @@ int main(){
  check(ui.visible.find("\"table_status\":\"shown\"")!=std::string::npos&&ui.visible.find("Aliens killed")!=std::string::npos,"current dotted report projected");
  auto report=YAML::Load(ui.visible);check(report["tables"]["stats"]["rows"][0]["cells"].size()==3&&report["tables"]["total"]["rows"][0]["cells"].size()==2,"table column shapes exact");
  check(report["tables"]["total"]["rows"][0]["cells"][1].as<std::string>().find("141")!=std::string::npos,"current displayed total without recomputation");
+ // Stock no-recovery layout leaves an empty transparent recovery allocation at y=32.
+ recovery.clearList();recovery.setHeight(80);recovery.setY(32);draw();
+ check(state.agentUiState(ui),"no-recovery stock provider");
+
+ check(YAML::Load(ui.visible)["tables"]["stats"]["rows"].size()==1,"empty recovery does not obscure score row");
+ const auto emptyBinding=ui;
+ Surface stockCover(290,8,16,32);state._surfaces.push_back(&stockCover);draw();
+ check(state.agentUiState(ui)&&YAML::Load(ui.visible)["tables"]["stats"]["rows"].size()==0,"empty-root exemption never bypasses real later cover");
+ state._surfaces.pop_back();draw();
+ recovery.addRow(3,"New material","1","1");
+ check(state.agentUiState(ui)&&YAML::Load(ui.visible)["tables"]["stats"]["rows"].size()==0&&!ui.sameBinding(emptyBinding),"dirty/nonempty recovery loses exemption immediately");
+ recovery.clearList();draw();
+ list.clearList();
+ const char *keys[]={"STR_ALIENS_KILLED","STR_ALIEN_CORPSES_RECOVERED","STR_ALIEN_ARTIFACTS_RECOVERED","STR_CIVILIANS_KILLED_BY_ALIENS","STR_CIVILIANS_KILLED_BY_XCOM_OPERATIVES","STR_CIVILIANS_SAVED","STR_XCOM_OPERATIVES_KILLED"};
+ for(const char *key:keys)list.addRow(3,lang.getString(key).c_str(),"\0019\001","\001-30");
+ draw();check(state.agentUiState(ui)&&YAML::Load(ui.visible)["tables"]["stats"]["rows"].size()==7,"both-game native translated seven-row stock no-recovery layout");
+ for(const auto &row:YAML::Load(ui.visible)["tables"]["stats"]["rows"])
+   check(row["cells"].size()==3&&!row["cells"][0].IsNull()&&!row["cells"][1].IsNull()&&!row["cells"][2].IsNull(),"all translated stock cells present");
+ list.clearList();list.addRow(3,"Aliens killed","2","100");
+
+ recovery.addRow(3,"Alien corpses","5","25");recovery.setHeight(16);recovery.setY(120);draw();
  const auto first=ui;list.setCellText(0,1,"3");check(state.agentUiState(ui)&&ui.visible.find("\"table_status\":\"partial\"")!=std::string::npos,"dirty table withheld independently");draw();check(state.agentUiState(ui)&&!ui.sameBinding(first),"redrawn table changes private binding");
  list.setVisible(false);recovery.setVisible(false);total.setVisible(false);draw();check(state.agentUiState(ui)&&ui.visible.find("Aliens killed")==std::string::npos&&ui.visible.find("\"table_status\":\"unavailable\"")!=std::string::npos,"hidden report page never projects rows");list.setVisible(true);recovery.setVisible(true);total.setVisible(true);draw();
  Surface cellCover(224,8,16,32);state._surfaces.push_back(&cellCover);draw();check(state.agentUiState(ui)&&YAML::Load(ui.visible)["tables"]["stats"]["rows"][0]["cells"][0].IsNull(),"later real sibling withholds covered cell");state._surfaces.pop_back();draw();

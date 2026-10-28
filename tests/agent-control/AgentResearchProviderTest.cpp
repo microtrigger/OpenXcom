@@ -249,7 +249,7 @@ struct TableChannel {
     void queue(const std::string &action, const std::string &choice = "")
     {
         const YAML::Node state = YAML::Load(last);
-        request = "E " + token(command++) + " " + epoch + " " + state["capability"].as<std::string>() + " " +
+        request = "E " + token(command++) + " 1 " + epoch + " " + state["capability"].as<std::string>() + " " +
             state["revision"].as<std::string>() + " " + action + (choice.empty() ? "" : " " + choice);
         send(request); controller->poll(); check(receive().empty(), "queued E waits for native frame");
     }

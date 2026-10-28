@@ -45,8 +45,8 @@ class InventoryValidationTests(unittest.TestCase):
         with self.assertRaises(Unavailable):self.valid(obj)
 
     def test_closed_counts_state_action_matrix_and_prebattle_close_only(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227,97,6))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227, 97, 7))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW},NEW)
         self.assertIn('open_inventory',a.STATE_ACTIONS['battlescape'])
         self.assertEqual(a.STATE_ACTIONS['inventory'],set(NEW)-{'open_inventory'}|{'close_inventory'})
@@ -122,7 +122,7 @@ class InventoryValidationTests(unittest.TestCase):
     def test_all_earlier_wire_versions_rejected(self):
         for version in range(1,14):
             schema=f'openxcom-agent-control/{version}'
-            with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=schema,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
+            with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=schema,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output')))
             obj=inventory();obj['schema']=schema;self.invalid(obj)
             obj=result();obj['schema']=schema
             with self.assertRaises(Unavailable):a.validate_result(dump(obj),COMMAND,EPOCH)
@@ -196,7 +196,11 @@ class InventoryClientTests(unittest.TestCase):
         obj=native.client.observe();count=len(native.requests)
         with self.assertRaises(Unavailable):native.client.execute(**arguments(obj,command_id='f'*32,action='inventory_activate',args={'target':'v0'}))
         self.assertEqual(len(native.requests),count);self.assertEqual(len(native.client.commands),256)
-        self.assertEqual(native.client.state,'CLOSED')
+        self.assertEqual(native.client.state,'READY')
+        self.assertIsNotNone(native.client.channel)
+        self.assertFalse(any(raw.startswith(b'L ') for raw in native.requests))
+        self.assertEqual(native.client.retire_receipts(acknowledge=True)['retired_count'], 256)
+        self.assertEqual(native.client.commands, {})
 
     def test_argument_mutation_cannot_change_immutable_request_identity(self):
         native=self.fixture();obj=native.client.observe();args=arguments(obj,action='inventory_activate',args={'target':'v0'})

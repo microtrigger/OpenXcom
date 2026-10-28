@@ -21,8 +21,8 @@ def projectile(seq=1):
 
 class ProjectileValidationTests(unittest.TestCase):
     def test_exact_protocol_catalog_counts_and_limits_unchanged(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_REQUEST, a.MAX_TEXT_PACKET, a.MAX_PACKET), (512, 32768, 49152))
         self.assertEqual(a.ERROR_SCHEMA, 'openxcom-mcp-agent-control-error/1')
@@ -90,7 +90,7 @@ class ProjectileValidationTests(unittest.TestCase):
     def test_all_earlier_response_identities_reject(self):
         for version in range(1, 10):
             schema = f'openxcom-agent-control/{version}'
-            hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')
+            hello = dict(schema=schema, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output')
             with self.subTest(version=version), self.assertRaises(Unavailable): a.validate_hello(dump(hello))
             with self.assertRaises(Unavailable): a.validate_ready(dump(dict(schema=schema, mode=a.MODE, status='ready')))
             obj = state(); obj['schema'] = schema
@@ -125,7 +125,7 @@ class ProjectileClientTests(unittest.TestCase):
         fresh = native.client.observe()
         self.assertEqual(native.client.execute(**args), receipt)
         self.assertEqual(native.client.capability, fresh['capability'])
-        self.assertEqual(native.requests[-1], ('S ' + COMMAND).encode())
+        self.assertEqual(native.requests[-1], ('S 1 ' + COMMAND).encode())
         self.assertEqual(sum(raw.startswith(b'E ') for raw in native.requests), 1)
 
     def test_no_prior_read_and_unsupported_read_cannot_gain_action_authority(self):
@@ -170,7 +170,7 @@ class ProjectileClientTests(unittest.TestCase):
 
     def test_prior_v8_hello_rejects_before_any_client_request(self):
         native = self.fixture(hello=dict(schema='openxcom-agent-control/8', mode=a.MODE,
-            epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output'))
+            epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
         with self.assertRaises(Unavailable): native.client.observe()
         self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
 

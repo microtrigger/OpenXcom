@@ -15,7 +15,7 @@ transfers. In-transit owned soldiers/craft are included. The schema uses positiv
 field allowlists, not recursive save-game dumps. Enemy retaliation/detection
 state and enemy destination graphs are excluded.
 
-Pages use `openxcom-player-bases/5`, a connection epoch, a campaign epoch,
+Pages use `openxcom-player-bases/6`, a connection epoch, a campaign epoch,
 content generation and a frozen snapshot token. A new first page captures
 current state; continuation pages belong to that same detached snapshot.
 Changed captures replace the snapshot; expired continuation tokens fail
@@ -159,3 +159,16 @@ available, describe nominal purchase delivery, not a base-to-base transfer quote
 A purchase price or offer never grants action authority or bypasses native checks.
 Technical damage and firing-mode values are article baselines, not the current
 soldier’s hit chance or a prediction about an unseen target.
+
+## Psionic visibility (schema 6)
+
+All home, in-transit and memorial soldier records now apply the same native
+SoldierInfoState visibility test to both initial and current stats. Psi strength
+is numeric only after positive current psi skill, or when the active ruleset's
+psi requirements are researched **and** psi-strength evaluation is enabled.
+A missing active Mod cannot grant research evaluation. Psi skill is numeric
+only with positive current skill. Otherwise the corresponding stat and its
+improvement field are `null`, not zero or an inferred value. Ordinary stats
+remain mandatory numbers. Owning all bases does not authorize unrevealed stats.
+The adapter rejects older sub-schemas and invalid/non-psi nulls. These are
+read-only eligibility changes; they grant no action or hidden tactical access.

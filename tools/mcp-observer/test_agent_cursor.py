@@ -86,7 +86,7 @@ class CursorTests(unittest.TestCase):
         with self.assertRaises(Unavailable):peer.client.execute(**arguments(fresh,action='move_cursor',args={'x':400,'y':0}))
         self.assertFalse(any(p.startswith(b'E ') for p in peer.requests))
     def test_cursor_position_schema_exact(self):
-        branch=next(x for x in a.definitions()[1]['inputSchema']['oneOf'] if 'move_cursor' in x['properties']['action']['enum'])
+        branch=next(x for x in next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']['oneOf'] if 'move_cursor' in x['properties']['action']['enum'])
         self.assertEqual(branch['properties']['args'],dict(type='object',properties={key:dict(type='integer',minimum=0,maximum=4095) for key in ('x','y')},required=['x','y'],additionalProperties=False))
     def test_offered_cursor_requires_current_in_canvas(self):
         for x,y in ((-1,0),(0,-1),(320,0),(0,200),(65535,65535)):

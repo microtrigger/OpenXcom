@@ -76,8 +76,8 @@ def sized_arrival(size, event=False):
 
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
         self.assertEqual(a.COMPLETION_BUTTONS, BUTTONS)
@@ -262,7 +262,7 @@ class CompletionContractTests(unittest.TestCase):
                 with self.assertRaises(Unavailable): checked(obj)
 
     def test_five_none_actions_have_empty_args_exact_canonical_suffix_and_schema(self):
-        branches = a.definitions()[1]['inputSchema']['oneOf']
+        branches = next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']['oneOf']
         for action in NEW_ACTIONS:
             self.assertEqual(a.ARGUMENT_KINDS[action], 'none')
             args = arguments(action=action, args={})

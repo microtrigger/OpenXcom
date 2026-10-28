@@ -54,6 +54,7 @@ using namespace OpenXcom;using namespace OpenXcom::Observer;
 static unsigned checks=0;
 void check(bool yes,const char *label){++checks;if(!yes){std::cerr<<"FAIL "<<label<<'\n';std::exit(1);}}
 struct EnemyTarget:Target {mutable unsigned reads=0;std::string getType()const override{++reads;return "PRIVATE_ENEMY_TYPE";}int getMarker()const override{++reads;return 99;}std::string getName(Language*)const override{++reads;return "PRIVATE_ENEMY_NAME";}};
+static void psiVisibilityChecks();
 static void itemDefinitionChecks(const std::string&output);
 static void opportunityAndRouteChecks(const std::string&output);
 int main(int argc,char **argv){
@@ -177,6 +178,7 @@ int main(int argc,char **argv){
  check(cause->name=="PRIVATE_DEATH_KILLER"&&cause->mission==932817&&medal->isNew(),"reads preserve cause and medal state");
  if(argc>1){std::ofstream output(std::string(argv[1])+".memorial.json");output<<"[";for(std::size_t i=0;i<again.size();++i){if(i)output<<",";output<<again[i];}output<<"]\n";}
  collector.reset();check(collector.collect(&save,&language,again,reason),"explicit lifecycle reset accepts campaign");
+ psiVisibilityChecks();
  opportunityAndRouteChecks(argc>1?std::string(argv[1])+".opportunities.json":"");
  itemDefinitionChecks(argc>1?std::string(argv[1])+".items.json":"");
  std::cout<<"PASS "<<checks<<" native all-player-bases read-only checks; synthetic in-memory rules, no Game/window/player-save execution\n";
@@ -261,4 +263,40 @@ static void itemDefinitionChecks(const std::string&output)
  item("NONE","size: 0.1");collect();bool realNone=false;for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()=="item_definition"&&r["type"].as<std::string>()=="NONE")realNone=true;}check(realNone,"genuine stocked item named NONE is not globally filtered");
  check(found&&RNG::getSeed()==seed&&save.getFunds()==funds&&base->getStorageItems()->getItem("OWN_GUN")==1,"item reads leave RNG funds and stocks unchanged");check(collector.collect(&save,&language,again,reason)&&again==rows,"item metadata repeat reads exact stable");Options::canSellLiveAliens=sell;
  if(!output.empty()){std::ofstream file(output);file<<"[";for(size_t i=0;i<rows.size();++i)file<<(i?",":"")<<rows[i];file<<"]\n";}
+}
+
+// Native UI eligibility, not ownership, controls untrained psionic values.
+static void psiVisibilityChecks()
+{
+ Mod mod;Language language;SavedGame save;AgentPlayerBases collector;
+ RuleSoldier rule("OWN_PSI_SOLDIER");Armor armor("OWN_PSI_ARMOR");
+ auto *base=new Base(&mod);save.getBases()->push_back(base);
+ Soldier *home=new Soldier(&rule,&armor,0),*incoming=new Soldier(&rule,&armor,1),*dead=new Soldier(&rule,&armor,2);
+ base->getSoldiers()->push_back(home);auto *transfer=new Transfer(4);transfer->setSoldier(incoming);base->getTransfers()->push_back(transfer);
+ base->getSoldiers()->push_back(dead);save.killSoldier(dead,nullptr);
+ const auto all=std::vector<Soldier*>{home,incoming,dead};
+ for(auto*s:all){s->getInitStats()->psiStrength=73;s->getInitStats()->psiSkill=0;s->getCurrentStats()->psiStrength=79;s->getCurrentStats()->psiSkill=0;}
+ auto *research=new RuleResearch("OWN_PSI_KNOWLEDGE");mod._research[research->getName()]=research;mod._psiRequirements={research->getName()};
+ const bool old=Options::psiStrengthEval;const auto seed=RNG::getSeed();
+ const auto verify=[&](const Mod *active,bool strength,bool skill){
+  std::vector<std::string> rows;std::string reason;check(collector.collect(&save,&language,rows,reason,active),"psi eligibility capture succeeds");unsigned soldiers=0;std::set<std::string> locations;
+  for(const auto&raw:rows){auto r=YAML::Load(raw);if(r["kind"].as<std::string>()!="soldier")continue;++soldiers;locations.insert(r["location"].as<std::string>());
+   for(const auto*scope:{"initial_stats","current_stats"}){
+    if(strength)check(r[scope]["psi_strength"].as<int>()==(std::string(scope)=="initial_stats"?73:79),"eligible psi strength native value");
+    else check(r[scope]["psi_strength"].IsNull(),"hidden psi strength initial and current null");
+    if(skill)check(!r[scope]["psi_skill"].IsNull(),"trained psi skill visible");else check(r[scope]["psi_skill"].IsNull(),"untrained skill initial and current null");
+   }
+   check(r["psi_improvement"].IsNull()==!skill,"skill improvement follows visibility");
+   check(r["psi_strength_improvement"].IsNull()==!strength,"strength improvement follows visibility");
+  }
+  check(soldiers==3&&locations==std::set<std::string>{"home","in_transit","memorial"},"all soldier scopes obey same psi guard");
+ };
+ Options::psiStrengthEval=false;verify(&mod,false,false);
+ Options::psiStrengthEval=true;verify(&mod,false,false); // option alone not enough
+ save.addFinishedResearchSimple(research);Options::psiStrengthEval=false;verify(&mod,false,false); // research alone not enough
+ Options::psiStrengthEval=true;verify(nullptr,false,false);verify(&mod,true,false);
+ for(auto*s:all)s->getCurrentStats()->psiSkill=12;
+ Options::psiStrengthEval=false;verify(nullptr,true,true);verify(&mod,true,true);
+ for(auto*s:all)s->getCurrentStats()->psiSkill=-5;verify(&mod,false,false);
+ check(RNG::getSeed()==seed,"psi eligibility reads preserve RNG");Options::psiStrengthEval=old;
 }

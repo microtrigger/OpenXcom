@@ -18,12 +18,12 @@ class CapacityTests(unittest.TestCase):
         self.assertEqual(a.MAX_COMMANDS, 256)
         for capacity in (0, 64, 255, 257, 512, 256.0, True, '256', None):
             hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=EPOCH,
-                         ledger_capacity=capacity, audio_history='mixed_output')
+                         ledger_capacity=capacity,command_generation=1, audio_history='mixed_output')
             native = self.fixture(hello=hello)
             with self.subTest(capacity=capacity), self.assertRaises(Unavailable): native.client.observe()
             self.assertEqual(native.requests, [])
 
-    def test_saturated_ledger_preserves_first_last_duplicates_then_overflow_is_terminal(self):
+    def test_saturated_ledger_preserves_receipts_and_refuses_overflow_until_explicit_retirement(self):
         native = self.fixture(); original = []
         for index in range(256):
             args = arguments(native.client.observe(), command_id=f'{index:032x}', action='next_soldier')
@@ -32,7 +32,7 @@ class CapacityTests(unittest.TestCase):
         for args, receipt in (original[0], original[-1]):
             count = len(native.requests)
             self.assertEqual(native.client.execute(**args), receipt)
-            self.assertEqual(native.requests[count:], [('S ' + args['command_id']).encode()])
+            self.assertEqual(native.requests[count:], [('S 1 ' + args['command_id']).encode()])
             self.assertEqual(native.client.capability, fresh['capability'])
             self.assertEqual(native.client.read_result(args['command_id']), receipt)
         before = copy.deepcopy(native.client.commands); count = len(native.requests)
@@ -41,12 +41,15 @@ class CapacityTests(unittest.TestCase):
         self.assertEqual(len(native.requests), count); self.assertEqual(native.client.commands, before)
         with self.assertRaises(Unavailable): native.client.execute(**arguments(fresh, command_id=COMMAND))
         self.assertEqual(len(native.requests), count); self.assertEqual(native.client.commands, before)
-        self.assertEqual(native.client.state, 'CLOSED')
-        for operation in (native.client.observe, lambda: native.client.read_result(original[0][0]['command_id']),
-                          lambda: native.client.read_events(EPOCH, 0, 1),
-                          lambda: native.client.execute(**original[0][0])):
-            with self.assertRaises(Unavailable): operation()
-        self.assertEqual(len(native.requests), count)
+        self.assertEqual(native.client.state, 'READY')
+        self.assertIsNotNone(native.client.channel)
+        self.assertFalse(any(packet.startswith(b'L ') for packet in native.requests))
+        self.assertEqual(native.client.commands, before)
+        self.assertEqual(sum(packet.startswith(b'E ') for packet in native.requests), 256)
+        ack = native.client.retire_receipts(acknowledge=True)
+        self.assertEqual((ack['generation'], ack['retired_count']), (2, 256))
+        self.assertEqual(native.client.commands, {})
+        self.assertIsNone(native.client.capability)
         self.assertEqual(sum(packet.startswith(b'E ') for packet in native.requests), 256)
 
     def test_refused_and_unknown_native_receipts_also_spend_shared_capacity(self):
@@ -105,7 +108,7 @@ class CapacityTests(unittest.TestCase):
         old = self.fixture(); old_args = arguments(old.client.observe()); old.client.execute(**old_args)
         old.client.close(); self.assertIn(COMMAND, old.client.commands)
         new_epoch = '9' * 32
-        hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=new_epoch, ledger_capacity=256, audio_history='mixed_output')
+        hello = dict(schema=a.SCHEMA, mode=a.MODE, epoch=new_epoch, ledger_capacity=256, command_generation=1, audio_history='mixed_output')
         def transform(operation, value):
             if operation == 'R': value['epoch'] = new_epoch
             return value

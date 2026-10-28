@@ -16,7 +16,7 @@ bool agentInputText(const std::string &value);
 struct AgentRequest {
     char kind = 0;
     std::string id, epoch, capability, action, challenge;
-    std::uint64_t revision = 0, after = 0;
+    std::uint64_t revision = 0, after = 0, commandGeneration = 0, acknowledgedCount = 0;
     unsigned limit = 0;
     std::string choice, text, control, operation, direction, amount, snapshot;
     int value = 0;
@@ -25,14 +25,15 @@ struct AgentRequest {
 };
 bool parseAgentRequest(const std::string &packet, AgentRequest &request);
 
-// A process/session-lifetime, non-evicting ledger. A full ledger never makes
+// A generation-scoped, non-evicting ledger. A full ledger never makes
 // an old command executable again. Receipts say dispatch, not game success.
 class AgentLedger {
 public:
     enum Admission { Fresh, Duplicate, Conflict, Full };
-    struct Entry { std::string request, response; bool dispatched = false; };
+    struct Entry { std::string request, response; bool dispatched = false; bool terminalDispatched = false; };
     Admission begin(const std::string &id, const std::string &request);
     Entry *find(const std::string &id);
+    bool retireAcknowledged(std::size_t count);
     std::size_t size() const { return _entries.size(); }
 private:
     std::map<std::string, Entry> _entries;

@@ -12,8 +12,8 @@ from test_agent_events import page, presentation, validate
 
 class DebriefProjectionTests(unittest.TestCase):
     def test_identity_counts_and_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual(a.STATE_ACTIONS['debriefing'], {'close_debriefing'})
         self.assertEqual(a.ARGUMENT_KINDS['close_debriefing'], 'none')
 
@@ -46,7 +46,7 @@ class DebriefProjectionTests(unittest.TestCase):
     def test_close_canonical_empty_args_and_visible_text(self):
         obj = state(screen='debriefing'); request = arguments(obj, action='close_debriefing')
         self.assertEqual(a.canonical_action_request(request),
-                         f'E {COMMAND} {EPOCH} {obj["capability"]} 1 close_debriefing'.encode())
+                         f'E {COMMAND} 1 {EPOCH} {obj["capability"]} 1 close_debriefing'.encode())
         for args in (None, [], False, {'confirm': True}, {'stats': False}, {'destination': 'main_menu'}):
             with self.subTest(args=args), self.assertRaises(Unavailable): a.validate_action_arguments(dict(request, args=args))
         for key, value in [('label_source', 'visible_control_semantics'), ('argument_kind', 'boolean')]:
@@ -88,7 +88,7 @@ class DebriefProjectionTests(unittest.TestCase):
         for version in range(1, 10):
             old = f'openxcom-agent-control/{version}'
             with self.subTest(version=version):
-                with self.assertRaises(Unavailable): a.validate_hello(dump(dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')))
+                with self.assertRaises(Unavailable): a.validate_hello(dump(dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output')))
                 with self.assertRaises(Unavailable): a.validate_ready(dump(dict(schema=old, mode=a.MODE, status='ready')))
                 obj = state(screen='debriefing'); obj['schema'] = old
                 with self.assertRaises(Unavailable): a.validate_state(obj, CHALLENGE, EPOCH)
@@ -124,7 +124,7 @@ class DebriefTransportTests(unittest.TestCase):
         self.assertEqual(native.client.capability, observed['capability'])
         receipt = native.client.execute(**request); fresh = native.client.observe()
         self.assertEqual(native.client.execute(**request), receipt)
-        self.assertEqual(native.requests[-1], f'S {COMMAND}'.encode())
+        self.assertEqual(native.requests[-1], f'S 1 {COMMAND}'.encode())
         self.assertEqual(native.client.capability, fresh['capability'])
         self.assertEqual(sum(req.startswith(b'E ') for req in native.requests), 1)
 
@@ -145,7 +145,7 @@ class DebriefTransportTests(unittest.TestCase):
         self.assertEqual(len(native.requests), count)
 
     def test_v7_peer_rejected_before_request(self):
-        native = self.fixture(hello=dict(schema='openxcom-agent-control/7', mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output'))
+        native = self.fixture(hello=dict(schema='openxcom-agent-control/7', mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
         with self.assertRaises(Unavailable): native.client.observe()
         self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
 

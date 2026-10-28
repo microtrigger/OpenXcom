@@ -20,10 +20,10 @@ std::string token(unsigned value)
 int main()
 {
     AgentRequest r;
-    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/19", "viewport schema version");
-    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/19\",\"mode\":\"agent-control\"",
+    check(std::string(agentProtocolSchema()) == "openxcom-agent-control/41", "viewport schema version");
+    check(agentEnvelope() == "{\"schema\":\"openxcom-agent-control/41\",\"mode\":\"agent-control\"",
         "viewport envelope schema matches handshake");
-    check(parseAgentRequest("H openxcom-agent-control/19", r) && r.kind == 'H', "exact handshake");
+    check(parseAgentRequest("H openxcom-agent-control/41", r) && r.kind == 'H', "exact handshake");
     check(!parseAgentRequest("H openxcom-agent-control/18", r), "prior complete-label-only schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/17", r), "prior geoscape schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/16", r), "previous viewport schema rejected");
@@ -46,14 +46,14 @@ int main()
     check(!parseAgentRequest("H openxcom-agent-control/9", r), "prior renderer schema rejected");
     check(!parseAgentRequest("H openxcom-agent-control/19\n", r), "newline rejected");
     check(parseAgentRequest("R " + token(1), r) && r.challenge == token(1), "read challenge");
-    check(parseAgentRequest("S " + token(2), r) && r.id == token(2), "receipt only");
+    check(parseAgentRequest("S 1 " + token(2), r) && r.id == token(2), "receipt only");
     const std::string eventPrefix = "V " + token(1) + " " + token(2) + " ";
     check(parseAgentRequest(eventPrefix + "0 16", r) && r.kind == 'V' && r.challenge == token(1) &&
         r.epoch == token(2) && r.after == 0 && r.limit == 16, "event cursor request");
     check(parseAgentRequest(eventPrefix + "9007199254740991 1", r), "event safe integer boundary");
     for (const char *suffix : {"00 1", "-1 1", "1 0", "1 17", "1 01", "1 1 extra", "9007199254740992 1"})
         check(!parseAgentRequest(eventPrefix + suffix, r), "event noncanonical cursor or limit rejected");
-    const std::string prefix = "E " + token(3) + " " + token(4) + " " + token(5) + " ";
+    const std::string prefix = "E " + token(3) + " 1 " + token(4) + " " + token(5) + " ";
     const char *actions[] = {"next_soldier", "previous_soldier", "kneel", "stand", "continue_next_turn",
         "new_battle", "start_battle", "continue_briefing", "close_inventory",
         "open_new_game", "open_options", "open_load_game", "open_pause_menu", "open_save_game",

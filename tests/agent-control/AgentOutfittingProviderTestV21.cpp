@@ -360,7 +360,7 @@ template<class T>void execute(TableChannel&c,T&s,Paint&p,const std::string&actio
  c.read();c.queue(action,args);c.frame();check(c.receive().empty(),"command receipt waits for subsequent presented frame");p.draw();c.frame();const auto result=c.receive();check(!result.empty()&&YAML::Load(result)["status"].as<std::string>()=="dispatched","ordinary dispatched receipt independent of success");
  const auto count=s._game->pops+s._game->pushes+s._game->commands;
  c.send(c.request);c.controller->poll();check(c.receive()==result,"exact duplicate receipt bytes");check(count==s._game->pops+s._game->pushes+s._game->commands,"duplicate never repeats mutation");
- auto command=c.request.substr(2,32);c.send("S "+command);c.controller->poll();check(c.receive()==result,"status-only cached terminal receipt");c.events();s._game->top=&s;c.game.top=&c.state;p.draw();
+ auto command=c.request.substr(2,32);c.send("S 1 "+command);c.controller->poll();check(c.receive()==result,"status-only cached terminal receipt");c.events();s._game->top=&s;c.game.top=&c.state;p.draw();
 }
 template<class T>void common(T&s,Paint&p,Text*title,TextButton*button,TextList*list,const std::string&screen,const std::vector<std::pair<std::string,std::string>>&actions){
  TableChannel c(p.master+"-"+screen);connect(c,s);AgentUiState ui;check(s.agentUiState(ui),"native stock provider admitted");auto stock=record(c,p.master,screen,"stock");check(ui.visible.size()<=9000&&agentRegionsDisjoint(ui),"bounded disjoint native projection");
@@ -441,7 +441,7 @@ void syntheticTransport(){
  }
 }
 void protocolChecks(){
- const std::string prefix="E "+token(1)+" "+token(2)+" "+token(3)+" 1 ";AgentRequest r;
+ const std::string prefix="E "+token(1)+" 1 "+token(2)+" "+token(3)+" 1 ";AgentRequest r;
  for(const std::string tail:{"set_craft_soldier r0 true","set_craft_soldier r31 false","change_craft_equipment r0 adjust -1000","change_craft_equipment r31 adjust 1000","change_craft_equipment r0 set 0","change_craft_equipment r0 set 100000","change_craft_equipment r0 max","change_craft_equipment r0 clear"})check(parseAgentRequest(prefix+tail,r),"strict canonical outfitting request accepted");
  for(const std::string tail:{"set_craft_soldier r0 1","set_craft_soldier r32 true","set_craft_soldier r00 false","change_craft_equipment r0 adjust 0","change_craft_equipment r0 adjust 1001","change_craft_equipment r0 adjust -1001","change_craft_equipment r0 set -1","change_craft_equipment r0 set 100001","change_craft_equipment r0 set 2147483648","change_craft_equipment r0 max 1","change_craft_equipment r0 hold 100","change_craft_equipment r0 clear extra","select_soldier r32","select_soldier r01"})check(!parseAgentRequest(prefix+tail,r),"invalid bounds or untyped gesture rejected");
  check(!parseAgentRequest("H openxcom-agent-control/23",r)&&parseAgentRequest("H openxcom-agent-control/24",r),"wire24 exact handshake");

@@ -18,13 +18,17 @@ Article body delivery now follows the open viewport layout rather than per-pixel
 readability proof; calendar fields retain their existing contract.
 Build the native game and Python adapter from the **same branch**.
 
+Schema 41 adds [explicit acknowledged command generations](command-ledger-generations.md)
+for bounded long-session receipt retention; it does not reset gameplay authority.
+
 ## What the agent gets
 
 | Tool | Purpose |
 | --- | --- |
 | `read_ui_state` | Fresh bounded UI presentation: visible text/numbers, screen state, offered action IDs, revision and one-use action authority. |
 | `execute_ui_action` | Dispatch one currently offered semantic action with fresh authority and a unique command ID. This changes the game. |
-| `read_ui_action_result` | Read the receipt for that command without replaying it. |
+| `read_ui_action_result` | Read the receipt for that command and generation without replaying it. |
+| `retire_action_receipts` | Explicitly acknowledge a fully resolved generation; no gameplay action. |
 | `read_public_events` | Page retained public presentation/message/effect/audio events using a separate cursor; gaps are explicit. |
 
 Implemented surfaces include campaign setup and menus, Geoscape time controls,

@@ -34,8 +34,8 @@ def grenade_event(kind=KINDS[0], seq=1):
 
 class GrenadeEventValidationTests(unittest.TestCase):
     def test_wire15_limits_catalog_and_exact_ten_kind_union(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual(a.INVENTORY_TARGET_HANDLES, tuple(f'v{i}' for i in range(96)))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_REQUEST, a.MAX_TEXT_PACKET, a.MAX_PACKET), (512, 32768, 49152))
@@ -155,7 +155,7 @@ class GrenadeEventValidationTests(unittest.TestCase):
             with self.subTest(version=version):
                 with self.assertRaises(Unavailable):
                     a.validate_hello(dump(dict(schema=old, mode=a.MODE, epoch=EPOCH,
-                                               ledger_capacity=256, audio_history='mixed_output')))
+                                               ledger_capacity=256, command_generation=1, audio_history='mixed_output')))
                 with self.assertRaises(Unavailable):
                     a.validate_ready(dump(dict(schema=old, mode=a.MODE, status='ready')))
                 obj = state()
@@ -246,7 +246,7 @@ class GrenadeEventClientTests(unittest.TestCase):
         fresh = native.client.observe()
         self.assertEqual(native.client.execute(**args), receipt)
         self.assertEqual(native.client.capability, fresh['capability'])
-        self.assertEqual(native.requests[-1], ('S '+COMMAND).encode())
+        self.assertEqual(native.requests[-1], ('S 1 '+COMMAND).encode())
         self.assertEqual(sum(raw.startswith(b'E ') for raw in native.requests), 1)
 
     def test_retained_records_detach_and_any_valid_cross_kind_mutation_closes(self):
@@ -324,7 +324,7 @@ class GrenadeEventClientTests(unittest.TestCase):
 
     def test_prior_wire14_hello_is_terminal_before_client_request(self):
         native = self.fixture(hello=dict(schema='openxcom-agent-control/14', mode=a.MODE,
-                                        epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output'))
+                                        epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
         with self.assertRaises(Unavailable):
             native.client.observe()
         self.assertEqual(native.requests, [])

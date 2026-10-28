@@ -292,7 +292,7 @@ class EventClientTests(unittest.TestCase):
 
     def test_v4_peer_rejected_before_request_and_audio_hello_strict(self):
         for field,value in (('schema','openxcom-agent-control/4'),('audio_history','guessed')):
-            hello=dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output');hello[field]=value
+            hello=dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output');hello[field]=value
             native=self.fixture(hello=hello)
             with self.assertRaises(Unavailable):native.client.observe()
             self.assertEqual(native.requests,[])
@@ -304,7 +304,7 @@ class EventClientTests(unittest.TestCase):
         fresh=native.client.observe();self.assertEqual(native.client.execute(**args),receipt)
         self.assertEqual(native.client.capability,fresh['capability'])
         self.assertEqual(len([r for r in native.requests if r.startswith(b'E ')]),1)
-        self.assertEqual(native.requests[-1],('S '+COMMAND).encode())
+        self.assertEqual(native.requests[-1],('S 1 '+COMMAND).encode())
         with self.assertRaises(Unavailable):native.client.execute(**arguments(fresh,command_id='6'*32,action='end_turn'))
 
     def test_event_tool_closed_schema_no_images_and_disabled_default(self):
@@ -346,7 +346,7 @@ class EventClientTests(unittest.TestCase):
 import json,os,socket
 channel=socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(value):channel.send(json.dumps(value,separators=(',',':')).encode())
-send(dict(schema=SCHEMA,mode='agent-control',epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output'))
+send(dict(schema=SCHEMA,mode='agent-control',epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output'))
 assert channel.recv(512)==('H '+SCHEMA).encode();send(dict(schema=SCHEMA,mode='agent-control',status='ready'))
 request=channel.recv(512).decode().split();assert request[0]=='R'
 OBSERVED['challenge']=request[1];send(OBSERVED)
@@ -354,7 +354,7 @@ request=channel.recv(512).decode().split();assert request[0]=='V' and request[2:
 EVENTS['challenge']=request[1];send(EVENTS)
 assert channel.recv(512)==WIRE;send(RECEIPT)
 for _ in range(2):
-    assert channel.recv(512)==('S '+RECEIPT['command_id']).encode();send(RECEIPT)
+    assert channel.recv(512)==('S 1 '+RECEIPT['command_id']).encode();send(RECEIPT)
 assert channel.recv(512)==b''
 '''
         child='\n'.join(f'{key}={value!r}' for key,value in dict(SCHEMA=a.SCHEMA,EPOCH=EPOCH,

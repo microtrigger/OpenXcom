@@ -11,7 +11,7 @@ from test_agent_control import NativeFixture, arguments, call, dump, result, sta
 from test_agent_events import page, validate
 
 
-SCHEMA = 'openxcom-agent-control/40'
+SCHEMA = 'openxcom-agent-control/41'
 
 
 def descriptor(action, label):
@@ -60,7 +60,7 @@ class GrenadeValidationTests(unittest.TestCase):
 
     def test_exact_version_closed_counts_and_replaced_weapon_name(self):
         self.assertEqual(a.SCHEMA, SCHEMA)
-        self.assertEqual((len(a.definitions()), len(a.ACTIONS), len(a.STATE_ACTIONS)), (6, 227, 97))
+        self.assertEqual((len(a.definitions()), len(a.ACTIONS), len(a.STATE_ACTIONS)), (7, 227, 97))
         self.assertEqual(a.MAX_COMMANDS, 256)
         self.assertNotIn('choose_fire_mode', a.ACTIONS)
         self.assertEqual(a.WEAPON_ACTION_HANDLES, tuple(f'a{i}' for i in range(6)))
@@ -144,7 +144,7 @@ class GrenadeValidationTests(unittest.TestCase):
                                      ('choose_grenade_timer', {'timer':'t23'}, ' t23'), ('cancel_grenade_timer', {}, '')]:
             request = arguments(grenade_state(), action=action, args=args)
             self.assertEqual(a.canonical_action_request(request),
-                f'E {COMMAND} {EPOCH} {CAPABILITY} 1 {action}{suffix}'.encode())
+                f'E {COMMAND} 1 {EPOCH} {CAPABILITY} 1 {action}{suffix}'.encode())
             for extra in ('row_id', 'fuse', 'seconds', 'turns', 'value', 'x', 'item_id'):
                 with self.subTest(action=action, extra=extra), self.assertRaises(Unavailable):
                     a.validate_action_arguments(dict(request, args=dict(args, **{extra:1})))
@@ -177,7 +177,7 @@ class GrenadeValidationTests(unittest.TestCase):
 
     def test_schema12_is_rejected_at_every_native_boundary(self):
         old = 'openxcom-agent-control/12'
-        hello = dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')
+        hello = dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output')
         with self.assertRaises(Unavailable):a.validate_hello(dump(hello))
         with self.assertRaises(Unavailable):a.validate_ready(dump(dict(schema=old, mode=a.MODE, status='ready')))
         obj = grenade_state();obj['schema'] = old;self.invalid(obj)
@@ -354,7 +354,7 @@ class GrenadeClientTests(unittest.TestCase):
     def test_schema12_handshake_rejected_before_any_action_or_read(self):
         for stage in ('hello', 'ready'):
             old = 'openxcom-agent-control/12'
-            kwargs = ({'hello':dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')}
+            kwargs = ({'hello':dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output')}
                       if stage=='hello' else {'transform':lambda kind,obj:dict(obj, schema=old) if kind=='H' else obj})
             native = self.fixture(**kwargs)
             with self.assertRaises(Unavailable):native.client.observe()
@@ -378,7 +378,11 @@ class GrenadeClientTests(unittest.TestCase):
         obj = native.client.observe();count = len(native.requests)
         with self.assertRaises(Unavailable):native.client.execute(**arguments(obj, command_id='f'*32, action='cancel_grenade_timer', args={}))
         self.assertEqual(len(native.requests), count);self.assertEqual(len(native.client.commands), 256)
-        self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.client.state, 'READY')
+        self.assertIsNotNone(native.client.channel)
+        self.assertFalse(any(raw.startswith(b'L ') for raw in native.requests))
+        self.assertEqual(native.client.retire_receipts(acknowledge=True)['retired_count'], 256)
+        self.assertEqual(native.client.commands, {})
 
 
 if __name__=='__main__':unittest.main()

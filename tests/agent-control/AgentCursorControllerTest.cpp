@@ -38,7 +38,7 @@ struct Harness {
  void send(const std::string&s){check(::send(peer,s.data(),s.size(),0)==ssize_t(s.size()),"whole packet");}
  std::string receive(){char b[49152];auto n=recv(peer,b,sizeof(b),MSG_DONTWAIT);if(n<0){check(errno==EAGAIN||errno==EWOULDBLOCK,"nonblocking receive");return "";}return n?std::string(b,n):"EOF";}
  void frame(){c->beginFrame();c->presented();}
- void queue(int x=319,int y=199){packet="E "+token(1)+" "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" move_cursor "+std::to_string(x)+" "+std::to_string(y);send(packet);c->poll();check(receive().empty(),"queued command silent");check(game.cursorMoves==0,"queue does not move");}
+ void queue(int x=319,int y=199){packet="E "+token(1)+" 1 "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" move_cursor "+std::to_string(x)+" "+std::to_string(y);send(packet);c->poll();check(receive().empty(),"queued command silent");check(game.cursorMoves==0,"queue does not move");}
  void finish(bool expected){frame();check(state.calls==0,"global movement never calls semantic state dispatch");if(expected){check(game.cursorMoves==1,"one move");check(receive().empty(),"post presentation receipt only");frame();auto r=receive();check(has(r,"\"status\":\"dispatched\""),"receipt dispatched");check(r.find("\"cursor\":{\"x\":"+std::to_string(game.cursorX)+",\"y\":"+std::to_string(game.cursorY))!=std::string::npos,"receipt actual current cursor");send(packet);c->poll();receive();frame();check(game.cursorMoves==1,"replay no move");}else{auto r=receive();check(has(r,"\"status\":\"unavailable\""),"refused stale/unsafe move");check(game.cursorMoves==0,"no refused mutation");}}
 };
 int main(){

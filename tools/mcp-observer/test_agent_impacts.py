@@ -25,16 +25,16 @@ def effect(kind, seq=1):
 
 class ImpactValidationTests(unittest.TestCase):
     def test_protocol_catalog_and_all_eight_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
         # Advertised version must match the exact wire, not a historical prose literal.
-        self.assertIn('protocol /'+a.SCHEMA.rsplit('/',1)[1]+':', a.definitions()[0]['description'])
-        description=a.definitions()[0]['description']
+        self.assertIn('protocol /'+a.SCHEMA.rsplit('/',1)[1]+':', next(d for d in a.definitions() if d['name']=='read_ui_state')['description'])
+        description=next(d for d in a.definitions() if d['name']=='read_ui_state')['description']
         self.assertIn('Campaign Save/Load uses only currently offered ordinary UI actions',description)
         self.assertIn('no unrestricted paths or implicit overwrite authority',description)
         self.assertIn('read_player_bases separately reads current player-owned base data',description)
         self.assertIn('that read never grants a UI mutation capability',description)
         self.assertNotIn('No campaign save/load/overwrite',description)
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_REQUEST, a.MAX_TEXT_PACKET, a.MAX_PACKET), (512, 32768, 49152))
         events = [presentation(1), message(seq=2), audio(3),
@@ -151,7 +151,7 @@ class ImpactClientTests(unittest.TestCase):
         fresh = native.client.observe()
         self.assertEqual(native.client.execute(**args), receipt)
         self.assertEqual(native.client.capability, fresh['capability'])
-        self.assertEqual(native.requests[-1], ('S '+COMMAND).encode())
+        self.assertEqual(native.requests[-1], ('S 1 '+COMMAND).encode())
         self.assertEqual(sum(raw.startswith(b'E ') for raw in native.requests), 1)
 
     def test_returned_records_detached_and_cross_kind_mutation_terminal(self):
@@ -189,7 +189,7 @@ class ImpactClientTests(unittest.TestCase):
 
     def test_prior_v9_hello_closes_before_client_request(self):
         native = self.fixture(hello=dict(schema='openxcom-agent-control/9', mode=a.MODE,
-            epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output'))
+            epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
         with self.assertRaises(Unavailable): native.client.observe()
         self.assertEqual(native.requests, []); self.assertEqual(native.client.state, 'CLOSED')
 

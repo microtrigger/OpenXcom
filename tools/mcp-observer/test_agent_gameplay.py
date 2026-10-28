@@ -20,7 +20,7 @@ NEW_KINDS = {'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
 
 class GameplayValidationTests(unittest.TestCase):
     def test_closed_counts_kinds_and_state_action_matrix(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
         self.assertEqual(len(a.ACTIONS), 227); self.assertEqual(len(a.STATE_ACTIONS), 97)
         self.assertEqual({key: a.ARGUMENT_KINDS[key] for key in NEW_KINDS}, NEW_KINDS)
         self.assertEqual(a.STATE_ACTIONS['weapon_action_menu'], {'choose_weapon_action', 'cancel_weapon_action'})
@@ -37,7 +37,7 @@ class GameplayValidationTests(unittest.TestCase):
         for action, args, suffix in cases:
             obj = arguments(action=action, args=args)
             self.assertEqual(a.canonical_action_request(obj),
-                             f'E {COMMAND} {EPOCH} {obj["capability"]} 1 {action}{suffix}'.encode())
+                             f'E {COMMAND} 1 {EPOCH} {obj["capability"]} 1 {action}{suffix}'.encode())
             for extra in ('x', 'y', 'world_id', 'unit_id', 'mode', 'cost', 'target'):
                 with self.subTest(action=action, extra=extra), self.assertRaises(Unavailable):
                     a.validate_action_arguments(dict(obj, args=dict(args, **{extra: 1})))
@@ -196,7 +196,7 @@ class GameplayClientTests(unittest.TestCase):
             self.assertEqual(native.requests[-1], a.canonical_action_request(args))
             self.assertEqual(native.client.grid_cells, frozenset()); self.assertEqual(native.client.weapon_actions, frozenset())
             fresh = native.client.observe(); self.assertEqual(native.client.execute(**args), receipt)
-            self.assertEqual(native.requests[-1], ('S ' + args['command_id']).encode())
+            self.assertEqual(native.requests[-1], ('S 1 ' + args['command_id']).encode())
             self.assertEqual(native.client.capability, fresh['capability'])
             self.assertEqual(sum(packet.startswith(b'E ') for packet in native.requests), 1)
 

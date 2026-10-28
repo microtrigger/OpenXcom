@@ -2,7 +2,7 @@
 """Explicit user-authorized strategic ownership read model. Never UI action authority."""
 import math
 from snapshots import Unavailable, exact
-SCHEMA='openxcom-player-bases/5'
+SCHEMA='openxcom-player-bases/6'
 LIMIT=100000
 CAPS='quarters stores laboratories workshops hangars psi_labs containment'
 BREAKDOWNS='neutralizations_by_race neutralizations_by_rank hostile_neutralizations_by_weapon hostile_neutralizations_by_ammo missions_by_region missions_by_country missions_by_type missions_by_ufo'.split()
@@ -114,7 +114,13 @@ def record(r):
      need(-(2**31)<=row['unit_cost']<=2**31-1 and 0<=row['quantity']<=2**31-1)
      need(row['total']==row['unit_cost']*row['quantity'])
   elif key=='maintenance':objnums(v,'craft personnel facilities total')
-  elif key in ('initial_stats','current_stats'):objnums(v,STATS)
+  elif key in ('initial_stats','current_stats'):
+   exact(v,STATS)
+   for stat,n in v.items():
+    if stat in ('psi_strength','psi_skill') and n is None:continue
+    integer(n)
+  elif key in ('psi_improvement','psi_strength_improvement'):
+   if v is not None:integer(v)
   elif key in ('required_items','produced_items'):
    need(type(v)is dict and len(v)<=(1000 if k=='manufacture_offer' else 4096))
    for a,b in v.items():string(a);integer(b)

@@ -218,7 +218,7 @@ struct Channel {
     void read() { send("R " + token(serial++)); controller->poll(); frame(); grant = receive(); check(field(grant, "capability").size() == 32, "fresh Geoscape capability"); }
     void queue(const std::string &action = "choose_geoscape_speed", const std::string &choice = "s3")
     {
-        request = "E " + token(serial++) + " " + epoch + " " + field(grant, "capability") + " " + field(grant, "revision") + " " + action + (choice.empty() ? "" : " " + choice);
+        request = "E " + token(serial++) + " 1 " + epoch + " " + field(grant, "capability") + " " + field(grant, "revision") + " " + action + (choice.empty() ? "" : " " + choice);
         send(request); controller->poll(); check(receive().empty(), "E queues without immediate dispatch");
     }
     void refused() { frame(); check(has(receive(), "\"unavailable\"") && !state.calls, "stale or covered context refuses without dispatch"); }

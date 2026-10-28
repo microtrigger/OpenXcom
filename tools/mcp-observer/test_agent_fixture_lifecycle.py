@@ -79,11 +79,11 @@ class FixtureLifecycleTests(unittest.TestCase):
         self.assertIsNone(error.__traceback__)
 
     def test_all_four_execute_checks_are_explicit_and_precede_mutation(self):
-        original = ['E', f.COMMAND, f.EPOCH, f.CAPABILITY, '1', 'next_soldier']
+        original = ['E', f.COMMAND, '1', f.EPOCH, f.CAPABILITY, '1', 'next_soldier']
         cases = []
-        bad = original.copy(); bad[2] = '0' * 32
+        bad = original.copy(); bad[3] = '0' * 32
         cases.append((bad, 'verification_epoch_capability', False))
-        bad = original.copy(); bad[4] = '2'
+        bad = original.copy(); bad[5] = '2'
         cases.append((bad, 'verification_revision_action', False))
         cases.append((original.copy(), 'verification_duplicate', True))
         cases.append((original + ['PRIVATE-EXTRA'], 'verification_arity', False))
@@ -104,7 +104,7 @@ class FixtureLifecycleTests(unittest.TestCase):
                 self.assertEqual(fixture.worker_close, 'closed')
 
     def test_valid_execute_retains_reply_and_state_transition(self):
-        wire = f'E {f.COMMAND} {f.EPOCH} {f.CAPABILITY} 1 next_soldier'.encode()
+        wire = f'E {f.COMMAND} 1 {f.EPOCH} {f.CAPABILITY} 1 next_soldier'.encode()
         fixture = self.fixture(Peer([wire]))
         fixture.latest = f.state()
         fixture.run()

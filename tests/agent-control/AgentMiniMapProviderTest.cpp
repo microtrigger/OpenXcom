@@ -70,7 +70,7 @@ struct Channel{
  void frame(){controller->beginFrame();controller->presented();}
  void save(const std::string&name,const std::string&data){const char*d=std::getenv("OPENXCOM_AGENT_TEST_PACKET_DIR");if(d)std::ofstream(std::string(d)+"/"+name)<<data;}
  std::string read(const std::string&name){send("R "+token(challenge++));controller->poll();frame();last=receive();check(!last.empty(),"real controller state packet");save(name,last);return last;}
- void queue(const std::string&action,const std::string&arg=""){request="E "+token(command++)+" "+epoch+" "+field(last,"capability")+" "+field(last,"revision")+" "+action+(arg.empty()?"":" "+arg);send(request);controller->poll();check(receive().empty(),"E waits for frame");}
+ void queue(const std::string&action,const std::string&arg=""){request="E "+token(command++)+" 1 "+epoch+" "+field(last,"capability")+" "+field(last,"revision")+" "+action+(arg.empty()?"":" "+arg);send(request);controller->poll();check(receive().empty(),"E waits for frame");}
 };
 int main(int argc,char**argv){
  check(argc==2,"existing private asset root supplied");Logger::logFile()="/tmp/openxcom-minimap-widget.log";check(SDL_Init(0)==0&&!SDL_GetVideoSurface(),"offscreen only");Options::baseXResolution=320;Options::baseYResolution=200;Options::maximizeInfoScreens=false;

@@ -173,15 +173,15 @@ class QuantityContractTests(unittest.TestCase):
 
 
     def test_wire_counts_no_gesture_catalog_and_old_wires_rejected(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227,97,6))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227, 97, 7))
         self.assertEqual((a.MAX_COMMANDS,a.EVENT_CAPACITY,a.MAX_TEXT_PACKET,a.MAX_PACKET,a.MAX_REQUEST),(256,256,32768,49152,512))
         for version in range(1,22):
             obj=state(screen='purchase');obj['schema']=f'openxcom-agent-control/{version}'
             with self.assertRaises(Unavailable):checked(obj)
         for action in ('operate_manufacture_arrow','toggle_production_sell','operate_purchase_row','operate_purchase_scroll','drag_purchase_scrollbar'):
             self.assertNotIn(action,a.ACTIONS)
-        schema=json.dumps(a.definitions()[1]['inputSchema'])
+        schema=json.dumps(next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema'])
         for word in ('gesture','duration','hold_short','hold_long','wheel','input'):self.assertNotIn('"'+word+'"',schema)
 
     def test_all_quantity_boundaries_and_exact_canonical_suffix(self):
@@ -223,7 +223,7 @@ class QuantityContractTests(unittest.TestCase):
             with self.assertRaises(Unavailable):a.validate_action_arguments(arguments(action='set_production_sell',args={'enabled':enabled}))
 
     def test_quantity_schema_oneof_exact_operation_numeric_bounds(self):
-        branches=a.definitions()[1]['inputSchema']['oneOf']
+        branches=next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']['oneOf']
         for action,key in (('change_production_quantity','control'),('change_purchase_quantity','row')):
             entry=next(x for x in branches if action in x['properties']['action']['enum'])['properties']['args']
             self.assertEqual(len(entry['oneOf']),4)

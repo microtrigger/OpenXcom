@@ -74,7 +74,7 @@ AgentController::AgentController(Game *game) : _game(game)
     _fixtureHelloSent = true;
 #endif
     sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
-        ",\"ledger_capacity\":256,\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\"}");
+        ",\"ledger_capacity\":256,\"command_generation\":1,\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\"}");
 }
 AgentController::~AgentController() { close(); }
 void AgentController::close()
@@ -159,7 +159,7 @@ std::string AgentController::statePacket(const AgentUiState &ui, const std::stri
 std::string AgentController::resultPacket(const std::string &id, const std::string &status, const std::string &observation) const
 {
     return agentEnvelope() + ",\"type\":\"result\",\"command_id\":" + agentJsonString(id) +
-        ",\"status\":" + agentJsonString(status) + ",\"event_sequence\":" + std::to_string(_eventSequence) +
+        ",\"command_generation\":" + std::to_string(_commandGeneration) + ",\"status\":" + agentJsonString(status) + ",\"event_sequence\":" + std::to_string(_eventSequence) +
         ",\"observation\":" + observation + ",\"semantics\":\"dispatch_not_success\"}";
 }
 void AgentController::receipt(const std::string &id)
@@ -167,6 +167,30 @@ void AgentController::receipt(const std::string &id)
     AgentLedger::Entry *entry = _ledger.find(id);
     sendPacket(entry && !entry->response.empty() ? entry->response :
         resultPacket(id, entry ? "pending" : "unknown"));
+}
+void AgentController::rollover(const AgentRequest &request, const std::string &packet)
+{
+    invalidate(); // No prior UI grant survives even a refused retirement.
+    if (request.epoch != _epoch) { unavailable(); return; }
+    if (request.commandGeneration == _lastRetiredGeneration && request.challenge == _lastRolloverChallenge &&
+        (request.kind == 'K' || packet == _lastRolloverRequest))
+    { sendPacket(_lastRolloverResponse); return; }
+    const bool eligible = request.kind == 'L' && request.commandGeneration == _commandGeneration &&
+        _commandGeneration < 9007199254740991ULL && !_queued.active() && _pendingId.empty() &&
+        !_dispatchInProgress && _readChallenge.empty();
+    const bool retired = eligible && _ledger.retireAcknowledged(request.acknowledgedCount);
+    const std::uint64_t previous = request.commandGeneration;
+    if (retired) ++_commandGeneration;
+    const std::string response = agentEnvelope() + ",\"type\":\"ledger_rollover\",\"epoch\":" + agentJsonString(_epoch) +
+        ",\"challenge\":" + agentJsonString(request.challenge) + ",\"status\":" + agentJsonString(retired ? "retired" : (request.kind=='K' ? "unknown" : "blocked")) +
+        ",\"previous_generation\":" + std::to_string(previous) + ",\"generation\":" + std::to_string(_commandGeneration) +
+        ",\"retired_count\":" + std::to_string(retired ? request.acknowledgedCount : 0) + "}";
+    if (retired)
+    {
+        _lastRetiredGeneration=previous; _lastRolloverChallenge=request.challenge;
+        _lastRolloverRequest=packet; _lastRolloverResponse=response;
+    }
+    sendPacket(response);
 }
 void AgentController::eventPage(const AgentRequest &request)
 {
@@ -230,7 +254,7 @@ void AgentController::playerBasesPage(const AgentRequest &request)
     if (request.snapshot=="-")
     {
         std::vector<std::string> captured;
-        if (!_playerBases.collect(save,_game->getLanguage(),captured,reason)) status="unavailable";
+        if (!_playerBases.collect(save,_game->getLanguage(),captured,reason,_game->getMod())) status="unavailable";
         else if (_basesSnapshot.empty() || captured!=_basesRecords)
         {
             if (++_basesGeneration>=9007199254740992ULL || !randomToken(_basesSnapshot)) { close(); return; }
@@ -253,7 +277,7 @@ void AgentController::playerBasesPage(const AgentRequest &request)
     records+="]";
     if(status!="ok") { records="[]"; next=request.after; }
     const bool ok=status=="ok";
-    sendPacket("{\"schema\":\"openxcom-player-bases/5\",\"type\":\"player_bases\",\"epoch\":"+agentJsonString(_epoch)+
+    sendPacket("{\"schema\":\"openxcom-player-bases/6\",\"type\":\"player_bases\",\"epoch\":"+agentJsonString(_epoch)+
         ",\"challenge\":"+agentJsonString(request.challenge)+",\"campaign_epoch\":"+agentJsonString(_basesEpoch)+
         ",\"status\":"+agentJsonString(status)+",\"reason\":"+(ok?"null":agentJsonString(reason))+
         ",\"snapshot\":"+(ok?agentJsonString(_basesSnapshot):"null")+",\"generation\":"+std::to_string(_basesGeneration)+
@@ -270,7 +294,7 @@ void AgentController::poll()
     {
         _fixtureHelloSent = true;
         if (!sendPacket(agentEnvelope() + ",\"epoch\":" + agentJsonString(_epoch) +
-            ",\"ledger_capacity\":256,\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\"}")) return;
+            ",\"ledger_capacity\":256,\"command_generation\":1,\"audio_history\":\"" + std::string(AgentSoundPlayback::primaryMode() ? "unavailable" : "mixed_output") + "\"}")) return;
     }
 #endif
     drainAudioEvents();
@@ -311,7 +335,8 @@ void AgentController::poll()
         sendPacket(agentEnvelope() + ",\"status\":\"ready\"}"); return;
     }
     if (request.kind == 'B') { playerBasesPage(request); return; }
-    if (request.kind == 'S') { receipt(request.id); return; }
+    if (request.kind == 'L' || request.kind == 'K') { rollover(request,packet); return; }
+    if (request.kind == 'S') { if (request.commandGeneration != _commandGeneration) { invalidate(); unavailable(); } else receipt(request.id); return; }
     if (request.kind == 'V') { eventPage(request); return; }
     if (request.kind == 'R')
     {
@@ -319,6 +344,7 @@ void AgentController::poll()
         invalidate(); _readChallenge = request.challenge; _readTime = now(); return;
     }
     if (request.kind != 'E') { invalidate(); unavailable(); return; }
+    if (request.commandGeneration != _commandGeneration || request.epoch != _epoch) { invalidate(); unavailable(); return; }
     const AgentLedger::Admission admission = _ledger.begin(request.id, packet);
     if (admission == AgentLedger::Duplicate) { receipt(request.id); return; }
     if (admission != AgentLedger::Fresh) { invalidate(); sendPacket(resultPacket(request.id, "unavailable")); return; }
@@ -445,6 +471,7 @@ void AgentController::presented()
         if (++_eventSequence >= 9007199254740992ULL) { close(); return; }
         const std::string observation = statePacket(ui, std::string(), false);
         _ledger.find(id)->response = resultPacket(id, "dispatched", observation);
+        _ledger.find(id)->terminalDispatched = true;
         receipt(id);
     }
     else if (!_readChallenge.empty())

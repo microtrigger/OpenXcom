@@ -162,10 +162,10 @@ int main(int argc, char **argv)
     // Separate terminal probe: admitted E then S=pending proves V preserved the
     // native grant. Never present another frame, so no callback can dispatch.
     h.phase = "grant_probe";
-    h.send("grant-probe.request", "E " + token(201) + " " + h.epoch + " " + field(h.grant, "capability") +
+    h.send("grant-probe.request", "E " + token(201) + " 1 " + h.epoch + " " + field(h.grant, "capability") +
         " " + field(h.grant, "revision") + " cancel_purchase");
     h.controller->poll(); h.silent();
-    h.send("grant-probe-receipt.request", "S " + token(201)); h.controller->poll();
+    h.send("grant-probe-receipt.request", "S 1 " + token(201)); h.controller->poll();
     check(field(h.receive("grant-probe-pending.json"), "status") == "pending", "native grant survived all independent V pages");
     check(h.state.calls == 0, "grant proof is queue admission only with zero callbacks");
     h.controller->close(); check(h.state.calls == 0, "closing drops queued probe without gameplay");

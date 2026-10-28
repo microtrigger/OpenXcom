@@ -59,8 +59,8 @@ class StrategyFixture(NativeFixture):
 
 class GeoscapeContractTests(unittest.TestCase):
     def test_exact_wire_catalog_and_argument_domains(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227,97,6))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(227, 97, 7))
         self.assertEqual(a.GEOSCAPE_SPEED_HANDLES,tuple(f's{i}' for i in range(6)))
         self.assertEqual(a.BASE_TARGET_HANDLES,tuple(f'b{i}' for i in range(8)))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},dict.fromkeys(set(NEW_ACTIONS)-{'choose_geoscape_speed','select_base'},'none')|{'choose_geoscape_speed':'geoscape_speed','select_base':'base_target'})
@@ -70,7 +70,7 @@ class GeoscapeContractTests(unittest.TestCase):
         for version in range(1,17):
             obj=geo();obj['schema']=f'openxcom-agent-control/{version}'
             with self.subTest(version=version),self.assertRaises(Unavailable):checked(obj)
-            with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')))
+            with self.assertRaises(Unavailable):a.validate_hello(dump(dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output')))
 
     def test_canonical_arguments_no_hidden_selection(self):
         for action in NEW_ACTIONS:
@@ -84,7 +84,7 @@ class GeoscapeContractTests(unittest.TestCase):
         for action,key,bad in [('choose_geoscape_speed','speed',('s6','s00','S0','s-1','s0\n','5sec',1,True,None,[])),('select_base','target',('b8','b00','B0','b-1','b0\n','0',0,True,None,{}))]:
             for value in bad:
                 with self.subTest(action=action,value=value),self.assertRaises(Unavailable):a.validate_action_arguments(arguments(action=action,args={key:value}))
-        branches=a.definitions()[1]['inputSchema']['oneOf']
+        branches=next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']['oneOf']
         for action,key,expected in [('choose_geoscape_speed','speed',list(a.GEOSCAPE_SPEED_HANDLES)),('select_base','target',list(a.BASE_TARGET_HANDLES))]:
             branch=next(x for x in branches if x['properties']['action']['enum']==[action])
             self.assertEqual(branch['properties']['args']['properties'][key]['enum'],expected)
@@ -312,7 +312,7 @@ class GeoscapeClientTests(unittest.TestCase):
     def test_duplicate_status_only_changed_args_conflict(self):
         peer=self.fixture(screen='geoscape');obj=peer.client.observe();args=arguments(obj,action='choose_geoscape_speed',args={'speed':'s1'})
         first=peer.client.execute(**args);second=peer.client.execute(**args);self.assertEqual(first,second)
-        self.assertEqual(peer.requests[-1],('S '+COMMAND).encode())
+        self.assertEqual(peer.requests[-1],('S 1 '+COMMAND).encode())
         with self.assertRaises(Unavailable):peer.client.execute(**dict(args,args={'speed':'s0'}))
         self.assertEqual(len([x for x in peer.requests if x.startswith(b'E ')]),1)
 

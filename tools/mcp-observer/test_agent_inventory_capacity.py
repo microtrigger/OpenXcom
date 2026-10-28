@@ -15,9 +15,9 @@ from test_agent_inventory_control import InventoryFixture, inventory
 
 class InventoryCapacityValidationTests(unittest.TestCase):
     def test_exact_identity_capacity_and_unchanged_surface(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
         self.assertEqual(a.INVENTORY_TARGET_HANDLES, tuple(f'v{i}' for i in range(96)))
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 6))
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (227, 97, 7))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_EVENTS), (256, 256, 16))
         self.assertEqual((a.MAX_PACKET, a.MAX_TEXT_PACKET, a.MAX_REQUEST, a.CAPABILITY_TTL), (49152, 32768, 512, 120))
         self.assertEqual(a.ERROR_SCHEMA, 'openxcom-mcp-agent-control-error/1')
@@ -49,7 +49,7 @@ class InventoryCapacityValidationTests(unittest.TestCase):
         schema = next(tool for tool in a.definitions() if tool['name']=='execute_ui_action')['inputSchema']
         for action in ('inventory_hover', 'inventory_activate'):
             request = arguments(action=action, args={'target':'v95'})
-            expected = f"E {COMMAND} {EPOCH} {request['capability']} 1 {action} v95".encode()
+            expected = f"E {COMMAND} 1 {EPOCH} {request['capability']} 1 {action} v95".encode()
             self.assertEqual(a.canonical_action_request(request), expected)
             branch = next(branch for branch in schema['oneOf'] if action in branch['properties']['action']['enum'])
             args = branch['properties']['args']
@@ -80,7 +80,7 @@ class InventoryCapacityValidationTests(unittest.TestCase):
             old = f'openxcom-agent-control/{version}'
             with self.subTest(version=version):
                 with self.assertRaises(Unavailable):
-                    a.validate_hello(dump(dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, audio_history='mixed_output')))
+                    a.validate_hello(dump(dict(schema=old, mode=a.MODE, epoch=EPOCH, ledger_capacity=256, command_generation=1, audio_history='mixed_output')))
                 with self.assertRaises(Unavailable):a.validate_ready(dump(dict(schema=old, mode=a.MODE, status='ready')))
                 obj = inventory(body_projection(96));obj['schema'] = old
                 with self.assertRaises(Unavailable):a.validate_state(obj, CHALLENGE, EPOCH)
@@ -148,14 +148,14 @@ class InventoryCapacityClientTests(unittest.TestCase):
             with self.assertRaises(Unavailable):native.client.execute(**dict(request, **change))
         self.assertEqual(len(native.requests), count)
         self.assertEqual(native.client.execute(**request), first)
-        self.assertEqual(native.requests[count:], [('S '+COMMAND).encode()])
+        self.assertEqual(native.requests[count:], [('S 1 '+COMMAND).encode()])
         self.assertEqual(native.client.capability, fresh['capability'])
         self.assertIn('v95', native.client.inventory_targets)
         self.assertEqual(sum(raw.startswith(b'E ') for raw in native.requests), 1)
 
     def test_wire13_hello_closes_before_request(self):
         native = self.fixture(hello=dict(schema='openxcom-agent-control/13', mode=a.MODE, epoch=EPOCH,
-                                       ledger_capacity=256, audio_history='mixed_output'))
+                                       ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
         with self.assertRaises(Unavailable):native.client.observe()
         self.assertEqual(native.requests, []);self.assertEqual(native.client.state, 'CLOSED')
 

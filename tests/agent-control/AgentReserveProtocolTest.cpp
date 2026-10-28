@@ -4,8 +4,8 @@
 #include <iostream>
 using namespace OpenXcom::Observer;
 int main() {
- AgentRequest r; const std::string t(32, '1'), p = "E " + t + " " + t + " " + t + " 1 ";
- assert(parseAgentRequest("H openxcom-agent-control/39", r));
+ AgentRequest r; const std::string t(32, '1'), p = "E " + t + " 1 " + t + " " + t + " 1 ";
+ assert(parseAgentRequest("H openxcom-agent-control/41", r));
  assert(!parseAgentRequest("H openxcom-agent-control/29", r));
  for (const std::string action : {"reserve_none", "reserve_snap", "reserve_aimed", "reserve_auto"}) {
   assert(agentActionId(action));

@@ -47,7 +47,7 @@ struct Harness {
  void send(const std::string&s){check(::send(peer,s.data(),s.size(),0)==ssize_t(s.size()),"whole packet");}
  std::string receive(){char b[49152];auto n=recv(peer,b,sizeof(b),MSG_DONTWAIT);if(n<0){check(errno==EAGAIN||errno==EWOULDBLOCK,"nonblocking receive");return "";}return n?std::string(b,n):"EOF";}
  void frame(){c->beginFrame();c->presented();}
- void queue(){packet="E "+token(1)+" "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" choose_dogfight_mode aggressive";send(packet);c->poll();check(receive().empty(),"queued command silent");check(state.calls==0,"queue does not dispatch");}
+ void queue(){packet="E "+token(1)+" 1 "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" choose_dogfight_mode aggressive";send(packet);c->poll();check(receive().empty(),"queued command silent");check(state.calls==0,"queue does not dispatch");}
  void finish(bool expected,const std::string&scenario){
   frame();if(expected){check(state.calls==1,"hypothetical unchanged controls dispatch");check(receive().empty(),"later observation required");frame();auto result=receive();check(has(result,"\"status\":\"dispatched\""),"dispatched receipt");check(result.find(state.ui.visible)!=std::string::npos,"post-action receipt retains current telemetry");}
   else{auto result=receive();check(has(result,"\"status\":\"unavailable\""),"changed binding refused");check(state.calls==0,"refusal has zero dispatch");frame();check(state.calls==0,"refusal cannot revive");}

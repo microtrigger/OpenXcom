@@ -169,7 +169,7 @@ class ReadRecoveryTests(unittest.TestCase):
                 self.assertEqual(s.peer.sent,before);self.assertFalse(s.peer.closed)
 
     def test_handshake_completion_is_independent_of_new_state(self):
-        hello=dump(dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output'))
+        hello=dump(dict(schema=a.SCHEMA,mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output'))
         ready=dump(dict(schema=a.SCHEMA,mode=a.MODE,status='ready'))
         with Scenario([hello,ready],[(True,0),(False,0),(True,0),(False,0)]+FIRST,new=True) as s:
             with self.assertRaises(Unavailable) as error:s.client.observe()

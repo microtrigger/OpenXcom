@@ -12,6 +12,7 @@
 namespace OpenXcom {
 class SavedGame;
 class Language;
+class Mod;
 namespace Observer {
 // Explicitly authorized, read-only own-base model access. No UI authority and
 // no mutating operation is supplied by this collector. Caller owns wire epochs.
@@ -34,6 +35,9 @@ public:
     // false clears records and supplies a bounded reason. No campaign is valid
     // failure, not a request to create/load a campaign.
     bool collect(SavedGame *save, Language *language, std::vector<std::string> &records, std::string &reason);
+    // The active ruleset is needed for the native research-gated psi evaluation.
+    // A missing ruleset fails closed for that evaluation (trained stats remain visible).
+    bool collect(SavedGame *save, Language *language, std::vector<std::string> &records, std::string &reason, const Mod *mod);
     // Mandatory at every save/load/new-campaign boundary, including address ABA.
     void reset();
 };

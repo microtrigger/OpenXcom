@@ -6,7 +6,7 @@ using namespace OpenXcom::Observer;
 namespace {unsigned checks=0;void check(bool ok){++checks;if(!ok){std::cerr<<"FAIL "<<checks<<'\n';std::exit(1);}}}
 int main()
 {
- AgentRequest r; const std::string t(32,'1'),p="E "+t+" "+t+" "+t+" 1 ";
+ AgentRequest r; const std::string t(32,'1'),p="E "+t+" 1 "+t+" "+t+" 1 ";
  for(const std::string a:{"open_transfer","cancel_transfer_destination","review_transfer","cancel_transfer_items","confirm_transfer","cancel_transfer_confirmation"}){
   check(agentActionId(a));check(std::string(agentArgumentKind(a))=="none");
   check(parseAgentRequest(p+a,r)&&r.action==a);check(!parseAgentRequest(p+a+" extra",r));

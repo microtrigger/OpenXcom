@@ -46,8 +46,8 @@ def validate_state(obj):
 
 class ViewportValidationTests(unittest.TestCase):
     def test_exact_current_version_counts_kinds_and_tool_catalog(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/40')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())), (227,97,6))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/41')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())), (227, 97, 7))
         self.assertEqual(a.MINIMAP_TARGET_HANDLES, tuple(f'm{i}' for i in range(160)))
         self.assertEqual(a.CAMERA_DIRECTIONS, ('left','right','up','down'))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},
@@ -67,7 +67,7 @@ class ViewportValidationTests(unittest.TestCase):
         for version in range(1,16):
             obj=minimap();obj['schema']=f'openxcom-agent-control/{version}'
             with self.subTest(version=version), self.assertRaises(Unavailable): validate_state(obj)
-            hello=dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,audio_history='mixed_output')
+            hello=dict(schema=obj['schema'],mode=a.MODE,epoch=EPOCH,ledger_capacity=256,command_generation=1,audio_history='mixed_output')
             with self.assertRaises(Unavailable): a.validate_hello(dump(hello))
 
     def test_new_arguments_canonicalize_without_coordinates_or_hidden_context(self):
@@ -87,7 +87,7 @@ class ViewportValidationTests(unittest.TestCase):
             for value in values:
                 with self.subTest(action=action,value=value), self.assertRaises(Unavailable):
                     a.validate_action_arguments(arguments(action=action,args={key:value}))
-        tool=a.definitions()[1]['inputSchema']
+        tool=next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']
         branches={tuple(x['properties']['action']['enum']):x['properties']['args'] for x in tool['oneOf']}
         self.assertEqual(branches[('camera_pan',)]['properties']['direction']['enum'], list(a.CAMERA_DIRECTIONS))
         self.assertEqual(branches[('minimap_center',)]['properties']['target']['enum'][-1], 'm159')

@@ -37,7 +37,7 @@ class DogfightTests(unittest.TestCase):
             with self.assertRaises(Unavailable):a.validate_action_arguments(arguments(action='choose_dogfight_mode',args={'mode':mode}))
         for args in ({},{'mode':'standard','target':0},{'mode':'standard','repeat':2},{'choice':'standard'}):
             with self.assertRaises(Unavailable):a.validate_action_arguments(arguments(action='choose_dogfight_mode',args=args))
-        branch=next(x for x in a.definitions()[1]['inputSchema']['oneOf'] if 'choose_dogfight_mode' in x['properties']['action']['enum'])
+        branch=next(x for x in next(d for d in a.definitions() if d['name']=='execute_ui_action')['inputSchema']['oneOf'] if 'choose_dogfight_mode' in x['properties']['action']['enum'])
         self.assertEqual(branch['properties']['args'],dict(type='object',properties={'mode':{'type':'string','enum':list(a.DOGFIGHT_MODES)}},required=['mode'],additionalProperties=False))
     def test_cross_screen_and_semantic_label_provenance(self):
         descriptor=state(screen='dogfight')['actions'][0]

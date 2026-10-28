@@ -30,13 +30,13 @@ struct Harness {
  std::string receive(){char b[49152];auto n=recv(peer,b,sizeof(b),MSG_DONTWAIT);if(n<0){check(errno==EAGAIN||errno==EWOULDBLOCK,"nonblocking receive");return "";}return n?std::string(b,n):"EOF";}
  void frame(){c->beginFrame();c->presented();}
  void read(){send("R "+token(99));c->poll();frame();grant=receive();check(has(grant,"\"capability\":\""),"fresh grant");}
- void queue(unsigned n=1){id=token(n);packet="E "+id+" "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" inventory_activate v0";send(packet);c->poll();check(receive().empty(),"initial E stays silent while queued");check(!state.calls,"receipt does not dispatch");}
- void queueAction(const std::string &action,const std::string &arg,unsigned n=1){id=token(n);packet="E "+id+" "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" "+action+(arg.empty()?"":" "+arg);send(packet);c->poll();check(receive().empty(),"typed E silent while queued");check(!state.calls,"typed receipt does not dispatch");}
+ void queue(unsigned n=1){id=token(n);packet="E "+id+" 1 "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" inventory_activate v0";send(packet);c->poll();check(receive().empty(),"initial E stays silent while queued");check(!state.calls,"receipt does not dispatch");}
+ void queueAction(const std::string &action,const std::string &arg,unsigned n=1){id=token(n);packet="E "+id+" 1 "+epoch+" "+field(grant,"capability")+" "+field(grant,"revision")+" "+action+(arg.empty()?"":" "+arg);send(packet);c->poll();check(receive().empty(),"typed E silent while queued");check(!state.calls,"typed receipt does not dispatch");}
  void refused(){check(has(receive(),"\"status\":\"unavailable\""),"terminal predispatch refusal");check(!state.calls,"no dispatch on refusal");frame();check(!state.calls,"refusal cannot revive");}
 };
 int main(){
  {Harness h;h.state.dirty=true;h.queue();h.state.dirty=false;h.frame();check(h.state.calls==1,"dirty between-frame redraw repaired at fresh frame");check(h.receive().empty(),"preaction frame is not outcome");h.frame();std::string terminal=h.receive();check(has(terminal,"\"status\":\"dispatched\""),"later frame supplies outcome");h.send(h.packet);h.c->poll();check(h.receive()==terminal&&h.state.calls==1,"completed duplicate never repeats");}
- {Harness h;h.queue();h.send(h.packet);h.c->poll();check(has(h.receive(),"\"pending\""),"queued duplicate pending receipt");h.send("S "+h.id);h.c->poll();check(has(h.receive(),"\"pending\""),"S pending receipt");h.send("V "+token(90)+" "+h.epoch+" 0 16");h.c->poll();check(has(h.receive(),"\"events\""),"V works while queued");h.frame();check(h.state.calls==1,"duplicates and V preserve one dispatch");h.frame();check(has(h.receive(),"\"dispatched\""),"single terminal outcome");}
+ {Harness h;h.queue();h.send(h.packet);h.c->poll();check(has(h.receive(),"\"pending\""),"queued duplicate pending receipt");h.send("S 1 "+h.id);h.c->poll();check(has(h.receive(),"\"pending\""),"S pending receipt");h.send("V "+token(90)+" "+h.epoch+" 0 16");h.c->poll();check(has(h.receive(),"\"events\""),"V works while queued");h.frame();check(h.state.calls==1,"duplicates and V preserve one dispatch");h.frame();check(has(h.receive(),"\"dispatched\""),"single terminal outcome");}
  {Harness h;h.queue();agentTestTime+=1001;h.c->poll();h.refused();}
  {Harness h;h.queue();agentTestTime+=500;h.send(h.packet);h.c->poll();h.receive();agentTestTime+=501;h.c->poll();h.refused();}
  {Harness h;h.queue();SDL_Event e={};e.type=SDL_MOUSEMOTION;h.c->beforeEvent(e);h.frame();h.refused();}
@@ -60,7 +60,7 @@ int main(){
  {Harness h;h.queue();h.game.audio.events.push_back(AgentAudioEvents::Event());h.c->poll();h.frame();check(h.state.calls==1,"independent audio does not invalidate queued control");}
  {Harness h;agentTestTime+=119999;h.queue();agentTestTime+=2;h.c->poll();h.refused();}
  {Harness h;h.queue();agentTestTime+=1000;h.frame();check(h.state.calls==1,"queue exact deadline remains bounded and valid");}
- {Harness h;h.queue();agentTestTime+=1001;h.c->poll();std::string terminal=h.receive();check(has(terminal,"unavailable"),"expired queue terminal receipt");h.send("S "+h.id);h.c->poll();check(h.receive()==terminal,"expired receipt cached");h.send(h.packet);h.c->poll();check(h.receive()==terminal&&!h.state.calls,"expired duplicate cannot reschedule");}
+ {Harness h;h.queue();agentTestTime+=1001;h.c->poll();std::string terminal=h.receive();check(has(terminal,"unavailable"),"expired queue terminal receipt");h.send("S 1 "+h.id);h.c->poll();check(h.receive()==terminal,"expired receipt cached");h.send(h.packet);h.c->poll();check(h.receive()==terminal&&!h.state.calls,"expired duplicate cannot reschedule");}
  {Harness h;h.queue();h.send("V "+token(80)+" "+h.epoch+" 0 16");::close(h.peer);h.peer=-1;h.frame();check(!h.state.calls&&!h.c->enabled(),"EOF with unread packet cannot hide peer closure");}
  {Harness h;h.queue();h.send("R "+token(70));h.c->poll();check(has(h.receive(),"error"),"new read cannot grant over queued action");h.frame();h.refused();}
  {Harness h;h.queue();std::string other=h.packet;other.replace(2,32,token(2));h.send(other);h.c->poll();check(has(h.receive(),"unavailable"),"second command cannot occupy queue");h.frame();h.refused();}
@@ -109,7 +109,7 @@ int main(){
  {Harness h;int heldA=0,heldB=0;h.state.ui.widgets.push_back(std::make_pair(&heldA,1));h.read();h.queue();h.state.ui.widgets[0].first=&heldB;h.frame();h.refused();}
  {Harness h;h.queue();h.state.ui.visible="{\"held\":null,\"targets\":[]}";h.frame();h.refused();}
  {Harness h;h.state.ui.actions.clear();h.state.ui.actions.emplace_back("cancel_inventory_hold","Return held item","visible_control_semantics","none");h.read();
-  h.id=token(1);h.packet="E "+h.id+" "+h.epoch+" "+field(h.grant,"capability")+" "+field(h.grant,"revision")+" cancel_inventory_hold";h.send(h.packet);h.c->poll();check(h.receive().empty(),"held-return queued without dispatch");h.frame();h.frame();const auto result=h.receive();check(has(result,"dispatched")&&h.state.calls==1,"held-return handler once");h.send(h.packet);h.c->poll();check(h.receive()==result&&h.state.calls==1,"duplicate held return never primes/closes/dispatches again");}
+  h.id=token(1);h.packet="E "+h.id+" 1 "+h.epoch+" "+field(h.grant,"capability")+" "+field(h.grant,"revision")+" cancel_inventory_hold";h.send(h.packet);h.c->poll();check(h.receive().empty(),"held-return queued without dispatch");h.frame();h.frame();const auto result=h.receive();check(has(result,"dispatched")&&h.state.calls==1,"held-return handler once");h.send(h.packet);h.c->poll();check(h.receive()==result&&h.state.calls==1,"duplicate held return never primes/closes/dispatches again");}
 
  for(const char *action:{"choose_weapon_action","choose_grenade_timer","cancel_grenade_timer"}) {
   Harness h;const bool timer=std::string(action)=="choose_grenade_timer",cancel=std::string(action)=="cancel_grenade_timer";
@@ -121,7 +121,7 @@ int main(){
   h.state.ui.screen="battlescape";h.state.ui.visible="{\"message\":null}";h.state.ui.actions.clear();h.frame();const auto terminal=h.receive();
   check(has(terminal,"dispatched")&&!has(terminal,"GRENADE_IS_ACTIVATED"),"timer receipt has no fabricated priming success");
   h.send(h.packet);h.c->poll();check(h.receive()==terminal&&h.state.calls==1,"typed terminal duplicate is receipt-only");
-  h.send("S "+h.id);h.c->poll();check(h.receive()==terminal&&h.state.calls==1,"typed result read never replays");
+  h.send("S 1 "+h.id);h.c->poll();check(h.receive()==terminal&&h.state.calls==1,"typed result read never replays");
  }
  for(int variant=0;variant<5;++variant){Harness h;h.state.ui.screen="prime_grenade";h.state.ui.actions.clear();h.state.ui.actions.emplace_back("choose_grenade_timer","0","visible_text","grenade_timer");h.state.ui.rows={0};h.state.ui.widgets={{&h.state,1}};h.read();h.queueAction("choose_grenade_timer","t0");
   if(variant==0)h.state.ui.rows[0]=1;

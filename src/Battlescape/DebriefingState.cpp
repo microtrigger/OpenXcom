@@ -721,6 +721,24 @@ bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
         std::uint64_t epoch = 0;
         if (!list->agentPresentationPaintedTo(destination) ||
             !list->agentReportRows(rows, epoch) || rows.size() > 128) return unavailable;
+        // With no recovered materials the stock layout leaves the empty
+        // recovery list at y=32, over the score list. Its freshly cleared
+        // transparent allocation is not a window. Exempt only that exact
+        // certified-empty root, retaining its controls and all other siblings.
+        std::vector<Surface *> tablePainted = painted;
+        if (list != _lstRecovery && _lstRecovery->getRows() == 0 &&
+            _lstRecovery->agentPresentationPaintedTo(destination))
+        {
+            std::vector<AgentOutfittingRow> emptyRows;
+            std::uint64_t emptyEpoch = 0;
+            if (_lstRecovery->agentReportRows(emptyRows, emptyEpoch) && emptyRows.empty())
+            {
+                tablePainted.erase(std::remove(tablePainted.begin(), tablePainted.end(), _lstRecovery), tablePainted.end());
+                out.widgets.emplace_back(_lstRecovery, _lstRecovery->agentListRevision());
+                out.widgets.emplace_back(_lstRecovery, _lstRecovery->agentPresentationRevision());
+                out.context.push_back(emptyEpoch);
+            }
+        }
         std::string values = "[";
         for (const auto &row : rows)
         {
@@ -737,7 +755,7 @@ bool DebriefingState::agentUiState(Observer::AgentUiState &out) const
                 {
                     Observer::AgentUiState part;
                     part.regions.push_back({band.x, band.y, band.w, band.h});
-                    if (!Observer::agentRegionsUncovered(part.regions, list, painted) ||
+                    if (!Observer::agentRegionsUncovered(part.regions, list, tablePainted) ||
                         !_game->agentNonCursorOverlayClear(part)) { known = false; bandVisible = false; }
                 }
                 rowWitness = rowWitness || bandVisible;

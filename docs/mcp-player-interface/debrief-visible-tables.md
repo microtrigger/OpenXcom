@@ -42,3 +42,21 @@ row ID, selection, scrolling action or additional acknowledgement is invented.
 
 Qualification uses isolated native widget/provider and adapter contract tests.
 It does not establish live end-to-end acceptance of these new projections.
+
+## Empty recovery allocation (2026-10-28)
+
+The stock no-recovered-materials layout leaves `_lstRecovery` at `(16,32)` with
+an 80-pixel allocation even when it has no rows. Treating that transparent,
+cleared allocation as an opaque later window incorrectly suppresses every score
+row. The provider now exempts only that exact recovery-list root after verifying
+zero native rows, a fresh destination paint and an empty admitted report capture.
+Its list/presentation revisions and capture epoch are bound. Its controls, all
+other later surfaces and global non-cursor overlays remain in force; a dirty or
+nonempty recovery list is not exempted. No tactical/model data is consulted.
+
+The isolated native regression reproduces the empty score projection before the
+fix and exercises a seven-row no-recovery layout using both games' translations,
+color formatting, stale/nonempty recovery and a genuine later covering surface.
+It is not a new live-battle acceptance result. The visible STATS button still has
+no MCP toggle action, and the 13-column soldier-stat page remains an explicitly
+open functional gap rather than being counted as supported by this row repair.

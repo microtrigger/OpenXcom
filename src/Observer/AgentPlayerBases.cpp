@@ -62,11 +62,12 @@ struct Object {
     std::string end()const{return value+"}";}
 };
 Object record(const char *kind,const std::string &id,const std::string &base){return Object().s("kind",kind).s("id",id).s("base_id",base);}
-std::string stats(const UnitStats *s){
+std::string stats(const UnitStats *s,bool psiStrengthVisible,bool psiSkillVisible){
     if(!s)throw std::runtime_error("invalid_base_data");
     return Object().n("tu",s->tu).n("stamina",s->stamina).n("health",s->health).n("bravery",s->bravery)
         .n("reactions",s->reactions).n("firing",s->firing).n("throwing",s->throwing).n("strength",s->strength)
-        .n("psi_strength",s->psiStrength).n("psi_skill",s->psiSkill).n("melee",s->melee).end();
+        .raw("psi_strength",psiStrengthVisible?std::to_string(s->psiStrength):"null")
+        .raw("psi_skill",psiSkillVisible?std::to_string(s->psiSkill):"null").n("melee",s->melee).end();
 }
 std::string quantities(const std::map<std::string,int> &items){
     Object out; if(items.size()>1000)throw std::runtime_error("record_limit");
@@ -91,6 +92,9 @@ std::string AgentPlayerBases::logicalIdentity(const std::string &kind,const std:
     const auto id=kind+"_"+std::to_string(++_next);_logicalIdentities[key]=id;return id;
 }
 bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<std::string> &records,std::string &reason){
+    return collect(save,language,records,reason,nullptr);
+}
+bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<std::string> &records,std::string &reason,const Mod *mod){
     records.clear();reason.clear();
     if(_thread!=std::thread::id() && _thread!=std::this_thread::get_id()){reason="wrong_thread";return false;}
     if(!save){reason="no_campaign";return false;}
@@ -199,6 +203,10 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
         };
         const auto soldier=[&](Soldier *s,const std::string &base,const std::string &transfer){
             if(!s || !s->getRules() || !s->getArmor())throw std::runtime_error("invalid_base_data");const auto id=soldierIds.at(s);
+            // Match SoldierInfoState, including memorial/in-transit records and
+            // initial stats: owning a soldier does not reveal untrained psi.
+            const bool psiSkillVisible=s->getCurrentStats()->psiSkill>0;
+            const bool psiStrengthVisible=psiSkillVisible || (mod && Options::psiStrengthEval && save->isResearched(mod->getPsiRequirements()));
             const auto craft=craftIds.find(s->getCraft());
             const SoldierDeath *death=s->getDeath();
             if((base.empty() && (!death || s->getCraft() || !transfer.empty())) || (!base.empty() && death))throw std::runtime_error("invalid_base_data");
@@ -213,8 +221,8 @@ bool AgentPlayerBases::collect(SavedGame *save,Language *language,std::vector<st
             emit(id,record("soldier",id,base).n("native_id",s->getId()).s("type",s->getRules()->getType()).s("name",s->getName(false))
                 .s("rank",s->getRankString()).n("rank_value",int(s->getRank())).s("armor",s->getArmor()->getType()).n("gender",int(s->getGender())).n("look",int(s->getLook()))
                 .n("missions",s->getMissions()).n("kills",s->getKills()).n("recovery_days",s->getWoundRecovery()).b("psi_training",s->isInPsiTraining())
-                .n("psi_improvement",s->getImprovement()).n("psi_strength_improvement",s->getPsiStrImprovement()).nullable("craft_id",craft==craftIds.end()?"":craft->second)
-                .s("location",base.empty()?"memorial":(transfer.empty()?"home":"in_transit")).nullable("transfer_id",transfer).raw("initial_stats",stats(s->getInitStats())).raw("current_stats",stats(s->getCurrentStats()))
+                .raw("psi_improvement",psiSkillVisible?std::to_string(s->getImprovement()):"null").raw("psi_strength_improvement",psiStrengthVisible?std::to_string(s->getPsiStrImprovement()):"null").nullable("craft_id",craft==craftIds.end()?"":craft->second)
+                .s("location",base.empty()?"memorial":(transfer.empty()?"home":"in_transit")).nullable("transfer_id",transfer).raw("initial_stats",stats(s->getInitStats(),psiStrengthVisible,psiSkillVisible)).raw("current_stats",stats(s->getCurrentStats(),psiStrengthVisible,psiSkillVisible))
                 .b("recently_promoted",s->getRecentlyPromoted()).raw("death",deathJson));
             SoldierDiary *diary=s->getDiary();if(!diary)throw std::runtime_error("invalid_base_data");
             const auto &kills=diary->getKills();const auto *medals=diary->getSoldierCommendations();

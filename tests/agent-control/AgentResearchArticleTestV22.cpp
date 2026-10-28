@@ -127,7 +127,7 @@ void wireArticle(TableChannel&c){
 }
 void articleExecute(TableChannel&c,const std::string&action,const std::string&arg=""){
  c.read();c.queue(action,arg);c.frame();check(c.receive().empty(),"article dispatch waits for subsequent presentation");paintArticle();c.frame();const auto result=c.receive();check(!result.empty()&&YAML::Load(result)["status"].as<std::string>()=="dispatched","ordinary article callback dispatched");
- const auto retiredCount=ArticleHarness::retired.size();const auto*state=currentArticle();c.send(c.request);c.controller->poll();check(c.receive()==result&&state==currentArticle()&&retiredCount==ArticleHarness::retired.size(),"article duplicate exact and no repeated callback");c.send("S "+c.request.substr(2,32));c.controller->poll();check(c.receive()==result,"article status-only cached receipt");c.events();
+ const auto retiredCount=ArticleHarness::retired.size();const auto*state=currentArticle();c.send(c.request);c.controller->poll();check(c.receive()==result&&state==currentArticle()&&retiredCount==ArticleHarness::retired.size(),"article duplicate exact and no repeated callback");c.send("S 1 "+c.request.substr(2,32));c.controller->poll();check(c.receive()==result,"article status-only cached receipt");c.events();
 }
 // Scroll is always requalified from the latest public projection. Some stock
 // redraws retain navigation but no surviving body-control witness. That is a
@@ -139,7 +139,7 @@ void articleScrollPair(TableChannel &c,const std::string &master,const std::stri
  if(current.offers("scroll_article_text")) {articleExecute(c,"scroll_article_text","up");record(c,master,"ufopaedia_article",prefix+"_up");}
  else {
   auto shown=YAML::Load(c.read());const auto*before=currentArticle();const auto retiredCount=ArticleHarness::retired.size();
-  c.request="E "+token(c.command++)+" "+c.epoch+" "+shown["capability"].as<std::string>()+" "+shown["revision"].as<std::string>()+" scroll_article_text up";
+  c.request="E "+token(c.command++)+" 1 "+c.epoch+" "+shown["capability"].as<std::string>()+" "+shown["revision"].as<std::string>()+" scroll_article_text up";
   c.send(c.request);c.controller->poll();const auto response=c.receive();
   check(!response.empty()&&YAML::Load(response)["status"].as<std::string>()=="unavailable"&&currentArticle()==before&&ArticleHarness::retired.size()==retiredCount,"unadvertised scroll after stock redraw is unavailable without dispatch");
   record(c,master,"ufopaedia_article",prefix+"_control_unavailable");

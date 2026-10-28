@@ -87,7 +87,7 @@ int main(int argc,char**argv){
  check(argc==3,"source and isolated log arguments");Logger::logFile()=argv[2];check(SDL_Init(0)==0&&!SDL_GetVideoSurface(),"offscreen only");FileMap::load("common","./",false);Options::baseXResolution=320;Options::baseYResolution=200;
  Font big,small;for(auto f:YAML::LoadFile("Language/Font.dat")["fonts"]){if(f["id"].as<std::string>()=="FONT_BIG")big.load(f);if(f["id"].as<std::string>()=="FONT_SMALL")small.load(f);}
  Surface canvas(320,200),background(320,200);SDL_Color palette[256];for(int i=0;i<256;++i)palette[i]={Uint8(i),Uint8(i),Uint8(i),0};canvas.setPalette(palette);background.setPalette(palette);background.clear(40);
- AgentRequest parsed;const std::string token(32,'1'),prefix="E "+token+" "+token+" "+token+" 1 close_promotions";
+ AgentRequest parsed;const std::string token(32,'1'),prefix="E "+token+" 1 "+token+" "+token+" 1 close_promotions";
  check(parseAgentRequest(prefix,parsed),"native protocol accepts registered close empty args");for(const std::string suffix:{" extra"," r0"," 0","\n"})check(!parseAgentRequest(prefix+suffix,parsed),"native protocol rejects extra close args");
  for(const std::string master:{"xcom1","xcom2"}){
   Language language;language.loadFile(std::string(argv[1])+"/bin/standard/"+master+"/Language/en-US.yml");Fixture::Game game;game.screen.surface=&canvas;game.mod.background=&background;game.language=&language;game.big=&big;game.small=&small;game.palette=palette;Fixture::currentGame=&game;

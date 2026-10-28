@@ -128,12 +128,14 @@ class ErrorClassificationTests(unittest.TestCase):
         obj=self.error(s,'execute_ui_action',dict(args,action='stand'))
         self.assertEqual(obj['failure']['code'],'command_conflict')
         self.assertEqual(len([r for r in n.requests if r.startswith(b'E ')]),1)
-    def test_resource_limit_before_send_closes(self):
+    def test_resource_limit_before_send_preserves_channel_for_explicit_retirement(self):
         n,s=self.fixture();args=arguments(n.client.observe())
         with patch.object(a,'MAX_COMMANDS',0):obj=self.error(s,'execute_ui_action',args)
         self.assertEqual(obj['failure']['code'],'resource_limit')
         self.assertEqual(obj['failure']['action_outcome'],'not_sent')
-        self.assertEqual(n.client.state,'CLOSED');self.assertFalse(any(r.startswith(b'E ') for r in n.requests))
+        self.assertEqual(n.client.state,'READY');self.assertIsNotNone(n.client.channel)
+        self.assertEqual(n.client.commands,{})
+        self.assertFalse(any(r.startswith(b'E ') or r.startswith(b'L ') for r in n.requests))
     def test_concurrent_request_does_not_close_active_client(self):
         n,s=self.fixture();n.client.observe();before=len(n.requests)
         n.client.flight.acquire()

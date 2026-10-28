@@ -112,7 +112,7 @@ int main(int argc,char**argv){
  SurfaceSet texture(32,32);for(int i=0;i<64;++i){auto*f=texture.addFrame(i);f->setPalette(palette);f->clear(Uint8(16+i));}
  Mod nativeMod;RuleBaseFacility lift("STR_ACCESS_LIFT"),rule("STR_GENERAL_STORES"),wide("STR_HANGAR");
  for(auto*r:{&lift,&rule,&wide}){r->_spriteShape=1;r->_spriteFacility=4;r->_size=1;r->_buildCost=150000;r->_buildTime=10;r->_monthlyCost=5000;}lift._lift=true;wide._size=2;
- const std::string token(32,'1'),prefix="E "+token+" "+token+" "+token+" 1 place_facility_cell ";
+ const std::string token(32,'1'),prefix="E "+token+" 1 "+token+" "+token+" 1 place_facility_cell ";
  AgentRequest parsed;for(const auto &args:{"0 0","5 5","2 4"})check(parseAgentRequest(prefix+args,parsed),"canonical protocol cell accepted");
  for(const auto &args:{"-1 0","6 0","0 6","00 0","1.0 2","1","1 2 extra","+1 2","1 -0"})check(!parseAgentRequest(prefix+args,parsed),"malformed/offgrid protocol cell refused");
  check(std::string(agentArgumentKind("place_facility_cell"))=="facility_cell"&&std::string(agentProtocolSchema())=="openxcom-agent-control/39","explicit schema and argument kind");

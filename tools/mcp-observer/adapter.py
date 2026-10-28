@@ -390,7 +390,7 @@ class Server:
                                           self.supervised_inventory_click_enabled, self.supervised_inventory_right_click_enabled,
                                           self.supervised_inventory_unload_enabled, self.agent_control is not None)}
         elif (method == 'tools/call' and self.agent_control is not None
-                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases')):
+                and params.get('name') in ('read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio', 'read_player_bases', 'retire_action_receipts')):
             from agent_control import token, validate_action_arguments, validate_event_arguments
             from snapshots import Unavailable, exact
             arguments = params.get('arguments', {})
@@ -399,6 +399,9 @@ class Server:
                     raise Unavailable('Unavailable')
                 if params['name'] == 'execute_ui_action':
                     validate_action_arguments(arguments)
+                elif params['name'] == 'retire_action_receipts':
+                    exact(arguments, 'acknowledge')
+                    if arguments['acknowledge'] is not True: raise Unavailable('Unavailable')
                 elif params['name'] == 'read_public_events':
                     validate_event_arguments(arguments)
                 elif params['name'] == 'read_player_bases':
@@ -408,7 +411,9 @@ class Server:
                     from public_audio import validate_arguments
                     validate_arguments(arguments)
                 elif params['name'] == 'read_ui_action_result':
-                    exact(arguments, 'command_id'); token(arguments['command_id'])
+                    exact({k:v for k,v in arguments.items() if k != 'command_generation'}, 'command_id'); token(arguments['command_id'])
+                    from snapshots import integer
+                    integer(arguments.get('command_generation', 1), 1, 9007199254740991)
                 else:
                     exact(arguments, '')
             except Unavailable:
@@ -504,6 +509,8 @@ class Server:
         try:
             if name == 'read_ui_state':
                 obj = self.agent_control.observe()
+            elif name == 'retire_action_receipts':
+                obj = self.agent_control.retire_receipts(**arguments)
             elif name == 'execute_ui_action':
                 obj = self.agent_control.execute(**arguments)
             elif name == 'read_public_events':
