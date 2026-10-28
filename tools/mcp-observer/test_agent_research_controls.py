@@ -22,8 +22,8 @@ def checked(obj):return a.validate_state(obj,CHALLENGE,EPOCH)
 
 class ResearchControlValidation(unittest.TestCase):
     def test_wire19_no_new_actions_states_tools_or_event_shapes(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/26')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(182,80,5))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/27')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(184,80,5))
         obj=row_control();self.assertEqual(checked(obj),obj)
         obj['schema']='openxcom-agent-control/18'
         with self.assertRaises(Unavailable):checked(obj)

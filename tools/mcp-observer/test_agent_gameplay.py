@@ -20,8 +20,8 @@ NEW_KINDS = {'map_primary': 'grid_cell', 'map_secondary': 'grid_cell',
 
 class GameplayValidationTests(unittest.TestCase):
     def test_closed_counts_kinds_and_state_action_matrix(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/26')
-        self.assertEqual(len(a.ACTIONS), 182); self.assertEqual(len(a.STATE_ACTIONS), 80)
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/27')
+        self.assertEqual(len(a.ACTIONS), 184); self.assertEqual(len(a.STATE_ACTIONS), 80)
         self.assertEqual({key: a.ARGUMENT_KINDS[key] for key in NEW_KINDS}, NEW_KINDS)
         self.assertEqual(a.STATE_ACTIONS['weapon_action_menu'], {'choose_weapon_action', 'cancel_weapon_action'})
         self.assertEqual(a.STATE_ACTIONS['battlescape_warning'], frozenset())

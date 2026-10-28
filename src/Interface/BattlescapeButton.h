@@ -46,6 +46,15 @@ protected:
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool agentContextVisible() const override;
+    bool agentTogglePainted(const Surface *destination) const;
+    bool agentShownToggled() const { return _agentShownInverted; }
+private:
+    bool _agentTogglePainted = false, _agentShownInverted = false;
+    const Surface *_agentToggleDestination = nullptr, *_agentToggleSource = nullptr;
+    BattlescapeButton **_agentToggleGroup = nullptr;
+    BattlescapeButton *_agentToggleSelected = nullptr;
+    std::uint64_t _agentToggleRevision = 0;
+public:
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_SUPERVISED_STANCE
     bool stanceToggled() const { return _inverted; }

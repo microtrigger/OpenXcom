@@ -32,6 +32,9 @@ namespace OpenXcom
  */
 BattlescapeButton::BattlescapeButton(int width, int height, int x, int y) : InteractiveSurface(width, height, x, y), _color(0), _group(0), _inverted(false), _toggleMode(INVERT_NONE), _altSurface(0)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentTrackPresentation();
+#endif
 }
 
 /**
@@ -67,6 +70,10 @@ Uint8 BattlescapeButton::getColor() const
  */
 void BattlescapeButton::setGroup(BattlescapeButton **group)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    _agentTogglePainted = false;
+#endif
 	_group = group;
 	if (_group != 0 && *_group == this)
 		_inverted = true;
@@ -80,6 +87,10 @@ void BattlescapeButton::setGroup(BattlescapeButton **group)
  */
 void BattlescapeButton::mousePress(Action *action, State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    _agentTogglePainted = false;
+#endif
 	if (_group != 0)
 	{
 		if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
@@ -103,6 +114,10 @@ void BattlescapeButton::mousePress(Action *action, State *state)
  */
 void BattlescapeButton::mouseRelease(Action *action, State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    _agentTogglePainted = false;
+#endif
 	if (_inverted && isButtonHandled(action->getDetails()->button.button))
 	{
 		_inverted = false;
@@ -116,6 +131,10 @@ void BattlescapeButton::mouseRelease(Action *action, State *state)
  */
 void BattlescapeButton::toggle(bool press)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentPresentationMutation();
+    _agentTogglePainted = false;
+#endif
 	if (_tftdMode || _toggleMode == INVERT_TOGGLE || _inverted)
 	{
 		_inverted = press;
@@ -224,6 +243,11 @@ bool BattlescapeButton::stanceContextVisible() const
  */
 void BattlescapeButton::blit(Surface *surface)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentTogglePainted = false;
+    Surface *source = _inverted ? _altSurface : this;
+    if (source) source->agentTrackPresentation();
+#endif
 	if (_inverted)
 	{
 		_altSurface->blit(surface);
@@ -232,7 +256,33 @@ void BattlescapeButton::blit(Surface *surface)
 	{
 		Surface::blit(surface);
 	}
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    if (source && source->agentPresentationPaintedTo(surface) && agentContextVisible() && _group && *_group)
+    {
+        _agentShownInverted = _inverted;
+        _agentToggleSource = source;
+        _agentToggleDestination = surface;
+        _agentToggleGroup = _group;
+        _agentToggleSelected = *_group;
+        _agentToggleRevision = agentPresentationRevision();
+        _agentTogglePainted = true;
+    }
+#endif
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BattlescapeButton::agentTogglePainted(const Surface *destination) const
+{
+    const Surface *source = _inverted ? _altSurface : this;
+    return _agentTogglePainted && destination == _agentToggleDestination && _agentShownInverted == _inverted &&
+        _group && _group == _agentToggleGroup && *_group == _agentToggleSelected &&
+        agentPresentationRevision() == _agentToggleRevision && agentContextVisible() &&
+        source && source == _agentToggleSource && source->agentPresentationPaintedTo(_agentToggleDestination) &&
+        _agentToggleDestination && getX() >= 0 && getY() >= 0 &&
+        getX() + getWidth() <= _agentToggleDestination->getWidth() &&
+        getY() + getHeight() <= _agentToggleDestination->getHeight();
+}
+#endif
 
 /**
  * Changes the position of the surface in the X axis.

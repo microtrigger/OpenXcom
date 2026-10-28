@@ -75,7 +75,7 @@ class RetainedHistoryEvidence:
         p=self.call('read_public_events',dict(epoch=self.epoch,after=after,limit=16))
         require(self.clock()<self.deadline,'history_timeout')
         require(isinstance(p,dict),'history_invalid_page')
-        require(p.get('schema')=='openxcom-agent-control/26' and p.get('mode')=='agent-control' and p.get('type')=='events','history_schema')
+        require(p.get('schema')=='openxcom-agent-control/27' and p.get('mode')=='agent-control' and p.get('type')=='events','history_schema')
         require(p.get('epoch')==self.epoch,'history_epoch_changed')
         challenge=p.get('challenge')
         require(isinstance(challenge,str) and bool(challenge) and challenge not in self.challenges,'history_challenge_not_fresh')

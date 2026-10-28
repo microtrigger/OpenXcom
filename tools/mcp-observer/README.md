@@ -1,3 +1,14 @@
+## Schema 27: visible TU reserve controls
+
+`reserve_indicator` is required on Battlescape observations: `none`, `snap`,
+`aimed`, `auto`, or `null` when the complete radio group is not demonstrably
+painted and uncovered. Only `reserve_none` and `reserve_snap` are added; both
+have empty arguments and use the ordinary reserve button handler. A dispatch
+receipt is not confirmation: obtain a fresh observation of the indicator.
+Schema 26 clients must upgrade with the producer; do not silently accept the
+new closed observation shape as schema 26. These controls do not expose reserved
+TU amounts, predicted action eligibility, hidden units or path costs.
+
 # MCP adapter
 
 See [build, use and tests](../../docs/mcp-player-interface/README.md). Runtime: Python 3 standard library; pair with the matching native executable.

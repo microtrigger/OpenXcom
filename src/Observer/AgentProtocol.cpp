@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/26"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/27"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/26\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/27\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -33,7 +33,7 @@ bool agentActionId(const std::string &value)
         value == "change_transfer_quantity" || value == "review_transfer" ||
         value == "cancel_transfer_items" || value == "confirm_transfer" || value == "cancel_transfer_confirmation" ||
         value == "next_soldier" || value == "previous_soldier" || value == "kneel" ||
-        value == "stand" || value == "continue_next_turn" || value == "new_battle" ||
+        value == "stand" || value == "reserve_none" || value == "reserve_snap" || value == "continue_next_turn" || value == "new_battle" ||
         value == "start_battle" || value == "continue_briefing" || value == "close_inventory" ||
         value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
         value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||

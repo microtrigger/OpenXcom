@@ -2934,6 +2934,30 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         ",\"health\":" + (selected ? std::to_string(_numHealth->getValue()) : "null") +
         ",\"morale\":" + (selected ? std::to_string(_numMorale->getValue()) : "null") +
         ",\"kneel_indicator\":" + (stance ? Observer::agentJsonString(_agentShownKneeled ? "kneeling" : "standing") : "null") + "}";
+    // Read the drawn radio-button selection, never the saved TU reservation.
+    BattlescapeButton *reserveButtons[] = {_btnReserveNone, _btnReserveSnap, _btnReserveAimed, _btnReserveAuto};
+    const char *reserveNames[] = {"none", "snap", "aimed", "auto"};
+    bool reserveShown = true;
+    unsigned reserveCount = 0, reserveIndex = 0;
+    for (unsigned i = 0; i < 4; ++i)
+    {
+        reserveShown = reserveShown && Observer::agentWidgetUncovered(reserveButtons[i], _surfaces) &&
+            reserveButtons[i]->agentTogglePainted(_game->getScreen()->getSurface());
+        if (reserveButtons[i]->agentShownToggled()) { ++reserveCount; reserveIndex = i; }
+    }
+    reserveShown = reserveShown && reserveCount == 1;
+    out.visible.pop_back();
+    out.visible += ",\"reserve_indicator\":" + (reserveShown ? Observer::agentJsonString(reserveNames[reserveIndex]) : "null") + "}";
+    if (reserveShown)
+    {
+        for (BattlescapeButton *button : reserveButtons) Observer::agentIncludeWidget(out, button);
+        // Native handler availability, not a prediction that an action can spend TU.
+        if (!_firstInit && _save->getSide() == FACTION_PLAYER && allowButtons())
+        {
+            out.actions.push_back(Observer::AgentUiAction("reserve_none", "Reserve no time units", "visible_control_semantics"));
+            out.actions.push_back(Observer::AgentUiAction("reserve_snap", "Reserve Snap Shot time units", "visible_control_semantics"));
+        }
+    }
     // Only admitted camera-grid points carry map-action authority.
     // Keep unrelated tactical animation outside the control binding.
     std::string focus, mapContext;
@@ -3055,6 +3079,16 @@ bool BattlescapeState::agentDispatch(const Observer::AgentRequest &request)
     Observer::AgentUiState shown;
     if (!agentUiState(shown) || !shown.offers(request.action)) return false;
     if (agentViewportDispatch(request, shown)) return true;
+    if (request.action == "reserve_none" || request.action == "reserve_snap")
+    {
+        SDL_Event event = {};
+        event.type = SDL_MOUSEBUTTONDOWN;
+        event.button.button = SDL_BUTTON_LEFT;
+        Action action(&event, 1.0, 1.0, 0, 0);
+        action.setSender(request.action == "reserve_none" ? _btnReserveNone : _btnReserveSnap);
+        btnReserveClick(&action);
+        return true;
+    }
     if (request.action == "map_primary" || request.action == "map_secondary")
     {
         const unsigned cell = static_cast<unsigned>(std::stoul(request.choice.substr(1)));
