@@ -16,8 +16,8 @@ static void check(bool value,const char *message) { ++checks; if (!value) { std:
 int main() {
     check(SDL_Init(0)==0,"SDL offscreen init");
     Options::baseXResolution=80;Options::baseYResolution=40;
-    Surface canvas(80,40),other(80,40);Button none(5),snap(20);BattlescapeButton *group=&none;
-    for(Button *b:{&none,&snap}) { b->drawRect(0,0,12,12,32);b->initSurfaces();b->setGroup(&group); }
+    Surface canvas(80,40),other(80,40);Button none(5),snap(20),aimed(35),aut(50);BattlescapeButton *group=&none;
+    for(Button *b:{&none,&snap,&aimed,&aut}) { b->drawRect(0,0,12,12,32);b->initSurfaces();b->setGroup(&group); }
     check(!none.agentTogglePainted(&canvas),"unpainted denied");
     none.blit(&canvas);snap.blit(&canvas);
     check(none.agentTogglePainted(&canvas)&&snap.agentTogglePainted(&canvas),"full native paint admitted");
@@ -45,6 +45,19 @@ int main() {
     cover.setVisible(false);check(Observer::agentWidgetUncovered(&snap,order),"hidden overlay clear");
     none.mousePress(&click,nullptr);none.blit(&canvas);snap.blit(&canvas);
     check(none.agentTogglePainted(&canvas)&&none.agentShownToggled()&&!snap.agentShownToggled(),"None restored through radio handler");
+    for(Button *from:{&none,&snap,&aimed,&aut})for(Button *to:{&none,&snap,&aimed,&aut}) {
+        from->mousePress(&click,nullptr);
+        for(Button *b:{&none,&snap,&aimed,&aut})b->blit(&canvas);
+        to->mousePress(&click,nullptr);
+        check(!to->agentTogglePainted(&canvas),"each reserve mutation needs repaint");
+        for(Button *b:{&none,&snap,&aimed,&aut})b->blit(&canvas);
+        unsigned selected=0;
+        for(Button *b:{&none,&snap,&aimed,&aut}) {
+            check(b->agentTogglePainted(&canvas),"all four painted reserve controls admitted");
+            if(b->agentShownToggled())++selected;
+        }
+        check(group==to&&to->agentShownToggled()&&selected==1,"all four native radio transitions exact");
+    }
     check(Observer::agentPaintHealthy()&&!SDL_WasInit(SDL_INIT_VIDEO),"healthy no GUI");
     std::cout<<"AgentReserveButtonTest PASS "<<checks<<" checks\n";
 }

@@ -2956,6 +2956,8 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
         {
             out.actions.push_back(Observer::AgentUiAction("reserve_none", "Reserve no time units", "visible_control_semantics"));
             out.actions.push_back(Observer::AgentUiAction("reserve_snap", "Reserve Snap Shot time units", "visible_control_semantics"));
+            out.actions.push_back(Observer::AgentUiAction("reserve_aimed", "Reserve Aimed Shot time units", "visible_control_semantics"));
+            out.actions.push_back(Observer::AgentUiAction("reserve_auto", "Reserve Auto Shot time units", "visible_control_semantics"));
         }
     }
     // Only admitted camera-grid points carry map-action authority.
@@ -3079,13 +3081,16 @@ bool BattlescapeState::agentDispatch(const Observer::AgentRequest &request)
     Observer::AgentUiState shown;
     if (!agentUiState(shown) || !shown.offers(request.action)) return false;
     if (agentViewportDispatch(request, shown)) return true;
-    if (request.action == "reserve_none" || request.action == "reserve_snap")
+    if (request.action == "reserve_none" || request.action == "reserve_snap" ||
+        request.action == "reserve_aimed" || request.action == "reserve_auto")
     {
         SDL_Event event = {};
         event.type = SDL_MOUSEBUTTONDOWN;
         event.button.button = SDL_BUTTON_LEFT;
         Action action(&event, 1.0, 1.0, 0, 0);
-        action.setSender(request.action == "reserve_none" ? _btnReserveNone : _btnReserveSnap);
+        action.setSender(request.action == "reserve_none" ? _btnReserveNone :
+            request.action == "reserve_snap" ? _btnReserveSnap :
+            request.action == "reserve_aimed" ? _btnReserveAimed : _btnReserveAuto);
         btnReserveClick(&action);
         return true;
     }

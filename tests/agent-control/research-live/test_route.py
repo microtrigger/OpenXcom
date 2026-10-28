@@ -315,7 +315,7 @@ class HistoryGuards(unittest.TestCase):
             self.assertEqual(name,'read_public_events');calls.append(dict(args))
             n=len(calls);after=args['after'];oldest=max(1,newest-255)
             events=[dict(seq=i,kind='presentation',state='pause_menu',visible={}) for i in range(max(after+1,oldest),min(newest+1,max(after+1,oldest)+chunk))]
-            p=dict(schema='openxcom-agent-control/28',mode='agent-control',type='events',epoch='epoch',challenge=str(n),after=after,oldest=oldest,newest=newest,next_cursor=events[-1]['seq'] if events else after,gap=after+1<oldest,events=events)
+            p=dict(schema='openxcom-agent-control/29',mode='agent-control',type='events',epoch='epoch',challenge=str(n),after=after,oldest=oldest,newest=newest,next_cursor=events[-1]['seq'] if events else after,gap=after+1<oldest,events=events)
             if mutate:mutate(p,n)
             return p
         h=RetainedHistoryEvidence(call,lambda event,**kw:logs.append((event,kw)),'epoch')

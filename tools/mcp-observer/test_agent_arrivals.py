@@ -89,8 +89,8 @@ class ArrivalContractTests(unittest.TestCase):
             validate(page([presentation(obj)]))
 
     def test_wire23_only_preserves_action_state_tool_and_event_catalogs(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/28')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (185, 81, 5))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/29')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (187, 81, 5))
         self.assertEqual(a.STATE_ACTIONS['items_arriving'], ARRIVAL_ACTIONS)
         self.assertEqual({tool['name'] for tool in a.definitions()},
                          {'read_ui_state', 'execute_ui_action', 'read_ui_action_result', 'read_public_events', 'read_public_audio'})

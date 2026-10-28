@@ -31,12 +31,19 @@ struct BattlescapeState {
 };
 #include "Methods.inc"
 int main(){
- BattlescapeState b;Observer::AgentUiState o;b.project(o);assert(o.visible=="{\"existing\":0,\"reserve_indicator\":\"none\"}"&&o.actions.size()==2);
+ BattlescapeState b;Observer::AgentUiState o;b.project(o);assert(o.visible=="{\"existing\":0,\"reserve_indicator\":\"none\"}"&&o.actions.size()==4);
  assert(b.dispatch({"reserve_snap"}));assert(b.battle.reserved==BA_SNAPSHOT&&b._reserve==&b.snap&&b.battle.path.refresh==1);
  o={};b.project(o);assert(o.visible.find("snap")!=std::string::npos);
  assert(b.dispatch({"reserve_none"}));assert(b.battle.reserved==BA_NONE&&b._reserve==&b.none&&b.battle.path.refresh==2);
- for(int mode=0;mode<7;++mode){BattlescapeState x;if(mode==0)x.battle.busy=true;if(mode==1)x.map.projectile=1;if(mode==2)x.save.side=FACTION_HOSTILE;if(mode==3){x.save.side=FACTION_HOSTILE;x.save.debug=true;}if(mode==4)x._firstInit=true;if(mode==5)x.battle.panic=false;if(mode==6)x.snap.painted=false;assert(!x.dispatch({"reserve_snap"}));assert(x.battle.writes==0);}
+ for(int mode=0;mode<7;++mode){BattlescapeState x;if(mode==0)x.battle.busy=true;if(mode==1)x.map.projectile=1;if(mode==2)x.save.side=FACTION_HOSTILE;if(mode==3){x.save.side=FACTION_HOSTILE;x.save.debug=true;}if(mode==4)x._firstInit=true;if(mode==5)x.battle.panic=false;if(mode==6)x.snap.painted=false;for(const char *action:{"reserve_none","reserve_snap","reserve_aimed","reserve_auto"})assert(!x.dispatch({action}));assert(x.battle.writes==0);}
  for(int mode=0;mode<3;++mode){BattlescapeState x;if(mode==0)x.snap.visible=false;if(mode==1)x.none.selected=false;if(mode==2)x.snap.selected=true;o={};x.project(o);assert(o.visible=="{\"existing\":0,\"reserve_indicator\":null}"&&o.actions.empty());}
- for(auto target:{&b.aimed,&b.aut}){b._reserve->selected=false;b._reserve=target;target->selected=true;o={};b.project(o);assert(o.actions.size()==2);assert(!b.dispatch({"reserve_auto"}));}
+ const char *actions[]={"reserve_none","reserve_snap","reserve_aimed","reserve_auto"};
+ BattlescapeButton *buttons[]={&b.none,&b.snap,&b.aimed,&b.aut};
+ for(unsigned from=0;from<4;++from)for(unsigned to=0;to<4;++to){
+  assert(b.dispatch({actions[from]}));const int writes=b.battle.writes,refresh=b.battle.path.refresh;
+  assert(b.dispatch({actions[to]}));assert(b.battle.reserved==int(to)&&b._reserve==buttons[to]);
+  assert(b.battle.writes==writes+1&&b.battle.path.refresh==refresh+1);o={};b.project(o);assert(o.actions.size()==4);
+ }
+ assert(!b.dispatch({"reserve_unknown"}));
  std::cout<<"PASS native reserve projection/dispatch/handler guards (synthetic dependencies)\n";
 }
