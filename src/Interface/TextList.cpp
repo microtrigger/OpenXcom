@@ -1193,7 +1193,7 @@ void TextList::blit(Surface *surface)
 		}
 #endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-		if (_agentContainmentCells || _agentPsiTrainingCells || _agentOutfittingColumns==1) _selector->agentTrackPresentation();
+		if (_agentContainmentCells || _agentPsiTrainingCells || _agentReportSelection || _agentOutfittingColumns==1) _selector->agentTrackPresentation();
 #endif
 		_selector->blit(surface);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
@@ -2470,12 +2470,14 @@ bool TextList::agentContainmentArrowClick(const Surface *destination,size_t logi
     return false;
 }
 
-void TextList::agentEnableReportCells(unsigned columns)
+void TextList::agentEnableReportCells(unsigned columns, bool allowMissingCells, bool requireTextExtent)
 {
 	if (columns < 1 || columns > 5) return;
 	if (!_agentReportCells)
 	{
 		_agentReportColumns = columns;
+		_agentReportAllowMissingCells = allowMissingCells;
+		_agentReportRequireTextExtent = requireTextExtent;
 		_agentReportCells = true; ++_agentListRevision; _redraw = true;
 		agentTrackPresentation();
 	}
@@ -2485,7 +2487,8 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 {
 	if (!_agentReportCells) return;
 	if (!_font || _comboBox || _wrap || _condensed || _arrowPos != -1 || _columns.size() != _agentReportColumns || logicalIndex >= _texts.size() ||
-		_texts[logicalIndex].size() != _agentReportColumns || getWidth() <= 0 || getWidth() > 640 ||
+		(_texts[logicalIndex].empty() || _texts[logicalIndex].size() > _agentReportColumns ||
+		 (!_agentReportAllowMissingCells && _texts[logicalIndex].size() != _agentReportColumns)) || getWidth() <= 0 || getWidth() > 640 ||
 		getHeight() <= 0 || getHeight() > 400)
 	{ _agentReportCaptureHealthy = false; return; }
 	// Use the ordinary draw allocation, not caption metrics or the selection grid.
@@ -2497,7 +2500,7 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 	if (_margin < 0 || _margin > 640 || _font->getSpacing() < -1 || allocationHeight <= 0)
 	{ _agentReportCaptureHealthy = false; return; }
 	// Flooding deliberately allocates 340px children; bind actual drawn geometry.
-	for (size_t col = 0; col < _agentReportColumns; ++col)
+	for (size_t col = 0; col < _texts[logicalIndex].size(); ++col)
 	{
 		const Text *cell = _texts[logicalIndex][col];
 		if (!_columns[col] || _columns[col] > 640 || cell->getX() < -640 || cell->getX() > 640 ||
@@ -2513,7 +2516,7 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 	capture.row.bounds = {static_cast<Sint16>(getX()), static_cast<Sint16>(getY()+y),
 		static_cast<Uint16>(getWidth()), static_cast<Uint16>(height)};
 	capture.row.cells.resize(_agentReportColumns);
-	for (size_t col = 0; col < _agentReportColumns; ++col)
+	for (size_t col = 0; col < _texts[logicalIndex].size(); ++col)
 	{
 		const Text *cell = _texts[logicalIndex][col];
 		capture.cells[col] = cell;
@@ -2529,9 +2532,34 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 		value.known = cell->agentPresentationPaintedTo(this) && cell->getY() == y &&
 			cell->getHeight() == allocationHeight && left < right &&
 			cell->getText().size() <= 1024;
+        std::string caption = cell->getText();
+        if (value.known && _agentReportRequireTextExtent)
+        {
+            SDL_Rect content = {};
+            if (_dot && col + 1 < _texts[logicalIndex].size())
+            {
+                // Native dot leaders are decoration. Observe the captured original
+                // caption range, not a fabricated suffix or the generated dots.
+                bool hasInk = false;
+                value.known = cell->agentListContent(caption, content, hasInk);
+                if (!hasInk) content = {static_cast<Sint16>(cell->getX()), static_cast<Sint16>(y), 0, 0};
+            }
+            else
+            {
+                value.known = _lang && _lang->getTextDirection() == DIRECTION_LTR &&
+                    cell->getAlign() == ALIGN_LEFT && cell->getVerticalAlign() == ALIGN_TOP &&
+                    cell->getTextWidth() <= 640 && cell->getTextHeight() <= 400;
+                if (value.known) content = {static_cast<Sint16>(cell->getX()), static_cast<Sint16>(y),
+                    static_cast<Uint16>(cell->getTextWidth()), static_cast<Uint16>(cell->getTextHeight())};
+            }
+            value.known = value.known && content.x >= left && content.y >= y &&
+                content.x + content.w <= right && content.y + content.h <= y + allocationHeight &&
+                content.y + content.h <= getHeight();
+            capture.contentBounds[col] = {static_cast<Sint16>(getX()+content.x), static_cast<Sint16>(getY()+content.y), content.w, content.h};
+        }
 		if (value.known)
 		{
-			value.text = cell->getText();
+			value.text = caption;
 			// Rendering toggles color for this token; it is not visible text.
 			value.text.erase(std::remove(value.text.begin(), value.text.end(), Unicode::TOK_COLOR_FLIP), value.text.end());
 			value.regions.push_back({static_cast<Sint16>(getX()+left), static_cast<Sint16>(getY()+y),
@@ -2553,10 +2581,17 @@ bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint6
 	for (const AgentReportCapture &capture : _agentPaintReportRows)
 	{
 		AgentOutfittingRow row = capture.row;
-		if (row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].size() != _agentReportColumns)
+		if (row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].empty() ||
+			_texts[row.logicalIndex].size() > _agentReportColumns ||
+			(!_agentReportAllowMissingCells && _texts[row.logicalIndex].size() != _agentReportColumns))
 		{ rows.clear(); return false; }
 		for (size_t col = 0; col < _agentReportColumns; ++col)
 		{
+			if (col >= _texts[row.logicalIndex].size())
+			{
+				if (capture.cells[col] || row.cells[col].known || !row.cells[col].regions.empty()) { rows.clear(); return false; }
+				continue;
+			}
 			const Text *cell = _texts[row.logicalIndex][col];
 			const SDL_Rect &g = capture.geometry[col];
 			if (cell != capture.cells[col] || cell->_redraw ||
@@ -2570,6 +2605,16 @@ bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint6
 			row.bounds.y+row.bounds.h > _agentReportClip.y+_agentReportClip.h ||
 			row.bounds.x >= _agentReportClip.x+_agentReportClip.w ||
 			row.bounds.x+row.bounds.w <= _agentReportClip.x) continue;
+        if (_agentReportRequireTextExtent)
+        {
+            for (size_t col = 0; col < row.cells.size(); ++col)
+            {
+                const SDL_Rect &content = capture.contentBounds[col];
+                if (row.cells[col].known && (content.x < _agentReportClip.x || content.y < _agentReportClip.y ||
+                    content.x + content.w > _agentReportClip.x + _agentReportClip.w ||
+                    content.y + content.h > _agentReportClip.y + _agentReportClip.h)) row.cells[col].known = false;
+            }
+        }
 		for (AgentPurchaseCell &cell : row.cells)
 		{
 			for (SDL_Rect &region : cell.regions)
@@ -2587,6 +2632,48 @@ bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint6
 	}
 	captureEpoch = _agentReportPaintEpoch;
 	return true;
+}
+
+void TextList::agentEnableReportSelection()
+{
+    if (!_agentReportSelection) { _agentReportSelection=true; ++_agentListRevision; _redraw=true; agentTrackPresentation(); }
+}
+bool TextList::agentReportRowTarget(size_t logicalIndex, SDL_Rect &point) const
+{
+    if (!_agentReportSelection || !_selectable || !_font || !_selector || _wrap || _condensed) return false;
+    std::vector<AgentOutfittingRow> rows; std::uint64_t epoch=0;
+    if (!agentReportRows(rows,epoch)) return false;
+    const auto physical=std::find(_rows.begin(),_rows.end(),logicalIndex);
+    if (physical==_rows.end() || std::count(_rows.begin(),_rows.end(),logicalIndex)!=1) return false;
+    const int index=physical-_rows.begin(), height=_font->getHeight()+_font->getSpacing();
+    if (height<=0 || index<static_cast<int>(_scroll)) return false;
+    for (const auto &row:rows) if(row.logicalIndex==logicalIndex) {
+        const int y=getY()+(index-_scroll)*height;
+        if (row.bounds.y!=y || row.bounds.h!=height || row.bounds.w==0) return false;
+        point={static_cast<Sint16>(row.bounds.x+row.bounds.w/2),static_cast<Sint16>(y+height/2),1,1};
+        return point.x>=_agentReportClip.x && point.y>=_agentReportClip.y &&
+            point.x<_agentReportClip.x+_agentReportClip.w && point.y<_agentReportClip.y+_agentReportClip.h;
+    }
+    return false;
+}
+bool TextList::agentReportRowSelected(size_t logicalIndex) const
+{
+    SDL_Rect point={};
+    return agentReportRowTarget(logicalIndex,point) && _selector && _selector->getVisible() &&
+        _selector->agentPresentationPaintedTo(_agentReportDestination) && getSelectedRow()==logicalIndex &&
+        point.x>=_selector->getX() && point.x<_selector->getX()+_selector->getWidth() &&
+        point.y>=_selector->getY() && point.y<_selector->getY()+_selector->getHeight();
+}
+bool TextList::agentReportRowClick(size_t logicalIndex, State *state)
+{
+    SDL_Rect point={}; if(!state || !agentReportRowTarget(logicalIndex,point))return false;
+    SDL_Event motion={};motion.type=SDL_MOUSEMOTION;motion.motion.x=point.x;motion.motion.y=point.y;
+    Action hover(&motion,1.0,1.0,0,0);hover.setSender(this);hover.setMouseAction(point.x,point.y,getX(),getY());
+    mouseOver(&hover,state);
+    if(getSelectedRow()!=logicalIndex)return false;
+    SDL_Event event={};event.type=SDL_MOUSEBUTTONUP;event.button.button=SDL_BUTTON_LEFT;event.button.x=point.x;event.button.y=point.y;
+    Action click(&event,1.0,1.0,0,0);click.setSender(this);click.setMouseAction(point.x,point.y,getX(),getY());
+    mouseClick(&click,state);return true;
 }
 
 void TextList::agentEnableSaveListCells(bool newSlot)

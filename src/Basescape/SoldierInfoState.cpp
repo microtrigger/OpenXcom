@@ -660,6 +660,7 @@ bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
     view.button(_btnPrev,"previous","previous_personnel");
     view.button(_btnNext,"next","next_personnel");
     view.button(_btnArmor,"armor","open_soldier_armor");
+    view.button(_btnDiary,"diary","open_soldier_diary");
     view.button(_btnOk,"close","close_soldier_info");
     out.visible="{\"name\":"+name+",\"rank\":"+rank+",\"missions\":"+missions+",\"kills\":"+kills+",\"craft\":"+craft+",\"recovery\":"+recovery+",\"training\":"+training+",\"stats\":"+stats+"],\"buttons\":"+view.buttons+"]}";
     return view.finish();
@@ -671,6 +672,7 @@ bool SoldierInfoState::agentDispatch(const Observer::AgentRequest &request)
     if(request.action=="previous_personnel") { btnPrevClick(nullptr);return true; }
     if(request.action=="next_personnel") { btnNextClick(nullptr);return true; }
     if(request.action=="open_soldier_armor") { btnArmorClick(nullptr);return true; }
+    if(request.action=="open_soldier_diary") { btnDiaryClick(nullptr);return true; }
     if(request.action=="close_soldier_info") { btnOkClick(nullptr);return true; }
     return false;
 }

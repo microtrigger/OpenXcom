@@ -34,6 +34,14 @@
 #include "../Mod/RuleCommendations.h"
 #include "../Engine/Action.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#include <typeinfo>
+#endif
+
 namespace OpenXcom
 {
 
@@ -185,6 +193,16 @@ SoldierDiaryPerformanceState::SoldierDiaryPerformanceState(Base *base, size_t so
 	_btnCommendations->setGroup(&_group);
 
 	init(); // Populate the list
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    for (TextButton *button : {_btnPrev, _btnNext, _btnKills, _btnMissions, _btnCommendations, _btnOk}) button->agentEnableNamedControl();
+    _lstPerformance->agentEnableReportCells(2, true, true);
+    _lstMissionTotals->agentEnableReportCells(4, false, true);
+    _lstKillTotals->agentEnableReportCells(4, true, true);
+    _lstCommendations->agentEnableReportCells(2, false, true);
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -478,5 +496,117 @@ void SoldierDiaryPerformanceState::think()
 		_lastScrollPos = _lstCommendations->getScroll();
 	}
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool SoldierDiaryPerformanceState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> SoldierDiaryPerformanceState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    for(const Text *text:{_txtTitle,_txtMedalName,_txtMedalLevel,_txtMedalInfo})revisions.push_back(text->agentTextRevision());
+    revisions.push_back(_lstPerformance->agentListRevision());
+    revisions.push_back(_lstMissionTotals->agentListRevision());
+    revisions.push_back(_lstKillTotals->agentListRevision());
+    revisions.push_back(_lstCommendations->agentListRevision());
+    for (const TextButton *button : {_btnPrev, _btnNext, _btnKills, _btnMissions, _btnCommendations, _btnOk}) revisions.push_back(button->agentLabelRevision());
+    return revisions;
+}
+void SoldierDiaryPerformanceState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool SoldierDiaryPerformanceState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(SoldierDiaryPerformanceState) || (_display != DIARY_MISSIONS && _display != DIARY_KILLS && _display != DIARY_COMMENDATIONS) || _modal || _window->agentPopupActive() ||
+        !_base || !_list || _list != _base->getSoldiers() || !_soldier || _soldierId >= _list->size() || _list->at(_soldierId) != _soldier ||
+        !_game->isState(const_cast<SoldierDiaryPerformanceState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out=AgentUiState();out.screen="soldier_diary_performance";out.actor=_soldier;out.save=_base;out.context.push_back(_soldierId);
+    const auto painted=agentFlattenPaintOrder(_surfaces);const Surface *logical=_game->getScreen()->getSurface();
+    if(!agentWidgetVisible(_window)||!_window->agentPresentationPaintedTo(logical))return false;
+    for(const Surface *surface:painted)out.widgets.emplace_back(surface,surface->agentPresentationRevision());
+    if(_game->getCursor())out.widgets.emplace_back(_game->getCursor(),_game->getCursor()->agentPresentationRevision());
+    if(_game->getFpsCounter())out.widgets.emplace_back(_game->getFpsCounter(),_game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed=[this](const AgentUiState &part){return _game->agentOverlayClear(part);};
+    const auto text=[&](const Text *widget)->std::string{
+        out.widgets.emplace_back(widget,widget->agentTextRevision());const auto value=agentTextJson(widget);
+        if(value=="null"||!widget->agentPresentationPaintedTo(logical)||!agentWidgetUncovered(widget,painted))return "null";
+        AgentUiState part;agentIncludeWidget(part,widget);return !part.regions.empty()&&allowed(part)?value:"null";
+    };
+    const auto title=text(_txtTitle);
+    const auto table=[&](const TextList *list,unsigned columns)->std::string{
+        out.widgets.emplace_back(list,list->agentListRevision());std::vector<AgentOutfittingRow> rows;std::uint64_t epoch=0;
+        if(!list->agentPresentationPaintedTo(logical)||!list->agentReportRows(rows,epoch)||rows.size()>32)return "[]";
+        out.context.push_back(epoch);std::string values="[";
+        for(const auto &row:rows){
+            if(row.cells.size()!=columns)return "[]";
+            bool witnessed=false;std::string value="{\"cells\":[";
+            for(unsigned col=0;col<columns;++col){
+                if(col)value+=",";const auto &cell=row.cells[col];bool known=cell.known&&cell.text.size()<=1024&&!cell.regions.empty();bool visible=!cell.regions.empty();
+                for(const auto &r:cell.regions){AgentUiState part;part.regions.push_back({r.x,r.y,r.w,r.h});if(!agentRegionsUncovered(part.regions,list,painted)||!allowed(part)){known=false;visible=false;}}
+                witnessed=witnessed||visible;value+=known?agentJsonString(cell.text):"null";
+            }value+="]}";if(!witnessed)continue;if(values.size()>1)values+=",";values+=value;if(values.size()>16000)return "[]";
+        }return values+"]";
+    };
+    const bool awards=_display==DIARY_COMMENDATIONS;
+    const auto rows=table(awards?_lstCommendations:_lstPerformance,2);
+    const auto totals=awards?std::string("[]"):table(_display==DIARY_KILLS?_lstKillTotals:_lstMissionTotals,4);
+    const auto headingName=awards?text(_txtMedalName):std::string("null"),headingLevel=awards?text(_txtMedalLevel):std::string("null");
+    const auto description=awards?text(_txtMedalInfo):std::string("null");
+    const Surface *up=nullptr,*down=nullptr;(awards?_lstCommendations:_lstPerformance)->agentScrollControls(up,down);
+    const auto control=[&](const Surface *widget)->bool{
+        if(!widget||!agentWidgetUncovered(widget,painted))return false;AgentUiState part;agentIncludeWidget(part,widget);if(part.regions.empty()||!allowed(part))return false;
+        const auto old=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());if(agentRegionsDisjoint(out))return true;out.regions.resize(old);return false;
+    };
+    const bool canUp=control(up),canDown=control(down);out.context.push_back(canUp);out.context.push_back(canDown);
+    if(canUp||canDown)out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    std::string buttons="[";
+    const auto button=[&](TextButton *widget,const char *id,const char *action){
+        const auto label=agentProjectNamedButton(widget,logical,painted,out,allowed);if(label.empty()||label.size()>1024)return;
+        if(buttons.size()>1)buttons+=",";buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";out.actions.emplace_back(action,label,"visible_text");
+    };
+    button(_btnPrev,"previous","previous_personnel");button(_btnNext,"next","next_personnel");
+    button(_btnKills,"combat","open_diary_combat");button(_btnMissions,"performance","open_diary_performance");button(_btnCommendations,"awards","open_diary_awards");
+    
+    button(_btnOk,"ok","close_diary_performance");buttons+="]";
+    out.visible="{\"mode\":"+agentJsonString(_display==DIARY_KILLS?"combat":(awards?"awards":"missions"))+",\"headings\":["+headingName+","+headingLevel+"],\"description\":"+description+",\"title\":"+title+",\"rows\":"+rows+",\"totals\":"+totals+",\"scroll\":{\"up\":"+(canUp?"true":"false")+",\"down\":"+(canDown?"true":"false")+"},\"buttons\":"+buttons+"}";
+    return out.visible.size()<=32768&&agentRegionsDisjoint(out)&&(!out.actions.empty()||title!="null"||rows!="[]");
+}
+bool SoldierDiaryPerformanceState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;if(!agentUiState(fresh)||!fresh.offers(request.action))return false;
+    if(request.action=="previous_personnel"){btnPrevClick(nullptr);return true;}
+    if(request.action=="next_personnel"){btnNextClick(nullptr);return true;}
+    
+    if(request.action=="open_diary_combat" || request.action=="open_diary_performance" || request.action=="open_diary_awards") {
+        TextButton *button=request.action=="open_diary_combat"?_btnKills:(request.action=="open_diary_awards"?_btnCommendations:_btnMissions);
+        const int x=button->getX()+button->getWidth()/2,y=button->getY()+button->getHeight()/2;
+        SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;event.button.x=x;event.button.y=y;
+        Action press(&event,1.0,1.0,0,0);press.setSender(button);press.setMouseAction(x,y,button->getX(),button->getY());
+        button->mousePress(&press,this); // Ordinary native radio selection precedes the registered toggle.
+        event.type=SDL_MOUSEBUTTONUP;
+        Action release(&event,1.0,1.0,0,0);release.setSender(button);release.setMouseAction(x,y,button->getX(),button->getY());
+        button->mouseRelease(&release,this);button->mouseClick(&release,this);return true;
+    }
+    if(request.action=="close_diary_performance"){btnOkClick(nullptr);return true;}
+    if(request.action=="scroll_visible_list"&&fresh.context.size()>=3){
+        if(request.choice=="up"&&fresh.context[fresh.context.size()-2]){(_display==DIARY_COMMENDATIONS?_lstCommendations:_lstPerformance)->scrollUp(false,false);return true;}
+        if(request.choice=="down"&&fresh.context.back()){(_display==DIARY_COMMENDATIONS?_lstCommendations:_lstPerformance)->scrollDown(false,false);return true;}
+    }return false;
+}
+#endif
 
 }

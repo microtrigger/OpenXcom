@@ -30,6 +30,7 @@ class TextList;
 class Base;
 class SoldierInfoState;
 class Soldier;
+class MissionStatistics;
 
 /**
  * Diary screen that shows all the
@@ -41,7 +42,7 @@ private:
 	Base *_base;
 	size_t _soldierId;
 	SoldierInfoState *_soldierInfoState;
-	Soldier *_soldier;
+	Soldier *_soldier = nullptr;
 	std::vector<Soldier*> *_list;
 
 	TextButton *_btnOk, *_btnPrev, *_btnNext, *_btnKills, *_btnMissions, *_btnCommendations;
@@ -49,7 +50,20 @@ private:
 	Text *_txtTitle, *_txtMission, *_txtRating, *_txtDate;
 	TextList *_lstDiary;
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::vector<const MissionStatistics *> _agentMissionRows;
+    bool agentMissionRowValid(size_t row) const;
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Soldier Diary state.
 	SoldierDiaryOverviewState(Base *base, size_t soldierId, SoldierInfoState *soldierInfoState);
 	/// Cleans up the Soldier Diary state.

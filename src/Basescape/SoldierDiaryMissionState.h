@@ -27,6 +27,7 @@ class Window;
 class Text;
 class TextList;
 class Soldier;
+class MissionStatistics;
 
 /**
  * Diary window that shows
@@ -44,7 +45,22 @@ private:
 	TextList *_lstKills;
 
 	int _rowEntry;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentMissionValid = false;
+    int _agentMissionRowEntry = -1;
+    std::vector<int> _agentMissionIds;
+    std::vector<const MissionStatistics *> _agentMissionRecords;
+    bool _agentDestinationPaintFull = false;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentPaintRevisions() const;
+#endif
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Soldier Diary Mission state.
 	SoldierDiaryMissionState(Soldier *soldier, int rowEntry);
 	/// Cleans up the Soldier Diary Mission state.

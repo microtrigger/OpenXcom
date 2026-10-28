@@ -24,6 +24,8 @@ Own-base reads are never a substitute for visible action authority.
 remaining regression backlog. The full regression suite is not passing.
 
 Containment has bounded synthetic live acceptance, not evidence of a natural
-battle capture. Soldier Info → Diary Overview/Performance is the next audited
-ordinary UI gap; populated history remains distinct from an empty diary.
+battle capture. The [Diary Overview/Performance route](diary-contract.md) has bounded local
+empty-history live qualification; populated native reports remain distinct
+from populated live history. Combat, Awards, mission details and Memorial
+remain separate UI branches.
 The full project is not complete.

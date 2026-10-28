@@ -31,6 +31,14 @@
 #include "../Savegame/MissionStatistics.h"
 #include "../Savegame/BattleUnitStatistics.h"
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Engine/Screen.h"
+#include "../Interface/Cursor.h"
+#include "../Interface/FpsCounter.h"
+#include <typeinfo>
+#endif
+
 namespace OpenXcom
 {
 
@@ -101,6 +109,13 @@ SoldierDiaryMissionState::SoldierDiaryMissionState(Soldier *soldier, int rowEntr
 	_lstKills->setColumns(3, 60, 110, 100);
 
 	init(); // Populate the list
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+    for (TextButton *button : {_btnPrev, _btnNext, _btnOk}) button->agentEnableNamedControl();
+    _lstKills->agentEnableReportCells(3, false, true);
+    if (_game->getCursor()) _game->getCursor()->agentTrackPresentation();
+    if (_game->getFpsCounter()) _game->getFpsCounter()->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -118,6 +133,13 @@ SoldierDiaryMissionState::~SoldierDiaryMissionState()
 void SoldierDiaryMissionState::init()
 {
 	State::init();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentMissionValid = false;
+    _agentMissionRowEntry = -1;
+    _agentMissionIds.clear();
+    _agentMissionRecords.clear();
+    _agentDestinationPaintFull = false;
+#endif
 	if (_soldier->getDiary()->getMissionIdList().empty())
 	{
 		_game->popState();
@@ -129,7 +151,9 @@ void SoldierDiaryMissionState::init()
 	{
 		missionId = 0;
 	}
-	int daysWounded = missionStatistics->at(missionId)->injuryList[_soldier->getId()];
+    const auto &injuries = missionStatistics->at(missionId)->injuryList;
+    const auto injury = injuries.find(_soldier->getId());
+    const int daysWounded = injury == injuries.end() ? 0 : injury->second;
 
 	_lstKills->clearList();
 	_txtTitle->setText(tr(missionStatistics->at(missionId)->type));
@@ -176,6 +200,22 @@ void SoldierDiaryMissionState::init()
 	_txtNoRecord->setVisible(!stunOrKill);
 
 	_txtKills->setText(tr("STR_KILLS").arg(kills));
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    // Bind this initialized presentation to the exact private history sequence,
+    // not merely its ordinal. A later repaint cannot bless changed model data.
+    _agentMissionIds = _soldier->getDiary()->getMissionIdList();
+    bool bindingValid = _rowEntry >= 0 && static_cast<size_t>(_rowEntry) < _agentMissionIds.size();
+    for (int id : _agentMissionIds) {
+        if (id < 0 || static_cast<size_t>(id) >= missionStatistics->size() ||
+            !missionStatistics->at(id) || missionStatistics->at(id)->id != id) {
+            bindingValid = false;
+            break;
+        }
+        _agentMissionRecords.push_back(missionStatistics->at(id));
+    }
+    _agentMissionRowEntry = _rowEntry;
+    _agentMissionValid = bindingValid;
+#endif
 }
 
 /**
@@ -211,5 +251,118 @@ void SoldierDiaryMissionState::btnNextClick(Action *)
 		_rowEntry = 0;
 	init();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool SoldierDiaryMissionState::agentDestinationFull() const
+{
+    const Surface *logical = _game->getScreen()->getSurface();
+    const SDL_Surface *destination = logical ? logical->getSurface() : nullptr;
+    return destination && destination->w > 0 && destination->h > 0 &&
+        destination->clip_rect.x == 0 && destination->clip_rect.y == 0 &&
+        destination->clip_rect.w == destination->w && destination->clip_rect.h == destination->h;
+}
+std::vector<std::uint64_t> SoldierDiaryMissionState::agentPaintRevisions() const
+{
+    std::vector<std::uint64_t> revisions;
+    for (const Surface *surface : Observer::agentFlattenPaintOrder(_surfaces))
+        revisions.push_back(surface->agentPresentationRevision());
+    for (const Text *text : {_txtTitle, _txtUFO, _txtScore, _txtKills, _txtLocation, _txtRace, _txtDaylight, _txtDaysWounded, _txtNoRecord}) revisions.push_back(text->agentTextRevision());
+    revisions.push_back(_lstKills->agentListRevision());
+    revisions.push_back(static_cast<std::uint64_t>(_rowEntry));
+    for (const TextButton *button : {_btnPrev, _btnNext, _btnOk}) revisions.push_back(button->agentLabelRevision());
+    return revisions;
+}
+void SoldierDiaryMissionState::blit()
+{
+    _agentDestinationPaintFull = false;
+    const bool before = agentDestinationFull();
+    State::blit();
+    _agentStoredPaintRevisions = agentPaintRevisions();
+    _agentDestinationPaintFull = before && agentDestinationFull() && Observer::agentPaintHealthy();
+}
+bool SoldierDiaryMissionState::agentUiState(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    if (typeid(*this) != typeid(SoldierDiaryMissionState) || !_agentMissionValid || _rowEntry != _agentMissionRowEntry || _modal || _window->agentPopupActive() ||
+        !_soldier ||
+        !_game->isState(const_cast<SoldierDiaryMissionState *>(this)) || !agentPaintHealthy() ||
+        !_agentDestinationPaintFull || !agentDestinationFull() || _agentStoredPaintRevisions != agentPaintRevisions()) return false;
+    out=AgentUiState();out.screen="soldier_diary_mission";out.actor=_soldier;out.context.push_back(_rowEntry);
+    // MCP navigation must not reach the native legacy malformed-ID path.
+    // Direct constructor lifecycle is deliberately unchanged.
+    const auto &ids=_soldier->getDiary()->getMissionIdList();
+    const auto *statistics=_game->getSavedGame()->getMissionStatistics();
+    if (ids != _agentMissionIds || _agentMissionRecords.size() != ids.size()) return false;
+    for (size_t i = 0; i < ids.size(); ++i) {
+        const int id = ids[i];
+        if (id < 0 || static_cast<size_t>(id) >= statistics->size() ||
+            !statistics->at(id) || statistics->at(id)->id != id ||
+            statistics->at(id) != _agentMissionRecords[i]) return false;
+    }
+    bool navigationAllowed=_rowEntry>=0 && static_cast<size_t>(_rowEntry)<ids.size();
+    for(int id:ids) if(id<0 || static_cast<size_t>(id)>=statistics->size() || !statistics->at(id) || statistics->at(id)->id!=id) navigationAllowed=false;
+    out.context.push_back(navigationAllowed);
+
+    const auto painted=agentFlattenPaintOrder(_surfaces);const Surface *logical=_game->getScreen()->getSurface();
+    if(!agentWidgetVisible(_window)||!_window->agentPresentationPaintedTo(logical))return false;
+    for(const Surface *surface:painted)out.widgets.emplace_back(surface,surface->agentPresentationRevision());
+    if(_game->getCursor())out.widgets.emplace_back(_game->getCursor(),_game->getCursor()->agentPresentationRevision());
+    if(_game->getFpsCounter())out.widgets.emplace_back(_game->getFpsCounter(),_game->getFpsCounter()->agentPresentationRevision());
+    const auto allowed=[this](const AgentUiState &part){return _game->agentOverlayClear(part);};
+    const auto text=[&](const Text *widget)->std::string{
+        out.widgets.emplace_back(widget,widget->agentTextRevision());const auto value=agentTextJson(widget);
+        if(value=="null"||!widget->agentPresentationPaintedTo(logical)||!agentWidgetUncovered(widget,painted))return "null";
+        AgentUiState part;agentIncludeWidget(part,widget);return !part.regions.empty()&&allowed(part)?value:"null";
+    };
+    const auto title=text(_txtTitle), ufo=text(_txtUFO), score=text(_txtScore), kills=text(_txtKills);
+    const auto location=text(_txtLocation), race=text(_txtRace), daylight=text(_txtDaylight), daysWounded=text(_txtDaysWounded), noRecord=text(_txtNoRecord);
+    const auto table=[&](const TextList *list,unsigned columns)->std::string{
+        out.widgets.emplace_back(list,list->agentListRevision());std::vector<AgentOutfittingRow> rows;std::uint64_t epoch=0;
+        if(!list->agentPresentationPaintedTo(logical)||!list->agentReportRows(rows,epoch)||rows.size()>32)return "[]";
+        out.context.push_back(epoch);std::string values="[";
+        for(const auto &row:rows){
+            if(row.cells.size()!=columns)return "[]";
+            bool witnessed=false;std::string value="{\"cells\":[";
+            for(unsigned col=0;col<columns;++col){
+                if(col)value+=",";const auto &cell=row.cells[col];bool known=cell.known&&cell.text.size()<=1024&&!cell.regions.empty();bool visible=!cell.regions.empty();
+                for(const auto &r:cell.regions){AgentUiState part;part.regions.push_back({r.x,r.y,r.w,r.h});if(!agentRegionsUncovered(part.regions,list,painted)||!allowed(part)){known=false;visible=false;}}
+                witnessed=witnessed||visible;value+=known?agentJsonString(cell.text):"null";
+            }value+="]}";if(!witnessed)continue;if(values.size()>1)values+=",";values+=value;if(values.size()>16000)return "[]";
+        }return values+"]";
+    };
+    const auto rows=table(_lstKills,3);
+    const Surface *up=nullptr,*down=nullptr;_lstKills->agentScrollControls(up,down);
+    const auto control=[&](const Surface *widget)->bool{
+        if(!widget||!agentWidgetUncovered(widget,painted))return false;AgentUiState part;agentIncludeWidget(part,widget);if(part.regions.empty()||!allowed(part))return false;
+        const auto old=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());if(agentRegionsDisjoint(out))return true;out.regions.resize(old);return false;
+    };
+    const bool canUp=control(up),canDown=control(down);out.context.push_back(canUp);out.context.push_back(canDown);
+    if(canUp||canDown)out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
+    std::string buttons="[";
+    const auto button=[&](TextButton *widget,const char *id,const char *action){
+        const auto label=agentProjectNamedButton(widget,logical,painted,out,allowed);if(label.empty()||label.size()>1024)return;
+        if(buttons.size()>1)buttons+=",";buttons+="{\"id\":"+agentJsonString(id)+",\"label\":"+agentJsonString(label)+"}";out.actions.emplace_back(action,label,"visible_text");
+    };
+    if(navigationAllowed){button(_btnPrev,"previous","previous_diary_mission");button(_btnNext,"next","next_diary_mission");}
+    
+    button(_btnOk,"ok","close_diary_mission");buttons+="]";
+    out.visible="{\"title\":"+title+",\"ufo\":"+ufo+",\"score\":"+score+",\"kills\":"+kills+
+        ",\"location\":"+location+",\"race\":"+race+",\"daylight\":"+daylight+",\"days_wounded\":"+daysWounded+
+        ",\"no_record\":"+noRecord+",\"rows\":"+rows+",\"scroll\":{\"up\":"+(canUp?"true":"false")+",\"down\":"+(canDown?"true":"false")+"},\"buttons\":"+buttons+"}";
+    return out.visible.size()<=32768&&agentRegionsDisjoint(out)&&(!out.actions.empty()||title!="null"||rows!="[]");
+}
+bool SoldierDiaryMissionState::agentDispatch(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState fresh;if(!agentUiState(fresh)||!fresh.offers(request.action))return false;
+    if(request.action=="previous_diary_mission"){btnPrevClick(nullptr);return true;}
+    if(request.action=="next_diary_mission"){btnNextClick(nullptr);return true;}
+    
+    if(request.action=="close_diary_mission"){btnOkClick(nullptr);return true;}
+    if(request.action=="scroll_visible_list"&&fresh.context.size()>=3){
+        if(request.choice=="up"&&fresh.context[fresh.context.size()-2]){_lstKills->scrollUp(false,false);return true;}
+        if(request.choice=="down"&&fresh.context.back()){_lstKills->scrollDown(false,false);return true;}
+    }return false;
+}
+#endif
 
 }

@@ -51,8 +51,8 @@ def sized_project(size):
 
 class ProjectsContractTests(unittest.TestCase):
     def test_wire_catalog_limits_and_exact_new_kinds(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/37')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(214,90,6))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/39')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(224,93,6))
         self.assertEqual(len(NEW_STATES),7);self.assertEqual(len(NEW_ACTIONS),16)
         typed={'select_research_project':'project_row','select_production_project':'project_row',
                'adjust_scientists':'staff_direction','adjust_engineers':'staff_direction'}

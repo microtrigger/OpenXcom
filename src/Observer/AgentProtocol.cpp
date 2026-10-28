@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/37"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/39"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/37\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/39\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -55,6 +55,8 @@ bool agentActionId(const std::string &value)
         value == "open_base_stores" || value == "close_base_stores" ||
         value == "open_base_transfers" || value == "close_base_transfers" ||
         value == "right_click_base_facility_cell" || value == "increase_containment_removal" || value == "decrease_containment_removal" || value == "remove_selected_aliens" || value == "cancel_containment" ||
+        value == "open_diary_combat" || value == "open_diary_awards" || value == "select_diary_mission" || value == "previous_diary_mission" || value == "next_diary_mission" || value == "close_diary_mission" ||
+        value == "open_soldier_diary" || value == "open_diary_performance" || value == "close_soldier_diary" || value == "close_diary_performance" ||
         value == "open_monthly_costs" || value == "close_monthly_costs" ||
         value == "open_research" || value == "open_new_research" || value == "select_research_project" ||
         value == "adjust_scientists" || value == "accept_research" || value == "cancel_research_project" ||
@@ -130,7 +132,7 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "set_production_sell") return "boolean_value";
     if (action == "scroll_purchase") return "purchase_scroll";
     if (action == "position_purchase_list") return "purchase_position";
-    if (action == "increase_containment_removal" || action == "decrease_containment_removal" || action == "select_research_project" || action == "select_production_project") return "project_row";
+    if (action == "increase_containment_removal" || action == "decrease_containment_removal" || action == "select_diary_mission" || action == "select_research_project" || action == "select_production_project") return "project_row";
     if (action == "adjust_scientists" || action == "adjust_engineers") return "staff_direction";
     if (action == "choose_geoscape_speed") return "geoscape_speed";
     if (action == "select_base") return "base_target";

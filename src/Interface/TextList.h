@@ -180,6 +180,7 @@ private:
 		const Text *cells[5];
 		std::uint64_t textRevisions[5], presentationRevisions[5];
 		SDL_Rect geometry[5];
+        SDL_Rect contentBounds[5];
 	};
     // ManageAlienContainmentState-only logical four-cell arrow viewport.
     bool _agentContainmentCells = false;
@@ -189,6 +190,9 @@ private:
     std::uint64_t _agentContainmentDrawEpoch = 0, _agentContainmentEpoch = 0;
     void agentCaptureContainmentRow(size_t logicalIndex, int y);
 	unsigned _agentReportColumns = 0;
+	bool _agentReportSelection = false; // Diary overview only; report readers gain no input authority.
+	bool _agentReportRequireTextExtent = false; // Diary-only full logical-caption fit, no raster comparison.
+	bool _agentReportAllowMissingCells = false; // Explicit diary report opt-in; absent native cells remain unknown.
 	bool _agentReportCells = false, _agentReportCaptureHealthy = true, _agentReportEpochExhausted = false;
 	std::uint64_t _agentReportDrawEpoch = 0, _agentReportPaintEpoch = 0;
 	std::vector<AgentReportCapture> _agentDrawReportRows, _agentPaintReportRows;
@@ -251,7 +255,11 @@ public:
     void agentEnableContainmentCells();
     bool agentContainmentRows(const Surface *destination, std::vector<AgentOutfittingRow> &rows, std::uint64_t &epoch) const;
     bool agentContainmentArrowClick(const Surface *destination, size_t logicalIndex, bool increase, State *state);
-	void agentEnableReportCells(unsigned columns);
+	void agentEnableReportCells(unsigned columns, bool allowMissingCells = false, bool requireTextExtent = false);
+    void agentEnableReportSelection();
+    bool agentReportRowTarget(size_t logicalIndex, SDL_Rect &point) const;
+    bool agentReportRowSelected(size_t logicalIndex) const;
+    bool agentReportRowClick(size_t logicalIndex, State *state);
 	bool agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const;
 	void agentEnablePromotionCells();
 	bool agentPromotionRows(std::vector<AgentOutfittingRow> &rows) const;
