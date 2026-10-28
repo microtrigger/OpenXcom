@@ -1053,6 +1053,8 @@ void TextList::draw()
 	}
 	_agentDrawPromotionRows.clear();
 	_agentPromotionCaptureHealthy = true;
+	_agentDrawReequipRows.clear();
+	_agentReequipCaptureHealthy = true;
 	_agentDrawControls.clear();
 	_agentDrawPurchaseRows.clear();
 	_agentDrawArrivalRows.clear(); _agentDrawOutfittingRows.clear();
@@ -1074,7 +1076,7 @@ void TextList::draw()
 			for (std::vector<Text*>::iterator j = _texts[i].begin(); j < _texts[i].end(); ++j)
 			{
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-				if (_agentContainmentCells || _agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
+				if (_agentContainmentCells || _agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReequipCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
 #endif
 				(*j)->setY(y);
 				(*j)->blit(this);
@@ -1083,6 +1085,7 @@ void TextList::draw()
 			agentCapturePsiRow(i, y);
 			agentCaptureCommendationRow(i, y);
 			agentCapturePromotionRow(i, y);
+			agentCaptureReequipRow(i, y);
 			agentCaptureReportRow(i, y);
             agentCaptureContainmentRow(i, y);
 			agentCaptureSaveListRow(i, y);
@@ -1140,6 +1143,9 @@ void TextList::blit(Surface *surface)
 	_agentPaintPromotionRows.clear();
 	_agentPromotionClip = surface->getSurface()->clip_rect;
 	_agentPromotionDestination = surface;
+	_agentPaintReequipRows.clear();
+	_agentReequipClip = surface->getSurface()->clip_rect;
+	_agentReequipDestination = surface;
 	_agentPaintControls.clear();
 	_agentPaintPurchaseRows.clear();
 	_agentPaintArrivalRows.clear(); _agentPaintOutfittingRows.clear();
@@ -1261,6 +1267,7 @@ void TextList::blit(Surface *surface)
 		_agentPaintPsiRows = _agentDrawPsiRows;
 		_agentPaintCommendationRows = _agentDrawCommendationRows;
 		_agentPaintPromotionRows = _agentDrawPromotionRows;
+		_agentPaintReequipRows = _agentDrawReequipRows;
 		if (_agentReportCells && _agentReportCaptureHealthy && !_agentReportEpochExhausted)
 		{
 			_agentPaintReportRows = _agentDrawReportRows;
@@ -2347,6 +2354,123 @@ bool TextList::agentPromotionRows(std::vector<AgentOutfittingRow> &rows) const
 			{
 				const int left = std::max<int>(region.x, _agentPromotionClip.x);
 				const int right = std::min<int>(region.x+region.w, _agentPromotionClip.x+_agentPromotionClip.w);
+				if (left >= right) { cell.known = false; break; }
+				region.x = left; region.w = right-left;
+				const Observer::AgentUiRect band = {region.x,region.y,region.w,region.h};
+				if (!Observer::agentRegionsUncovered({band}, this, _agentPaintOrder)) cell.known = false;
+			}
+			if (!cell.known) { cell.text.clear(); cell.regions.clear(); }
+		}
+		rows.push_back(row);
+	}
+	return true;
+}
+
+void TextList::agentEnableReequipCells()
+{
+	if (!_agentReequipCells)
+	{
+		_agentReequipCells = true; ++_agentListRevision; _redraw = true;
+		agentTrackPresentation();
+        _up->agentTrackPresentation(); _down->agentTrackPresentation(); _scrollbar->agentTrackPresentation();
+	}
+}
+
+void TextList::agentCaptureReequipRow(size_t logicalIndex, int y)
+{
+	if (!_agentReequipCells) return;
+	if (!_font || _comboBox || _dot || _wrap || _condensed ||
+		_flooding || _arrowPos != -1 || _columns.size() != 3 || logicalIndex >= _texts.size() ||
+		_texts[logicalIndex].size() != 3 || getWidth() <= 0 || getWidth() > 640 ||
+		getHeight() <= 0 || getHeight() > 400)
+	{ _agentReequipCaptureHealthy = false; return; }
+	// Use the ordinary draw allocation, not caption metrics or the selection grid.
+	const int allocationHeight = _texts[logicalIndex][0]->getHeight();
+	const int height = allocationHeight + _font->getSpacing();
+	// Stock small-font allocation9/spacing-1 advances by8. Observe that actual
+	// row strip, excluding the spare bottom pixel shared with the following row.
+	// Other negative overlap and malformed column allocations remain refused.
+	if (_margin < 0 || _margin > 640 || _font->getSpacing() < -1 || allocationHeight <= 0)
+	{ _agentReequipCaptureHealthy = false; return; }
+	int expectedX = _margin;
+	for (size_t col = 0; col < 3; ++col)
+	{
+		const Text *cell = _texts[logicalIndex][col];
+		if (!_columns[col] || _columns[col] > 640 || cell->getX() != expectedX ||
+			cell->getWidth() != static_cast<int>(_columns[col]) || cell->getY() != y ||
+			cell->getHeight() != allocationHeight)
+		{ _agentReequipCaptureHealthy = false; return; }
+		expectedX += static_cast<int>(_columns[col]);
+	}
+	if (height <= 0) { _agentReequipCaptureHealthy = false; return; }
+	if (y < 0 || y + height > getHeight()) return;
+	if (_agentDrawReequipRows.size() >= 128) { _agentReequipCaptureHealthy = false; return; }
+	AgentReequipCapture capture = {};
+	capture.row.logicalIndex = logicalIndex; // Private cell identity only; never a public row handle.
+	capture.row.bounds = {static_cast<Sint16>(getX()), static_cast<Sint16>(getY()+y),
+		static_cast<Uint16>(getWidth()), static_cast<Uint16>(height)};
+	capture.row.cells.resize(3);
+	for (size_t col = 0; col < 3; ++col)
+	{
+		const Text *cell = _texts[logicalIndex][col];
+		capture.cells[col] = cell;
+		capture.textRevisions[col] = cell->agentTextRevision();
+		capture.presentationRevisions[col] = cell->agentPresentationRevision();
+		capture.geometry[col] = {static_cast<Sint16>(cell->getX()), static_cast<Sint16>(cell->getY()),
+			static_cast<Uint16>(cell->getWidth()), static_cast<Uint16>(cell->getHeight())};
+		// Native margin2 clips the third allocation by2px. Preserve its logical
+		// caption when the allocation intersects the viewport; never inspect glyphs.
+		const int left = std::max(0, cell->getX());
+		const int right = std::min(getWidth(), cell->getX()+cell->getWidth());
+		AgentPurchaseCell &value = capture.row.cells[col];
+		value.known = cell->agentPresentationPaintedTo(this) && cell->getY() == y &&
+			cell->getHeight() == allocationHeight && left < right &&
+			cell->getText().size() <= 1024;
+		if (value.known)
+		{
+			value.text = cell->getText();
+			value.regions.push_back({static_cast<Sint16>(getX()+left), static_cast<Sint16>(getY()+y),
+				static_cast<Uint16>(right-left), static_cast<Uint16>(height)});
+		}
+	}
+	_agentDrawReequipRows.push_back(capture);
+}
+
+bool TextList::agentReequipRows(std::vector<AgentOutfittingRow> &rows) const
+{
+	rows.clear();
+	if (!_agentReequipCells || !_agentReequipCaptureHealthy || !Observer::agentWidgetVisible(this) ||
+		getWidth() <= 0 || getWidth() > 640 || getHeight() <= 0 || getHeight() > 400 ||
+		!agentPresentationPaintedTo(_agentReequipDestination) ||
+		_agentPaintRevision != _agentListRevision || !Observer::agentPaintHealthy() ||
+		_comboBox || _dot || _wrap || _condensed || _flooding || _columns.size() != 3 ||
+		_arrowPos != -1 || _agentPaintReequipRows.size() > 128) return false;
+	for (const AgentReequipCapture &capture : _agentPaintReequipRows)
+	{
+		AgentOutfittingRow row = capture.row;
+		if (row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].size() != 3)
+		{ rows.clear(); return false; }
+		for (size_t col = 0; col < 3; ++col)
+		{
+			const Text *cell = _texts[row.logicalIndex][col];
+			const SDL_Rect &g = capture.geometry[col];
+			if (cell != capture.cells[col] || cell->_redraw ||
+				(capture.row.cells[col].known && !cell->agentPresentationPaintedTo(this)) ||
+				cell->agentTextRevision() != capture.textRevisions[col] ||
+				cell->agentPresentationRevision() != capture.presentationRevisions[col] ||
+				cell->getX() != g.x || cell->getY() != g.y || cell->getWidth() != g.w || cell->getHeight() != g.h)
+			{ rows.clear(); return false; }
+		}
+		if (row.bounds.y < _agentReequipClip.y ||
+			row.bounds.y+row.bounds.h > _agentReequipClip.y+_agentReequipClip.h ||
+			row.bounds.x >= _agentReequipClip.x+_agentReequipClip.w ||
+			row.bounds.x+row.bounds.w <= _agentReequipClip.x) continue;
+		for (AgentPurchaseCell &cell : row.cells)
+		{
+			for (SDL_Rect &region : cell.regions)
+			{
+				const int left = std::max<int>(region.x, _agentReequipClip.x);
+				const int right = std::min<int>(region.x+region.w, _agentReequipClip.x+_agentReequipClip.w);
 				if (left >= right) { cell.known = false; break; }
 				region.x = left; region.w = right-left;
 				const Observer::AgentUiRect band = {region.x,region.y,region.w,region.h};

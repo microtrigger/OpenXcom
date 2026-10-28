@@ -173,6 +173,19 @@ private:
 	SDL_Rect _agentPromotionClip = {};
 	const Surface *_agentPromotionDestination = nullptr;
 	void agentCapturePromotionRow(size_t logicalIndex, int y);
+	// CannotReequipState-only logical viewport, with no selection/action authority.
+	struct AgentReequipCapture
+	{
+		AgentOutfittingRow row;
+		const Text *cells[3];
+		std::uint64_t textRevisions[3], presentationRevisions[3];
+		SDL_Rect geometry[3];
+	};
+	bool _agentReequipCells = false, _agentReequipCaptureHealthy = true;
+	std::vector<AgentReequipCapture> _agentDrawReequipRows, _agentPaintReequipRows;
+	SDL_Rect _agentReequipClip = {};
+	const Surface *_agentReequipDestination = nullptr;
+	void agentCaptureReequipRow(size_t logicalIndex, int y);
 	// ReportsState-only logical viewport, with no selection/action authority.
 	struct AgentReportCapture
 	{
@@ -261,6 +274,9 @@ public:
     bool agentReportRowSelected(size_t logicalIndex) const;
     bool agentReportRowClick(size_t logicalIndex, State *state);
 	bool agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const;
+	// Explicit CannotReequipState viewport-only logical captions; never row actions.
+	void agentEnableReequipCells();
+	bool agentReequipRows(std::vector<AgentOutfittingRow> &rows) const;
 	void agentEnablePromotionCells();
 	bool agentPromotionRows(std::vector<AgentOutfittingRow> &rows) const;
 	void agentEnablePsiTrainingCells();

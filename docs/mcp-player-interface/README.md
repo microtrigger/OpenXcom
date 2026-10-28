@@ -18,7 +18,9 @@ Article body delivery now follows the open viewport layout rather than per-pixel
 readability proof; calendar fields retain their existing contract.
 Build the native game and Python adapter from the **same branch**.
 
-Schema 42 adds the ordinary [visible Abort mission route](abort-mission.md),
+Schema 43 adds [visible re-equip shortage reports](cannot-reequip.md), with
+viewport-only captions, ordinary scrolling and the normal OK continuation.
+Schema 42 added the ordinary [visible Abort mission route](abort-mission.md),
 with separately offered Cancel and explicit OK; the native outcome is not forced.
 Schema 41 added [explicit acknowledged command generations](command-ledger-generations.md)
 for bounded long-session receipt retention; it does not reset gameplay authority.
