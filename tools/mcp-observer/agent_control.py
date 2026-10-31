@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/50'
+SCHEMA = 'openxcom-agent-control/50-craft-stats1'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -190,7 +190,7 @@ RESEARCH_COMPLETION_FIELDS = {'research_complete': 'title topic buttons',
  'new_possible_research': 'title rows scroll buttons',
  'new_possible_manufacture': 'title rows scroll buttons',
  'research_required': 'message buttons',
- 'ufopaedia_article': 'title body_lines buttons details_status',
+ 'ufopaedia_article': 'title body_lines buttons details_status craft_stats',
  'mission_alert': 'title city buttons'}
 RESEARCH_COMPLETION_BUTTONS = {'research_complete': ('ok', 'reports'),
  'new_possible_research': ('ok', 'allocate'),
@@ -1065,7 +1065,7 @@ def validate_research_completion(screen, visible, actions):
     """Shown completion controls and separately proved article lines only."""
     exact(visible, RESEARCH_COMPLETION_FIELDS[screen])
     for field in RESEARCH_COMPLETION_FIELDS[screen].split():
-        if field not in ('rows', 'scroll', 'buttons', 'body_lines', 'details_status'):
+        if field not in ('rows', 'scroll', 'buttons', 'body_lines', 'details_status', 'craft_stats'):
             strategy_text(visible[field], nullable=True)
     if screen in RESEARCH_NOTICE_STATES:
         rows = visible['rows']; require(type(rows) is list and len(rows) <= len(ROW_HANDLES))
@@ -1078,7 +1078,17 @@ def validate_research_completion(screen, visible, actions):
         for flag in visible['scroll'].values(): require(type(flag) is bool)
         require('scroll_visible_list' not in actions or any(visible['scroll'].values()))
     elif screen == 'ufopaedia_article':
-        require(visible['details_status'] == 'unavailable')
+        # Exact printed CRAFT Text logical lines; never infer model statistics.
+        craft = visible['craft_stats']
+        if craft is not None:
+            require(type(craft) is list and 1 <= len(craft) <= 32)
+            total = 0
+            for line in craft:
+                strategy_text(line)
+                require('\n' not in line)
+                total += len(line.encode('utf-8'))
+            require(total <= 8192)
+        require(visible['details_status'] == ('partial' if craft is not None else 'unavailable'))
         lines = visible['body_lines']
         if lines is not None:
             require(type(lines) is list and len(lines) <= 32)

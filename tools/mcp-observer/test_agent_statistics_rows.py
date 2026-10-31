@@ -12,7 +12,7 @@ class StatisticsRowsTests(unittest.TestCase):
  def shown(self):return state(screen='statistics')
  def test_closed_schema_shape_and_readonly_rows(self):
   obj=self.shown();self.check(obj)
-  self.assertEqual(a.SCHEMA,'openxcom-agent-control/50')
+  self.assertEqual(a.SCHEMA,'openxcom-agent-control/50-craft-stats1')
   self.assertEqual(len(a.ACTIONS),261)
   for key in obj['visible']:
    bad=copy.deepcopy(obj);del bad['visible'][key]

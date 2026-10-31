@@ -9,7 +9,7 @@ NEW=('open_build_facilities','select_build_facility','close_build_facilities','c
 class FacilityTests(unittest.TestCase):
     def check(self,obj):return a.validate_state(obj,CHALLENGE,EPOCH)
     def test_closed_painted_fields_no_placement_authority(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/50')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/50-craft-stats1')
         self.assertEqual(a.STATE_ACTIONS['place_facility'],{'place_facility_cell','cancel_place_facility'})
         for screen in ('build_facilities','place_facility'):
             obj=state(screen=screen);self.check(obj)

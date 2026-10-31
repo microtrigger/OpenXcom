@@ -25,7 +25,7 @@ def effect(kind, seq=1):
 
 class ImpactValidationTests(unittest.TestCase):
     def test_protocol_catalog_and_all_eight_kinds(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/50')
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/50-craft-stats1')
         # Advertised version must match the exact wire, not a historical prose literal.
         self.assertIn('protocol /'+a.SCHEMA.rsplit('/',1)[1]+':', next(d for d in a.definitions() if d['name']=='read_ui_state')['description'])
         description=next(d for d in a.definitions() if d['name']=='read_ui_state')['description']

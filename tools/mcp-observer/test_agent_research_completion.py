@@ -18,7 +18,7 @@ FIELDS = {
     'new_possible_research': 'title rows scroll buttons',
     'new_possible_manufacture': 'title rows scroll buttons',
     'research_required': 'message buttons',
-    'ufopaedia_article': 'title body_lines buttons details_status',
+    'ufopaedia_article': 'title body_lines buttons details_status craft_stats',
     'mission_alert': 'title city buttons',
 }
 BUTTONS = {'research_complete': ('ok','reports'), 'new_possible_research': ('ok','allocate'),
@@ -65,7 +65,7 @@ class ResearchCompletionContract(unittest.TestCase):
         with self.assertRaises(Unavailable): validate(page([event(obj)]))
 
     def test_exact_catalog_and_old_wires(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/50')
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/50-craft-stats1')
         self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(261, 106, 7))
         self.assertEqual(a.RESEARCH_COMPLETION_FIELDS,FIELDS)
         self.assertEqual(a.RESEARCH_COMPLETION_BUTTONS,BUTTONS)
@@ -103,7 +103,7 @@ class ResearchCompletionContract(unittest.TestCase):
     def test_null_empty_text_independent_buttons(self):
         for screen in FIELDS:
             obj=state(screen=screen)
-            scalar=[k for k in obj['visible'] if k not in ('buttons','body_lines','details_status','rows','scroll')]
+            scalar=[k for k in obj['visible'] if k not in ('buttons','body_lines','craft_stats','details_status','rows','scroll')]
             for value in (None,'','\x01Shown','é漢字'):
                 for key in scalar: obj['visible'][key]=value
                 if 'body_lines' in obj['visible']: obj['visible']['body_lines']=None
@@ -113,7 +113,7 @@ class ResearchCompletionContract(unittest.TestCase):
     def test_text_and_button_utf8_limits(self):
         for screen in FIELDS:
             for key in FIELDS[screen].split():
-                if key in ('buttons','rows','scroll','body_lines','details_status'): continue
+                if key in ('buttons','rows','scroll','body_lines','craft_stats','details_status'): continue
                 for text,good in (('é'*512,True),('😀'*256,True),('x'*1025,False),('é'*513,False),('\ud800',False), (True,False)):
                     obj=state(screen=screen);obj['visible'][key]=text
                     with self.subTest(screen=screen,key=key,good=good):

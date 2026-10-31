@@ -127,7 +127,7 @@ def state(challenge=CHALLENGE, capability=CAPABILITY, revision=1, event_sequence
             visible.update(title='New possibilities', rows=[dict(handle='r0',cells=['Shown research'],selected=False)],
                            scroll=dict(up=True,down=True))
         elif screen == 'ufopaedia_article':
-            visible.update(title='Pistol',body_lines=['A shown line',None,'Another line'],details_status='unavailable')
+            visible.update(craft_stats=None,title='Pistol',body_lines=['A shown line',None,'Another line'],details_status='unavailable')
         elif screen == 'research_complete': visible.update(title='Research Complete',topic='Pistol')
         elif screen == 'research_required': visible['message']='Research required'
         else: visible.update(title='Mission Alert',city='City')
@@ -884,7 +884,7 @@ class ClientTests(unittest.TestCase):
 
     def test_explicit_handshake_then_challenge_bound_state(self):
         native = self.fixture(); obj = native.client.observe()
-        self.assertEqual(native.requests[0], b'H openxcom-agent-control/50')
+        self.assertEqual(native.requests[0], b'H openxcom-agent-control/50-craft-stats1')
         self.assertEqual(native.requests[1], ('R ' + obj['challenge']).encode())
         self.assertEqual(native.client.state, 'READY'); self.assertEqual(obj['visible']['selected_name'], 'Jane')
 
@@ -898,7 +898,7 @@ class ClientTests(unittest.TestCase):
     def test_mismatched_ready_closes_before_read(self):
         native = self.fixture(transform=lambda op, obj: dict(obj, mode='supervised') if op == 'H' else obj)
         with self.assertRaises(Unavailable): native.client.observe()
-        self.assertEqual(native.requests, [b'H openxcom-agent-control/50']); self.assertEqual(native.client.state, 'CLOSED')
+        self.assertEqual(native.requests, [b'H openxcom-agent-control/50-craft-stats1']); self.assertEqual(native.client.state, 'CLOSED')
 
     def test_new_read_invalidates_old_capability(self):
         native = self.fixture(); old = native.client.observe(); fresh = native.client.observe(); count = len(native.requests)
@@ -1624,9 +1624,9 @@ class LauncherTests(unittest.TestCase):
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/50',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/50'
-send(dict(schema='openxcom-agent-control/50',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/50-craft-stats1',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/50-craft-stats1'
+send(dict(schema='openxcom-agent-control/50-craft-stats1',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1671,9 +1671,9 @@ assert channel.recv(512) == b''
 import json, os, socket
 channel = socket.socket(fileno=int(os.environ['OPENXCOM_AGENT_CONTROL_FD']))
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-send(dict(schema='openxcom-agent-control/50',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(512) == b'H openxcom-agent-control/50'
-send(dict(schema='openxcom-agent-control/50',mode='agent-control',status='ready'))
+send(dict(schema='openxcom-agent-control/50-craft-stats1',mode='agent-control',epoch='1'*32,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
+assert channel.recv(512) == b'H openxcom-agent-control/50-craft-stats1'
+send(dict(schema='openxcom-agent-control/50-craft-stats1',mode='agent-control',status='ready'))
 for observed, wire, receipt in FIXTURES:
     request = channel.recv(512).decode(); assert request.startswith('R ')
     observed['challenge'] = request[2:]; send(observed)
@@ -1704,9 +1704,9 @@ assert channel.family == socket.AF_UNIX and channel.type == socket.SOCK_SEQPACKE
 assert channel.getsockname() in ('', b'') and channel.getpeername() in ('', b'')
 print('PRIVATE CHILD STDOUT'); print('PRIVATE CHILD STDERR', file=sys.stderr)
 def send(obj): channel.send(json.dumps(obj, separators=(',', ':')).encode())
-schema, mode, epoch = 'openxcom-agent-control/50', 'agent-control', '1' * 32
+schema, mode, epoch = 'openxcom-agent-control/50-craft-stats1', 'agent-control', '1' * 32
 send(dict(schema=schema,mode=mode,epoch=epoch,ledger_capacity=256, command_generation=1, audio_history='mixed_output'))
-assert channel.recv(256) == b'H openxcom-agent-control/50'; send(dict(schema=schema,mode=mode,status='ready'))
+assert channel.recv(256) == b'H openxcom-agent-control/50-craft-stats1'; send(dict(schema=schema,mode=mode,status='ready'))
 raw=channel.recv(256).decode(); assert raw.startswith('R ')
 observation=dict(schema=schema,mode=mode,type='state',challenge=raw[2:],epoch=epoch,revision=1,capability='2'*32,
  cursor=None,state='next_turn',visible=dict(title='UFO',turn='Turn 1',side='XCOM',message='Continue'),

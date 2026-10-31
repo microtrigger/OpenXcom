@@ -151,6 +151,11 @@ void ArticleState::agentRegisterText(Text *title,Text *body)
     if (body) body->agentEnableViewportLines();
     _btnOk->agentTrackPresentation();_btnPrev->agentTrackPresentation();_btnNext->agentTrackPresentation();
 }
+void ArticleState::agentRegisterCraftStats(Text *text)
+{
+    _agentCraftStats=text;
+    if(text)text->agentTrackPresentation();
+}
 void ArticleState::agentRegisterTransparentLayer(Surface *surface)
 {
     if (!surface) return;
@@ -303,10 +308,36 @@ bool ArticleState::agentUiState(Observer::AgentUiState &out) const
     }
     out.context.push_back(scroll?1:0);
     if (scroll) out.actions.emplace_back("scroll_article_text","Scroll article text","visible_control_semantics","scroll_direction");
-    const auto finish=[&]() {return "{\"title\":"+title+",\"body_lines\":"+body+",\"buttons\":"+buttons+",\"details_status\":\"unavailable\"}";};
+    // CRAFT uses a single native Text, not a two-column stats TextList.
+    // Preserve exact logical lines (including color markers); never query RuleCraft.
+    std::string craftStats="null";
+    if(_agentCraftStats && std::find(_surfaces.begin(),_surfaces.end(),_agentCraftStats)!=_surfaces.end()) {
+        out.widgets.emplace_back(_agentCraftStats,_agentCraftStats->agentTextRevision());
+        out.widgets.emplace_back(_agentCraftStats,_agentCraftStats->agentPresentationRevision());
+        const std::string &text=_agentCraftStats->getText();
+        if(!_agentCraftStats->agentScrollable() && agentTextJson(_agentCraftStats)!="null" &&
+            text.size()<=8192 && _agentCraftStats->agentPresentationPaintedTo(logical)) {
+            std::string value="[";size_t start=0,count=0;bool valid=true;
+            for(;;) {
+                const size_t end=text.find('\n',start);
+                const std::string line=text.substr(start,end==std::string::npos?end:end-start);
+                if(++count>32 || line.size()>1024) {valid=false;break;}
+                if(count>1)value+=",";value+=agentJsonString(line);
+                if(end==std::string::npos)break;
+                start=end+1;
+            }
+            const AgentUiRect region={_agentCraftStats->getX(),_agentCraftStats->getY(),_agentCraftStats->getWidth(),_agentCraftStats->getHeight()};
+            if(valid && uncovered(region,_agentCraftStats)) {
+                const auto before=out.regions.size();out.regions.push_back(region);
+                if(agentRegionsDisjoint(out))craftStats=value+"]";
+                else out.regions.resize(before);
+            }
+        }
+    }
+    const auto finish=[&]() {return "{\"title\":"+title+",\"body_lines\":"+body+",\"buttons\":"+buttons+",\"details_status\":\""+(craftStats!="null"?std::string("partial"):std::string("unavailable"))+"\",\"craft_stats\":"+craftStats+"}";};
     out.visible=finish();
     const auto bounded=[&]() {size_t bytes=0;for(unsigned char c:out.payload()) if((bytes+=c<128?1:6)>30000)return false;return true;};
-    if (!bounded()) {body="null";out.regions.resize(beforeBodyRegions);out.visible=finish();}
+    if (!bounded()) {body="null";craftStats="null";out.regions.resize(beforeBodyRegions);out.visible=finish();}
     return bounded() && !out.regions.empty() && agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
 }
 bool ArticleState::agentDispatch(const Observer::AgentRequest &request)

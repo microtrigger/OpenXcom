@@ -40,6 +40,8 @@ namespace OpenXcom
 	protected:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
         Text *_agentTitle = nullptr, *_agentBody = nullptr;
+        Text *_agentCraftStats = nullptr;
+        void agentRegisterCraftStats(Text *text);
         std::vector<Surface *> _agentTransparentLayers;
         bool _agentArticlePaintFull = false;
         std::vector<std::uint64_t> _agentStoredPaintRevisions;

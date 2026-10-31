@@ -17,7 +17,7 @@ class GlobeTargetTests(unittest.TestCase):
     def fixture(self,**kwargs):
         p=NativeFixture(**kwargs);self.addCleanup(p.close);return p
     def test_catalog_and_semantics(self):
-        self.assertEqual((a.SCHEMA,len(a.ACTIONS),len(a.STATE_ACTIONS)),('openxcom-agent-control/50',261,106))
+        self.assertEqual((a.SCHEMA,len(a.ACTIONS),len(a.STATE_ACTIONS)),('openxcom-agent-control/50-craft-stats1',261,106))
         for obj in (geo(),state(screen='multiple_targets'),state(screen='target_info')):
             checked(obj)
             validate(page([dict(seq=1,kind='presentation',state=obj['state'],visible=obj['visible'])]))
