@@ -223,7 +223,9 @@ void SoldierDiaryPerformanceState::init()
 	for (int i = 0; i != 10; ++i)
 	{
 		_commendations[i]->clear();
+		_commendations[i]->setVisible(_display == DIARY_COMMENDATIONS);
 		_commendationDecorations[i]->clear();
+		_commendationDecorations[i]->setVisible(_display == DIARY_COMMENDATIONS);
 	}
 	// Reset scroll depth for lists
 	_lstPerformance->scrollTo(0);
