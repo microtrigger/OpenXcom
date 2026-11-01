@@ -22,7 +22,7 @@ from adapter import strict_json
 from snapshots import Unavailable, exact, integer, require
 from error_contract import classified, ensure, code_for, detail
 
-SCHEMA = 'openxcom-agent-control/50'
+SCHEMA = 'openxcom-agent-control/51'
 ERROR_SCHEMA = 'openxcom-mcp-agent-control-error/1'
 MODE = 'agent-control'
 MAX_PACKET = 49152
@@ -84,6 +84,10 @@ GRAPH_MODES = ('alien_region','alien_country','xcom_region','xcom_country','inco
 GRAPH_ACTIONS = tuple('graph_'+m for m in GRAPH_MODES) + ('toggle_graph_series','scroll_graph_legend','close_graphs')
 GRAPH_LABELS = dict(zip(GRAPH_ACTIONS, ('Alien activity by region','Alien activity by country','XCOM activity by region','XCOM activity by country','Income','Finance','Toggle visible series','Scroll visible legend','Return to Geoscape')))
 ACTIONS += ('open_graphs',) + GRAPH_ACTIONS
+UNIT_INFO_ROWS = ('time_units','energy','health','fatal_wounds','bravery','morale','reactions','firing','throwing','melee','strength','psi_strength','psi_skill','front_armor','left_armor','right_armor','rear_armor','under_armor')
+UNIT_INFO_ACTIONS = ('previous_unit_info','next_unit_info','close_unit_info')
+UNIT_INFO_LABELS = dict(zip(UNIT_INFO_ACTIONS, ('<<','>>','Close unit information')))
+ACTIONS += ('open_unit_stats',) + UNIT_INFO_ACTIONS
 DIFFICULTIES = ('beginner', 'experienced', 'veteran', 'genius', 'superhuman')
 CHOICE_CONTROLS = ('mission', 'craft', 'terrain', 'difficulty', 'alien_race')
 ROW_HANDLES = tuple(f'r{index}' for index in range(32))
@@ -257,7 +261,8 @@ STATE_ACTIONS = {
     'promotions': frozenset(('close_promotions',)),
     'crash_recovery': frozenset(('acknowledge_crash_recovery',)),
     'lost_in_service': frozenset(('acknowledge_lost_in_service',)),
-    'battlescape': frozenset(('next_soldier', 'previous_soldier', 'kneel', 'stand', 'reserve_none', 'reserve_snap', 'reserve_aimed', 'reserve_auto', 'toggle_kneel_reserve', 'open_pause_menu', 'open_abort_mission', 'end_turn',
+    'unit_info': frozenset(UNIT_INFO_ACTIONS),
+    'battlescape': frozenset(('open_unit_stats','next_soldier', 'previous_soldier', 'kneel', 'stand', 'reserve_none', 'reserve_snap', 'reserve_aimed', 'reserve_auto', 'toggle_kneel_reserve', 'open_pause_menu', 'open_abort_mission', 'end_turn',
                               'map_primary', 'map_secondary', 'center_selected_unit', 'center_enemy',
                               'open_hand_action_menu', 'open_inventory', 'view_level_up', 'view_level_down',
                               'toggle_layers', 'open_minimap', 'camera_pan', 'unit_up', 'unit_down')),
@@ -441,6 +446,7 @@ def validate_ready(raw):
 
 
 def label_source(screen, action):
+    if action == 'close_unit_info': return 'visible_control_semantics'
     if action in GRAPH_ACTIONS: return 'visible_control_semantics'
     if action in ('move_cursor','advance_slideshow'): return 'visible_control_semantics'
     if action in ('select_memorial_soldier', 'select_diary_mission', 'right_click_base_facility_cell', 'increase_containment_removal', 'decrease_containment_removal', 'choose_dogfight_mode', 'select_build_facility', 'place_facility_cell', 'click_base_facility_cell', 'place_access_lift_cell'): return 'visible_control_semantics'
@@ -520,6 +526,33 @@ def validate_geoscape(visible, actions):
 
     validate_marker_witnesses(visible['targets'])
     require('click_visible_globe_target' not in actions or bool(visible['targets']))
+
+
+def validate_unit_info(v, actions):
+    exact(v,'name rows buttons'); strategy_text(v['name'],nullable=True)
+    require(type(v['rows']) is list and len(v['rows'])==len(UNIT_INFO_ROWS))
+    for row,identity in zip(v['rows'],UNIT_INFO_ROWS):
+        exact(row,'id label value bar'); require(row['id']==identity)
+        strategy_text(row['label'],nullable=True);strategy_text(row['value'],nullable=True)
+        bar=row['bar']
+        if bar is None: continue
+        exact(bar,'x y width height runs')
+        integer(bar['x'],0,319);integer(bar['y'],0,199)
+        integer(bar['width'],1,320-bar['x']);integer(bar['height'],1,200-bar['y'])
+        require(type(bar['runs']) is list and len(bar['runs'])<=bar['width']*bar['height'])
+        previous=None
+        for run in bar['runs']:
+            exact(run,'x y width color')
+            integer(run['x'],0,bar['width']-1);integer(run['y'],0,bar['height']-1)
+            integer(run['width'],1,bar['width']-run['x']);integer(run['color'],1,255)
+            require(previous is None or run['y']>previous[0] or (run['y']==previous[0] and run['x']>=previous[1]))
+            previous=(run['y'],run['x']+run['width'])
+    require(type(v['buttons']) is list and len(v['buttons'])<=2)
+    seen=set()
+    for button in v['buttons']:
+        exact(button,'id label');require(button['id'] in UNIT_INFO_ACTIONS[:2] and button['id'] not in seen)
+        seen.add(button['id']);require(button['label']==UNIT_INFO_LABELS[button['id']])
+    require(not (set(actions)&set(UNIT_INFO_ACTIONS[:2]))-seen)
 
 
 def validate_graphs(v, actions):
@@ -1679,6 +1712,8 @@ def validate_visible(screen, visible, seen, *, presentation=False):
         validate_new_game(visible, seen)
     elif screen == 'dogfight':
         validate_dogfight(visible, seen)
+    elif screen == 'unit_info':
+        validate_unit_info(visible, seen)
     elif screen == 'graphs':
         validate_graphs(visible, seen)
     elif screen == 'geoscape':
@@ -1798,6 +1833,8 @@ def _validate_semantic_state(obj, challenge, epoch, *, post_action=False):
         require(action['argument_kind'] == ARGUMENT_KINDS[action['id']])
     require(not {'kneel', 'stand'}.issubset(seen) and seen <= STATE_ACTIONS[obj['state']])
     validate_visible(obj['state'], obj['visible'], seen)
+    if obj['state'] == 'unit_info':
+        for d in obj['actions']: require(d['label']==UNIT_INFO_LABELS[d['id']])
     if obj['state'] == 'graphs':
         for d in obj['actions']: require(d['label']==GRAPH_LABELS[d['id']])
     if obj['state'] == 'weapon_action_menu' and 'choose_weapon_action' in seen:

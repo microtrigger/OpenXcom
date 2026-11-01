@@ -3055,6 +3055,13 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     if (stance)
         out.actions.push_back(Observer::AgentUiAction(_agentShownKneeled ? "stand" : "kneel",
             _agentShownKneeled ? "Stand" : "Kneel", "visible_control_semantics"));
+    if (_save->getSide()==FACTION_PLAYER && _save->getSelectedUnit() && _save->getSelectedUnit()->getFaction()==FACTION_PLAYER &&
+        allowButtons() && Observer::agentWidgetVisible(_btnStats))
+    {
+        out.actions.emplace_back("open_unit_stats","Unit statistics","visible_control_semantics");
+        // Its transparent hit area contains the already advertised HUD values.
+        // Add one union footprint below, not overlapping duplicate regions.
+    }
     if (Observer::agentWidgetUncovered(_btnInventory, _surfaces))
     {
         out.actions.push_back(Observer::AgentUiAction("open_inventory", "Inventory", "visible_control_semantics"));
@@ -3083,6 +3090,31 @@ bool BattlescapeState::agentUiState(Observer::AgentUiState &out) const
     out.uiRevision = _agentUiRevision;
     const Surface *regions[] = {_txtName, _numTimeUnits, _numEnergy, _numHealth, _numMorale, _btnNextSoldier, _btnKneel};
     for (const Surface *widget : regions) Observer::agentIncludeWidget(out, widget);
+    if (out.offers("open_unit_stats"))
+    {
+        const Observer::AgentUiRect stats = {_btnStats->getX(), _btnStats->getY(), _btnStats->getWidth(), _btnStats->getHeight()};
+        // Preserve the exact union as disjoint rectangles. The name begins
+        // one pixel above this transparent hit area; containment-only merging
+        // would leave a partial intersection and reject the entire HUD.
+        std::vector<Observer::AgentUiRect> uncovered(1, stats);
+        for (const auto &existing : out.regions)
+        {
+            std::vector<Observer::AgentUiRect> next;
+            for (const auto &r : uncovered)
+            {
+                const int x0 = std::max(r.x, existing.x), y0 = std::max(r.y, existing.y);
+                const int x1 = std::min(r.x + r.width, existing.x + existing.width);
+                const int y1 = std::min(r.y + r.height, existing.y + existing.height);
+                if (x0 >= x1 || y0 >= y1) { next.push_back(r); continue; }
+                if (r.y < y0) next.push_back({r.x, r.y, r.width, y0-r.y});
+                if (y1 < r.y+r.height) next.push_back({r.x, y1, r.width, r.y+r.height-y1});
+                if (r.x < x0) next.push_back({r.x, y0, x0-r.x, y1-y0});
+                if (x1 < r.x+r.width) next.push_back({x1, y0, r.x+r.width-x1, y1-y0});
+            }
+            uncovered.swap(next);
+        }
+        out.regions.insert(out.regions.end(), uncovered.begin(), uncovered.end());
+    }
     return true;
 }
 bool BattlescapeState::agentBindingCurrent(const Observer::AgentUiState &binding) const
@@ -3163,6 +3195,7 @@ bool BattlescapeState::agentDispatch(const std::string &action)
     else if ((action == "kneel" && !_agentShownKneeled) || (action == "stand" && _agentShownKneeled)) btnKneelClick(0);
     else if (action == "open_pause_menu") btnHelpClick(0);
     else if (action == "open_abort_mission") btnAbortClick(0);
+    else if (action == "open_unit_stats") { SDL_Event event{}; event.type=SDL_KEYDOWN; Action stats(&event,1.0,1.0,0,0); btnStatsClick(&stats); }
     else if (action == "open_inventory") btnInventoryClick(0);
     else if (action == "end_turn") btnEndTurnClick(0);
     else return false;

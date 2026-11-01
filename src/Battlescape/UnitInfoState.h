@@ -37,6 +37,13 @@ class BattlescapeState;
 class UnitInfoState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool _agentPaintFull = false;
+    const BattleUnit *_agentPaintUnit = nullptr;
+    std::vector<std::uint64_t> _agentPaintRevisions;
+    bool agentDestinationFull() const;
+    std::vector<std::uint64_t> agentRevisions() const;
+#endif
 	SavedBattleGame *_battleGame;
 
 	BattleUnit *_unit;
@@ -60,6 +67,11 @@ private:
 	Bar *_barFrontArmor, *_barLeftArmor, *_barRightArmor, *_barRearArmor, *_barUnderArmor;
 	TextButton *_btnPrev, *_btnNext;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+#endif
 	/// Creates the Unit Info state.
 	UnitInfoState(BattleUnit *unit, BattlescapeState *parent, bool fromInventory, bool mindProbe);
 	/// Cleans up the Unit Info state.

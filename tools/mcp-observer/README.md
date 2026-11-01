@@ -45,3 +45,8 @@ A dispatch receipt proves only dispatch; read again to establish the changed
 mode or toggle. Hidden/covered series and underlying raw histories are not
 reconstructed. Charts exceeding the bounded wire budget are unavailable rather
 than silently truncated. Native/live coverage is recorded separately.
+
+
+### Tactical Unit Info (control schema 51)
+
+The normal selected-player-unit statistics dialog exposes its displayed name, 18 ordered statistic rows, native-visible values and clipped painted bar runs. Hidden psi rows remain null; no raw unit maxima or hidden enemy/probe state are inferred. Prev/Next/Close use fresh native UI grants. Bar coordinates are local to each presented rectangle; palette runs do not promise an inferred numeric maximum. Mind-probe information is outside this initial player-unit dialog implementation and remains open coverage.

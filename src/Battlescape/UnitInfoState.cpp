@@ -35,6 +35,11 @@
 #include "BattlescapeGame.h"
 #include "BattlescapeState.h"
 #include "../Mod/RuleInterface.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentUi.h"
+#include "../Observer/AgentProtocol.h"
+#include <algorithm>
+#endif
 
 namespace OpenXcom
 {
@@ -433,6 +438,10 @@ UnitInfoState::UnitInfoState(BattleUnit *unit, BattlescapeState *parent, bool fr
 		_btnNext->onKeyboardPress((ActionHandler)&UnitInfoState::btnNextClick, Options::keyBattleNextUnit);
 	}
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+ for (Surface *surface : _surfaces) surface->agentTrackPresentation();
+#endif
+
 }
 
 /**
@@ -685,5 +694,116 @@ void UnitInfoState::exitClick(Action *)
 	}
 	_game->popState();
 }
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool UnitInfoState::agentDestinationFull() const
+{
+ const SDL_Surface *d=_game->getScreen()->getSurface()->getSurface();
+ return d && d->clip_rect.x==0 && d->clip_rect.y==0 && d->clip_rect.w==d->w && d->clip_rect.h==d->h;
+}
+std::vector<std::uint64_t> UnitInfoState::agentRevisions() const
+{
+ std::vector<std::uint64_t> r;
+ Text *texts[] = {_txtName,_txtTimeUnits,_numTimeUnits,_txtEnergy,_numEnergy,_txtHealth,_numHealth,_txtFatalWounds,_numFatalWounds,_txtBravery,_numBravery,_txtMorale,_numMorale,_txtReactions,_numReactions,_txtFiring,_numFiring,_txtThrowing,_numThrowing,_txtMelee,_numMelee,_txtStrength,_numStrength,_txtPsiStrength,_numPsiStrength,_txtPsiSkill,_numPsiSkill,_txtFrontArmor,_numFrontArmor,_txtLeftArmor,_numLeftArmor,_txtRightArmor,_numRightArmor,_txtRearArmor,_numRearArmor,_txtUnderArmor,_numUnderArmor};
+ for (Text *t:texts) {r.push_back(t->agentPresentationRevision());r.push_back(t->agentTextRevision());}
+ Bar *bars[] = {_barTimeUnits,_barEnergy,_barHealth,_barFatalWounds,_barBravery,_barMorale,_barReactions,_barFiring,_barThrowing,_barMelee,_barStrength,_barPsiStrength,_barPsiSkill,_barFrontArmor,_barLeftArmor,_barRightArmor,_barRearArmor,_barUnderArmor};
+ for (Bar *b:bars) r.push_back(b->agentPresentationRevision());
+ if (!_mindProbe) for(TextButton *b:{_btnPrev,_btnNext}) {r.push_back(b->agentPresentationRevision());r.push_back(b->agentLabelRevision());}
+ return r;
+}
+void UnitInfoState::blit()
+{
+ _agentPaintFull=false;const bool before=agentDestinationFull();State::blit();
+ _agentPaintUnit=_unit;_agentPaintRevisions=agentRevisions();
+ _agentPaintFull=before&&agentDestinationFull()&&Observer::agentPaintHealthy();
+}
+bool UnitInfoState::agentUiState(Observer::AgentUiState &out) const
+{
+ using namespace Observer;
+ if (!_game->isState(const_cast<UnitInfoState*>(this)) || _modal || _mindProbe || !_unit ||
+     !_battleGame || _game->getSavedGame()->getSavedBattle()!=_battleGame ||
+     std::find(_battleGame->getUnits()->begin(),_battleGame->getUnits()->end(),_unit)==_battleGame->getUnits()->end() ||
+     _battleGame->getSelectedUnit()!=_unit || _unit->getFaction()!=FACTION_PLAYER ||
+     !_agentPaintFull || _agentPaintUnit!=_unit || !agentDestinationFull() || !agentPaintHealthy() ||
+     _agentPaintRevisions!=agentRevisions()) return false;
+ out=AgentUiState();out.screen="unit_info";out.actor=_unit;out.save=_battleGame;
+ const Surface *d=_game->getScreen()->getSurface();
+ const auto painted=agentFlattenPaintOrder(_surfaces);
+ const auto shown=[&](const Surface *w) {
+  if(!w || !w->agentPresentationPaintedTo(d) || !agentWidgetVisible(w) || !agentWidgetUncovered(w,painted)) return false;
+  AgentUiState part;part.regions.push_back({w->getX(),w->getY(),w->getWidth(),w->getHeight()});
+  return _game->agentNonCursorOverlayClear(part);
+ };
+ const auto text=[&](Text *t) {
+  out.widgets.emplace_back(t,t->agentPresentationRevision());out.widgets.emplace_back(t,t->agentTextRevision());
+  return shown(t)&&t->getText().size()<=1024?agentJsonString(t->getText()):std::string("null");
+ };
+ const auto bar=[&](Bar *b) {
+  if(!shown(b)||b->getWidth()>320||b->getHeight()>200)return std::string("null");
+  std::string runs="[";
+  for(int y=0;y<b->getHeight();++y) for(int x=0;x<b->getWidth();) {
+   const unsigned c=b->getPixel(x,y);if(!c){++x;continue;}const int start=x;while(x<b->getWidth()&&b->getPixel(x,y)==c)++x;
+   if(runs.size()>1)runs+=",";runs+="{\"x\":"+std::to_string(start)+",\"y\":"+std::to_string(y)+",\"width\":"+std::to_string(x-start)+",\"color\":"+std::to_string(c)+"}";
+  }
+  return "{\"x\":"+std::to_string(b->getX())+",\"y\":"+std::to_string(b->getY())+",\"width\":"+std::to_string(b->getWidth())+",\"height\":"+std::to_string(b->getHeight())+",\"runs\":"+runs+"]}";
+ };
+ out.visible="{\"name\":"+text(_txtName)+",\"rows\":[";
+ out.visible+="{\"id\":\"time_units\",\"label\":"+text(_txtTimeUnits)+",\"value\":"+text(_numTimeUnits)+",\"bar\":"+bar(_barTimeUnits)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"energy\",\"label\":"+text(_txtEnergy)+",\"value\":"+text(_numEnergy)+",\"bar\":"+bar(_barEnergy)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"health\",\"label\":"+text(_txtHealth)+",\"value\":"+text(_numHealth)+",\"bar\":"+bar(_barHealth)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"fatal_wounds\",\"label\":"+text(_txtFatalWounds)+",\"value\":"+text(_numFatalWounds)+",\"bar\":"+bar(_barFatalWounds)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"bravery\",\"label\":"+text(_txtBravery)+",\"value\":"+text(_numBravery)+",\"bar\":"+bar(_barBravery)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"morale\",\"label\":"+text(_txtMorale)+",\"value\":"+text(_numMorale)+",\"bar\":"+bar(_barMorale)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"reactions\",\"label\":"+text(_txtReactions)+",\"value\":"+text(_numReactions)+",\"bar\":"+bar(_barReactions)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"firing\",\"label\":"+text(_txtFiring)+",\"value\":"+text(_numFiring)+",\"bar\":"+bar(_barFiring)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"throwing\",\"label\":"+text(_txtThrowing)+",\"value\":"+text(_numThrowing)+",\"bar\":"+bar(_barThrowing)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"melee\",\"label\":"+text(_txtMelee)+",\"value\":"+text(_numMelee)+",\"bar\":"+bar(_barMelee)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"strength\",\"label\":"+text(_txtStrength)+",\"value\":"+text(_numStrength)+",\"bar\":"+bar(_barStrength)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"psi_strength\",\"label\":"+text(_txtPsiStrength)+",\"value\":"+text(_numPsiStrength)+",\"bar\":"+bar(_barPsiStrength)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"psi_skill\",\"label\":"+text(_txtPsiSkill)+",\"value\":"+text(_numPsiSkill)+",\"bar\":"+bar(_barPsiSkill)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"front_armor\",\"label\":"+text(_txtFrontArmor)+",\"value\":"+text(_numFrontArmor)+",\"bar\":"+bar(_barFrontArmor)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"left_armor\",\"label\":"+text(_txtLeftArmor)+",\"value\":"+text(_numLeftArmor)+",\"bar\":"+bar(_barLeftArmor)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"right_armor\",\"label\":"+text(_txtRightArmor)+",\"value\":"+text(_numRightArmor)+",\"bar\":"+bar(_barRightArmor)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"rear_armor\",\"label\":"+text(_txtRearArmor)+",\"value\":"+text(_numRearArmor)+",\"bar\":"+bar(_barRearArmor)+"}";
+ out.visible+=",";
+ out.visible+="{\"id\":\"under_armor\",\"label\":"+text(_txtUnderArmor)+",\"value\":"+text(_numUnderArmor)+",\"bar\":"+bar(_barUnderArmor)+"}";
+ std::string buttons="[";
+ for(auto pair:{std::make_pair(_btnPrev,"previous_unit_info"),std::make_pair(_btnNext,"next_unit_info")}) {
+  if(!shown(pair.first))continue;
+  if(buttons.size()>1)buttons+=",";
+  const auto label=pair.first->getText();buttons+="{\"id\":"+agentJsonString(pair.second)+",\"label\":"+agentJsonString(label)+"}";
+  out.actions.emplace_back(pair.second,label,"visible_text");agentIncludeWidget(out,pair.first);
+ }
+ // Closing is the ordinary right-click/keyboard action on the displayed panel.
+ if(shown(_bg)) {out.actions.emplace_back("close_unit_info","Close unit information","visible_control_semantics");}
+ else { AgentUiState panel; panel.regions.push_back({0,0,320,200}); if(_game->agentOverlayClear(panel)) out.actions.emplace_back("close_unit_info","Close unit information","visible_control_semantics"); }
+ out.visible+="],\"buttons\":"+buttons+"]}";
+ return out.visible.size()<40000;
+}
+bool UnitInfoState::agentDispatch(const Observer::AgentRequest &request)
+{
+ Observer::AgentUiState shown;if(!agentUiState(shown)||!shown.offers(request.action))return false;
+ if(request.action=="previous_unit_info"){btnPrevClick(nullptr);return true;}
+ if(request.action=="next_unit_info"){btnNextClick(nullptr);return true;}
+ if(request.action=="close_unit_info"){exitClick(nullptr);return true;}
+ return false;
+}
+#endif
 
 }
