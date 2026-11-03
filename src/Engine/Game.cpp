@@ -46,6 +46,9 @@
 #include "../../tests/battle-observer/RenderPairGate.h"
 #endif
 #include "Game.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentGlobeInput.h"
+#endif
 #if defined(OPENXCOM_RESPONSIVE_LOADING) && defined(OPENXCOM_RESPONSIVE_TESTING)
 #include "../../tests/snapshot-control/loading_game_integration_fixture.h"
 #endif
@@ -1482,6 +1485,9 @@ bool Game::snapshotFrameStateCurrent() const noexcept
 Game::~Game()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentForgetGlobeInput(this);
+#endif
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentController.close();
     _agentAudioEvents.close();
 #endif
@@ -2040,6 +2046,9 @@ void Game::run()
  */
 void Game::quit()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentCancelGlobeInput(this);
+#endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
     if (!_responsive || std::this_thread::get_id() != _responsive->owner) std::terminate();
     if (!_responsive->finalClosed)
@@ -2141,6 +2150,9 @@ FpsCounter *Game::getFpsCounter() const
  */
 void Game::setState(State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentCancelGlobeInput(this);
+#endif
 #ifdef OPENXCOM_RESPONSIVE_LOADING
     assertResponsiveOwnerAccess();
     if (_responsive->retiringStates) std::terminate();
@@ -2172,6 +2184,9 @@ void Game::setState(State *state)
  */
 void Game::pushState(State *state)
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentCancelGlobeInput(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentController.invalidate(false);
 #endif
@@ -2209,6 +2224,9 @@ void Game::pushState(State *state)
  */
 void Game::popState()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentCancelGlobeInput(this);
+#endif
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _agentController.invalidate(false);
 #endif

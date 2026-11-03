@@ -88,6 +88,7 @@ namespace OpenXcom
 	
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
         agentRegisterText(_txtTitle, _txtInfo);
+        agentRegisterCraftStats(_txtStats);
 #endif
 	}
 

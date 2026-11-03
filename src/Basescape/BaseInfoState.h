@@ -38,6 +38,14 @@ class Bar;
 class BaseInfoState : public State
 {
 private:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::weak_ptr<const void> _agentBaseLifetime;
+    const void *_agentBaseSave=nullptr;
+    std::uint64_t _agentUiRevision=0;
+    bool _agentDestinationPaintFull=false;
+    std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    bool agentBaseCurrent() const;
+#endif
 	Base *_base;
 	BasescapeState *_state;
 
@@ -59,6 +67,7 @@ private:
 	Bar *_barDefense, *_barShortRange, *_barLongRange;
 public:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
     bool agentUiState(Observer::AgentUiState &out) const override;
     bool agentDispatch(const Observer::AgentRequest &request) override;
 #endif

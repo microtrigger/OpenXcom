@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-12.
 # Free software under GNU GPL version 3 or later; without warranty.
@@ -11,6 +12,7 @@ import socket
 import subprocess
 import sys
 import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -249,13 +251,56 @@ class ClientTests(unittest.TestCase):
 
     def test_malformed_initial_dispatched_or_extra_receipt_closes(self):
         for case_ordinal, response in enumerate((b'{}', b'\xff', b'x' * 257, dump(status(value='dispatched')),
-                         dump(status(command_id='a' * 32)), dump(dict(status(), busy=True)),
-                         [dump(status()), dump(status())]), 1):
+                         dump(status(command_id='a' * 32)), dump(dict(status(), busy=True))), 1):
             native = self.fixture(); native.observe_tactical()
             native.response = lambda raw, fixture, response=response: response
             with self.assertRaises(Unavailable, msg="receipt_case_" + str(case_ordinal)): native.client.request_map_left_click(**native.left_args())
             self.assert_closed_no_retry(native)
             self.assertEqual(sum(r[:1] == b'L' for r in native.requests), 1)
+
+    def extra_receipt_schedule(self, queued):
+        # SOCK_SEQPACKET preserves packet boundaries, not atomic batches of sends.
+        # Synchronize the fixture only; runtime queue checks remain unchanged.
+        native = self.fixture(); native.observe_tactical()
+        release = threading.Event(); delivered = threading.Event(); stop = threading.Event()
+        def response(raw, fixture):
+            fixture.peer.send(dump(status()))
+            if not release.wait(3): raise AssertionError('Fixture release timed out')
+            fixture.peer.send(dump(status()))
+            delivered.set()
+            if not stop.wait(3): raise AssertionError('Fixture stop timed out')
+            return None
+        native.response = response
+        try:
+            if queued:
+                release.set()
+                original_packet = native.client.packet
+                def packet(deadline, maximum):
+                    raw = original_packet(deadline, maximum)
+                    self.assertTrue(delivered.wait(3), 'Both fixture packets must be queued')
+                    self.assertLess(time.monotonic(), deadline, 'Queue rejection must precede original deadline')
+                    return raw
+                native.client.packet = packet
+                with self.assertRaises(Unavailable):
+                    native.client.request_map_left_click(**native.left_args())
+            else:
+                first = native.client.request_map_left_click(**native.left_args())
+                self.assertEqual(first['status'], 'pending_confirmation')
+                release.set()
+                self.assertTrue(delivered.wait(3), 'Late fixture packet must be queued')
+                before = len(native.requests)
+                with self.assertRaises(Unavailable): native.client.read_status(COMMAND)
+                self.assertEqual(len(native.requests), before, 'Reject before any additional send')
+            self.assert_closed_no_retry(native)
+            self.assertEqual(sum(r[:1] == b'L' for r in native.requests), 1)
+        finally:
+            release.set(); stop.set()
+
+    def test_queued_extra_initial_receipt_closes(self):
+        self.extra_receipt_schedule(True)
+
+    def test_delayed_extra_receipt_closes_before_next_send(self):
+        self.extra_receipt_schedule(False)
 
     def test_disconnect_or_action_timeout_never_resends(self):
         for mode in ('before', 'after', 'timeout'):
@@ -418,7 +463,7 @@ class LauncherTests(unittest.TestCase):
                       ['--supervised-turn', '--supervised-map-left-click'],
                       ['--audio-only', '--supervised-stance', '--supervised-turn', '--supervised-map-left-click']):
             with self.subTest(flags=flags), patch.object(sys, 'argv', ['launcher', *flags, '--', 'game']), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, patch('sys.stderr', io.StringIO()), \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, patch('sys.stderr', io.StringIO()), \
                     self.assertRaises(SystemExit): launch_presentation.main()
             spawn.assert_not_called()
 
@@ -430,7 +475,7 @@ class LauncherTests(unittest.TestCase):
                 with self.subTest(flags=flags, ambient=ambient), \
                         patch.object(sys, 'argv', ['launcher', *flags, '--', 'synthetic-game']), \
                         patch.dict(os.environ, {'OPENXCOM_MAP_LEFT_CLICK_ENABLED': ambient}), \
-                        patch('launch_presentation.subprocess.Popen') as spawn, patch('launch_presentation.serve') as serve:
+                        patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, patch('launch_presentation.serve') as serve:
                     launch_presentation.main(); env = spawn.call_args.kwargs['env']
                     self.assertEqual(env.get('OPENXCOM_MAP_LEFT_CLICK_ENABLED'), '1' if enabled else None)
                     self.assertEqual(len(set(spawn.call_args.kwargs['pass_fds'])), count)
@@ -447,7 +492,7 @@ class LauncherTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(Path(__file__).with_name('launch_presentation.py')),
             *flags, '--', sys.executable, '-c', child], input=b''.join(dump(msg) + b'\n' for msg in messages),
             capture_output=True, timeout=16, env=dict(os.environ, OPENXCOM_MAP_LEFT_CLICK_ENABLED='1'))
-        self.assertEqual(result.returncode, 0); self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.returncode, 0); assert_private_stderr(self, result.stderr)
         lines = result.stdout.splitlines()
         self.assertTrue(all(len(line) + 1 <= adapter.MAX_RESPONSE for line in lines))
         replies = [json.loads(line) for line in lines]

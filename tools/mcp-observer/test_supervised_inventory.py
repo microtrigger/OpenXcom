@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-12.
 # Free software under GNU GPL version 3 or later; without warranty.
@@ -478,7 +479,7 @@ class LauncherTests(unittest.TestCase):
                       ['--supervised-turn', '--supervised-inventory'],
                       ['--audio-only', '--supervised-stance', '--supervised-turn', '--supervised-inventory']):
             with self.subTest(flags=flags), patch.object(sys, 'argv', ['launcher', *flags, '--', 'game']), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, patch('sys.stderr', io.StringIO()), \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, patch('sys.stderr', io.StringIO()), \
                     self.assertRaises(SystemExit): launch_presentation.main()
             spawn.assert_not_called()
 
@@ -490,7 +491,7 @@ class LauncherTests(unittest.TestCase):
                 with self.subTest(flags=flags, ambient=ambient), \
                         patch.object(sys, 'argv', ['launcher', *flags, '--', 'synthetic-game']), \
                         patch.dict(os.environ, {'OPENXCOM_INVENTORY_ENABLED': ambient}), \
-                        patch('launch_presentation.subprocess.Popen') as spawn, patch('launch_presentation.serve') as serve:
+                        patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, patch('launch_presentation.serve') as serve:
                     launch_presentation.main(); env = spawn.call_args.kwargs['env']
                     self.assertEqual(env.get('OPENXCOM_INVENTORY_ENABLED'), '1' if enabled else None)
                     self.assertEqual(len(set(spawn.call_args.kwargs['pass_fds'])), count)
@@ -508,7 +509,7 @@ class LauncherTests(unittest.TestCase):
             *flags, '--', sys.executable, str(Path(__file__).with_name('sdk_supervised_inventory_smoke.py')),
             '--synthetic-producer', mode], input=b''.join(dump(msg) + b'\n' for msg in messages),
             capture_output=True, timeout=15, env=dict(os.environ, OPENXCOM_INVENTORY_ENABLED='1'))
-        self.assertEqual(result.returncode, 0); self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.returncode, 0); assert_private_stderr(self, result.stderr)
         lines = result.stdout.splitlines(); self.assertTrue(all(len(line) + 1 <= adapter.MAX_RESPONSE for line in lines))
         replies = [json.loads(line) for line in lines]; self.assertEqual(len(replies), len(calls) + 2)
         names = {t['name'] for t in replies[1]['result']['tools']}

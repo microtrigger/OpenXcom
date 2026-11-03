@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-10.
 # Free software under GNU GPL version 3 or later; without warranty.
@@ -61,13 +62,13 @@ class DiagnosticIsolationTests(unittest.TestCase):
                                  *flags, '--', *command], input=data, capture_output=True, timeout=8)
         self.assertNotIn(SENTINEL.encode(), result.stdout + result.stderr)
         self.assertNotIn(b'Traceback', result.stdout + result.stderr)
-        self.assertLessEqual(len(result.stderr), 128)
+        self.assertLessEqual(len(result.stderr), 256) # at most two exact bounded private status records
         self.assertLessEqual(len(result.stdout), adapter.MAX_RESPONSE * 2)
         return result
 
     def assert_reply(self, result, available):
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(result.stderr, b'')
+        assert_private_stderr(self, result.stderr)
         replies = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(len(replies), 2)
         self.assertEqual(replies[0]['id'], 1)
@@ -132,16 +133,17 @@ class DiagnosticIsolationTests(unittest.TestCase):
                                 input=b'', capture_output=True, timeout=3)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'')
-        self.assertEqual(result.stderr, b'')
+        assert_private_stderr(self, result.stderr)
 
     def test_child_streams_have_no_pipes_or_inherited_model_stream(self):
         with patch.object(sys, 'argv', ['launcher', '--', 'synthetic-game']), \
-                patch('launch_presentation.subprocess.Popen') as spawn, \
+                patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                 patch('launch_presentation.serve'):
             self.assertIsNone(launch_presentation.main())
-        for name in ('stdin', 'stdout', 'stderr'):
+        for name in ('stdin', 'stdout'):
             self.assertEqual(spawn.call_args.kwargs[name], subprocess.DEVNULL)
-        spawn.return_value.wait.assert_not_called()
+        self.assertEqual(spawn.call_args.kwargs['stderr'], subprocess.PIPE)
+        self.assertLessEqual(spawn.return_value.wait.call_count, 1) # private daemon only; main remains nonblocking
         spawn.return_value.communicate.assert_not_called()
         spawn.return_value.kill.assert_not_called()
         spawn.return_value.terminate.assert_not_called()
@@ -153,19 +155,19 @@ class DiagnosticIsolationTests(unittest.TestCase):
                     patch('launch_presentation.serve') as serve, \
                     contextlib.redirect_stderr(io.StringIO()) as err:
                 self.assertEqual(launch_presentation.main(), 1)
-                self.assertEqual(err.getvalue(), 'Observer launch or transport unavailable.\n')
+                assert_private_stderr(self, err.getvalue(), tail='Observer launch or transport unavailable.\n', allow_failure=True)
                 serve.assert_not_called()
 
     def test_serve_and_cleanup_exceptions_never_echo_private_detail(self):
         for target in ('serve', 'cleanup'):
             with self.subTest(target=target), patch.object(sys, 'argv', ['launcher', '--', 'game']), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                     patch('launch_presentation.serve') as serve, \
                     contextlib.redirect_stderr(io.StringIO()) as err:
                 if target == 'serve': serve.side_effect = RuntimeError(SENTINEL)
                 else: spawn.return_value.poll.side_effect = OSError(SENTINEL)
                 self.assertEqual(launch_presentation.main(), 1)
-                self.assertEqual(err.getvalue(), 'Observer launch or transport unavailable.\n')
+                assert_private_stderr(self, err.getvalue(), tail='Observer launch or transport unavailable.\n', allow_failure=True)
 
     def test_real_broken_model_pipe_does_not_emit_shutdown_diagnostics(self):
         for script, extra in (('adapter.py', []), ('launch_presentation.py',
@@ -178,17 +180,17 @@ class DiagnosticIsolationTests(unittest.TestCase):
                 process.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"ping"}\n')
                 process.stdin.close()
                 self.assertEqual(process.wait(timeout=3), 0)
-                self.assertEqual(process.stderr.read(), b'')
+                assert_private_stderr(self, process.stderr.read())
                 process.stderr.close()
 
     def test_broken_model_pipe_is_quiet(self):
         with patch.object(sys, 'argv', ['launcher', '--', 'game']), \
-                patch('launch_presentation.subprocess.Popen'), \
+                patch('launch_presentation.subprocess.Popen', **finite_process()), \
                 patch('launch_presentation.serve', side_effect=BrokenPipeError(SENTINEL)), \
                 patch('launch_presentation.silence_broken_stdout'), \
                 contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(launch_presentation.main(), 0)
-            self.assertEqual(err.getvalue(), '')
+            assert_private_stderr(self, err.getvalue())
 
     @unittest.skipUnless(os.environ.get('OPENXCOM_DIAGNOSTIC_TEST_CHILD'),
                          'native Logger positive control is exercised by the native runner')

@@ -1,3 +1,6 @@
+#include "../Observer/AgentGlobeRasterProjection.h"
+#include <map>
+#include "../Observer/AgentGlobeInput.h"
 /*
  * Copyright 2010-2016 OpenXcom Developers.
  *
@@ -172,6 +175,23 @@ struct Ocean
 };
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+// UI-only sidecar; no class data, vtables or world identity are exported.
+std::map<const Globe *,Observer::AgentGlobeRasterProjection> agentRasterProjections;
+Observer::AgentGlobeRasterProjection *agentRasterFor(const Globe *globe) {
+    auto it=agentRasterProjections.find(globe);return it==agentRasterProjections.end()?nullptr:&it->second;
+}
+void agentRasterBegin(const Globe *globe,int width,int height) {
+    auto *found=agentRasterFor(globe);
+    if(!found){if(agentRasterProjections.size()>=8)return;found=&agentRasterProjections[globe];}
+    found->begin(width,height);
+}
+thread_local Observer::AgentGlobeRasterProjection *agentRasterShadow=0;
+struct AgentRasterShadowScope {
+    explicit AgentRasterShadowScope(Observer::AgentGlobeRasterProjection *projection) {agentRasterShadow=projection;}
+    ~AgentRasterShadowScope(){agentRasterShadow=nullptr;}
+    AgentRasterShadowScope(const AgentRasterShadowScope&)=delete;
+    AgentRasterShadowScope&operator=(const AgentRasterShadowScope&)=delete;
+};
 thread_local Observer::AgentGlobeProjection *agentShadowProjection = 0;
 thread_local const Uint8 *agentShadowPixels = 0;
 thread_local int agentShadowPitch = 0;
@@ -179,7 +199,7 @@ void agentShadowSample(Uint8 &dest, bool survives)
 {
     if (!agentShadowProjection || !agentShadowPitch) return;
     const std::ptrdiff_t offset = &dest-agentShadowPixels;
-    if (offset >= 0) agentShadowProjection->shadow(offset%agentShadowPitch, offset/agentShadowPitch, survives);
+    if (offset >= 0) {agentShadowProjection->shadow(offset%agentShadowPitch, offset/agentShadowPitch, survives);if(agentRasterShadow)agentRasterShadow->shadow(offset%agentShadowPitch,offset/agentShadowPitch,survives);}
 }
 bool agentOpaqueTexture(Surface *texture)
 {
@@ -338,6 +358,9 @@ Globe::Globe(Game* game, int cenX, int cenY, int width, int height, int x, int y
  */
 Globe::~Globe()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    agentRasterProjections.erase(this);
+#endif
 	delete _blinkTimer;
 	delete _rotTimer;
 	delete _countries;
@@ -904,6 +927,7 @@ void Globe::blink()
 void Globe::rotate()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentOwnedGlobeRotationTick(this);
 	if (_rotLon || _rotLat) ++_agentViewRevision;
 	_agentBlitReady=false;
 #endif
@@ -921,6 +945,7 @@ void Globe::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentBlitReady=false; _agentProjection.begin(getWidth(), getHeight());
+    agentRasterBegin(this,getWidth(),getHeight());
 #endif
 	if (_redraw)
 	{
@@ -971,7 +996,9 @@ void Globe::drawLand()
 		// Apply textures according to zoom and shade
 		drawTexturedPolygon(x, y, (*i)->getPoints(), _texture->getFrame((*i)->getTexture() + _zoomTexture), 0, 0);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-		_agentProjection.polygon(x,y,(*i)->getPoints(),agentOpaqueTexture(_texture->getFrame((*i)->getTexture()+_zoomTexture)));
+		const bool agentTextureOpaque=agentOpaqueTexture(_texture->getFrame((*i)->getTexture()+_zoomTexture));
+    _agentProjection.polygon(x,y,(*i)->getPoints(),agentTextureOpaque);
+    if(auto *r=agentRasterFor(this))r->polygon(x,y,(*i)->getPoints(),agentTextureOpaque);
 #endif
 	}
 }
@@ -1035,6 +1062,7 @@ Cord Globe::getSunDirection(double lon, double lat) const
 void Globe::drawShadow()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    AgentRasterShadowScope rasterScope(agentRasterFor(this));
 	agentShadowProjection=&_agentProjection; agentShadowPixels=static_cast<Uint8 *>(getSurface()->pixels); agentShadowPitch=getSurface()->pitch;
 #endif
 	if (Options::globeSurfaceCache)
@@ -1067,6 +1095,7 @@ void Globe::XuLine(Surface* surface, Surface* src, double x1, double y1, double 
 	if (_clipper->LineClip(&x1,&y1,&x2,&y2) != 1) return; //empty line
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentProjection.line(surface==_radars ? 1 : surface==_countries ? 2 : 4,x1,y1,x2,y2);
+    if(auto *r=agentRasterFor(this))r->line(surface==_radars?1:surface==_countries?2:4,x1,y1,x2,y2);
 #endif
 
 	double deltax = x2-x1, deltay = y2-y1;
@@ -1134,6 +1163,7 @@ void Globe::drawRadars()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentBlitReady=false; _agentProjection.clearLayer(1);
+    if(auto *r=agentRasterFor(this))r->clearLayer(1);
 #endif
 	_radars->clear();
 
@@ -1306,6 +1336,7 @@ void Globe::drawDetail()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentBlitReady=false; _agentProjection.clearLayer(2);
+    if(auto *r=agentRasterFor(this))r->clearLayer(2);
 #endif
 	_countries->clear();
 
@@ -1334,6 +1365,7 @@ void Globe::drawDetail()
 				_countries->drawLine(x[0], y[0], x[1], y[1], LINE_COLOR);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 				_agentProjection.line(2,x[0],y[0],x[1],y[1]);
+                if(auto *r=agentRasterFor(this))r->line(2,x[0],y[0],x[1],y[1]);
 #endif
 			}
 		}
@@ -1644,6 +1676,7 @@ void Globe::drawMarkers()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentBlitReady=false; _agentProjection.clearLayer(4);
+    if(auto *r=agentRasterFor(this))r->clearLayer(4);
     _agentTargetCandidates=false;
     _agentMarkerWidth=_markers->getWidth(); _agentMarkerHeight=_markers->getHeight();
     _agentMarkerPixels.clear();
@@ -2078,11 +2111,12 @@ bool Globe::pointOnVisibleGlobe(int x,int y) const
 void Globe::agentRecordOccluders(const std::vector<Surface *> &paintOrder, bool safe)
 {
     _agentProjection.clearLayer(8);
+    if(auto *r=agentRasterFor(this))r->clearLayer(8);
     bool found=false;
     for(const Surface *later:paintOrder)
     {
         if(later==this) { found=true; continue; }
-        if(found && later && later->getVisible()) _agentProjection.rect(8,later->getX(),later->getY(),later->getWidth(),later->getHeight());
+        if(found && later && later->getVisible()){_agentProjection.rect(8,later->getX(),later->getY(),later->getWidth(),later->getHeight());if(auto *r=agentRasterFor(this))r->rect(8,later->getX(),later->getY(),later->getWidth(),later->getHeight());}
     }
     if(!found || !safe) _agentBlitReady=false;
 }
@@ -2090,6 +2124,7 @@ void Globe::agentCoverRect(Surface *layer,const Surface *painted)
 {
     _agentProjection.rect(layer==_radars ? 1 : layer==_countries ? 2 : 4,
         painted->getX(),painted->getY(),painted->getWidth(),painted->getHeight());
+    if(auto *r=agentRasterFor(this))r->rect(layer==_radars?1:layer==_countries?2:4,painted->getX(),painted->getY(),painted->getWidth(),painted->getHeight());
 }
 std::string Globe::agentDestinationTargets(Observer::AgentUiState &ui,
     const std::vector<Surface *> &overlays, std::vector<Target *> &targets) const
@@ -2169,6 +2204,59 @@ std::string Globe::agentGeography(Observer::AgentUiState &ui,const std::vector<S
     return "{\"width\":"+std::to_string(getWidth())+",\"height\":"+std::to_string(getHeight())+
         ",\"sample_step\":16,\"samples\":["+samples+"]}";
 }
+bool Globe::agentViewIdle() const
+{
+    return !_isMouseScrolling && !_isMouseScrolled && !_rotLon && !_rotLat &&
+        !_rotTimer->isRunning() && _agentBlitReady && _agentShownViewRevision==_agentViewRevision;
+}
+std::string Globe::agentViewRaster(Observer::AgentUiState &ui,const std::vector<Surface *> &overlays) const
+{
+    using namespace Observer;
+    Surface *screen=_game->getScreen()->getSurface();
+    const auto *projection=agentRasterFor(this);
+    if(!projection || !projection->valid || projection->width!=getWidth() || projection->height!=getHeight() || !agentViewIdle() || !agentPaintHealthy() || !screen || getX()!=0 || getY()!=0 ||
+       getWidth()<=0 || getWidth()>512 || getHeight()<48 || getHeight()>400 ||
+       !agentWidgetVisible(this) || !agentWidgetVisible(_radars) || !agentWidgetVisible(_countries) ||
+       !agentWidgetVisible(_markers) || !agentPresentationPaintedTo(screen) ||
+       screen->getSurface()->format->BytesPerPixel!=1 || !screen->getPalette())return "null";
+    // Independent draw-derived4px grid: final terrain pixels only. Marker/radar/
+    // country paint and uncertain polygon borders are explicitly masked out.
+    const int columns=(getWidth()+1)/4,rows=(getHeight()-32+1)/4;
+    if(columns<=0 || rows<=0 || columns*rows>4096)return "null";
+    std::string pixels,mask;std::vector<unsigned> palette;
+    std::vector<AgentUiRect> admitted;
+    const char *hex="0123456789abcdef";
+    std::size_t available=0;
+    for(int y=34;y<getHeight();y+=4)for(int x=2;x<getWidth();x+=4)
+    {
+        const auto *sample=projection->at(x,y);
+        bool clear=sample && projection->visible(*sample);
+        for(const Surface *o:overlays)if(o && o->getVisible() && x>=o->getX() && y>=o->getY() &&
+            x<o->getX()+o->getWidth() && y<o->getY()+o->getHeight())clear=false;
+        AgentUiState one;one.regions.push_back({x,y,1,1});
+        if(!agentRegionVisible(one.regions[0]) || !_game->agentOverlayClear(one))clear=false;
+        unsigned index=0;
+        if(clear){
+            const SDL_Color c=screen->getPalette()[screen->getPixel(x,y)];
+            const unsigned rgb=(unsigned(c.r)<<16)|(unsigned(c.g)<<8)|c.b;
+            auto found=std::find(palette.begin(),palette.end(),rgb);
+            if(found==palette.end()){if(palette.size()==256)return "null";palette.push_back(rgb);index=palette.size()-1;}
+            else index=found-palette.begin();
+            admitted.push_back(one.regions[0]);++available;
+        }
+        mask+=clear?'1':'0';pixels+=hex[index>>4];pixels+=hex[index&15];
+    }
+    if(!available || mask.size()!=std::size_t(columns*rows))return "null";
+    std::string colors="[";
+    for(std::size_t i=0;i<palette.size();++i){if(i)colors+=",";const unsigned c=palette[i];colors+="["+std::to_string(c>>16)+","+std::to_string((c>>8)&255)+","+std::to_string(c&255)+"]";}
+    colors+="]";
+    std::string out="{\"viewport\":{\"x\":0,\"y\":32,\"width\":"+std::to_string(getWidth())+",\"height\":"+std::to_string(getHeight()-32)+"},\"sample_step\":4,\"sample_offset\":2,\"palette\":"+colors+",\"pixels\":\""+pixels+"\",\"mask\":\""+mask+"\",\"content_status\":\"shown\"}";
+    if(out.size()>24000)return "null";
+    ui.regions.insert(ui.regions.end(),admitted.begin(),admitted.end());
+    ui.context.push_back(_agentViewRevision);
+    return out;
+}
+
 #endif
 
 }

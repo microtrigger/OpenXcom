@@ -39,6 +39,22 @@
 
 namespace OpenXcom
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+class AgentInterceptTextList : public TextList
+{
+public:
+    AgentInterceptTextList(int w,int h,int x,int y):TextList(w,h,x,y){}
+    void blit(Surface *destination) override {
+        const auto full=[](const SDL_Surface *s){return s && s->clip_rect.x==0 && s->clip_rect.y==0 && s->clip_rect.w==s->w && s->clip_rect.h==s->h;};
+        const SDL_Rect *crop=getCrop();
+        if(crop->x||crop->y||crop->w||crop->h||!full(getSurface())||!destination||!full(destination->getSurface()))agentPresentationMutation();
+        TextList::blit(destination);
+    }
+};
+#else
+using AgentInterceptTextList=TextList;
+#endif
+
 
 /**
  * Initializes all the elements in the Intercept window.
@@ -63,7 +79,7 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 	_txtStatus = new Text(70, 9, 100, 70);
 	_txtBase = new Text(80, 9, 170, 70);
 	_txtWeapons = new Text(80, 17, 238, 62);
-	_lstCrafts = new TextList(288, 64, 8, 78);
+	_lstCrafts = new AgentInterceptTextList(288, 64, 8, 78);
 
 	// Set palette
 	setInterface("intercept");
@@ -108,6 +124,9 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 	_lstCrafts->setSelectable(true);
 	_lstCrafts->setBackground(_window);
 	_lstCrafts->setMargin(6);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstCrafts->agentEnableInterceptCells();
+#endif
 	_lstCrafts->onMouseClick((ActionHandler)&InterceptState::lstCraftsLeftClick);
 	_lstCrafts->onMouseClick((ActionHandler)&InterceptState::lstCraftsRightClick, SDL_BUTTON_RIGHT);
 
@@ -276,12 +295,43 @@ bool InterceptState::agentUiState(Observer::AgentUiState &out) const
     };
     out.screen="intercept_craft";
     out.widgets.emplace_back(_lstCrafts,_lstCrafts->agentListRevision());
+    out.widgets.emplace_back(_lstCrafts,_lstCrafts->agentPresentationRevision());
     const auto title=text(_txtTitle), craft=text(_txtCraft), status=text(_txtStatus), base=text(_txtBase), weapons=text(_txtWeapons);
     button(_btnCancel,"cancel","cancel_interception");
     button(_btnGotoBase,"base","open_intercept_base"); buttons+="]";
     AgentListProjection list;
-    if (!agentProjectInterceptList(_lstCrafts,_lstCrafts,painted,out,list,allowed)) return false;
-    out.context={list.up?1u:0u,list.down?1u:0u,_agentTargetless?1u:0u};
+    std::vector<AgentOutfittingRow> rows;std::uint64_t capture=0;
+    if(!_lstCrafts->agentInterceptRows(rows,capture))return false;
+    list.rows="[";
+    for(const auto &row:rows){
+        if(out.rows.size()==32)break;
+        bool visibleCaption=false;
+        for(const auto &cell:row.cells)if(cell.known && !cell.text.empty()){
+            AgentUiState ink;for(const auto&r:cell.regions)ink.regions.push_back({r.x,r.y,r.w,r.h});
+            if(!ink.regions.empty()&&agentRegionsUncovered(ink.regions,_lstCrafts,painted)&&allowed(ink))visibleCaption=true;
+        }
+        if(!visibleCaption)continue; // never enumerate an entirely hidden/unknown row
+        SDL_Rect point={};if(!_lstCrafts->agentReportRowTarget(row.logicalIndex,point))continue;
+        AgentUiState control;control.regions.push_back({row.bounds.x,row.bounds.y,row.bounds.w,row.bounds.h});
+        if(!agentRegionsUncovered(control.regions,_lstCrafts,painted)||!allowed(control))continue;
+        const auto before=out.regions.size();out.regions.insert(out.regions.end(),control.regions.begin(),control.regions.end());
+        if(!agentRegionsDisjoint(out)){out.regions.resize(before);continue;}
+        if(!out.rows.empty())list.rows+=",";
+        list.rows+="{\"handle\":\"r"+std::to_string(out.rows.size())+"\",\"cells\":[";
+        for(size_t col=0;col<4;++col){
+            if(col)list.rows+=",";const auto &cell=row.cells[col];AgentUiState footprint;
+            for(const auto &r:cell.regions)footprint.regions.push_back({r.x,r.y,r.w,r.h});
+            list.rows+=cell.known && !footprint.regions.empty() && agentRegionsUncovered(footprint.regions,_lstCrafts,painted) && allowed(footprint)?agentJsonString(cell.text):"null";
+        }
+        list.rows+=std::string("],\"selected\":")+(_lstCrafts->agentReportRowSelected(row.logicalIndex)?"true":"false")+"}";
+        out.rows.push_back(row.logicalIndex);
+    }
+    list.rows+="]";
+    const Surface *up=nullptr,*down=nullptr;_lstCrafts->agentScrollControls(up,down);
+    list.up=agentWidgetVisible(up)&&include(up);list.down=agentWidgetVisible(down)&&include(down);
+    list.scroll=std::string("{\"up\":")+(list.up?"true":"false")+",\"down\":"+(list.down?"true":"false")+"}";
+    out.context={list.up?1u:0u,list.down?1u:0u,_agentTargetless?1u:0u,capture};
+    const auto childRevisions=_lstCrafts->agentInterceptRevisions();out.context.insert(out.context.end(),childRevisions.begin(),childRevisions.end());
     out.visible="{\"title\":"+title+",\"headings\":["+craft+","+status+","+base+","+weapons+"],\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+buttons+"}";
     if (!out.rows.empty()) out.actions.emplace_back("choose_visible_row","Choose visible row","visible_control_semantics","visible_row");
     if (list.up || list.down) out.actions.emplace_back("scroll_visible_list","Scroll visible list","visible_control_semantics","scroll_direction");
@@ -293,15 +343,15 @@ bool InterceptState::agentDispatch(const Observer::AgentRequest &request)
     if (!agentUiState(current) || !current.offers(request.action)) return false;
     if (request.action=="cancel_interception") { btnCancelClick(nullptr); return true; }
     if (request.action=="open_intercept_base") { btnGotoBaseClick(nullptr); return true; }
-    if (request.action=="scroll_visible_list" && current.context.size()==3) {
+    if (request.action=="scroll_visible_list" && current.context.size()>=4) {
         if (request.choice=="up" && current.context[0]) { _lstCrafts->scrollUp(false,false); return true; }
         if (request.choice=="down" && current.context[1]) { _lstCrafts->scrollDown(false,false); return true; }
     }
     if (request.action!="choose_visible_row" || request.choice.size()<2 || request.choice.size()>3 || request.choice[0]!='r' || (request.choice.size()==3 && request.choice[1]=='0')) return false;
     unsigned index=0;
     for (size_t i=1;i<request.choice.size();++i) { if(request.choice[i]<'0'||request.choice[i]>'9') return false; index=index*10+request.choice[i]-'0'; }
-    if (index>=current.rows.size() || current.rows[index]>=_crafts.size() || !_lstCrafts->agentSelectProjectRow(current.rows[index])) return false;
-    lstCraftsLeftClick(nullptr); return true;
+    if (index>=current.rows.size() || current.rows[index]>=_crafts.size()) return false;
+    return _lstCrafts->agentReportRowClick(current.rows[index],this);
 }
 #endif
 

@@ -28,6 +28,7 @@ namespace OpenXcom
 	class Surface;
 	class TextButton;
 	class Text;
+    class TextList;
 
 	/**
 	 * UfopaediaArticle is the base class for all articles of various types.
@@ -40,6 +41,15 @@ namespace OpenXcom
 	protected:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
         Text *_agentTitle = nullptr, *_agentBody = nullptr;
+        bool _agentItemCombat=false;
+        TextList *_agentShotList=nullptr;
+        TextList *_agentStatsList=nullptr;
+        Text *_agentCraftStats=nullptr;
+        void agentRegisterCraftStats(Text *text);
+        void agentRegisterStats(TextList *list);
+        std::vector<Text*> _agentShotHeadings,_agentDamageHeadings;
+        std::vector<std::pair<Text*,Text*>> _agentDamageRows;
+        void agentRegisterItemCombat(Text*shot,Text*accuracy,Text*tu,TextList*list,Text*damage,Text*ammo,const std::vector<std::pair<Text*,Text*>>&rows);
         std::vector<Surface *> _agentTransparentLayers;
         bool _agentArticlePaintFull = false;
         std::vector<std::uint64_t> _agentStoredPaintRevisions;

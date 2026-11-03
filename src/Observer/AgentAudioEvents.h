@@ -11,9 +11,16 @@ class AgentAudioEvents
 {
 public:
     enum { FramesPerWindow = 2205, FrameBytes = 4, WindowBytes = FramesPerWindow * FrameBytes, RingCapacity = 32,
-           MaxCallbackBytes = 262144 };
+           MaxCallbackBytes = 262144, CallbackAnchorCapacity = 32 };
     // Actual callback-entry clocks and frame offsets, NOT speaker timestamps.
+    struct CallbackAnchor {
+        int offsetFrames = 0; // Callback start relative to this window; may be negative.
+        std::uint64_t realtimeUs = 0, monotonicUs = 0;
+        unsigned frames = 0;
+    };
     struct Timing {
+        unsigned callbackAnchorCount = 0;
+        CallbackAnchor callbackAnchors[CallbackAnchorCapacity];
         std::uint64_t firstRealtimeUs = 0, firstMonotonicUs = 0;
         unsigned firstFrameOffset = 0, firstCallbackFrames = 0;
         std::uint64_t lastRealtimeUs = 0, lastMonotonicUs = 0;

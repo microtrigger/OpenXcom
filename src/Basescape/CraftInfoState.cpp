@@ -47,6 +47,30 @@
 namespace OpenXcom
 {
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+// Only these two logical ammo captions require an observed-invalid-paint epoch.
+// Raw SDL clip/crop fields bypass Surface setters; a cropped child-only paint
+// followed by restoration must not revive a previously granted UI capability.
+class AgentCraftAmmoText : public Text
+{
+public:
+    AgentCraftAmmoText(int width, int height, int x, int y) : Text(width,height,x,y) {}
+    void blit(Surface *destination) override
+    {
+        const auto full = [](const SDL_Surface *surface) {
+            return surface && surface->clip_rect.x == 0 && surface->clip_rect.y == 0 &&
+                surface->clip_rect.w == surface->w && surface->clip_rect.h == surface->h;
+        };
+        const SDL_Rect *crop = getCrop();
+        if (crop->w || crop->h || !full(getSurface()) ||
+            !destination || !full(destination->getSurface())) agentPresentationMutation();
+        Text::blit(destination); // unchanged native paint; never repair its inputs
+    }
+};
+#else
+typedef Text AgentCraftAmmoText;
+#endif
+
 /**
  * Initializes all the elements in the Craft Info screen.
  * @param game Pointer to the core game.
@@ -74,9 +98,9 @@ CraftInfoState::CraftInfoState(Base *base, size_t craftId) : _base(base), _craft
 	_txtDamage = new Text(100, 17, 14, 24);
 	_txtFuel = new Text(82, 17, 228, 24);
 	_txtW1Name = new Text(95, 16, 46, 48);
-	_txtW1Ammo = new Text(75, 24, 46, 64);
+	_txtW1Ammo = new AgentCraftAmmoText(75, 24, 46, 64);
 	_txtW2Name = new Text(95, 16, 184, 48);
-	_txtW2Ammo = new Text(75, 24, 204, 64);
+	_txtW2Ammo = new AgentCraftAmmoText(75, 24, 204, 64);
 	_sprite = new Surface(32, 40, 144, 52);
 	_weapon1 = new Surface(15, 17, 121, 63);
 	_weapon2 = new Surface(15, 17, 184, 63);
@@ -137,6 +161,10 @@ CraftInfoState::CraftInfoState(Base *base, size_t craftId) : _base(base), _craft
 	_txtW1Name->setWordWrap(true);
 
 	_txtW2Name->setWordWrap(true);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _txtW1Ammo->agentTrackPresentation();
+    _txtW2Ammo->agentTrackPresentation();
+#endif
 }
 
 /**
@@ -159,6 +187,9 @@ void CraftInfoState::init()
 	State::init();
 
 	_craft = _base->getCrafts()->at(_craftId);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCraftLifetime = _craft->agentLifetime();
+#endif
 
 	_edtCraft->setText(_craft->getName(_game->getLanguage()));
 
@@ -403,33 +434,81 @@ void CraftInfoState::edtCraftChange(Action *action)
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+std::vector<std::uint64_t> CraftInfoState::agentAmmoPaintRevisions() const
+{
+    auto revisions = Observer::agentOutfittingPaintRevisions(_surfaces);
+    for (const Text *ammo : {_txtW1Ammo, _txtW2Ammo})
+    {
+        revisions.push_back(reinterpret_cast<std::uintptr_t>(ammo));
+        revisions.push_back(ammo->agentPresentationRevision());
+    }
+    return revisions;
+}
 void CraftInfoState::blit()
 {
     _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
     const bool before=Observer::agentOutfittingDestinationFull(_game);
     State::blit();
-    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentStoredPaintRevisions=agentAmmoPaintRevisions();
     _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
 }
 bool CraftInfoState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (!_game->isState(const_cast<CraftInfoState *>(this)) || _modal || !_base || !agentPaintHealthy() ||
+    if (!_game->isState(const_cast<CraftInfoState *>(this)) || (_modal && _modal != _edtCraft) || !_base || _agentCraftLifetime.expired() || !agentPaintHealthy() ||
         !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
-        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
+        _agentStoredPaintRevisions!=agentAmmoPaintRevisions()) return false;
     out=AgentUiState();out.screen="craft_info";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
     AgentOutfittingView view(_game,_surfaces,out);
     if (!_craft || _craftId>=_base->getCrafts()->size() || _base->getCrafts()->at(_craftId)!=_craft) return false;out.actor=_craft;
-    const auto name=view.edit(_edtCraft);
+    out.targetLifetimes.push_back(_agentCraftLifetime);
+    std::string renderedName, name="null";
+    out.widgets.emplace_back(_edtCraft, _edtCraft->agentInputRevision());
+    if (agentWidgetUncovered(_edtCraft, view.painted) &&
+        _edtCraft->agentRenderedText(renderedName) && renderedName.size()<=1024 && view.include(_edtCraft))
+    {
+        name=agentJsonString(renderedName);
+        if (_edtCraft->agentEditable())
+        {
+            out.actions.emplace_back("replace_craft_name","Rename craft","visible_control_semantics","text");
+            out.actions.emplace_back("finish_craft_name","Finish editing craft name","visible_control_semantics");
+        }
+        else if (!_modal && Options::keyboardMode==KEYBOARD_ON)
+            out.actions.emplace_back("focus_craft_name","Focus craft name","visible_control_semantics");
+    }
     const auto damage=view.text(_txtDamage);
     const auto fuel=view.text(_txtFuel);
-    const std::string weapons="[{\"name\":"+view.text(_txtW1Name)+",\"ammo\":"+view.text(_txtW1Ammo)+"},{\"name\":"+view.text(_txtW2Name)+",\"ammo\":"+view.text(_txtW2Ammo)+"}]";
+    const auto ammoText = [&](const Text *widget) -> std::string {
+        out.widgets.emplace_back(widget, widget->agentTextRevision());
+        out.widgets.emplace_back(widget, widget->agentPresentationRevision());
+        const Surface *destination = _game->getScreen()->getSurface();
+        // Native 75x24 ammo captions use three logical 8px lines. The small
+        // font's spare raster row may be clipped at 25px; that does not hide
+        // the current logical AMMO/MAX/ETA text. This witness is ammo-only.
+        if (!agentWidgetVisible(widget) || !widget->getFont() ||
+            !widget->agentPresentationPaintedTo(destination) || widget->agentScrollable() ||
+            widget->getText().size() > 1024 || widget->getTextWidth() > widget->getWidth() ||
+            widget->getTextHeight() > widget->getHeight()) return "null";
+        AgentUiState part;
+        // Protect the complete allocation, including whitespace and final edge,
+        // rather than only surviving glyph ink. Never rebuild text from models.
+        part.regions.push_back({widget->getX(),widget->getY(),widget->getWidth(),widget->getHeight()});
+        if (!agentRegionsUncovered(part.regions,widget,view.painted) || !view.allowed(part)) return "null";
+        const auto before = out.regions.size();
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        if (!agentRegionsDisjoint(out)) {out.regions.resize(before);return "null";}
+        return agentJsonString(widget->getText());
+    };
+    const std::string weapons="[{\"name\":"+view.text(_txtW1Name)+",\"ammo\":"+ammoText(_txtW1Ammo)+"},{\"name\":"+view.text(_txtW2Name)+",\"ammo\":"+ammoText(_txtW2Ammo)+"}]";
+    if (!_modal)
+    {
     view.button(_btnCrew,"crew","open_craft_crew");
     view.button(_btnEquip,"equipment","open_craft_equipment");
     view.button(_btnArmor,"armor","open_craft_armor");
     if (_craft->getWeapons()->size()>0) view.button(_btnW1,"weapon_1","open_craft_weapon_1");
     if (_craft->getWeapons()->size()>1) view.button(_btnW2,"weapon_2","open_craft_weapon_2");
     view.button(_btnOk,"close","close_craft_info");
+    }
     out.visible="{\"name\":"+name+",\"damage\":"+damage+",\"fuel\":"+fuel+",\"weapons\":"+weapons+",\"buttons\":"+view.buttons+"]}";
     return view.finish();
 }
@@ -437,6 +516,33 @@ bool CraftInfoState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="focus_craft_name")
+    {
+        SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtCraft);
+        action.setMouseAction(_edtCraft->getX()+_edtCraft->getWidth()/2,
+            _edtCraft->getY()+_edtCraft->getHeight()/2,_edtCraft->getX(),_edtCraft->getY());
+        _edtCraft->mousePress(&action,this);return true;
+    }
+    if(request.action=="finish_craft_name")
+    {
+        SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtCraft);
+        _edtCraft->keyboardPress(&action,this);return true;
+    }
+    if(request.action=="replace_craft_name")
+    {
+        // Admission is distinct from a fully admitted, atomically rolled-back
+        // width/glyph/layout refusal. A handled request never promises rename.
+        if(!Observer::agentInputText(request.text) || !_edtCraft->agentEditable()) return false;
+        if(_edtCraft->agentReplaceText(request.text))
+        {
+            SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+            Action action(&event,1.0,1.0,0,0);action.setSender(_edtCraft);
+            _edtCraft->keyboardPress(&action,this);
+        }
+        return true;
+    }
     if(request.action=="open_craft_weapon_1") { btnW1Click(nullptr);return true; }
     if(request.action=="open_craft_weapon_2") { btnW2Click(nullptr);return true; }
     if(request.action=="open_craft_crew") { btnCrewClick(nullptr);return true; }

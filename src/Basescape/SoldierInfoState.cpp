@@ -336,6 +336,12 @@ void SoldierInfoState::init()
 	}
 	_soldier = _list->at(_soldierId);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentLivingRoster.clear();_agentLivingOrdinal=_soldierId;
+    _agentLivingSave=_game->getSavedGame();
+    if(_base)for(Soldier *living:*_list){
+        if(!living || living->getDeath()){_agentLivingRoster.clear();break;}
+        _agentLivingRoster.emplace_back(living,living->getId());
+    }
     _agentDeadRoster.clear();_agentDeadOrdinal=_soldierId;
     if(!_base)for(Soldier *dead:*_list){
         if(!dead || !dead->getDeath()){_agentDeadRoster.clear();break;}
@@ -640,17 +646,52 @@ bool SoldierInfoState::agentDeadRosterValid() const
     }
     return true;
 }
+bool SoldierInfoState::agentLivingRosterValid() const
+{
+    if(!_base || !_game->getSavedGame() || _agentLivingSave!=_game->getSavedGame())return false;
+    const auto *bases=_game->getSavedGame()->getBases();
+    bool currentBase=false;
+    for(const Base *base:*bases)if(base==_base){currentBase=true;break;}
+    // Membership is established before dereferencing the captured base/roster.
+    if(!currentBase || _list!=_base->getSoldiers() || !_list || _list->empty() ||
+        _agentLivingRoster.size()!=_list->size() || _agentLivingOrdinal!=_soldierId ||
+        _soldierId>=_list->size() || _list->at(_soldierId)!=_soldier)return false;
+    for(size_t i=0;i<_list->size();++i){
+        Soldier *current=_list->at(i);
+        if(!current || current!=_agentLivingRoster[i].first ||
+            current->getId()!=_agentLivingRoster[i].second || current->getDeath())return false;
+    }
+    return true;
+}
 bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (!_game->isState(const_cast<SoldierInfoState *>(this)) || _modal || (!_base && !agentDeadRosterValid()) || !agentPaintHealthy() ||
+    if (!_game->isState(const_cast<SoldierInfoState *>(this)) || (_modal && (!_base || _modal!=_edtSoldier)) || (_base ? !agentLivingRosterValid() : !agentDeadRosterValid()) || !agentPaintHealthy() ||
         !_agentDestinationPaintFull || !agentOutfittingDestinationFull(_game) ||
         _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
     out=AgentUiState();out.screen=_base?"soldier_info":"memorial_soldier_info";out.actor=_base;out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
     AgentOutfittingView view(_game,_surfaces,out);
     if (!_soldier || !_list || _soldierId>=_list->size() || _list->at(_soldierId)!=_soldier) return false;
     out.actor=_soldier;out.widgets.emplace_back(_list,_agentUiRevision);
-    const auto name=view.edit(_edtSoldier);
+    std::string name;
+    if(!_base)name=view.edit(_edtSoldier);
+    else
+    {
+        std::string rendered;name="null";
+        out.widgets.emplace_back(_edtSoldier,_edtSoldier->agentInputRevision());
+        if(agentWidgetUncovered(_edtSoldier,view.painted) && _edtSoldier->agentRenderedText(rendered) &&
+            rendered.size()<=1024 && view.include(_edtSoldier))
+        {
+            name=agentJsonString(rendered);
+            if(_edtSoldier->agentEditable())
+            {
+                out.actions.emplace_back("replace_soldier_name","Rename soldier","visible_control_semantics","text");
+                out.actions.emplace_back("finish_soldier_name","Finish editing soldier name","visible_control_semantics");
+            }
+            else if(!_modal && Options::keyboardMode==KEYBOARD_ON)
+                out.actions.emplace_back("focus_soldier_name","Focus soldier name","visible_control_semantics");
+        }
+    }
     const auto rank=view.text(_txtRank);
     const auto missions=view.text(_txtMissions);
     const auto kills=view.text(_txtKills);
@@ -676,11 +717,14 @@ bool SoldierInfoState::agentUiState(Observer::AgentUiState &out) const
     stat(_txtStrength,_numStrength);
     stat(_txtPsiStrength,_numPsiStrength);
     stat(_txtPsiSkill,_numPsiSkill);
+    if(!_modal)
+    {
     view.button(_btnPrev,"previous","previous_personnel");
     view.button(_btnNext,"next","next_personnel");
     if(_base)view.button(_btnArmor,"armor","open_soldier_armor");
     view.button(_btnDiary,"diary","open_soldier_diary");
     view.button(_btnOk,"close","close_soldier_info");
+    }
     out.visible="{\"name\":"+name+",\"rank\":"+rank+",\"missions\":"+missions+",\"kills\":"+kills+",\"craft\":"+craft+",\"recovery\":"+recovery+",\"training\":"+training+",\"stats\":"+stats+"]"+(_base?std::string():",\"death_status\":"+deathStatus)+",\"buttons\":"+view.buttons+"]}";
     return view.finish();
 }
@@ -688,6 +732,33 @@ bool SoldierInfoState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="focus_soldier_name")
+    {
+        SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtSoldier);
+        action.setMouseAction(_edtSoldier->getX()+_edtSoldier->getWidth()/2,
+            _edtSoldier->getY()+_edtSoldier->getHeight()/2,_edtSoldier->getX(),_edtSoldier->getY());
+        _edtSoldier->mousePress(&action,this);return true;
+    }
+    if(request.action=="finish_soldier_name")
+    {
+        SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtSoldier);
+        _edtSoldier->keyboardPress(&action,this);return true;
+    }
+    if(request.action=="replace_soldier_name")
+    {
+        if(!Observer::agentInputText(request.text) || !_edtSoldier->agentEditable())return false;
+        // Only an admitted atomic replacement/rollback is handled. The ordinary
+        // change callback owns the rename; dispatch does not promise success.
+        if(_edtSoldier->agentReplaceText(request.text))
+        {
+            SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+            Action action(&event,1.0,1.0,0,0);action.setSender(_edtSoldier);
+            _edtSoldier->keyboardPress(&action,this);
+        }
+        return true;
+    }
     if(request.action=="previous_personnel") { if(_base)btnPrevClick(nullptr);else btnNextClick(nullptr);return true; }
     if(request.action=="next_personnel") { if(_base)btnNextClick(nullptr);else btnPrevClick(nullptr);return true; }
     if(request.action=="open_soldier_armor") { btnArmorClick(nullptr);return true; }

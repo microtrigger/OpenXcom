@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-12.
 # Free software under GNU GPL version 3 or later; without warranty.
@@ -561,7 +562,7 @@ class LauncherTests(unittest.TestCase):
         for flags in (['--supervised-turn'], ['--audio-only', '--supervised-turn'],
                       ['--audio-only', '--supervised-stance', '--supervised-turn']):
             with self.subTest(flags=flags), patch.object(sys, 'argv', ['launcher', *flags, '--', 'game']), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, patch('sys.stderr', io.StringIO()), \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, patch('sys.stderr', io.StringIO()), \
                     self.assertRaises(SystemExit): launch_presentation.main()
             spawn.assert_not_called()
 
@@ -576,7 +577,7 @@ class LauncherTests(unittest.TestCase):
             with self.subTest(flags=flags), patch.object(sys, 'argv', ['launcher', *flags, '--', 'synthetic-game']), \
                     patch.dict(os.environ, {'OPENXCOM_STANCE_FD': '789', 'OPENXCOM_SELECTION_ENABLED': '1',
                                             'OPENXCOM_TURN_ENABLED': '1'}), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, patch('launch_presentation.serve') as serve:
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, patch('launch_presentation.serve') as serve:
                 launch_presentation.main(); env = spawn.call_args.kwargs['env']
                 self.assertEqual('OPENXCOM_STANCE_FD' in env, stance)
                 self.assertEqual('OPENXCOM_SELECTION_ENABLED' in env, selection)
@@ -594,7 +595,7 @@ class LauncherTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(Path(__file__).with_name('launch_presentation.py')),
             '--supervised-stance', '--supervised-turn', *extra_flags, '--', sys.executable, '-c', child],
             input=b''.join(dump(msg) + b'\n' for msg in messages), capture_output=True, timeout=8)
-        self.assertEqual(result.returncode, 0); self.assertEqual(result.stderr, b'')
+        self.assertEqual(result.returncode, 0); assert_private_stderr(self, result.stderr)
         lines = result.stdout.splitlines()
         self.assertTrue(all(len(line) + 1 <= adapter.MAX_RESPONSE for line in lines))
         return [json.loads(line) for line in lines]

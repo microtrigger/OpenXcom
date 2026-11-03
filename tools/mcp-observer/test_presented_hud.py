@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-10.
 # See repository LICENSE.txt and LICENSE-NOTICES.md.
@@ -223,7 +224,7 @@ class LauncherTests(unittest.TestCase):
             with self.subTest(flags=flags), \
                     patch.object(sys, 'argv', ['launch_presentation.py', *flags, '--', 'synthetic-game']), \
                     patch.dict(os.environ, {'OPENXCOM_PRESENTATION_VERSION': '2'}), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                     patch('launch_presentation.serve') as serve:
                 launch_presentation.main()
                 self.assertEqual(spawn.call_args.args[0], ['synthetic-game'])

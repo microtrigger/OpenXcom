@@ -12,12 +12,71 @@ import socket
 import subprocess
 import sys
 import warnings
+import json
+import threading
+
+
+def emit_native_exit(process):
+    """Nonblocking privacy-bounded status only; never stop or wait for a live game."""
+    code = process.poll()
+    payload = {"diagnostic": "native_process_status", "status": "running_at_observer_close" if code is None else "exited",
+               "exit_code": code if code is not None and code >= 0 else None,
+               "signal_number": -code if code is not None and code < 0 else None}
+    try:
+        sys.stderr.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        sys.stderr.flush()
+    except (OSError, ValueError):
+        pass
+    return payload
+
+
+def _emit_monitor_failure(monitor):
+    # Constant-only private diagnostic. Never include exception/packet/path text.
+    try:
+        sys.stderr.write(json.dumps({"diagnostic":"private_monitor_failure", "monitor":monitor}, separators=(",", ":")) + "\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
+
+
+def monitor_native_exit(process):
+    """Daemon may observe natural exit; no kill, retry or effect on gameplay."""
+    try:
+        process.wait()
+        emit_native_exit(process)
+    except Exception:
+        _emit_monitor_failure("native_exit")
+
 from adapter import serve, silence_broken_stdout
 from presentation import PresentationClient
 from mixed_audio import MixedAudioClient
 from supervised_stance import StanceClient
 from agent_control import AgentControlClient
 
+
+
+def classify_startup(data):
+    if b"X Error of failed request" in data and b"BadValue" in data: return "x11_badvalue"
+    if b"X_ShmPutImage" in data: return "x11_shm_put_image"
+    if b"No available video device" in data: return "sdl_no_video_device"
+    return None
+
+def monitor_startup(stream):
+    previous=b""; emitted=set()
+    try:
+        while True:
+            chunk=stream.read(512)
+            if not chunk: break
+            data=previous+chunk; tag=classify_startup(data)
+            if tag and tag not in emitted:
+                emitted.add(tag)
+                sys.stderr.write(json.dumps({"diagnostic":"startup_fixed_marker","marker":tag})+"\n");sys.stderr.flush()
+            previous=data[-512:]
+    except Exception:
+        _emit_monitor_failure("startup")
+    finally:
+        try: stream.close()
+        except Exception: _emit_monitor_failure("startup")
 
 class QuietArgumentParser(argparse.ArgumentParser):
     def error(self, message):
@@ -183,13 +242,15 @@ def run():
         # The native producer separately qualifies effective engine options.
         process = subprocess.Popen(command, env=env, pass_fds=tuple(c.fileno() for c in children),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL)
+                                   stderr=subprocess.PIPE, bufsize=0)
+        threading.Thread(target=monitor_startup, args=(process.stderr,), daemon=True).start()
+        threading.Thread(target=monitor_native_exit, args=(process,), daemon=True).start()
         for child in children:
             child.close()
         try:
             serve(sys.stdin.buffer, sys.stdout.buffer, args.hud_dir, args.cursor_dir, client, audio, stance, agent)
         finally:
-            process.poll() # Reap only if already exited; never wait for or stop the game.
+            emit_native_exit(process) # Nonblocking; live-at-close remains explicitly unresolved.
     # EOF ends observation only. Never terminate the normally running game.
 
 

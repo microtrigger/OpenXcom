@@ -157,13 +157,16 @@ class ObservabilityMetadataTests(unittest.TestCase):
         self.assertIsInstance(loop.iter, ast.Call)
         self.assertEqual(loop.iter.func.id, 'enumerate')
         self.assertEqual(loop.iter.args[1].value, 1)
-        self.assertEqual(len(loop.iter.args[0].elts), 7)
+        self.assertEqual(len(loop.iter.args[0].elts), 6)
         context = next(n for n in loop.body if isinstance(n, ast.With))
         keywords = context.items[0].context_expr.keywords
         self.assertEqual(len(keywords), 1)
         self.assertEqual(keywords[0].arg, 'msg')
         self.assertEqual(ast.dump(keywords[0].value, include_attributes=False),
                          ast.dump(ast.parse('"receipt_case_" + str(case_ordinal)').body[0].value, include_attributes=False))
+        # The first six malformed cases remain exact. Restore the separately
+        # scheduled seventh case ONLY in this AST to bind the original digest.
+        loop.iter.args[0].elts.append(ast.parse("[dump(status()), dump(status())]").body[0].value)
         # Erase exactly the diagnostic additions; original method AST must match.
         loop.target = ast.Name(id='response', ctx=ast.Store())
         loop.iter = loop.iter.args[0]
@@ -171,12 +174,26 @@ class ObservabilityMetadataTests(unittest.TestCase):
         digest = hashlib.sha256(ast.dump(method, include_attributes=False).encode()).hexdigest()
         self.assertEqual(digest, '90645a478f31b4df09317fb24cc72f3627743c3e6fed1bb4e33fa23db8dab426')
 
+    def test_exact_two_queue_schedules_and_guarded_helper(self):
+        module = ast.parse(Path(__file__).with_name('test_supervised_map_left_click.py').read_text())
+        cls = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name == 'ClientTests')
+        methods = {n.name: n for n in cls.body if isinstance(n, ast.FunctionDef)}
+        for name, queued in (('test_queued_extra_initial_receipt_closes', True),
+                             ('test_delayed_extra_receipt_closes_before_next_send', False)):
+            expected = ast.parse('def ' + name + '(self):\n self.extra_receipt_schedule(' + str(queued) + ')').body[0]
+            self.assertEqual(ast.dump(methods[name], include_attributes=False),
+                             ast.dump(expected, include_attributes=False))
+        # Exact helper binds Event ordering, original deadline assertion,
+        # pending-only first response, pre-send refusal, closure and exactly one L.
+        digest = hashlib.sha256(ast.dump(methods['extra_receipt_schedule'], include_attributes=False).encode()).hexdigest()
+        self.assertEqual(digest, '8e7326d29244a9daa92e5c15653139673cd9206e0d6f66e764e36d03bb77ee84')
+
     def test_ordinal_messages_are_bounded_and_payload_independent(self):
-        messages = ['receipt_case_' + str(i) for i in range(1, 8)]
-        self.assertEqual(len(set(messages)), 7)
+        messages = ['receipt_case_' + str(i) for i in range(1, 7)]
+        self.assertEqual(len(set(messages)), 6)
         self.assertTrue(all(len(message.encode()) == 14 for message in messages))
         self.assertEqual(messages[0], 'receipt_case_1')
-        self.assertEqual(messages[-1], 'receipt_case_7')
+        self.assertEqual(messages[-1], 'receipt_case_6')
 
 
 if __name__ == '__main__':

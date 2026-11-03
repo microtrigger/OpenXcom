@@ -36,6 +36,21 @@
 namespace OpenXcom
 {
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+// Explicit Sell/article-stats child paint provenance. Raw crop/SDL clips have no setter epoch.
+class AgentSellCellText : public Text
+{
+public:
+    AgentSellCellText(int w,int h,int x,int y):Text(w,h,x,y) {}
+    void blit(Surface *destination) override {
+        const auto full=[](const SDL_Surface *s) {return s && s->clip_rect.x==0 && s->clip_rect.y==0 && s->clip_rect.w==s->w && s->clip_rect.h==s->h;};
+        const SDL_Rect *c=getCrop();
+        if(c->x || c->y || c->w || c->h || !full(getSurface()) || !destination || !full(destination->getSurface()))agentPresentationMutation();
+        Text::blit(destination);
+    }
+};
+#endif
+
 /**
  * Sets up a blank list with the specified size and position.
  * @param width Width in pixels.
@@ -327,7 +342,12 @@ void TextList::addRow(int cols, ...)
 		{
 			width = _columns[i];
 		}
-		Text* txt = new Text(width, _font->getHeight(), _margin + rowX, rowY);
+		Text* txt;
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        if (_agentSellCells || _agentArticleStatsCells || _agentInterceptCells) txt = new AgentSellCellText(width,_font->getHeight(),_margin+rowX,rowY);
+        else
+#endif
+        txt = new Text(width, _font->getHeight(), _margin + rowX, rowY);
 		txt->setPalette(this->getPalette());
 		txt->initText(_big, _small, _lang);
 		txt->setColor(_color);
@@ -1029,6 +1049,7 @@ void TextList::draw()
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentDrawRows.clear();
+    _agentDrawCaptionRows.clear();
 	_agentDrawPsiRows.clear();
 	_agentDrawCommendationRows.clear();
 	_agentCommendationCaptureHealthy = true;
@@ -1076,7 +1097,7 @@ void TextList::draw()
 			for (std::vector<Text*>::iterator j = _texts[i].begin(); j < _texts[i].end(); ++j)
 			{
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-				if (_agentContainmentCells || _agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReequipCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
+				if (_agentNativeCaptionCells || _agentPurchaseNameCells || _agentPurchasePriceCells || _agentContainmentCells || _agentPsiTrainingCells || _agentCommendationCells || _agentPromotionCells || _agentReequipCells || _agentReportCells || _agentSaveListCells || _agentArrivalLogicalCells || _agentOutfittingColumns==1) (*j)->agentTrackPresentation();
 #endif
 				(*j)->setY(y);
 				(*j)->blit(this);
@@ -1103,6 +1124,10 @@ void TextList::draw()
 		}
 	}
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+	// Snapshot at draw, never at a later child-only/list blit of stale aggregate pixels.
+    if (_agentSellCells) _agentSellDrawRevisions = agentSellRevisions();
+    if (_agentArticleStatsCells) _agentStatsDrawRevisions = agentStatsRevisions();
+    if (_agentInterceptCells) _agentInterceptDrawRevisions = agentInterceptRevisions();
 	// Expected masks are needed only until the last ordinary row write.
 	for (AgentPurchaseRow &row : _agentDrawPurchaseRows)
 		for (AgentPurchaseCell &cell : row.cells) cell.ink.clear();
@@ -1110,6 +1135,7 @@ void TextList::draw()
 		for (AgentPurchaseCell &cell : row.cells) cell.ink.clear();
 	for (AgentOutfittingRow &row : _agentDrawOutfittingRows)
 		for (AgentPurchaseCell &cell : row.cells) cell.ink.clear();
+    for(auto &row:_agentDrawCaptionRows) for(auto &cell:row.cells) cell.ink.clear();
 #endif
 }
 
@@ -1121,7 +1147,9 @@ void TextList::blit(Surface *surface)
 {
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_agentPaintOrder.clear();
+    if (_agentSellCells) _agentSellDestination=surface;
 	_agentPaintRows.clear();
+    _agentPaintCaptionRows.clear(); _agentCaptionPaintRevisions.clear();
 	_agentPaintPsiRows.clear();
 	_agentPaintCommendationRows.clear();
 	_agentCommendationClip = surface->getSurface()->clip_rect;
@@ -1260,6 +1288,8 @@ void TextList::blit(Surface *surface)
             _agentContainmentEpoch = _agentContainmentDrawEpoch;
         }
 		_agentPaintRows = _agentDrawRows;
+        _agentPaintCaptionRows = _agentDrawCaptionRows;
+        if (_agentNativeCaptionCells) _agentCaptionPaintRevisions = agentCaptionRevisions();
 		_agentPaintControls = _agentDrawControls;
 		_agentPaintPurchaseRows = _agentDrawPurchaseRows;
 		_agentPaintArrivalRows = _agentDrawArrivalRows;
@@ -1750,7 +1780,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		_columns.size() == _agentOutfittingColumns && _texts[logicalIndex].size() <= _agentOutfittingColumns &&
 		(!_agentOutfittingEquipment || (_arrowPos != -1 && _arrowType == ARROW_HORIZONTAL)) &&
 		(!_agentOutfittingCrew || (_arrowPos != -1 && _arrowType == ARROW_VERTICAL));
-	const bool independentCells = purchaseCells || arrivalCells || outfittingCells;
+	const bool independentCells = purchaseCells || arrivalCells || outfittingCells || _agentNativeCaptionCells;
 	for (const Text *cell : _texts[logicalIndex])
 	{
 		// An explicitly hidden opted-in cell paints no pixels. Its own text
@@ -1826,15 +1856,85 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 		SDL_UnlockSurface(target);
 		return same;
 	};
+    // Scoped ordinary caption witness: only canonical adjacent native rows
+    // may replace the shared ninth line. Foreign/same-row writes never qualify.
+    for (AgentOutfittingRow &prior : _agentDrawCaptionRows)
+    {
+        AgentPurchaseCell &value = prior.cells[0];
+        if (!value.known) continue;
+        const bool overlap=overlaps(value.regions,allInk);
+        if (!_agentCoverageHealthy) return;
+        if (!overlap) continue;
+        const Text *next = _texts[logicalIndex].empty()?nullptr:_texts[logicalIndex][0];
+        const SDL_Rect &g=value.nameGeometry;
+        bool neighbor=next && logicalIndex==prior.logicalIndex+1 &&
+            std::count(_rows.begin(),_rows.end(),logicalIndex)==1 &&
+            next->agentPresentationPaintedTo(this) && !next->_crop.w && !next->_crop.h &&
+            next->getX()==g.x && next->getY()==g.y+8 && next->getWidth()==g.w &&
+            next->getHeight()==9 && next->getNumLines()==1 && next->agentTextComplete() &&
+            next->getTextWidth()<=next->getWidth();
+        for(size_t column=1;column<cells.size();++column)
+            if(overlaps(value.regions,cells[column])) neighbor=false;
+        if (!_agentCoverageHealthy) return;
+        if (!neighbor && !unchanged(value.ink)) value.known=false;
+        if (!_agentCoverageHealthy) return;
+    }
+    if (_agentNativeCaptionCells && !_comboBox && _selectable && _bg && _selector && !_dot &&
+        !_wrap && !_condensed && !_flooding && _font->getHeight()==9 && _font->getSpacing()==-1 &&
+        ((_columns.size()==1 && _arrowPos==-1) || (_agentOutfittingEquipment && _columns.size()==3 && _arrowType==ARROW_HORIZONTAL) || (_agentSellCells && agentSellLayout())) &&
+        _texts[logicalIndex].size()==_columns.size() && std::count(_rows.begin(),_rows.end(),logicalIndex)==1)
+    {
+        const Text *caption=_texts[logicalIndex][0];
+        const int width=static_cast<int>(_columns[0]);
+        if (caption->agentPresentationPaintedTo(this) && caption->agentContextVisible() &&
+            !caption->_crop.w && !caption->_crop.h && caption->getX()==_margin && caption->getY()==y &&
+            _margin>=0 && width>0 && _margin+width<=getWidth() && caption->getWidth()==width &&
+            caption->getHeight()==9 && y>=0 && y+9<=getHeight() &&
+            caption->getNumLines()==1 && caption->agentTextComplete() &&
+            caption->getTextWidth()<=width && caption->getText().size()<=1024 &&
+            !purchaseInk[0].empty() && unchanged(purchaseInk[0]))
+        {
+            AgentOutfittingRow row;row.logicalIndex=logicalIndex;row.cells.resize(1);
+            AgentPurchaseCell &value=row.cells[0];value.known=true;value.logicalName=caption;
+            value.nameTextRevision=caption->agentTextRevision();value.namePresentationRevision=caption->agentPresentationRevision();
+            value.nameGeometry={static_cast<Sint16>(_margin),static_cast<Sint16>(y),static_cast<Uint16>(width),9};
+            UString shown=Unicode::convUtf8ToUtf32(caption->getText());
+            shown.erase(std::remove(shown.begin(),shown.end(),Unicode::TOK_COLOR_FLIP),shown.end());
+            value.text=Unicode::convUtf32ToUtf8(shown);value.ink=purchaseInk[0];
+            for(int line=0;line<9;++line)value.regions.push_back({static_cast<Sint16>(getX()+_margin),static_cast<Sint16>(getY()+y+line),static_cast<Uint16>(width),1});
+            _agentDrawCaptionRows.push_back(row);
+        }
+    }
 	// A later row/column may cover only one cell. Keep the four independent
 	// witnesses separate; this opt-in does not relax the existing list guards.
 	for (AgentPurchaseRow &prior : _agentDrawPurchaseRows)
 		for (AgentPurchaseCell &cell : prior.cells)
 		{
-			if (!cell.known) continue;
+			if (!cell.known || cell.logicalName) continue;
 			const bool overlap = overlaps(cell.regions, allInk);
 			if (!_agentCoverageHealthy) return;
 			if (!overlap) continue;
+            // Only the next canonical stock price row may replace the shared
+            // ninth pixel line. No other column, row layout or overlay qualifies.
+            if (cell.logicalPrice && (_agentPurchasePriceCells || (_agentSellCells && agentSellLayout())) && purchaseCells &&
+                _font->getHeight() == 9 && _font->getSpacing() == -1 &&
+                logicalIndex == prior.logicalIndex + 1 &&
+                std::count(_rows.begin(), _rows.end(), logicalIndex) == 1)
+            {
+                const unsigned priceColumn=cell.priceColumn;
+                const Text *next = _texts[logicalIndex][priceColumn];
+                const SDL_Rect &g = cell.priceGeometry;
+                bool nativeNeighbor = next->agentPresentationPaintedTo(this) &&
+                    !next->_crop.w && !next->_crop.h && next->getX() == g.x &&
+                    next->getY() == g.y + 8 && next->getWidth() == g.w &&
+                    next->getHeight() == 9 && g.h == 9 && ((priceColumn==1 && g.w==55) || (priceColumn==3 && g.w==53 && agentSellPriceTrim(next))) &&
+                    next->getNumLines() == 1 && next->agentTextComplete() &&
+                    next->getTextWidth() <= next->getWidth();
+                for (size_t column = 0; column < cells.size(); ++column)
+                    if (column != priceColumn && overlaps(cell.regions, cells[column])) nativeNeighbor = false;
+                if (!_agentCoverageHealthy) return;
+                if (nativeNeighbor) continue;
+            }
 			const bool preserved = unchanged(cell.ink);
 			if (!_agentCoverageHealthy) return;
 			if (!preserved) { cell.known = false; cell.regions.clear(); cell.ink.clear(); }
@@ -1914,6 +2014,76 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 			row.cells[column].regions = cells[column];
 			row.cells[column].ink = std::move(purchaseInk[column]);
 		}
+
+        // Explicit Purchase name opt-in: the native row's logical cell is
+        // visible even when ordinary negative line spacing alters a descender.
+        // Other columns retain their complete opaque-mask witnesses.
+        if (_agentPurchaseNameCells && !_wrap && !_condensed && !_flooding &&
+            std::count(_rows.begin(), _rows.end(), logicalIndex) == 1)
+        {
+            const Text *name = _texts[logicalIndex][0];
+            const int width = static_cast<int>(_columns[0]);
+            if (name->agentPresentationPaintedTo(this) && !name->_crop.w && !name->_crop.h && name->getX() == _margin &&
+                name->getY() == y && _margin >= 0 && width > 0 && _margin + width <= getWidth() &&
+                name->getWidth() == width && name->getHeight() > 0 && y + name->getHeight() <= getHeight() &&
+                name->getNumLines() == 1 && name->agentTextComplete() &&
+                name->getTextWidth() <= name->getWidth() && name->getText().size() <= 1024)
+            {
+                AgentPurchaseCell &value = row.cells[0];
+                value.known = true; value.logicalName = name;
+                value.nameTextRevision = name->agentTextRevision();
+                value.namePresentationRevision = name->agentPresentationRevision();
+                value.nameGeometry = {static_cast<Sint16>(name->getX()),static_cast<Sint16>(name->getY()),
+                    static_cast<Uint16>(name->getWidth()),static_cast<Uint16>(name->getHeight())};
+                UString shown = Unicode::convUtf8ToUtf32(name->getText());
+                shown.erase(std::remove(shown.begin(),shown.end(),Unicode::TOK_COLOR_FLIP),shown.end());
+                value.text = Unicode::convUtf32ToUtf8(shown);value.regions.clear();value.ink.clear();
+                for (int line=0;line<name->getHeight();++line)
+                    value.regions.push_back({static_cast<Sint16>(getX()+_margin),static_cast<Sint16>(getY()+y+line),
+                        static_cast<Uint16>(width),1});
+            }
+        }
+        // Price opt-in starts from a successful strict same-row paint proof.
+        if (_agentPurchasePriceCells && !_wrap && !_condensed && !_flooding &&
+            std::count(_rows.begin(), _rows.end(), logicalIndex) == 1)
+        {
+            const Text *price = _texts[logicalIndex][1];
+            const int width = static_cast<int>(_columns[1]);
+            const int left = _margin + static_cast<int>(_columns[0]);
+            if (row.cells[1].known && !row.cells[1].ink.empty() && width == 55 &&
+                _font->getHeight() == 9 && _font->getSpacing() == -1 && price->getHeight() == 9 &&
+                price->agentPresentationPaintedTo(this) && !price->_crop.w && !price->_crop.h && price->getX() == left &&
+                price->getY() == y && _margin >= 0 && width > 0 && left + width <= getWidth() &&
+                price->getWidth() == width && price->getHeight() > 0 && y + price->getHeight() <= getHeight() &&
+                price->getNumLines() == 1 && price->agentTextComplete() &&
+                price->getTextWidth() <= price->getWidth() && price->getText().size() <= 1024)
+            {
+                AgentPurchaseCell &value = row.cells[1];
+                value.known = true; value.logicalPrice = price;
+                value.priceTextRevision = price->agentTextRevision();
+                value.pricePresentationRevision = price->agentPresentationRevision();
+                value.priceGeometry = {static_cast<Sint16>(price->getX()),static_cast<Sint16>(price->getY()),
+                    static_cast<Uint16>(price->getWidth()),static_cast<Uint16>(price->getHeight())};
+                UString shown = Unicode::convUtf8ToUtf32(price->getText());
+                shown.erase(std::remove(shown.begin(),shown.end(),Unicode::TOK_COLOR_FLIP),shown.end());
+                value.text = Unicode::convUtf32ToUtf8(shown);value.regions.clear(); // Retain opaque mask for non-native overlap checks.
+                for (int line=0;line<price->getHeight();++line)
+                    value.regions.push_back({static_cast<Sint16>(getX()+left),static_cast<Sint16>(getY()+y+line),
+                        static_cast<Uint16>(width),1});
+            }
+        }
+        // Sell column3's nominal53px allocation extends2 blank pixels beyond
+        // the native287px list. Prove those pixels transparent; never trim ink.
+        if (_agentSellCells && agentSellLayout() && row.cells[3].known && !row.cells[3].ink.empty() &&
+            std::count(_rows.begin(),_rows.end(),logicalIndex)==1) {
+            const Text *price=_texts[logicalIndex][3];
+            if(price->getY()==y && y>=0 && y+9<=getHeight() && agentSellPriceTrim(price)) {
+                auto &value=row.cells[3];value.logicalPrice=price;value.priceColumn=3;
+                value.priceTextRevision=price->agentTextRevision();value.pricePresentationRevision=price->agentPresentationRevision();
+                value.priceGeometry={236,static_cast<Sint16>(y),53,9};value.regions.clear();
+                for(int line=0;line<9;++line)value.regions.push_back({static_cast<Sint16>(getX()+236),static_cast<Sint16>(getY()+y+line),51,1});
+            }
+        }
 		_agentDrawPurchaseRows.push_back(row);
 	}
 
@@ -2106,6 +2276,7 @@ void TextList::agentCaptureRow(size_t logicalIndex, int y)
 bool TextList::agentRows(std::vector<AgentListRow> &rows) const
 {
 	rows.clear();
+    if (_agentSellCells && !agentSellCurrent()) return false;
 	if (!Observer::agentWidgetVisible(this) || _agentPaintRevision != _agentListRevision ||
 		!_agentCoverageHealthy || !Observer::agentPaintHealthy()) return false;
 	for (const AgentListRow &row : _agentPaintRows)
@@ -2727,11 +2898,103 @@ void TextList::agentCaptureReportRow(size_t logicalIndex, int y)
 	_agentDrawReportRows.push_back(capture);
 }
 
-bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const
+void TextList::agentEnableInterceptCells()
+{
+    if(!_agentReportCells){_agentInterceptCells=true;agentEnableReportCells(4,false,true);agentEnableReportSelection();}
+}
+std::vector<std::uint64_t> TextList::agentInterceptRevisions() const
+{
+    std::vector<std::uint64_t> result;
+    if(!_agentInterceptCells || _visibleRows>128 || _scroll>_rows.size())return result;
+    result={64,static_cast<std::uint64_t>(_scroll),static_cast<std::uint64_t>(_rows.size())};
+    for(size_t p=_scroll;p<_rows.size() && p<_scroll+_visibleRows;++p){
+        size_t row=_rows[p];if(row>=_texts.size() || _texts[row].size()!=4)return {};
+        result.push_back(row);
+        for(const Text *t:_texts[row]){
+            if(!t || !t->getSurface())return {};
+            const auto &c=t->_crop,&clip=t->getSurface()->clip_rect;
+            result.insert(result.end(),{reinterpret_cast<std::uintptr_t>(t),t->agentTextRevision(),t->agentPresentationRevision(),
+                static_cast<std::uint64_t>(t->getX()),static_cast<std::uint64_t>(t->getY()),static_cast<std::uint64_t>(t->getWidth()),static_cast<std::uint64_t>(t->getHeight()),
+                static_cast<std::uint64_t>(c.x),static_cast<std::uint64_t>(c.y),c.w,c.h,static_cast<std::uint64_t>(clip.x),static_cast<std::uint64_t>(clip.y),clip.w,clip.h});
+        }
+    }
+    return result;
+}
+bool TextList::agentInterceptRows(std::vector<AgentOutfittingRow>&rows,std::uint64_t &epoch) const
+{
+    rows.clear();epoch=0;
+    if(!_agentInterceptCells || !_selectable || !_bg || !_selector || _dot || _flooding ||
+        _agentReportColumns!=4 || _agentReportAllowMissingCells || !_agentReportRequireTextExtent ||
+        _agentInterceptDrawRevisions.empty() || _agentInterceptDrawRevisions!=agentInterceptRevisions() ||
+        !agentReportRows(rows,epoch))return false;
+    for(auto &row:rows){
+        int x=_margin;
+        for(size_t col=0;col<4;++col){
+            const Text *t=_texts[row.logicalIndex][col];auto &value=row.cells[col];
+            // Only native column placement and the ordinary one-pixel stock
+            // shadow overlap qualify; shifted/expanded children fail closed.
+            if(t->getX()!=x || t->getWidth()!=static_cast<int>(_columns[col]) || t->getNumLines()!=1 ||
+                t->_crop.x || t->_crop.y || t->_crop.w || t->_crop.h || !t->agentTextComplete())value.known=false;
+            x+=_columns[col];
+            value.regions.clear();
+            if(value.known){
+                const int left=std::max(0,t->getX()),right=std::min(getWidth(),t->getX()+t->getWidth());
+                const int top=t->getY(),bottom=top+t->getHeight();
+                if(left>=right || top<0 || bottom>getHeight())value.known=false;
+                else {
+                    SDL_Rect r={static_cast<Sint16>(getX()+left),static_cast<Sint16>(getY()+top),static_cast<Uint16>(right-left),static_cast<Uint16>(bottom-top)};
+                    if(r.x<_agentReportClip.x || r.y<_agentReportClip.y || r.x+r.w>_agentReportClip.x+_agentReportClip.w || r.y+r.h>_agentReportClip.y+_agentReportClip.h ||
+                        !Observer::agentRegionsUncovered({{r.x,r.y,r.w,r.h}},this,_agentPaintOrder))value.known=false;
+                    else value.regions.push_back(r);
+                }
+            }
+            if(!value.known){value.text.clear();value.regions.clear();}
+        }
+    }
+    return true;
+}
+
+void TextList::agentEnableArticleStatsCells()
+{
+    if(!_agentReportCells){agentEnableReportCells(2,true,true);_agentArticleStatsCells=true;}
+}
+std::vector<std::uint64_t> TextList::agentStatsRevisions() const
+{
+    std::vector<std::uint64_t> result;
+    if(!_agentArticleStatsCells || _visibleRows>128 || _scroll>_rows.size())return result;
+    result={63,static_cast<std::uint64_t>(_scroll),static_cast<std::uint64_t>(_rows.size())};
+    for(size_t p=_scroll;p<_rows.size() && p<_scroll+_visibleRows;++p){
+        size_t row=_rows[p];if(row>=_texts.size() || _texts[row].empty() || _texts[row].size()>2)return {};
+        result.push_back(row);result.push_back(_texts[row].size());
+        for(const Text *t:_texts[row]){
+            if(!t || !t->getSurface())return {};
+            const auto &c=t->_crop,&clip=t->getSurface()->clip_rect;
+            result.insert(result.end(),{reinterpret_cast<std::uintptr_t>(t),t->agentTextRevision(),t->agentPresentationRevision(),
+                static_cast<std::uint64_t>(t->getX()),static_cast<std::uint64_t>(t->getY()),static_cast<std::uint64_t>(t->getWidth()),static_cast<std::uint64_t>(t->getHeight()),
+                static_cast<std::uint64_t>(c.x),static_cast<std::uint64_t>(c.y),c.w,c.h,static_cast<std::uint64_t>(clip.x),static_cast<std::uint64_t>(clip.y),clip.w,clip.h});
+        }
+    }
+    return result;
+}
+bool TextList::agentArticleStatsRows(std::vector<AgentOutfittingRow>&rows,std::uint64_t &epoch) const
+{return agentReportRowsImpl(rows,epoch,false,true);}
+void TextList::agentEnableArticleItemCells()
+{
+    if (!_agentReportCells) {agentEnableReportCells(3,false,true);_agentArticleItemCells=true;}
+}
+bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows,std::uint64_t &captureEpoch) const
+{return agentReportRowsImpl(rows,captureEpoch,false);}
+bool TextList::agentArticleItemRows(std::vector<AgentOutfittingRow> &rows,std::uint64_t &captureEpoch) const
+{return agentReportRowsImpl(rows,captureEpoch,true);}
+bool TextList::agentReportRowsImpl(std::vector<AgentOutfittingRow> &rows,std::uint64_t &captureEpoch,bool articleItem,bool articleStats) const
 {
 	rows.clear(); captureEpoch = 0;
+    if(articleStats && (!_agentArticleStatsCells || _agentReportColumns!=2 || _selectable ||
+        !_agentReportAllowMissingCells || !_agentReportRequireTextExtent ||
+        _agentStatsDrawRevisions.empty() || _agentStatsDrawRevisions!=agentStatsRevisions() || _agentPaintReportRows.size()>32))return false;
+    if(articleItem && (!_agentArticleItemCells || _agentReportColumns!=3 || _selectable || _agentReportAllowMissingCells || !_agentReportRequireTextExtent))return false;
     if (_agentSoldierStatsCells && (_columns.size()!=13 || _columns[12]!=0)) return false;
-	if (!_agentReportPaintEpoch || _agentReportPaintEpoch != _agentReportDrawEpoch || _agentReportEpochExhausted || !_agentReportCells || !_agentReportCaptureHealthy || !Observer::agentWidgetVisible(this) ||
+	if (!_agentReportPaintEpoch || _agentReportPaintEpoch != _agentReportDrawEpoch || _agentReportEpochExhausted || !_agentReportCells || !_agentReportCaptureHealthy || !(articleItem?agentContextVisible():Observer::agentWidgetVisible(this)) ||
 		getWidth() <= 0 || getWidth() > 640 || getHeight() <= 0 || getHeight() > 400 ||
 		!agentPresentationPaintedTo(_agentReportDestination) ||
 		_agentPaintRevision != _agentListRevision || !Observer::agentPaintHealthy() ||
@@ -2740,6 +3003,7 @@ bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint6
 	for (const AgentReportCapture &capture : _agentPaintReportRows)
 	{
 		AgentOutfittingRow row = capture.row;
+        if(articleItem && _agentPaintReportRows.size()>3)return false;
 		if (row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].empty() ||
 			_texts[row.logicalIndex].size() > _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u) ||
 			(!_agentReportAllowMissingCells && _texts[row.logicalIndex].size() != _agentReportColumns + (_agentSoldierStatsCells ? 1u : 0u)))
@@ -2765,6 +3029,29 @@ bool TextList::agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint6
 			row.bounds.y+row.bounds.h > _agentReportClip.y+_agentReportClip.h ||
 			row.bounds.x >= _agentReportClip.x+_agentReportClip.w ||
 			row.bounds.x+row.bounds.w <= _agentReportClip.x) continue;
+        if(articleItem) for(size_t col=0;col<row.cells.size();++col) {
+            const Text *cell=_texts[row.logicalIndex][col];
+            if(!cell->agentTextComplete() || cell->getNumLines()!=1) row.cells[col].known=false;
+            row.cells[col].regions.clear();
+            const SDL_Rect &content=capture.contentBounds[col];
+            if(content.w && content.h)row.cells[col].regions.push_back(content);
+            else if(!row.cells[col].text.empty())row.cells[col].known=false;
+        }
+        if(articleStats) for(size_t col=0;col<row.cells.size();++col) {
+            auto &value=row.cells[col];value.regions.clear();
+            if(col>=_texts[row.logicalIndex].size())continue;
+            const Text *cell=_texts[row.logicalIndex][col];
+            const auto &g=capture.geometry[col];
+            // Dot leaders are decoration and may overflow their allocation.
+            // Capture already proves the original caption range via agentListContent.
+            const bool dottedCaption=_dot && col+1<_texts[row.logicalIndex].size();
+            if(cell->_crop.x || cell->_crop.y || cell->_crop.w || cell->_crop.h ||
+                (!dottedCaption && !cell->agentTextComplete()) || cell->getNumLines()!=1)value.known=false;
+            const int left=std::max<int>(0,g.x),right=std::min<int>(getWidth(),g.x+g.w);
+            const int top=std::max<int>(0,g.y),bottom=std::min<int>(getHeight(),g.y+g.h);
+            if(right>left && bottom>top)value.regions.push_back({static_cast<Sint16>(getX()+left),static_cast<Sint16>(getY()+top),static_cast<Uint16>(right-left),static_cast<Uint16>(bottom-top)});
+            else value.known=false;
+        }
         if (_agentReportRequireTextExtent)
         {
             for (size_t col = 0; col < row.cells.size(); ++col)
@@ -3264,6 +3551,8 @@ bool TextList::agentOutfittingRows(std::vector<AgentOutfittingRow> &rows) const
 		r.x+r.w <= _agentOutfittingClip.x+_agentOutfittingClip.w && r.y+r.h <= _agentOutfittingClip.y+_agentOutfittingClip.h; };
 	for (AgentOutfittingRow row : _agentPaintOutfittingRows)
 	{
+        AgentPurchaseCell caption;
+        if (_agentNativeCaptionCells) { if(agentNativeCaption(row.logicalIndex,caption)) row.cells[0]=caption; else {row.cells[0].known=false;row.cells[0].regions.clear();} }
 		if (_agentOutfittingEquipment)
 		{
 			if (row.logicalIndex >= _arrowLeft.size() || row.logicalIndex >= _arrowRight.size()) continue;
@@ -3373,9 +3662,69 @@ bool TextList::agentArrivalRows(std::vector<AgentArrivalRow> &rows) const
 	return true;
 }
 
+bool TextList::agentSellLayout() const
+{
+    return getWidth()==287 && _margin==2 && _columns.size()==4 &&
+        _columns[0]==156 && _columns[1]==54 && _columns[2]==24 && _columns[3]==53 &&
+        _arrowPos==182 && _arrowType==ARROW_VERTICAL && !_wrap && !_condensed && !_flooding &&
+        _font && _font->getHeight()==9 && _font->getSpacing()==-1;
+}
+void TextList::agentEnableSellCells()
+{
+    if(!_agentSellCells) {_agentSellCells=true;agentEnableNativeCaptions();++_agentListRevision;_redraw=true;}
+}
+bool TextList::agentSellPriceTrim(const Text *text) const
+{
+    if(!agentSellLayout() || !text || !text->agentPresentationPaintedTo(this) ||
+       text->_crop.x || text->_crop.y || text->_crop.w || text->_crop.h || text->getX()!=236 ||
+       text->getWidth()!=53 || text->getHeight()!=9 || text->getNumLines()!=1 ||
+       !text->agentTextComplete() || text->getTextWidth()>51 || text->getText().size()>1024)return false;
+    SDL_Surface *s=text->getSurface();
+    if(!s || s->format->BytesPerPixel!=1 || Observer::agentObservePaint(SDL_LockSurface(s))<0)return false;
+    bool blank=true;
+    for(int y=0;y<9;++y)for(int x=51;x<53;++x)
+        if(*(static_cast<const Uint8 *>(s->pixels)+y*s->pitch+x))blank=false;
+    SDL_UnlockSurface(s);return blank;
+}
+std::vector<std::uint64_t> TextList::agentSellRevisions() const
+{
+    std::vector<std::uint64_t> result;
+    if(!_agentSellCells || _scroll>=_rows.size() || _visibleRows>128)return result;
+    for(size_t physical=_scroll;physical<_rows.size() && physical<_scroll+_visibleRows;++physical) {
+        const size_t index=_rows[physical];if(index>=_texts.size() || _texts[index].size()!=4)return {};
+        result.push_back(index);
+        for(const Text *text:_texts[index]) {
+            if(!text || !text->getSurface())return {};
+            const SDL_Rect &c=text->_crop,&clip=text->getSurface()->clip_rect;
+            result.insert(result.end(),{reinterpret_cast<std::uintptr_t>(text),text->agentTextRevision(),text->agentPresentationRevision(),
+                static_cast<std::uint64_t>(text->getX()),static_cast<std::uint64_t>(text->getY()),
+                static_cast<std::uint64_t>(text->getWidth()),static_cast<std::uint64_t>(text->getHeight()),
+                static_cast<std::uint64_t>(c.x),static_cast<std::uint64_t>(c.y),c.w,c.h,
+                static_cast<std::uint64_t>(clip.x),static_cast<std::uint64_t>(clip.y),clip.w,clip.h});
+        }
+    }
+    return result;
+}
+bool TextList::agentSellCurrent() const
+{
+    return agentSellLayout() && agentPresentationPaintedTo(_agentSellDestination) &&
+        (_rows.empty() || !_agentSellDrawRevisions.empty()) && _agentSellDrawRevisions==agentSellRevisions();
+}
+
+void TextList::agentEnablePurchaseNameCells()
+{
+    if (!_agentPurchaseNameCells) { _agentPurchaseNameCells=true; ++_agentListRevision; _redraw=true; }
+}
+
+void TextList::agentEnablePurchasePriceCells()
+{
+    if (!_agentPurchasePriceCells) { _agentPurchasePriceCells=true; ++_agentListRevision; _redraw=true; }
+}
+
 bool TextList::agentPurchaseRows(std::vector<AgentPurchaseRow> &rows) const
 {
 	rows.clear();
+    if (_agentSellCells && !agentSellCurrent()) return false;
 	if (!Observer::agentWidgetVisible(this) || _agentPaintRevision != _agentListRevision ||
 		!_agentCoverageHealthy || !Observer::agentPaintHealthy() || _comboBox || _columns.size() != 4 ||
 		_arrowPos == -1 || _arrowType != ARROW_VERTICAL) return false;
@@ -3391,12 +3740,33 @@ bool TextList::agentPurchaseRows(std::vector<AgentPurchaseRow> &rows) const
 	};
 	for (AgentPurchaseRow row : _agentPaintPurchaseRows)
 	{
+        if (_agentSellCells) {AgentPurchaseCell caption;if(agentNativeCaption(row.logicalIndex,caption))row.cells[0]=caption;}
 		if (row.logicalIndex >= _arrowLeft.size() || row.logicalIndex >= _arrowRight.size()) continue;
 		row.increase = arrow(_arrowLeft[row.logicalIndex], row);
 		row.decrease = arrow(_arrowRight[row.logicalIndex], row);
 		if (!row.increase && !row.decrease) continue;
 		for (AgentPurchaseCell &cell : row.cells)
 		{
+            if (cell.logicalName)
+            {
+                const Text *name=cell.logicalName;const SDL_Rect &g=cell.nameGeometry;
+                if ((!_agentPurchaseNameCells && !_agentSellCells) || row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].empty() ||
+                    _texts[row.logicalIndex][0]!=name || !name->agentPresentationPaintedTo(this) ||
+                    name->agentTextRevision()!=cell.nameTextRevision ||
+                    name->agentPresentationRevision()!=cell.namePresentationRevision ||
+                    name->getX()!=g.x || name->getY()!=g.y || name->getWidth()!=g.w || name->getHeight()!=g.h)
+                    cell.known=false;
+            }
+            if (cell.logicalPrice)
+            {
+                const Text *price=cell.logicalPrice;const SDL_Rect &g=cell.priceGeometry;
+                if ((!_agentPurchasePriceCells && !(_agentSellCells && cell.priceColumn==3)) || row.logicalIndex >= _texts.size() || _texts[row.logicalIndex].size() != 4 ||
+                    _texts[row.logicalIndex][cell.priceColumn]!=price || !price->agentPresentationPaintedTo(this) ||
+                    price->agentTextRevision()!=cell.priceTextRevision ||
+                    price->agentPresentationRevision()!=cell.pricePresentationRevision ||
+                    price->getX()!=g.x || price->getY()!=g.y || price->getWidth()!=g.w || price->getHeight()!=g.h)
+                    cell.known=false;
+            }
 			std::vector<Observer::AgentUiRect> regions;
 			for (const SDL_Rect &r : cell.regions)
 			{
@@ -3418,6 +3788,46 @@ ScrollBar *TextList::agentPurchaseScrollbar() const
 		_scrolling && !_comboBox && _columns.size() == 4 && _arrowPos != -1 ? _scrollbar : nullptr;
 }
 
+void TextList::agentEnableNativeCaptions()
+{
+    if (!_agentNativeCaptionCells) {_agentNativeCaptionCells=true; ++_agentListRevision; _redraw=true;agentTrackPresentation();}
+}
+std::vector<std::uint64_t> TextList::agentCaptionRevisions() const
+{
+    std::vector<std::uint64_t> result;
+    if (_rows.empty() || _scroll>=_rows.size() || _visibleRows>128) return {};
+    const size_t first=_rows[_scroll];
+    for (size_t index=first;index<_texts.size() && index<first+_visibleRows;++index) {
+        if (_texts[index].size()>16) return {};
+        for(const Text *text:_texts[index]) {
+            result.push_back(text->agentTextRevision());result.push_back(text->agentPresentationRevision());
+        }
+    }
+    return result;
+}
+bool TextList::agentNativeCaption(size_t logicalIndex,AgentPurchaseCell &cell) const
+{
+    if (_agentSellCells && !agentSellCurrent()) return false;
+    if (!_agentNativeCaptionCells || !Observer::agentWidgetVisible(this) || !_agentCoverageHealthy ||
+        _agentPaintRevision!=_agentListRevision || _agentCaptionPaintRevisions.empty() ||
+        _agentCaptionPaintRevisions!=agentCaptionRevisions()) return false;
+    for(const auto &row:_agentPaintCaptionRows) if(row.logicalIndex==logicalIndex) {
+        const auto &value=row.cells[0];if(!value.known || logicalIndex>=_texts.size() || _texts[logicalIndex].empty())return false;
+        const Text *text=_texts[logicalIndex][0];const SDL_Rect &g=value.nameGeometry;
+        if(text!=value.logicalName || text->_crop.w || text->_crop.h || !text->agentPresentationPaintedTo(this) ||
+           text->agentTextRevision()!=value.nameTextRevision || text->agentPresentationRevision()!=value.namePresentationRevision ||
+           text->getX()!=g.x || text->getY()!=g.y || text->getWidth()!=g.w || text->getHeight()!=g.h) return false;
+        std::vector<Observer::AgentUiRect> regions;
+        for(const auto &r:value.regions) {
+            if(r.x<_agentListClip.x || r.y<_agentListClip.y || r.x+r.w>_agentListClip.x+_agentListClip.w || r.y+r.h>_agentListClip.y+_agentListClip.h)return false;
+            regions.push_back({r.x,r.y,r.w,r.h});
+        }
+        if(!Observer::agentRegionsUncovered(regions,this,_agentPaintOrder))return false;
+        cell=value;return true;
+    }
+    return false;
+}
+
 bool TextList::agentControlRows(std::vector<AgentListRow> &rows) const
 {
 	rows.clear();
@@ -3431,6 +3841,12 @@ bool TextList::agentControlRows(std::vector<AgentListRow> &rows) const
 		for (const AgentListRow &label : complete)
 			if (label.logicalIndex == row.logicalIndex && label.cells.size() == 1 && !label.cells[0].empty())
 			{ row.completeText = true; row.cells = label.cells; row.labelRegions = label.regions; break; }
+        AgentPurchaseCell caption;
+        if (_agentNativeCaptionCells) {
+            row.completeText=agentNativeCaption(row.logicalIndex,caption);
+            if(row.completeText) {row.cells[0]=caption.text;row.labelRegions=caption.regions;}
+            else {row.cells[0].clear();row.labelRegions.clear();}
+        }
 		rows.push_back(row);
 	}
 	std::sort(rows.begin(), rows.end(), [](const AgentListRow &a, const AgentListRow &b) { return a.bounds.y < b.bounds.y; });

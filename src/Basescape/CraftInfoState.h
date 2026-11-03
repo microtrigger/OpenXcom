@@ -38,9 +38,11 @@ class CraftInfoState : public State
 {
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    std::weak_ptr<const void> _agentCraftLifetime;
     bool _agentDestinationPaintFull=false;
     std::uint64_t _agentUiRevision=0;
     std::vector<std::uint64_t> _agentStoredPaintRevisions;
+    std::vector<std::uint64_t> agentAmmoPaintRevisions() const;
 #endif
 	Base *_base;
 	size_t _craftId;

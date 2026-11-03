@@ -10,7 +10,7 @@ from test_agent_control import NativeFixture, state, arguments, result, dump, ca
 from test_agent_events import page, validate
 
 NEW = {'open_inventory':'none','inventory_hover':'inventory_target','inventory_activate':'inventory_target',
-       'cancel_inventory_hold':'none','unload_inventory':'none','next_inventory_ground_page':'none'}
+       'cancel_inventory_hold':'none','unload_inventory':'none','next_inventory_ground_page':'none','previous_inventory_unit':'none','next_inventory_unit':'none'}
 
 
 def projection():
@@ -26,7 +26,7 @@ def inventory(visible=None,**kwargs):
     obj=state(screen='inventory',**kwargs);obj['visible']=copy.deepcopy(projection() if visible is None else visible)
     ids=a.STATE_ACTIONS['inventory']-({'cancel_inventory_hold'} if obj['visible']['held'] is None else set())
     if not obj['visible']['targets']:ids=ids-{'inventory_hover','inventory_activate'}
-    obj['actions']=[dict(id=x,label=x.replace('_',' ').title(),label_source='visible_control_semantics',
+    obj['actions']=[dict(id=x,label=a.INVENTORY_SELECTION_LABELS.get(x,x.replace('_',' ').title()),label_source='visible_control_semantics',
                         argument_kind=a.ARGUMENT_KINDS[x]) for x in sorted(ids)]
     return obj
 
@@ -44,9 +44,9 @@ class InventoryValidationTests(unittest.TestCase):
     def invalid(self,obj):
         with self.assertRaises(Unavailable):self.valid(obj)
 
-    def test_closed_counts_state_action_matrix_and_prebattle_close_only(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/51')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(265, 107, 7))
+    def test_closed_counts_state_action_matrix_and_sparse_inventory(self):
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/66')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(286, 109, 7))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW},NEW)
         self.assertIn('open_inventory',a.STATE_ACTIONS['battlescape'])
         self.assertEqual(a.STATE_ACTIONS['inventory'],set(NEW)-{'open_inventory'}|{'close_inventory'})

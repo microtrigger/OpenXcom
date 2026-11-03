@@ -32,10 +32,10 @@ namespace OpenXcom
 		virtual ~ArticleStateTFTDItem();
 
 	protected:
-		TextList *_lstInfo;
-		Text *_txtShotType;
-		Text *_txtAccuracy;
-		Text *_txtTuCost;
+		TextList *_lstInfo = nullptr;
+		Text *_txtShotType = nullptr;
+		Text *_txtAccuracy = nullptr;
+		Text *_txtTuCost = nullptr;
 		Text *_txtAmmoType[3];
 		Text *_txtAmmoDamage[3];
 	};

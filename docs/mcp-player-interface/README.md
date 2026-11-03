@@ -1,5 +1,7 @@
 # Experimental semantic MCP control
 
+> Current source checkpoint (3 November 2026): see [status and limitations](checkpoint-20261103.md). The dated qualification below is historical and is not release or standalone acceptance of this checkpoint.
+
 This fork lets an MCP-capable agent observe and operate OpenXcom through a bounded
 interface to the game's **displayed UI**, rather than unrestricted memory access
 or unrestricted desktop input. An explicit in-game cursor-motion action

@@ -4,4 +4,5 @@ def timing(n=1):
     return dict(clock='posix_realtime_monotonic_us', first_realtime_us=stamp,
                 first_monotonic_us=stamp, first_frame_offset=0, first_callback_frames=2205,
                 last_realtime_us=stamp, last_monotonic_us=stamp,
-                last_frame_end_offset=2205, last_callback_frames=2205)
+                last_frame_end_offset=2205, last_callback_frames=2205,
+                callback_anchors=[dict(offset_frames=0, monotonic_us=stamp, realtime_us=stamp, frames=2205)])

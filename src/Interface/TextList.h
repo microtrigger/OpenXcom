@@ -37,6 +37,15 @@ struct AgentPurchaseCell
 	// Used only while the ordinary list draw is in progress, never serialized.
 	struct Pixel { Sint16 x, y; Uint8 r, g, b; };
 	bool known = false;
+	// Explicit Purchase name-only logical cell witness; never serialized.
+	const Text *logicalName = nullptr;
+	// Purchase price only: full allocation + initially preserved opaque paint.
+	const Text *logicalPrice = nullptr;
+	std::uint64_t priceTextRevision = 0, pricePresentationRevision = 0;
+    unsigned priceColumn = 1;
+	SDL_Rect priceGeometry = {};
+	std::uint64_t nameTextRevision = 0, namePresentationRevision = 0;
+	SDL_Rect nameGeometry = {};
 	std::string text;
 	std::vector<SDL_Rect> regions;
 	std::vector<Pixel> ink;
@@ -123,6 +132,20 @@ private:
 	std::vector<AgentPurchaseRow> _agentDrawPurchaseRows, _agentPaintPurchaseRows;
 	std::vector<AgentArrivalRow> _agentDrawArrivalRows, _agentPaintArrivalRows;
 	bool _agentArrivalCells = false;
+	bool _agentPurchaseNameCells = false;
+    bool _agentNativeCaptionCells = false;
+    std::vector<AgentOutfittingRow> _agentDrawCaptionRows, _agentPaintCaptionRows;
+    std::vector<std::uint64_t> _agentCaptionPaintRevisions;
+    std::vector<std::uint64_t> agentCaptionRevisions() const;
+    bool agentNativeCaption(size_t logicalIndex, AgentPurchaseCell &cell) const;
+	bool _agentPurchasePriceCells = false;
+    bool _agentSellCells = false;
+    const Surface *_agentSellDestination = nullptr;
+    std::vector<std::uint64_t> _agentSellDrawRevisions;
+    std::vector<std::uint64_t> agentSellRevisions() const;
+    bool agentSellLayout() const;
+    bool agentSellPriceTrim(const Text *text) const;
+    bool agentSellCurrent() const;
     bool _agentGraphAxis = false;
 	// ItemsArrivingState-only logical current viewport; no row action authority.
 	struct AgentArrivalLogicalCapture
@@ -210,6 +233,13 @@ private:
 	bool _agentReportRequireTextExtent = false; // Diary-only full logical-caption fit, no raster comparison.
 	bool _agentReportAllowMissingCells = false; // Explicit diary report opt-in; absent native cells remain unknown.
 	bool _agentReportCells = false, _agentReportCaptureHealthy = true, _agentReportEpochExhausted = false;
+    bool _agentInterceptCells = false;
+    std::vector<std::uint64_t> _agentInterceptDrawRevisions;
+    bool _agentArticleItemCells = false;
+    bool _agentArticleStatsCells = false;
+    std::vector<std::uint64_t> _agentStatsDrawRevisions;
+    std::vector<std::uint64_t> agentStatsRevisions() const;
+    bool agentReportRowsImpl(std::vector<AgentOutfittingRow>&rows,std::uint64_t &epoch,bool articleItem, bool articleStats = false) const;
 	std::uint64_t _agentReportDrawEpoch = 0, _agentReportPaintEpoch = 0;
 	std::vector<AgentReportCapture> _agentDrawReportRows, _agentPaintReportRows;
 	SDL_Rect _agentReportClip = {};
@@ -282,6 +312,15 @@ public:
     bool agentReportRowSelected(size_t logicalIndex) const;
     bool agentReportRowClick(size_t logicalIndex, State *state);
 	bool agentReportRows(std::vector<AgentOutfittingRow> &rows, std::uint64_t &captureEpoch) const;
+    void agentEnableInterceptCells();
+    std::vector<std::uint64_t> agentInterceptRevisions() const;
+    bool agentInterceptRows(std::vector<AgentOutfittingRow>&rows,std::uint64_t &epoch) const;
+    void agentEnableArticleItemCells();
+    void agentEnableArticleStatsCells();
+    bool agentArticleStatsWheel() const {return _agentArticleStatsCells && _scrolling && _arrowPos==-1 && agentContextVisible();}
+    bool agentArticleStatsRows(std::vector<AgentOutfittingRow>&rows,std::uint64_t &epoch) const;
+    const std::vector<std::uint64_t>& agentArticleStatsBindings() const {return _agentStatsDrawRevisions;}
+    bool agentArticleItemRows(std::vector<AgentOutfittingRow> &rows,std::uint64_t &epoch) const;
 	// Explicit CannotReequipState viewport-only logical captions; never row actions.
 	void agentEnableReequipCells();
 	bool agentReequipRows(std::vector<AgentOutfittingRow> &rows) const;
@@ -300,10 +339,16 @@ public:
     std::string agentGraphAxisJson(const Surface *destination, const std::vector<Surface *> &paintOrder) const;
 	bool agentArrivalRows(std::vector<AgentArrivalRow> &rows) const;
 	// Purchase-only, independent text witnesses and exact painted row arrows.
+	void agentEnablePurchaseNameCells();
+	void agentEnablePurchasePriceCells();
+    void agentEnableSellCells();
+    const std::vector<std::uint64_t> &agentSellBindings() const { return _agentSellDrawRevisions; }
 	bool agentPurchaseRows(std::vector<AgentPurchaseRow> &rows) const;
 	ScrollBar *agentPurchaseScrollbar() const;
 	// Explicit opt-in for new-research controls; text proof remains separate.
 	bool agentControlRows(std::vector<AgentListRow> &rows) const;
+    void agentEnableNativeCaptions();
+    const std::vector<std::uint64_t> &agentNativeCaptionBindings() const { return _agentCaptionPaintRevisions; }
 	std::uint64_t agentListRevision() const { return _agentListRevision; }
 	void agentScrollControls(const Surface *&up, const Surface *&down) const;
 	bool agentChooseVisibleRow(size_t logicalIndex, Action *action, State *state);

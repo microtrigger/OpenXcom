@@ -361,7 +361,11 @@ bool ActionMenuState::agentUiState(Observer::AgentUiState &out) const
         Observer::agentIncludeWidget(out, _actionMenu[i]);
         const BattleActionType type = _actionMenu[i]->getAction();
         if (type != BA_SNAPSHOT && type != BA_AIMEDSHOT && type != BA_AUTOSHOT &&
-            type != BA_PRIME && type != BA_THROW) continue;
+            type != BA_PRIME && type != BA_THROW &&
+            !(type == BA_USE && _action && _action->weapon &&
+              _action->weapon->getRules() &&
+              (_action->weapon->getRules()->getBattleType() == BT_MEDIKIT ||
+               _action->weapon->getRules()->getBattleType() == BT_SCANNER))) continue;
         if (!out.rows.empty()) out.visible += ",";
         out.visible += "{\"handle\":\"a" + std::to_string(out.rows.size()) + "\",\"label\":" +
             Observer::agentJsonString(label) + ",\"accuracy\":" + accuracy + ",\"time_units\":" + timeUnits + "}";

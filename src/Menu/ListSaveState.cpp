@@ -140,7 +140,12 @@ bool ListSaveState::agentDispatch(const Observer::AgentRequest &request)
     if(request.action=="replace_new_save_name")
     {
         if(request.text.size()>128 || request.text.find_first_of("/\\")!=std::string::npos)return false;
-        return _edtSave->agentReplaceSaveName(_game->getScreen()->getSurface(), request.text);
+        const TextEdit::AgentSaveNameOutcome outcome =
+            _edtSave->agentReplaceSaveName(_game->getScreen()->getSurface(), request.text);
+        // Dispatched means the ordinary handler completed, not that the
+        // requested name was accepted. The later painted state proves it.
+        return outcome == TextEdit::AgentSaveNameOutcome::Replaced ||
+            outcome == TextEdit::AgentSaveNameOutcome::WidthRejectedAndRestored;
     }
     if(request.action=="save_new_game"){btnSaveGameClick(nullptr);return true;}
     return false;

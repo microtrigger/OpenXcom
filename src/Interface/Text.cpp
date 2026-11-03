@@ -472,6 +472,17 @@ void Text::processText()
  * @param line The line number (0 = first, etc).
  * @return The X position in pixels.
  */
+int Text::getTextEditCenteredOrigin() const
+{
+    // Ordinary TextEdit previously used this floor-rounded origin. Keep it
+    // for RTL and multi-line text; their caret traversal is outside this fix.
+    if (!_lang || _lang->getTextDirection() != DIRECTION_LTR || _lineWidth.size() != 1)
+        return (getWidth() - getTextWidth()) / 2;
+    // Reuse the actual glyph layout rather than approximating font spacing
+    // and ceil rounding; a centered end caret must not cover the final glyph.
+    return getLineX(0);
+}
+
 int Text::getLineX(int line) const
 {
 	int x = 0;

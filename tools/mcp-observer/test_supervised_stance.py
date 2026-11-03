@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-11.
 # Free software under GNU GPL version 3 or later; without warranty.
@@ -618,7 +619,7 @@ class LauncherTests(unittest.TestCase):
             with self.subTest(flags=flags), \
                     patch.object(sys, 'argv', ['launcher', *flags, '--', 'synthetic-game']), \
                     patch.dict(os.environ, {'OPENXCOM_STANCE_FD': '789'}), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                     patch('launch_presentation.serve') as serve:
                 launch_presentation.main()
                 env = spawn.call_args.kwargs['env']
@@ -635,7 +636,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_audio_only_rejects_stance_without_spawning(self):
         with patch.object(sys, 'argv', ['launcher', '--audio-only', '--supervised-stance', '--', 'game']), \
-                patch('launch_presentation.subprocess.Popen') as spawn, \
+                patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                 patch('sys.stderr', io.StringIO()), self.assertRaises(SystemExit):
             launch_presentation.main()
         spawn.assert_not_called()

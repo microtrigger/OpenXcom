@@ -438,11 +438,11 @@ bool GeoscapeCraftState::agentUiState(Observer::AgentUiState &out) const
         buttons += "{\"id\":" + agentJsonString(id) + ",\"label\":" + agentJsonString(label) + "}";
         out.actions.emplace_back(action, label, "visible_text");
     };
-    if (redirect)
-    {
-        button(_btnBase, "base", "return_craft_to_base");
-        button(_btnPatrol, "patrol", "patrol_craft_current_position");
-    }
+    // Both ordinary navigation and redirect mode present these native controls.
+    // Their own current visibility/paint proof (including low-fuel/mission-complete
+    // hiding) determines admission; redirect only changes last-known/cancel.
+    button(_btnBase, "base", "return_craft_to_base");
+    button(_btnPatrol, "patrol", "patrol_craft_current_position");
     button(_btnTarget, "target", "open_craft_destination");
     if (redirect) button(_btnCancel, "last_known", "go_to_craft_last_known_position");
     else button(_btnCancel, "cancel", "cancel_craft_navigation");

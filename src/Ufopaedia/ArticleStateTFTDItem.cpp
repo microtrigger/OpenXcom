@@ -180,6 +180,9 @@ namespace OpenXcom
 		if (!_txtAmmoType[0]->getText().empty())
 			_txtInfo->setHeight(112);
 
+        #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterItemCombat(_txtShotType,_txtAccuracy,_txtTuCost,_lstInfo,nullptr,nullptr,{{_txtAmmoType[0],_txtAmmoDamage[0]},{_txtAmmoType[1],_txtAmmoDamage[1]},{_txtAmmoType[2],_txtAmmoDamage[2]}});
+        #endif
 		centerAllSurfaces();
 	}
 

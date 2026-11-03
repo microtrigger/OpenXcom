@@ -345,7 +345,7 @@ void TextEdit::draw()
 				x = 0;
 				break;
 			case ALIGN_CENTER:
-				x = (_text->getWidth() - _text->getTextWidth()) / 2;
+				x = _text->getTextEditCenteredOrigin();
 				break;
 			case ALIGN_RIGHT:
 				x = _text->getWidth() - _text->getTextWidth();
@@ -475,21 +475,31 @@ bool TextEdit::agentSaveNameBinding(const Surface *destination, Observer::AgentU
     return true;
 }
 
-bool TextEdit::agentReplaceSaveName(const Surface *destination, const std::string &text)
+TextEdit::AgentSaveNameOutcome TextEdit::agentReplaceSaveName(const Surface *destination, const std::string &text)
 {
     std::string shown; SDL_Rect allocation; std::uint64_t captureEpoch;
     if (!_isFocused || Options::keyboardMode != KEYBOARD_ON ||
         !agentSaveName(destination, shown, allocation, captureEpoch) ||
-        !Observer::agentInputText(text)) return false;
+        !Observer::agentInputText(text)) return AgentSaveNameOutcome::Unavailable;
     const UString previous = _value;
     const size_t previousCaret = _caretPos;
     _value.clear(); _caretPos = 0;
     for (UCode c : Unicode::convUtf8ToUtf32(text))
-        if (!insertInputCharacter(c)) { _value = previous; _caretPos = previousCaret; return false; }
+        if (!insertInputCharacter(c))
+        {
+            // Only an ordinary valid-character width refusal in the save-name
+            // editor is a handled no-op. Never promote admission/grammar or
+            // other text constraints to successful dispatch.
+            const bool widthRefused = _textEditConstraint == TEC_NONE &&
+                isValidChar(c) && exceedsMaxWidth(c);
+            _value = previous; _caretPos = previousCaret;
+            return widthRefused ? AgentSaveNameOutcome::WidthRejectedAndRestored
+                                : AgentSaveNameOutcome::Unavailable;
+        }
     _blink = true; _redraw = true; ++_agentInputRevision;
     // Ordinary input constraints above, no pixel/glyph readability gate. Fresh
     // presentation is required by the provider before subsequent Save dispatch.
-    return true;
+    return AgentSaveNameOutcome::Replaced;
 }
 
 void TextEdit::agentEnableBasescapeName()
@@ -553,6 +563,19 @@ bool TextEdit::agentBaseInfoName(const Surface *destination, std::string &shown,
 		getY()+getHeight() > destination->getHeight()) return false;
 	shown = _agentBaseInfoNameShown; allocation = g; captureEpoch = _agentBaseInfoNameDrawEpoch;
 	return true;
+}
+
+bool TextEdit::agentBaseInfoNameBinding(const Surface *destination, Observer::AgentUiState &out) const
+{
+    std::string shown; SDL_Rect allocation; std::uint64_t captureEpoch;
+    if (!agentBaseInfoName(destination, shown, allocation, captureEpoch)) return false;
+    // Every sample still proves current child and destination paint. The raw
+    // draw epoch also advances for a decorative caret blink, so it is not a
+    // semantic authority revision. Bind captured logical identity instead;
+    // the provider separately binds input revision, geometry and cursor guards.
+    out.widgets.emplace_back(_agentBaseInfoNameChild, _agentBaseInfoNameTextRevision);
+    out.widgets.emplace_back(destination, destination->agentPresentationRevision());
+    return true;
 }
 
 bool TextEdit::agentTextLayoutComplete() const

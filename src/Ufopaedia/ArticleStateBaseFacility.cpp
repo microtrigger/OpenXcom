@@ -117,6 +117,9 @@ namespace OpenXcom
 
 		_lstInfo = new TextList(200, 42, 10, 42);
 		add(_lstInfo);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterStats(_lstInfo);
+#endif
 
 		_lstInfo->setColor(Palette::blockOffset(13)+10);
 		_lstInfo->setColumns(2, 140, 60);

@@ -33,7 +33,7 @@ public:
         State *target, const AgentUiState &shown) const
     {
         return _active && !expired(time) && generationMatches(generation) && display == _display &&
-            target && target == _target && _binding.sameBinding(shown) && shown.offers(_request.action);
+            target && target == _target && _binding.sameActionBinding(shown,_request.action) && shown.offers(_request.action);
     }
     void clear() { _active = false; _target = nullptr; _request = AgentRequest(); _binding = AgentUiState(); }
 };

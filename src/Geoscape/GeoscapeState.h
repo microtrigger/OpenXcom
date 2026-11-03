@@ -59,6 +59,11 @@ private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	/// Bounded composite ownership; child provider verifies expanded/fresh UI.
 	DogfightState *agentActiveDogfight() const;
+    bool agentDogfightComposite(Observer::AgentUiState &out) const;
+    bool agentDispatchDogfight(const Observer::AgentRequest &request);
+    bool _agentCompositePainted=false;
+    std::vector<DogfightState*> _agentPaintedDogfights;
+    std::uint64_t _agentRosterRevision=1;
 #endif
 public:
 	/// Creates the Geoscape state.

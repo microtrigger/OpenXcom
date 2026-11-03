@@ -54,6 +54,36 @@
 
 namespace OpenXcom
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+// Separate layout provenance from ordinary ticking telemetry text.
+class AgentDogfightLayoutWitness
+{
+public:
+    std::uint64_t layoutRevision=1;
+    virtual ~AgentDogfightLayoutWitness() {}
+    void changed(){if(layoutRevision)++layoutRevision;}
+};
+template<class Base> class AgentDogfightSurface : public Base, public AgentDogfightLayoutWitness
+{
+public:
+    AgentDogfightSurface(int w,int h,int x=0,int y=0):Base(w,h,x,y){}
+    void setX(int x) override {if(x!=this->getX())changed();Base::setX(x);}
+    void setY(int y) override {if(y!=this->getY())changed();Base::setY(y);}
+    void setWidth(int w) override {if(w!=this->getWidth())changed();Base::setWidth(w);}
+    void setHeight(int h) override {if(h!=this->getHeight())changed();Base::setHeight(h);}
+    void setVisible(bool v) override {if(v!=this->getVisible())changed();Base::setVisible(v);}
+    void setPalette(SDL_Color *c,int first=0,int count=256) override {changed();Base::setPalette(c,first,count);}
+    void blit(Surface *destination) override {
+        const auto full=[](const SDL_Surface *s){return s && s->clip_rect.x==0 && s->clip_rect.y==0 && s->clip_rect.w==s->w && s->clip_rect.h==s->h;};
+        const SDL_Rect *crop=this->getCrop();
+        if(crop->x || crop->y || crop->w || crop->h || !full(this->getSurface()) || !destination || !full(destination->getSurface())) {changed();this->agentPresentationMutation();}
+        Base::blit(destination);
+    }
+};
+#else
+template<class Base> using AgentDogfightSurface=Base;
+#endif
+
 
 // UFO blobs graphics ...
 const int DogfightState::_ufoBlobs[8][13][13] =
@@ -245,28 +275,28 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) : _st
 	_craft->setInDogfight(true);
 
 	// Create objects
-	_window = new Surface(160, 96, _x, _y);
-	_battle = new Surface(77, 74, _x + 3, _y + 3);
-	_weapon1 = new InteractiveSurface(15, 17, _x + 4, _y + 52);
-	_range1 = new Surface(21, 74, _x + 19, _y + 3);
-	_weapon2 = new InteractiveSurface(15, 17, _x + 64, _y + 52);
-	_range2 = new Surface(21, 74, _x + 43, _y + 3);
-	_damage = new Surface(22, 25, _x + 93, _y + 40);
+	_window = new AgentDogfightSurface<Surface>(160, 96, _x, _y);
+	_battle = new AgentDogfightSurface<Surface>(77, 74, _x + 3, _y + 3);
+	_weapon1 = new AgentDogfightSurface<InteractiveSurface>(15, 17, _x + 4, _y + 52);
+	_range1 = new AgentDogfightSurface<Surface>(21, 74, _x + 19, _y + 3);
+	_weapon2 = new AgentDogfightSurface<InteractiveSurface>(15, 17, _x + 64, _y + 52);
+	_range2 = new AgentDogfightSurface<Surface>(21, 74, _x + 43, _y + 3);
+	_damage = new AgentDogfightSurface<Surface>(22, 25, _x + 93, _y + 40);
 
-	_btnMinimize = new InteractiveSurface(12, 12, _x, _y);
-	_preview = new InteractiveSurface(160, 96, _x, _y);
-	_btnStandoff = new ImageButton(36, 15, _x + 83, _y + 4);
-	_btnCautious = new ImageButton(36, 15, _x + 120, _y + 4);
-	_btnStandard = new ImageButton(36, 15, _x + 83, _y + 20);
-	_btnAggressive = new ImageButton(36, 15, _x + 120, _y + 20);
-	_btnDisengage = new ImageButton(36, 15, _x + 120, _y + 36);
-	_btnUfo = new ImageButton(36, 17, _x + 120, _y + 52);
-	_txtAmmo1 = new Text(16, 9, _x + 4, _y + 70);
-	_txtAmmo2 = new Text(16, 9, _x + 64, _y + 70);
-	_txtDistance = new Text(40, 9, _x + 116, _y + 72);
-	_txtStatus = new Text(150, 9, _x + 4, _y + 85);
-	_btnMinimizedIcon = new InteractiveSurface(32, 20, _minimizedIconX, _minimizedIconY);
-	_txtInterceptionNumber = new Text(16, 9, _minimizedIconX + 18, _minimizedIconY + 6);
+	_btnMinimize = new AgentDogfightSurface<InteractiveSurface>(12, 12, _x, _y);
+	_preview = new AgentDogfightSurface<InteractiveSurface>(160, 96, _x, _y);
+	_btnStandoff = new AgentDogfightSurface<ImageButton>(36, 15, _x + 83, _y + 4);
+	_btnCautious = new AgentDogfightSurface<ImageButton>(36, 15, _x + 120, _y + 4);
+	_btnStandard = new AgentDogfightSurface<ImageButton>(36, 15, _x + 83, _y + 20);
+	_btnAggressive = new AgentDogfightSurface<ImageButton>(36, 15, _x + 120, _y + 20);
+	_btnDisengage = new AgentDogfightSurface<ImageButton>(36, 15, _x + 120, _y + 36);
+	_btnUfo = new AgentDogfightSurface<ImageButton>(36, 17, _x + 120, _y + 52);
+	_txtAmmo1 = new AgentDogfightSurface<Text>(16, 9, _x + 4, _y + 70);
+	_txtAmmo2 = new AgentDogfightSurface<Text>(16, 9, _x + 64, _y + 70);
+	_txtDistance = new AgentDogfightSurface<Text>(40, 9, _x + 116, _y + 72);
+	_txtStatus = new AgentDogfightSurface<Text>(150, 9, _x + 4, _y + 85);
+	_btnMinimizedIcon = new AgentDogfightSurface<InteractiveSurface>(32, 20, _minimizedIconX, _minimizedIconY);
+	_txtInterceptionNumber = new AgentDogfightSurface<Text>(16, 9, _minimizedIconX + 18, _minimizedIconY + 6);
 
 	_mode = _btnStandoff;
 	_craftDamageAnimTimer = new Timer(500);
@@ -362,7 +392,7 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) : _st
 	_btnDisengage->onMousePress((ActionHandler)&DogfightState::btnDisengagePress);
 	_btnDisengage->setGroup(&_mode);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
-    for(Text *text : {_txtStatus,_txtDistance,_txtAmmo1,_txtAmmo2,_txtInterceptionNumber}) text->agentTrackPresentation();
+    for(Surface *surface:_surfaces) surface->agentTrackPresentation();
     for(ImageButton *button : {_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage}) button->agentTrackRadio();
 #endif
 
@@ -1889,9 +1919,12 @@ bool DogfightState::agentDestinationFull() const
 }
 std::vector<std::uint64_t> DogfightState::agentPaintRevisions() const
 {
-    return {_txtStatus->agentPresentationRevision(),_txtDistance->agentPresentationRevision(),_txtAmmo1->agentPresentationRevision(),_txtAmmo2->agentPresentationRevision(),_txtInterceptionNumber->agentPresentationRevision(),
-        _txtStatus->agentTextRevision(),_txtDistance->agentTextRevision(),_txtAmmo1->agentTextRevision(),_txtAmmo2->agentTextRevision(),_txtInterceptionNumber->agentTextRevision(),
-        _btnStandoff->agentPresentationRevision(),_btnCautious->agentPresentationRevision(),_btnStandard->agentPresentationRevision(),_btnAggressive->agentPresentationRevision(),_btnDisengage->agentPresentationRevision()};
+    std::vector<std::uint64_t> result;
+    for(const Surface *s:_surfaces){
+        result.insert(result.end(),{reinterpret_cast<std::uintptr_t>(s),s->agentPresentationRevision(),static_cast<std::uint64_t>(s->getX()),static_cast<std::uint64_t>(s->getY()),static_cast<std::uint64_t>(s->getWidth()),static_cast<std::uint64_t>(s->getHeight()),s->getVisible()?1u:0u});
+        if(const Text *t=dynamic_cast<const Text*>(s))result.push_back(t->agentTextRevision());
+    }
+    return result;
 }
 void DogfightState::blit()
 {
@@ -1900,66 +1933,90 @@ void DogfightState::blit()
     _agentDestinationPaintFull=before&&agentDestinationFull()&&Observer::agentPaintHealthy();
 }
 bool DogfightState::agentUiState(Observer::AgentUiState &out) const
+{return agentWindowUiState(out,{});}
+bool DogfightState::agentWindowUiState(Observer::AgentUiState &out,const std::vector<Surface*> &later) const
 {
     using namespace Observer;
-    if (!_game->isState(_state)||_modal||_minimized||_preview->getVisible()||!agentPaintHealthy()||
+    if (!_game->isState(_state)||_modal||_preview->getVisible()||_endDogfight||!agentPaintHealthy()||
         !_agentDestinationPaintFull||!agentDestinationFull()||_agentStoredPaintRevisions!=agentPaintRevisions())return false;
     out=AgentUiState();out.screen="dogfight";out.actor=_craft;out.save=_ufo;
-    const auto painted=agentFlattenPaintOrder(_surfaces);
+    out.targetLifetimes.push_back(_agentInstanceLifetime);
+    auto painted=agentFlattenPaintOrder(_surfaces);painted.insert(painted.end(),later.begin(),later.end());
     const Surface *destination=_game->getScreen()->getSurface();
-    // Observation coverage remains complete; action authority only binds controls.
-    AgentUiState observation;
-    const auto include=[&](const Surface *widget, bool control)->bool {
-        if(!agentWidgetUncovered(widget,painted))return false;
-        AgentUiState part;agentIncludeWidget(part,widget);
-        if(part.regions.empty()||!_game->agentOverlayClear(part))return false;
-        size_t before=observation.regions.size();observation.regions.insert(observation.regions.end(),part.regions.begin(),part.regions.end());
-        if(agentRegionsDisjoint(observation)){
-            if(control)out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
-            return true;
-        }
-        observation.regions.resize(before);return false;
+    const Surface *anchor=_minimized?static_cast<const Surface*>(_btnMinimizedIcon):_window;
+    if(!agentWidgetVisible(anchor)||!anchor->agentPresentationPaintedTo(destination))return false;
+    // A composite window is public only while its actual anchor is unobscured
+    // by later sibling windows or external overlays. Own child controls are
+    // intentionally excluded from this anchor-only sibling proof.
+    AgentUiState footprint;agentIncludeWidget(footprint,anchor);
+    std::vector<Surface*> siblingPaint={const_cast<Surface*>(anchor)};
+    siblingPaint.insert(siblingPaint.end(),later.begin(),later.end());
+    if(footprint.regions.empty()||!agentRegionsUncovered(footprint.regions,anchor,siblingPaint)||!_game->agentOverlayClear(footprint))return false;
+
+    for(const Surface *s:_surfaces){
+        const auto *witness=dynamic_cast<const AgentDogfightLayoutWitness*>(s);
+        if(witness){if(!witness->layoutRevision)return false;out.widgets.emplace_back(s,witness->layoutRevision);}
+        out.context.insert(out.context.end(),{reinterpret_cast<std::uintptr_t>(s),static_cast<std::uint64_t>(s->getX()),static_cast<std::uint64_t>(s->getY()),static_cast<std::uint64_t>(s->getWidth()),static_cast<std::uint64_t>(s->getHeight()),s->getVisible()?1u:0u});
+    }
+    out.context.push_back(_minimized?1:0);
+    const auto include=[&](const Surface *widget,bool control,const AgentUiRect *sub=nullptr)->bool {
+        if(!widget->agentPresentationPaintedTo(destination)||!agentWidgetVisible(widget))return false;
+        AgentUiState part;
+        if(sub)part.regions.push_back(*sub);else agentIncludeWidget(part,widget);
+        if(part.regions.empty()||!agentRegionsUncovered(part.regions,widget,painted)||!_game->agentOverlayClear(part))return false;
+        if(control){size_t before=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());if(!agentRegionsDisjoint(out)){out.regions.resize(before);return false;}}
+        return true;
     };
     const auto text=[&](const Text *widget)->std::string {
-        // Stable telemetry placement/visibility binds authority, but ticking content does not.
-        out.context.insert(out.context.end(),{static_cast<std::uint64_t>(widget->getX()),
-            static_cast<std::uint64_t>(widget->getY()),static_cast<std::uint64_t>(widget->getWidth()),
-            static_cast<std::uint64_t>(widget->getHeight()),widget->getVisible()?1u:0u,widget->agentContextVisible()?1u:0u});
         if(!widget->agentPresentationPaintedTo(destination))return "null";
-        const auto value=agentTextJson(widget);
-        return value!="null"&&(widget->getText().empty()||include(widget,false))?value:"null";
+        const auto value=agentTextJson(widget);return value!="null"&&(widget->getText().empty()||include(widget,false))?value:"null";
     };
-    const std::string status=text(_txtStatus),distance=text(_txtDistance),ammo1=text(_txtAmmo1),ammo2=text(_txtAmmo2),interception=text(_txtInterceptionNumber);
+    const std::string status=_minimized?"null":text(_txtStatus),distance=_minimized?"null":text(_txtDistance),
+        ammo1=_minimized?"null":text(_txtAmmo1),ammo2=_minimized?"null":text(_txtAmmo2),
+        interception=_minimized?text(_txtInterceptionNumber):"null";
     ImageButton *buttons[]={_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage};
     const char *ids[]={"standoff","cautious","standard","aggressive","disengage"};
     std::string modes="[";unsigned selectedCount=0;
-    for(unsigned i=0;i<5;++i){
-        out.widgets.emplace_back(buttons[i],buttons[i]->agentPresentationRevision());
-        bool selected=false;
+    if(!_minimized)for(unsigned i=0;i<5;++i){
+        out.widgets.emplace_back(buttons[i],buttons[i]->agentPresentationRevision());bool selected=false;
         if(!buttons[i]->agentRadioControl(destination,selected)||!include(buttons[i],true))continue;
-        if(!out.rows.empty())modes+=",";
-        modes+="{\"id\":"+agentJsonString(ids[i])+",\"selected\":"+(selected?"true":"false")+"}";
+        if(!out.rows.empty())modes+=",";modes+="{\"id\":"+agentJsonString(ids[i])+",\"selected\":"+(selected?"true":"false")+"}";
         out.rows.push_back(i);if(selected)++selectedCount;
     }
-    if(selectedCount>1)return false;
-    modes+="]";
-    // Private radio identity/selection freshness; never serialized as gameplay data.
-    out.widgets.emplace_back(_mode,0);
+    if(selectedCount>1)return false;modes+="]";out.widgets.emplace_back(_mode,0);
+    bool minimize=false,restore=false;
+    if(!_minimized){out.widgets.emplace_back(_btnMinimize,_btnMinimize->agentPresentationRevision());minimize=include(_btnMinimize,true);}
+    else {
+        out.widgets.emplace_back(_btnMinimizedIcon,_btnMinimizedIcon->agentPresentationRevision());
+        // The printed number overlays the icon's right side. Use only the
+        // current unobscured left hitbox; never ignore the caption as an occluder.
+        const int width=std::min(_btnMinimizedIcon->getWidth(),_txtInterceptionNumber->getX()-_btnMinimizedIcon->getX());
+        AgentUiRect hit={_btnMinimizedIcon->getX(),_btnMinimizedIcon->getY(),width,_btnMinimizedIcon->getHeight()};
+        restore=width>0&&include(_btnMinimizedIcon,true,&hit);
+    }
     if(!out.rows.empty())out.actions.emplace_back("choose_dogfight_mode","Choose dogfight mode","visible_control_semantics","dogfight_mode");
-    out.visible="{\"status\":"+status+",\"distance\":"+distance+",\"ammo1\":"+ammo1+",\"ammo2\":"+ammo2+",\"interception\":"+interception+",\"damage\":null,\"buttons\":"+modes+"}";
-    if(!out.rows.empty())out.controlVisible="{\"buttons\":"+modes+"}";
-    else out.regions=observation.regions; // Read-only telemetry is still observable.
-    return !out.regions.empty()&&agentRegionsDisjoint(out)&&out.visible.size()<=9000;
+    if(minimize)out.actions.emplace_back("minimize_dogfight","Minimize dogfight","visible_control_semantics","dogfight_window");
+    if(restore)out.actions.emplace_back("restore_dogfight","Restore dogfight","visible_control_semantics","dogfight_window");
+    const std::string bounds="{\"x\":"+std::to_string(anchor->getX())+",\"y\":"+std::to_string(anchor->getY())+",\"width\":"+std::to_string(anchor->getWidth())+",\"height\":"+std::to_string(anchor->getHeight())+"}";
+    const std::string controls="\"bounds\":"+bounds+",\"minimized\":"+(_minimized?"true":"false")+",\"buttons\":"+modes+",\"can_minimize\":"+(minimize?"true":"false")+",\"can_restore\":"+(restore?"true":"false");
+    out.visible="{"+controls+",\"status\":"+status+",\"distance\":"+distance+",\"ammo1\":"+ammo1+",\"ammo2\":"+ammo2+",\"interception\":"+interception+",\"damage\":null}";
+    out.controlVisible="{"+controls+"}";
+    return agentRegionsDisjoint(out)&&out.visible.size()<=9000;
 }
 bool DogfightState::agentDispatch(const Observer::AgentRequest &request)
+{return agentDispatchWindow(request,{});}
+bool DogfightState::agentDispatchWindow(const Observer::AgentRequest &request,const std::vector<Surface*> &later)
 {
-    Observer::AgentUiState current;
-    if(!agentUiState(current)||!current.offers(request.action)||request.action!="choose_dogfight_mode")return false;
+    Observer::AgentUiState current;if(!agentWindowUiState(current,later)||!current.offers(request.action))return false;
+    if(request.action=="minimize_dogfight"){btnMinimizeClick(nullptr);return true;}
+    if(request.action=="restore_dogfight"){btnMinimizedIconClick(nullptr);return true;}
+    if(request.action!="choose_dogfight_mode")return false;
     ImageButton *buttons[]={_btnStandoff,_btnCautious,_btnStandard,_btnAggressive,_btnDisengage};
     const char *ids[]={"standoff","cautious","standard","aggressive","disengage"};
-    for(size_t index:current.rows)if(index<5&&request.choice==ids[index])return buttons[index]->agentActivateRadio(this);
+    for(size_t index:current.rows)if(index<5&&request.control==ids[index])return buttons[index]->agentActivateRadio(this);
     return false;
 }
+
 #endif
 
 }

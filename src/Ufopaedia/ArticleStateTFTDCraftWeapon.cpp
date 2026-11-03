@@ -39,6 +39,9 @@ namespace OpenXcom
 
 		_lstInfo = new TextList(150, 50, 168, 126);
 		add(_lstInfo);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+        agentRegisterStats(_lstInfo);
+#endif
 
 		_lstInfo->setColor(Palette::blockOffset(0)+2);
 		_lstInfo->setColumns(2, 100, 68); // deliberately making this wider than the original to account for finnish.

@@ -19,6 +19,7 @@
  */
 #include "../Engine/State.h"
 #include <vector>
+#include <memory>
 #include <string>
 
 namespace OpenXcom
@@ -46,6 +47,7 @@ class DogfightState : public State
 private:
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     bool _agentDestinationPaintFull=false;
+    std::shared_ptr<int> _agentInstanceLifetime=std::make_shared<int>(0);
     std::vector<std::uint64_t> _agentStoredPaintRevisions;
     bool agentDestinationFull() const;
     std::vector<std::uint64_t> agentPaintRevisions() const;
@@ -78,6 +80,9 @@ public:
     void blit() override;
     bool agentUiState(Observer::AgentUiState &out) const override;
     bool agentDispatch(const Observer::AgentRequest &request) override;
+    bool agentWindowUiState(Observer::AgentUiState &out,const std::vector<Surface*> &later) const;
+    bool agentDispatchWindow(const Observer::AgentRequest &request,const std::vector<Surface*> &later);
+    const std::vector<Surface*> &agentPaintSurfaces() const {return _surfaces;}
 #endif
 	/// Creates the Dogfight state.
 	DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo);

@@ -116,6 +116,8 @@ UfoDetectedState::UfoDetectedState(Ufo *ufo, GeoscapeState *state, bool detected
 	centerAllSurfaces();
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
     _txtUfo->agentTrackPresentation();
+    _lstInfo->agentEnableReportCells(2, false, true);
+    _lstInfo2->agentEnableReportCells(2, false, true);
 #endif
 
 	_btnIntercept->setText(tr("STR_INTERCEPT"));
@@ -256,7 +258,9 @@ std::vector<std::uint64_t> UfoDetectedState::agentPaintRevisions() const
         _txtHyperwave->agentTextRevision(),
         _btnIntercept->agentLabelRevision(),
         _btnCentre->agentLabelRevision(),
-        _btnCancel->agentLabelRevision()};
+        _btnCancel->agentLabelRevision(),
+        _lstInfo->agentListRevision(), _lstInfo->agentPresentationRevision(),
+        _lstInfo2->agentListRevision(), _lstInfo2->agentPresentationRevision()};
 }
 
 void UfoDetectedState::blit()
@@ -341,13 +345,50 @@ bool UfoDetectedState::agentUiState(Observer::AgentUiState &out) const
     };
     const auto title = contactTitle(), detected = text(_txtDetected), hyperwave = text(_txtHyperwave);
     // Intercept uses only its admitted visible button; Center stays read-only.
-    // The detail tables and underlying UFO model are deliberately unread.
+    // Read only the final painted tables; never consult the underlying UFO model.
     button(_btnIntercept, "intercept", "open_contact_interception");
     button(_btnCentre, "center", nullptr);
     button(_btnCancel, "cancel", "dismiss_ufo_contact");
     buttons += "]";
+    const auto table = [&](const TextList *list) -> std::string {
+        out.widgets.emplace_back(list, list->agentListRevision());
+        out.widgets.emplace_back(list, list->agentPresentationRevision());
+        // Children may contain populated race/mission captions even when their
+        // parent is hidden. Only this current parent's paint authorizes reading.
+        const Surface *destination = _game->getScreen()->getSurface();
+        if (!agentWidgetVisible(list) || !list->agentPresentationPaintedTo(destination)) return "null";
+        std::vector<AgentOutfittingRow> rows;
+        std::uint64_t epoch = 0;
+        if (!list->agentReportRows(rows, epoch) || rows.size() > 4) return "null";
+        out.widgets.emplace_back(list, epoch);
+        std::string result = "[";
+        for (const auto &row : rows)
+        {
+            if (row.cells.size() != 2) return "null";
+            if (result.size() > 1) result += ",";
+            result += "[";
+            for (size_t i = 0; i < row.cells.size(); ++i)
+            {
+                if (i) result += ",";
+                const auto &cell = row.cells[i];
+                AgentUiState part;
+                for (const auto &r : cell.regions) part.regions.push_back({r.x,r.y,r.w,r.h});
+                bool known = cell.known && cell.text.size() <= 1024 &&
+                    agentRegionsUncovered(part.regions, list, painted) &&
+                    _game->agentNonCursorOverlayClear(part);
+                // Observation-only cells, like the title, must not broaden the
+                // existing strict action-region admission or make cursor ink an
+                // obscuring window. Captured list epoch remains private authority.
+                result += known ? agentJsonString(cell.text) : "null";
+            }
+            result += "]";
+        }
+        return result + "]";
+    };
+    const auto contactRows = table(_lstInfo), hyperwaveRows = table(_lstInfo2);
     out.visible = "{\"title\":" + title + ",\"detected_label\":" + detected + ",\"hyperwave_label\":" + hyperwave +
-        ",\"details_status\":\"unavailable\",\"buttons\":" + buttons + "}";
+        ",\"details_status\":" + agentJsonString(contactRows != "null" || hyperwaveRows != "null" ? "partial" : "unavailable") +
+        ",\"contact_rows\":" + contactRows + ",\"hyperwave_rows\":" + hyperwaveRows + ",\"buttons\":" + buttons + "}";
     const std::string payload = out.payload();
     if (payload.size() > 9000) return false;
     // Match the retained-event ring's conservative non-ASCII byte estimate,

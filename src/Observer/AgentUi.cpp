@@ -41,6 +41,14 @@ bool AgentUiState::sameBinding(const AgentUiState &o) const
         selectionRevision == o.selectionRevision && uiRevision == o.uiRevision && widgets == o.widgets &&
         rows == o.rows && points == o.points && context == o.context && regions == o.regions && authorityPayload() == o.authorityPayload();
 }
+bool AgentUiState::sameActionBinding(const AgentUiState &other,const std::string &action) const
+{
+    if(action=="choose_geoscape_speed" && screen=="geoscape" && other.screen=="geoscape" &&
+        geoscapeSpeedAuthority && other.geoscapeSpeedAuthority)
+        return geoscapeSpeedAuthority->sameBinding(*other.geoscapeSpeedAuthority) &&
+            offers(action) && other.offers(action);
+    return sameBinding(other);
+}
 bool AgentUiState::offers(const std::string &id) const
 {
     for (const auto &action : actions) if (action.id == id) return true;
@@ -55,6 +63,7 @@ bool agentProjectList(const TextList *list, const Surface *owner, const std::vec
     if (!list || !owner || !agentWidgetVisible(list) ||
         !(allowUnknownTextControls ? (selectable && columns == 1 && list->agentControlRows(rows)) : list->agentRows(rows))) return false;
     ui.widgets.push_back(std::make_pair(list, list->agentListRevision()));
+    for(auto revision:list->agentNativeCaptionBindings()) ui.widgets.emplace_back(list,revision);
     projection.rows = "[";
     unsigned count = 0;
     for (const AgentListRow &row : rows)
@@ -265,6 +274,7 @@ bool agentProjectOutfittingList(const TextList *list, const std::vector<Surface 
     std::vector<AgentOutfittingRow> rows;
     if (!list || !list->agentOutfittingRows(rows)) return false;
     ui.widgets.emplace_back(list, list->agentListRevision());
+    for(auto revision:list->agentNativeCaptionBindings()) ui.widgets.emplace_back(list,revision);
     const size_t baseRegions = ui.regions.size();
     std::vector<AgentUiRect> local;
     size_t work = 0;

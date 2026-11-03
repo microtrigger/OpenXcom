@@ -53,10 +53,18 @@ def read_audio(client,epoch,after,limit,page_budget=MAX_PAGES):
                 seq=event['pcm_sequence']
                 require(previous_pcm is None or seq > previous_pcm)
                 if previous_pcm is not None and seq != previous_pcm+1:gap=True
+                consecutive_pcm=previous_pcm is not None and seq == previous_pcm+1
                 previous_pcm=seq
                 timing=event['timing']
                 if previous_timing is not None:
                     require(timing['first_realtime_us'] >= previous_timing['last_realtime_us'] and timing['first_monotonic_us'] >= previous_timing['last_monotonic_us'])
+                    if consecutive_pcm:
+                        end, frames = previous_timing['last_frame_end_offset'], previous_timing['last_callback_frames']
+                        if end < frames:
+                            require(timing['first_frame_offset'] == end and timing['first_callback_frames'] == frames)
+                            require(timing['first_monotonic_us'] == previous_timing['last_monotonic_us'] and timing['first_realtime_us'] == previous_timing['last_realtime_us'])
+                        else:
+                            require(timing['first_frame_offset'] == 0 and timing['first_monotonic_us'] > previous_timing['last_monotonic_us'] and timing['first_realtime_us'] > previous_timing['last_realtime_us'])
                 previous_timing=timing
                 if pending and seq!=last_pcm+1:flush();gap=True
                 if not pending:first_pcm=seq;first_event=cursor

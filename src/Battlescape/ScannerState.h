@@ -42,6 +42,16 @@ class ScannerState : public State
 	/// Handles Minimap animation.
 	void animate();
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    void blit() override;
+    bool agentUiState(Observer::AgentUiState &out) const override;
+    bool agentDispatch(const Observer::AgentRequest &request) override;
+private:
+    bool _agentPaintFull = false;
+    std::vector<std::uint64_t> _agentPaintRevisions;
+    std::vector<std::uint64_t> agentRevisions() const;
+public:
+#endif
 	/// Creates the ScannerState.
 	ScannerState(BattleAction *action);
 	~ScannerState();

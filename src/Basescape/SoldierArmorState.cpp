@@ -53,7 +53,8 @@ SoldierArmorState::SoldierArmorState(Base *base, size_t soldier) : _base(base), 
 	// Create objects
 	_window = new Window(this, 192, 160, 64, 20, POPUP_BOTH);
 	_btnCancel = new TextButton(140, 16, 90, 156);
-	_txtTitle = new Text(182, 16, 69, 28);
+	// Two small-font lines need 17 raster rows (16 logical rows).
+	_txtTitle = new Text(182, 17, 69, 28);
 	_txtType = new Text(90, 9, 80, 52);
 	_txtQuantity = new Text(70, 9, 190, 52);
 	_lstArmor = new TextList(160, 80, 73, 68);

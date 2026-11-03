@@ -131,6 +131,9 @@ CraftEquipmentState::CraftEquipmentState(Base *base, size_t craft) : _sel(0), _c
 	_lstEquipment->setSelectable(true);
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_lstEquipment->agentEnableOutfitting(3, true, false);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstEquipment->agentEnableNativeCaptions();
+#endif
 #endif
 	_lstEquipment->setBackground(_window);
 	_lstEquipment->setMargin(8);
@@ -529,6 +532,7 @@ bool CraftEquipmentState::agentUiState(Observer::AgentUiState &out) const
     AgentListProjection list;if(!view.list(_lstEquipment,3,true,list))return false;
     for(size_t row:out.rows){if(row>=_items.size())return false;out.widgets.emplace_back(&_items[row],0);}
     if(!out.rows.empty())out.actions.emplace_back("change_craft_equipment","Change craft equipment","visible_control_semantics","equipment_quantity");
+    view.button(_btnInventory,"inventory","open_craft_inventory");
     view.button(_btnOk,"close","close_craft_equipment");
     out.visible="{\"title\":"+title+",\"headings\":"+headings+",\"available\":"+available+",\"used\":"+used+",\"crew\":"+crew+",\"rows\":"+list.rows+",\"scroll\":"+list.scroll+",\"buttons\":"+view.buttons+"]}";
 
@@ -538,6 +542,7 @@ bool CraftEquipmentState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState current;
     if (!agentUiState(current) || !current.offers(request.action)) return false;
+    if(request.action=="open_craft_inventory"){btnInventoryClick(nullptr);return true;}
     if(request.action=="close_craft_equipment"){btnOkClick(nullptr);return true;}
     if(Observer::agentOutfittingScroll(_lstEquipment,current,request))return true;
     size_t row=0,slot=0;

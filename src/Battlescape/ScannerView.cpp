@@ -51,7 +51,8 @@ void ScannerView::draw()
 	SurfaceSet *set = _game->getMod()->getSurfaceSet("DETBLOB.DAT");
 	Surface *surface = 0;
 
-	clear();
+	// Finish the normal redraw lifecycle; animate() invalidates each next frame.
+	InteractiveSurface::draw();
 
 	this->lock();
 	for (int x = -9; x < 10; x++)

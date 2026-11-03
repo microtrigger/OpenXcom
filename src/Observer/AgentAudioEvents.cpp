@@ -103,7 +103,7 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
     // begins with the following callback, with no pre-attachment samples.
     if (_skipFirst) { _skipFirst = false; return; }
     std::uint64_t realtime = 0, monotonic = 0;
-    if (!captureClocks(realtime, monotonic) || realtime < _lastRealtimeUs || monotonic < _lastMonotonicUs)
+    if (!captureClocks(realtime, monotonic) || realtime <= _lastRealtimeUs || monotonic <= _lastMonotonicUs)
     { _failed.store(1, std::memory_order_release); return; }
     _lastRealtimeUs = realtime; _lastMonotonicUs = monotonic;
     const unsigned callbackFrames = static_cast<unsigned>(len) / FrameBytes;
@@ -113,11 +113,20 @@ void AgentAudioEvents::observe(const Uint8 *stream, int len)
     {
         if (!_partialBytes)
         {
+            _partialTiming = Timing();
             _partialTiming.firstRealtimeUs = realtime;
             _partialTiming.firstMonotonicUs = monotonic;
             _partialTiming.firstFrameOffset = offset / FrameBytes;
             _partialTiming.firstCallbackFrames = callbackFrames;
         }
+        // One bounded anchor per actual callback touching this window. A callback
+        // spanning windows is repeated with the same clocks/count, relative offset.
+        if (_partialTiming.callbackAnchorCount >= CallbackAnchorCapacity)
+        { _failed.store(1, std::memory_order_release); return; }
+        CallbackAnchor &anchor = _partialTiming.callbackAnchors[_partialTiming.callbackAnchorCount++];
+        anchor.offsetFrames = static_cast<int>(_partialBytes / FrameBytes) - static_cast<int>(offset / FrameBytes);
+        anchor.realtimeUs = realtime; anchor.monotonicUs = monotonic;
+        anchor.frames = callbackFrames;
         const unsigned remaining = windowBytes - _partialBytes;
         const unsigned available = static_cast<unsigned>(len) - offset;
         const unsigned count = remaining < available ? remaining : available;

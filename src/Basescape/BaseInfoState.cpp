@@ -17,6 +17,9 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "BaseInfoState.h"
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentOutfitting.h"
+#endif
 #include <sstream>
 #include <cmath>
 #include "../Engine/Game.h"
@@ -280,6 +283,11 @@ BaseInfoState::~BaseInfoState()
  */
 void BaseInfoState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    ++_agentUiRevision;
+    _agentBaseSave=_game->getSavedGame();
+    _agentBaseLifetime=_base->agentLifetime();
+#endif
 	State::init();
 	_edtBase->setText(_base->getName());
 
@@ -468,11 +476,31 @@ void BaseInfoState::btnMonthlyCostsClick(Action *)
 }
 
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool BaseInfoState::agentBaseCurrent() const
+{
+    if(!_base || _agentBaseLifetime.expired() || !_game->getSavedGame() ||
+        _agentBaseSave!=_game->getSavedGame())return false;
+    for(const Base *base:*_game->getSavedGame()->getBases())if(base==_base)return true;
+    return false;
+}
+void BaseInfoState::blit()
+{
+    _agentDestinationPaintFull=false;_agentStoredPaintRevisions.clear();
+    const bool before=Observer::agentOutfittingDestinationFull(_game);
+    State::blit();
+    _agentStoredPaintRevisions=Observer::agentOutfittingPaintRevisions(_surfaces);
+    _agentDestinationPaintFull=before && Observer::agentOutfittingDestinationFull(_game) && Observer::agentPaintHealthy();
+}
 bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
 {
     using namespace Observer;
-    if (_modal || !_game->isState(const_cast<BaseInfoState *>(this)) || !agentPaintHealthy()) return false;
+    if ((_modal && _modal!=_edtBase) || !_game->isState(const_cast<BaseInfoState *>(this)) ||
+        !agentBaseCurrent() || !agentPaintHealthy() || !_agentDestinationPaintFull ||
+        !agentOutfittingDestinationFull(_game) ||
+        _agentStoredPaintRevisions!=agentOutfittingPaintRevisions(_surfaces)) return false;
     out=AgentUiState(); out.screen="base_info"; out.actor=_base;
+    out.save=_game->getSavedGame();out.uiRevision=_agentUiRevision;
+    out.targetLifetimes.push_back(_agentBaseLifetime);
     const auto painted=agentFlattenPaintOrder(_surfaces);
     const auto include=[&](const Surface *widget)->bool
     {
@@ -497,11 +525,12 @@ bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
         SDL_Rect allocation;
         std::uint64_t captureEpoch=0;
         const bool captured=_edtBase->agentBaseInfoName(
-            _game->getScreen()->getSurface(),shown,allocation,captureEpoch);
+            _game->getScreen()->getSurface(),shown,allocation,captureEpoch) &&
+            _edtBase->agentBaseInfoNameBinding(_game->getScreen()->getSurface(),out);
         out.widgets.push_back({_edtBase,_edtBase->agentInputRevision()});
         out.widgets.push_back({_edtBase,_edtBase->agentPresentationRevision()});
         out.context.insert(out.context.end(), {
-            captureEpoch,static_cast<std::uint64_t>(_edtBase->getX()),
+            static_cast<std::uint64_t>(captured),static_cast<std::uint64_t>(_edtBase->getX()),
             static_cast<std::uint64_t>(_edtBase->getY()),
             static_cast<std::uint64_t>(_edtBase->getWidth()),
             static_cast<std::uint64_t>(_edtBase->getHeight())});
@@ -523,8 +552,22 @@ bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
         // Observation-only allocation stays out of outward control regions.
         // Actual buttons and base slots retain their full cursor guards.
     }
+    // The retained name projection above is observation-only. Input requires
+    // a separate complete rendered/cursor-clear allocation proof.
+    std::string editableName;
+    if(name!="null" && _edtBase && _edtBase->agentRenderedText(editableName) &&
+        name==agentJsonString(editableName) && include(_edtBase))
+    {
+        if(_edtBase->agentEditable())
+        {
+            out.actions.emplace_back("replace_existing_base_name","Rename base","visible_control_semantics","text");
+            out.actions.emplace_back("finish_existing_base_name","Finish editing base name","visible_control_semantics");
+        }
+        else if(!_modal && Options::keyboardMode==KEYBOARD_ON)
+            out.actions.emplace_back("focus_existing_base_name","Focus base name","visible_control_semantics");
+    }
     std::string slots="[";
-    if (_mini)
+    if (_mini && !_modal)
     {
         out.widgets.push_back({_mini,_mini->agentRevision()});
         AgentProjectileOutput output;
@@ -565,6 +608,8 @@ bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
     metric(_txtQuarters,_numQuarters); metric(_txtStores,_numStores); metric(_txtLaboratories,_numLaboratories); metric(_txtWorkshops,_numWorkshops);
     if (Options::storageLimitsEnforced) metric(_txtContainment,_numContainment);
     metric(_txtHangars,_numHangars); metric(_txtDefense,_numDefense); metric(_txtShortRange,_numShortRange); metric(_txtLongRange,_numLongRange); metrics+="]";
+    if(!_modal)
+    {
     button(_btnOk,"ok","close_base_info"); button(_btnStores,"stores","open_base_stores"); button(_btnTransfers,"transfers","open_base_transfers");
     const auto monthlyLabel=agentProjectNamedButton(_btnMonthlyCosts,_game->getScreen()->getSurface(),painted,out,
         [this](const AgentUiState &part){return _game->agentOverlayClear(part);});
@@ -572,6 +617,7 @@ bool BaseInfoState::agentUiState(Observer::AgentUiState &out) const
         if(buttons.size()>1)buttons+=",";
         buttons+="{\"id\":\"monthly_costs\",\"label\":"+agentJsonString(monthlyLabel)+"}";
         out.actions.emplace_back("open_monthly_costs",monthlyLabel,"visible_text");
+    }
     }
     buttons+="]";
     out.visible="{\"base_name\":"+name+",\"base_slots\":"+slots+",\"personnel_heading\":"+personnel+",\"space_heading\":"+space+",\"metrics\":"+metrics+",\"buttons\":"+buttons+"}";
@@ -582,6 +628,32 @@ bool BaseInfoState::agentDispatch(const Observer::AgentRequest &request)
 {
     Observer::AgentUiState fresh;
     if (!agentUiState(fresh) || !fresh.offers(request.action)) return false;
+    if(request.action=="focus_existing_base_name")
+    {
+        SDL_Event event={};event.type=SDL_MOUSEBUTTONDOWN;event.button.button=SDL_BUTTON_LEFT;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtBase);
+        action.setMouseAction(_edtBase->getX()+_edtBase->getWidth()/2,
+            _edtBase->getY()+_edtBase->getHeight()/2,_edtBase->getX(),_edtBase->getY());
+        _edtBase->mousePress(&action,this);return true;
+    }
+    if(request.action=="finish_existing_base_name")
+    {
+        SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+        Action action(&event,1.0,1.0,0,0);action.setSender(_edtBase);
+        _edtBase->keyboardPress(&action,this);return true;
+    }
+    if(request.action=="replace_existing_base_name")
+    {
+        if(!Observer::agentInputText(request.text) || !_edtBase->agentEditable())return false;
+        // Handler admission and atomic rollback are not rename-success claims.
+        if(_edtBase->agentReplaceText(request.text))
+        {
+            SDL_Event event={};event.type=SDL_KEYDOWN;event.key.keysym.sym=SDLK_RETURN;
+            Action action(&event,1.0,1.0,0,0);action.setSender(_edtBase);
+            _edtBase->keyboardPress(&action,this);
+        }
+        return true;
+    }
     if (request.action=="select_base")
     {
         if (request.choice.size()!=2 || request.choice[0]!='b' || request.choice[1]<'0' || request.choice[1]>'7') return false;

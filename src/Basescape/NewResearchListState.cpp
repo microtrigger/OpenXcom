@@ -67,6 +67,9 @@ NewResearchListState::NewResearchListState(Base *base) : _base(base)
 	_txtTitle->setText(tr("STR_NEW_RESEARCH_PROJECTS"));
 
 	_lstResearch->setColumns(1, 190);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstResearch->agentEnableNativeCaptions();
+#endif
 	_lstResearch->setSelectable(true);
 	_lstResearch->setBackground(_window);
 	_lstResearch->setMargin(8);

@@ -60,8 +60,8 @@ class StrategyFixture(NativeFixture):
 
 class GeoscapeContractTests(unittest.TestCase):
     def test_exact_wire_catalog_and_argument_domains(self):
-        self.assertEqual(a.SCHEMA,'openxcom-agent-control/51')
-        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(265, 107, 7))
+        self.assertEqual(a.SCHEMA,'openxcom-agent-control/66')
+        self.assertEqual((len(a.ACTIONS),len(a.STATE_ACTIONS),len(a.definitions())),(286, 109, 7))
         self.assertEqual(a.GEOSCAPE_SPEED_HANDLES,tuple(f's{i}' for i in range(6)))
         self.assertEqual(a.BASE_TARGET_HANDLES,tuple(f'b{i}' for i in range(8)))
         self.assertEqual({x:a.ARGUMENT_KINDS[x] for x in NEW_ACTIONS},dict.fromkeys(set(NEW_ACTIONS)-{'choose_geoscape_speed','select_base'},'none')|{'choose_geoscape_speed':'geoscape_speed','select_base':'base_target'})
@@ -181,7 +181,9 @@ class GeoscapeContractTests(unittest.TestCase):
         for screen,fields in [('basescape',('base_name','location','funds')),('base_info',('base_name','personnel_heading','space_heading'))]:
             for field in fields:
                 for value in (None,'','é'*512):
-                    obj=state(screen=screen);obj['visible'][field]=value;checked(obj)
+                    obj=state(screen=screen);obj['visible'][field]=value
+                    if screen=='base_info' and field=='base_name' and value is None:obj['actions']=[x for x in obj['actions'] if x['id']!='focus_existing_base_name']
+                    checked(obj)
                 for value in ('é'*513,True,1,[],{}):
                     obj=state(screen=screen);obj['visible'][field]=value
                     with self.subTest(screen=screen,field=field),self.assertRaises(Unavailable):checked(obj)

@@ -70,8 +70,15 @@ class PublicAudioTests(unittest.TestCase):
   with self.assertRaises(Unavailable):
    p.read_audio(Peer([page([first],newest=2),page([second],after=1,newest=2)]),EPOCH,0,8)
   # Multiple windows from the same actual callback may share its clocks.
-  second['timing']=dict(first['timing'])
+  first['timing']['first_callback_frames']=first['timing']['last_callback_frames']=4410
+  first['timing']['callback_anchors'][0]['frames']=4410
+  second['timing']=copy.deepcopy(first['timing'])
+  second['timing']['first_frame_offset']=2205
+  second['timing']['last_frame_end_offset']=4410
+  second['timing']['callback_anchors'][0]['offset_frames']=-2205
   checked(page([first,second]))
+  second['timing']['callback_anchors'][0]['frames']=4409
+  with self.assertRaises(Unavailable):checked(page([first,second]))
  def test_page_and_response_bounds_no_extra_reads(self):
   pages=[page([dict(seq=i,kind='displayed_message',text='X',report=None,source=None,position=None)],after=i-1,newest=20) for i in range(1,9)]
   peer=Peer(pages);result=p.read_audio(peer,EPOCH,0,8);self.assertEqual(len(peer.calls),8);self.assertTrue(result['structuredContent']['deferred']);self.assertEqual(result['structuredContent']['windows'],0)

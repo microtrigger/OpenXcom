@@ -137,6 +137,9 @@ SellState::SellState(Base *base, OptionsOrigin origin) : _base(base), _sel(0), _
 
 	_lstItems->setArrowColumn(182, ARROW_VERTICAL);
 	_lstItems->setColumns(4, 156, 54, 24, 53);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstItems->agentEnableSellCells();
+#endif
 	_lstItems->setSelectable(true);
 	_lstItems->setBackground(_window);
 	_lstItems->setMargin(2);
@@ -712,6 +715,7 @@ bool SellState::agentUiState(Observer::AgentUiState &out) const
     const auto painted = agentFlattenPaintOrder(_surfaces);
     out = AgentUiState(); out.actor = _base;
     out.widgets.emplace_back(_lstItems, _lstItems->agentListRevision());
+    for(auto revision:_lstItems->agentSellBindings())out.widgets.emplace_back(_lstItems,revision);
     out.widgets.emplace_back(_cbxCategory, _cbxCategory->agentUiRevision());
     const auto allowed = [this](const AgentUiState &part) { return _game->agentOverlayClear(part); };
     const auto includeRegions = [&](const std::vector<AgentUiRect> &regions, const Surface *owner) -> bool {

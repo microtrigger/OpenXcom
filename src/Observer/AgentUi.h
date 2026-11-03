@@ -33,6 +33,9 @@ struct AgentUiState {
     // Read-only tactical presentation is not an action target in /5.
     // A provider may bind control authority to its separate visible controls.
     std::string controlVisible;
+    // Ordinary Geoscape speed only: immutable private HUD authority, without
+    // unrelated moving marker telemetry. Full marker binding remains intact.
+    std::shared_ptr<const AgentUiState> geoscapeSpeedAuthority;
     // Exact complete displayed report text; no cause, translation key or actor.
     // Empty means unknown/not a report, never proof that an old report ended.
     std::string displayedMessage;
@@ -59,6 +62,7 @@ struct AgentUiState {
     std::string payload() const;
     std::string authorityPayload() const;
     bool sameBinding(const AgentUiState &other) const;
+    bool sameActionBinding(const AgentUiState &other,const std::string &action) const;
     bool offers(const std::string &id) const;
 };
 struct AgentListProjection {

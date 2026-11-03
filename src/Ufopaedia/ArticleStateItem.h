@@ -42,12 +42,12 @@ namespace OpenXcom
 		Surface *_image;
 		Text *_txtTitle;
 		Text *_txtInfo;
-		TextList *_lstInfo;
-		Text *_txtShotType;
-		Text *_txtAccuracy;
-		Text *_txtTuCost;
-		Text *_txtDamage;
-		Text *_txtAmmo;
+		TextList *_lstInfo = nullptr;
+		Text *_txtShotType = nullptr;
+		Text *_txtAccuracy = nullptr;
+		Text *_txtTuCost = nullptr;
+		Text *_txtDamage = nullptr;
+		Text *_txtAmmo = nullptr;
 		Text *_txtAmmoType[3];
 		Text *_txtAmmoDamage[3];
 		Surface *_imageAmmo[3];

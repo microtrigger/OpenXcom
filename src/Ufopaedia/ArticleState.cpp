@@ -151,6 +151,24 @@ void ArticleState::agentRegisterText(Text *title,Text *body)
     if (body) body->agentEnableViewportLines();
     _btnOk->agentTrackPresentation();_btnPrev->agentTrackPresentation();_btnNext->agentTrackPresentation();
 }
+void ArticleState::agentRegisterCraftStats(Text *text)
+{
+    _agentCraftStats=text;
+    if(text)text->agentTrackPresentation();
+}
+void ArticleState::agentRegisterStats(TextList *list)
+{
+    _agentStatsList=list;
+    if(list){list->agentEnableArticleStatsCells();agentRegisterTransparentLayer(list);}
+}
+void ArticleState::agentRegisterItemCombat(Text*shot,Text*accuracy,Text*tu,TextList*list,Text*damage,Text*ammo,const std::vector<std::pair<Text*,Text*>>&rows)
+{
+    _agentItemCombat=true;_agentShotList=list;_agentShotHeadings={shot,accuracy,tu};_agentDamageHeadings={damage,ammo};_agentDamageRows=rows;
+    for(Text*t:_agentShotHeadings)if(t)t->agentTrackPresentation();
+    for(Text*t:_agentDamageHeadings)if(t)t->agentTrackPresentation();
+    for(const auto &pair:rows)for(Text*t:{pair.first,pair.second})if(t)t->agentTrackPresentation();
+    if(list){list->agentEnableArticleItemCells();agentRegisterTransparentLayer(list);}
+}
 void ArticleState::agentRegisterTransparentLayer(Surface *surface)
 {
     if (!surface) return;
@@ -303,10 +321,116 @@ bool ArticleState::agentUiState(Observer::AgentUiState &out) const
     }
     out.context.push_back(scroll?1:0);
     if (scroll) out.actions.emplace_back("scroll_article_text","Scroll article text","visible_control_semantics","scroll_direction");
-    const auto finish=[&]() {return "{\"title\":"+title+",\"body_lines\":"+body+",\"buttons\":"+buttons+",\"details_status\":\"unavailable\"}";};
+    std::string combat="null";
+    if(_agentItemCombat && _agentShotHeadings.size()==3 && _agentDamageHeadings.size()==2 && _agentDamageRows.size()<=3)
+    {
+        const auto retain=[&](const std::vector<AgentUiRect>&regions,const Surface*owner) {
+            if(regions.empty())return false;
+            for(const auto&r:regions)if(!uncovered(r,owner))return false;
+            const auto before=out.regions.size();out.regions.insert(out.regions.end(),regions.begin(),regions.end());
+            if(agentRegionsDisjoint(out))return true;
+            out.regions.resize(before);return false;
+        };
+        const auto detail=[&](const Text*t)->std::string {
+            if(!t)return "null";
+            out.widgets.emplace_back(t,t->agentPresentationRevision());out.widgets.emplace_back(t,t->agentTextRevision());
+            if(std::find(_surfaces.begin(),_surfaces.end(),t)==_surfaces.end() || !t->agentPresentationPaintedTo(logical))return "null";
+            const auto value=agentTextJson(t);if(value=="null")return value;
+            SDL_Rect ink={};if(!t->agentPaintedBounds(ink))return t->getText().empty()?value:"null";
+            return retain({{ink.x,ink.y,ink.w,ink.h}},t)?value:"null";
+        };
+        std::string headings="[";for(Text*t:_agentShotHeadings){if(headings.size()>1)headings+=",";headings+=detail(t);}headings+="]";
+        std::string damageHeadings="[";for(Text*t:_agentDamageHeadings){if(damageHeadings.size()>1)damageHeadings+=",";damageHeadings+=detail(t);}damageHeadings+="]";
+        std::string damage="[";
+        for(const auto &pair:_agentDamageRows){auto type=detail(pair.first),power=detail(pair.second);
+            if((type=="null" || type=="\"\"") && (power=="null" || power=="\"\""))continue;
+            if(damage.size()>1)damage+=",";damage+="{\"type\":"+type+",\"power\":"+power+"}";
+        }damage+="]";
+        std::string shots="null";std::vector<AgentOutfittingRow> rows;std::uint64_t epoch=0;
+        if(_agentShotList && std::find(_surfaces.begin(),_surfaces.end(),_agentShotList)!=_surfaces.end() && _agentShotList->agentArticleItemRows(rows,epoch) && rows.size()<=3)
+        {
+            out.widgets.emplace_back(_agentShotList,_agentShotList->agentListRevision());out.widgets.emplace_back(_agentShotList,epoch);
+            shots="[";
+            for(const auto&row:rows){if(row.cells.size()!=3){shots="null";break;}
+                std::string values="[";bool any=false;
+                for(const auto&cell:row.cells){if(values.size()>1)values+=",";std::vector<AgentUiRect> regions;for(const auto&r:cell.regions)regions.push_back({r.x,r.y,r.w,r.h});
+                    const bool known=cell.known && cell.text.size()<=1024 && !cell.text.empty() && retain(regions,_agentShotList);
+                    values+=known?agentJsonString(cell.text):"null";any|=known;
+                }values+="]";if(any){if(shots.size()>1)shots+=",";shots+=values;}
+            }if(shots!="null")shots+="]";
+        }
+        combat="{\"shot_headings\":"+headings+",\"shots\":"+shots+",\"damage_rows\":"+damage+",\"damage_headings\":"+damageHeadings+"}";
+    }
+    std::string stats="null";bool statsUp=false,statsDown=false,statsWheel=false;
+    if(_agentStatsList && std::find(_surfaces.begin(),_surfaces.end(),_agentStatsList)!=_surfaces.end()) {
+        out.widgets.emplace_back(_agentStatsList,_agentStatsList->agentListRevision());
+        out.widgets.emplace_back(_agentStatsList,_agentStatsList->agentPresentationRevision());
+        for(auto revision:_agentStatsList->agentArticleStatsBindings())out.widgets.emplace_back(_agentStatsList,revision);
+        std::vector<AgentOutfittingRow> rows;std::uint64_t epoch=0;
+        if(_agentStatsList->agentArticleStatsRows(rows,epoch) && rows.size()<=32){
+            out.widgets.emplace_back(_agentStatsList,epoch);
+            std::string values="[";
+            for(const auto &row:rows){
+                if(row.cells.size()!=2){values="null";break;}
+                if(values.size()>1)values+=",";values+="[";
+                for(size_t i=0;i<2;++i){if(i)values+=",";const auto &cell=row.cells[i];
+                    bool known=cell.known && cell.text.size()<=1024;
+                    for(const auto &r:cell.regions)if(!uncovered({r.x,r.y,r.w,r.h},_agentStatsList))known=false;
+                    values+=known?agentJsonString(cell.text):"null";
+                }values+="]";
+            }
+            if(values!="null") {
+                values+="]";
+                const Surface *up=nullptr,*down=nullptr;_agentStatsList->agentScrollControls(up,down);
+                const auto arrow=[&](const Surface *s){
+                    if(!s || !s->agentPresentationPaintedTo(logical))return false;
+                    AgentUiRect region={s->getX(),s->getY(),s->getWidth(),s->getHeight()};
+                    if(!uncovered(region,s))return false;
+                    const auto before=out.regions.size();out.regions.push_back(region);
+                    if(!agentRegionsDisjoint(out)){out.regions.resize(before);return false;}
+                    out.widgets.emplace_back(s,s->agentPresentationRevision());return true;
+                };
+                // Native wheel works over the actual list viewport even when TFTD's
+                // arrows are beyond the canvas. Bind that viewport, not hidden row counts.
+                const AgentUiRect viewport={_agentStatsList->getX(),_agentStatsList->getY(),_agentStatsList->getWidth(),_agentStatsList->getHeight()};
+                statsWheel=_agentStatsList->agentArticleStatsWheel() && uncovered(viewport,_agentStatsList);
+                if(statsWheel)statsUp=statsDown=true;else {statsUp=arrow(up);statsDown=arrow(down);}
+                stats="{\"rows\":"+values+",\"scroll\":{\"up\":"+(statsUp?"true":"false")+",\"down\":"+(statsDown?"true":"false")+"}}";
+            }
+        }
+    }
+    // CRAFT uses a single native Text, not a two-column stats TextList.
+    // Preserve exact logical lines (including color markers); never query RuleCraft.
+    std::string craftStats="null";
+    if(_agentCraftStats && std::find(_surfaces.begin(),_surfaces.end(),_agentCraftStats)!=_surfaces.end()) {
+        out.widgets.emplace_back(_agentCraftStats,_agentCraftStats->agentTextRevision());
+        out.widgets.emplace_back(_agentCraftStats,_agentCraftStats->agentPresentationRevision());
+        const std::string &text=_agentCraftStats->getText();
+        if(!_agentCraftStats->agentScrollable() && agentTextJson(_agentCraftStats)!="null" &&
+            text.size()<=8192 && _agentCraftStats->agentPresentationPaintedTo(logical)) {
+            std::string value="[";size_t start=0,count=0;bool valid=true;
+            for(;;) {
+                const size_t end=text.find('\n',start);
+                const std::string line=text.substr(start,end==std::string::npos?end:end-start);
+                if(++count>32 || line.size()>1024) {valid=false;break;}
+                if(count>1)value+=",";value+=agentJsonString(line);
+                if(end==std::string::npos)break;
+                start=end+1;
+            }
+            const AgentUiRect region={_agentCraftStats->getX(),_agentCraftStats->getY(),_agentCraftStats->getWidth(),_agentCraftStats->getHeight()};
+            if(valid && uncovered(region,_agentCraftStats)) {
+                const auto before=out.regions.size();out.regions.push_back(region);
+                if(agentRegionsDisjoint(out))craftStats=value+"]";
+                else out.regions.resize(before);
+            }
+        }
+    }
+    out.context.push_back(statsUp?1:0);out.context.push_back(statsDown?1:0);out.context.push_back(statsWheel?1:0);
+    if(statsUp || statsDown)out.actions.emplace_back("scroll_article_stats","Scroll article stats","visible_control_semantics","scroll_direction");
+    const auto finish=[&]() {return "{\"title\":"+title+",\"body_lines\":"+body+",\"buttons\":"+buttons+",\"details_status\":\""+(combat!="null" || stats!="null" || craftStats!="null"?std::string("partial"):std::string("unavailable"))+"\",\"item_combat\":"+combat+",\"article_stats\":"+stats+",\"craft_stats\":"+craftStats+"}";};
     out.visible=finish();
     const auto bounded=[&]() {size_t bytes=0;for(unsigned char c:out.payload()) if((bytes+=c<128?1:6)>30000)return false;return true;};
-    if (!bounded()) {body="null";out.regions.resize(beforeBodyRegions);out.visible=finish();}
+    if (!bounded()) {body="null";combat="null";stats="null";craftStats="null";out.context[1]=out.context[2]=out.context[3]=0;out.actions.erase(std::remove_if(out.actions.begin(),out.actions.end(),[](const AgentUiAction &a){return a.id=="scroll_article_stats";}),out.actions.end());out.regions.resize(beforeBodyRegions);out.visible=finish();}
     return bounded() && !out.regions.empty() && agentRegionsDisjoint(out) && _game->agentOverlayClear(out);
 }
 bool ArticleState::agentDispatch(const Observer::AgentRequest &request)
@@ -316,9 +440,12 @@ bool ArticleState::agentDispatch(const Observer::AgentRequest &request)
     if (request.action=="close_ufopaedia_article") {btnOkClick(nullptr);return true;}
     if (request.action=="previous_ufopaedia_article") {btnPrevClick(nullptr);return true;}
     if (request.action=="next_ufopaedia_article") {btnNextClick(nullptr);return true;}
-    if (request.action=="scroll_article_text" && current.context.size()==1 && current.context[0] &&
+    if (request.action=="scroll_article_text" && current.context.size()>=1 && current.context[0] &&
         (request.choice=="up" || request.choice=="down"))
     { _agentBody->scrollLine(request.choice=="down");return true; }
+    if(request.action=="scroll_article_stats" && _agentStatsList && current.context.size()==4 &&
+        ((request.choice=="up" && current.context[1]) || (request.choice=="down" && current.context[2])))
+    {if(request.choice=="up")_agentStatsList->scrollUp(false,current.context[3]!=0);else _agentStatsList->scrollDown(false,current.context[3]!=0);return true;}
     return false;
 }
 #endif

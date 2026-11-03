@@ -106,8 +106,141 @@
 #include "../Mod/RuleInterface.h"
 #include "../fmath.h"
 
+
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+#include "../Observer/AgentGlobeInput.h"
+#include "../Observer/AgentGlobeGlyphs.h"
+#include <map>
+#include <array>
+#include <stdexcept>
+#include <limits>
+#include <type_traits>
+namespace {
+struct AgentGlobeUiEvent { std::uint64_t sequence; const char *action; const char *kind; const char *reason; std::uint64_t ticks; bool changed; };
+struct AgentGlobeAudit {
+    std::array<AgentGlobeUiEvent,32> events; unsigned size=0;
+    std::uint64_t nextSequence=0,attempted=0,omitted=0;
+    bool overflow=false,closed=false,countersSaturated=false;
+};
+struct AgentGlobePulse {
+    OpenXcom::Game *game; OpenXcom::GeoscapeState *owner; OpenXcom::Globe *globe;
+    void (OpenXcom::GeoscapeState::*release)(OpenXcom::Action *);
+    std::uint64_t revision; Uint32 started; std::uint64_t sequence,ticks; const char *action;
+};
+std::map<OpenXcom::Game *,AgentGlobePulse> agentGlobePulses;
+std::map<OpenXcom::Game *,AgentGlobeAudit> agentGlobeAudits;
+// Trace action/kind/reason pointers always refer to fixed string literals.
+// Pulse copies and retained-slot writes cannot allocate before release.
+static_assert(std::is_nothrow_copy_constructible<AgentGlobePulse>::value,"owned pulse copy must not throw");
+static_assert(std::is_nothrow_copy_assignable<AgentGlobeUiEvent>::value,"trace slot write must not throw");
+void globeIncrement(std::uint64_t &value,AgentGlobeAudit &audit) noexcept {
+    if(value==std::numeric_limits<std::uint64_t>::max())audit.countersSaturated=true;
+    else ++value;
+}
+std::uint64_t globeNextSequence(AgentGlobeAudit &audit) noexcept {
+    if(audit.nextSequence==std::numeric_limits<std::uint64_t>::max()){
+        audit.countersSaturated=true;return 0; // No reused trace identity.
+    }
+    return ++audit.nextSequence;
+}
+void globeRecord(OpenXcom::Game *game,std::uint64_t sequence,const char *action,
+                 const char *kind,const char *reason,std::uint64_t ticks,bool changed) noexcept {
+    // Dispatch creates this sidecar before native input; cleanup never allocates.
+    auto it=agentGlobeAudits.find(game);if(it==agentGlobeAudits.end())return;
+    auto &audit=it->second;globeIncrement(audit.attempted,audit);
+    if(audit.size==audit.events.size() || sequence==0){
+        audit.overflow=true;globeIncrement(audit.omitted,audit);return;
+    }
+    audit.events[audit.size]={sequence,action,kind,reason,ticks,changed};
+    ++audit.size; // Publish only after the nonthrowing complete slot assignment.
+}
+void globeZoomReturned(OpenXcom::Game *game,const char *action) {
+    auto &audit=agentGlobeAudits.at(game);audit.closed=false;
+    globeRecord(game,globeNextSequence(audit),action,"zoom_callback_return","",0,false);
+}
+bool globeInputFocused() {
+    const Uint8 flags=SDL_APPACTIVE|SDL_APPINPUTFOCUS|SDL_APPMOUSEFOCUS;
+    return (SDL_GetAppState()&flags)==flags && SDL_GetModState()==KMOD_NONE && SDL_GetMouseState(nullptr,nullptr)==0;
+}
+const char *globeReason(OpenXcom::Observer::AgentGlobeCancelReason reason) {
+    using R=OpenXcom::Observer::AgentGlobeCancelReason;
+    switch(reason){case R::StateChange:return "state_change";case R::FocusLost:return "focus_lost";case R::Deadline:return "deadline";case R::ManualInput:return "manual_input";case R::Init:return "init";case R::Destroyed:return "destroyed";case R::Modal:return "modal";case R::ViewTick:return "view_tick";case R::ConnectionClosed:return "connection_closed";case R::Quit:return "quit";}
+    return "unknown";
+}
+}
+namespace OpenXcom { namespace Observer {
+bool agentGlobeInputHeld(Game *game) { return agentGlobePulses.count(game)!=0; }
+bool agentGlobeInputIdle(Game *game) { return !agentGlobeInputHeld(game); }
+void agentCancelGlobeInput(Game *game,AgentGlobeCancelReason reason) {
+    auto it=agentGlobePulses.find(game); if(it==agentGlobePulses.end())return;
+    const AgentGlobePulse owned=it->second;
+    const bool changed=owned.globe->agentViewRevision()!=owned.revision;
+    agentGlobePulses.erase(it); // Relinquish BEFORE release; never stop later manual input.
+    (owned.owner->*owned.release)(nullptr);
+    globeRecord(game,owned.sequence,owned.action,"release_return",globeReason(reason),owned.ticks,changed);
+}
+void agentCancelGlobeInputOwner(State *owner,AgentGlobeCancelReason reason) {
+    for(auto it=agentGlobePulses.begin();it!=agentGlobePulses.end();++it)
+        if(it->second.owner==owner){ Game *game=it->first;agentCancelGlobeInput(game,reason);return; }
+}
+void agentPollGlobeInput(Game *game) {
+    auto it=agentGlobePulses.find(game); if(it==agentGlobePulses.end())return;
+    if(game->agentTopState()!=it->second.owner)agentCancelGlobeInput(game,AgentGlobeCancelReason::StateChange);
+    else if(!globeInputFocused())agentCancelGlobeInput(game,AgentGlobeCancelReason::FocusLost);
+    else if(static_cast<Uint32>(SDL_GetTicks()-it->second.started)>=250)agentCancelGlobeInput(game,AgentGlobeCancelReason::Deadline);
+}
+void agentOwnedGlobeRotationTick(Globe *globe) {
+    for(auto &entry:agentGlobePulses)if(entry.second.globe==globe){
+        auto &pulse=entry.second;globeIncrement(pulse.ticks,agentGlobeAudits.at(entry.first));
+        globeRecord(entry.first,pulse.sequence,pulse.action,"ordinary_rotate_entry","",pulse.ticks,false);return;
+    }
+}
+void agentCloseGlobeInput(Game *game) {
+    agentCancelGlobeInput(game,AgentGlobeCancelReason::ConnectionClosed);
+    auto it=agentGlobeAudits.find(game);if(it!=agentGlobeAudits.end())it->second.closed=true;
+}
+void agentForgetGlobeInput(Game *game) {
+    agentCancelGlobeInput(game,AgentGlobeCancelReason::Destroyed);agentGlobeAudits.erase(game);
+}
+std::string agentGlobeInputAuditAfterEOF(Game *game) {
+    auto it=agentGlobeAudits.find(game);
+    if(agentGlobeInputHeld(game) || (it!=agentGlobeAudits.end()&&!it->second.closed))throw std::runtime_error("UI audit before owned transport close");
+    std::string events="[";
+    if(it!=agentGlobeAudits.end())for(unsigned i=0;i<it->second.size;++i){
+        const auto &e=it->second.events[i];if(i)events+=",";
+        events+="{\"sequence\":"+agentJsonString(std::to_string(e.sequence))+",\"action\":"+agentJsonString(e.action)+",\"kind\":"+agentJsonString(e.kind)+",\"reason\":"+agentJsonString(e.reason)+",\"ticks\":"+agentJsonString(std::to_string(e.ticks))+",\"view_revision_changed\":"+(e.changed?"true":"false")+"}";
+    }
+    events+="]";
+    const AgentGlobeAudit empty{};const auto &audit=it==agentGlobeAudits.end()?empty:it->second;
+    const bool complete=!audit.overflow && !audit.countersSaturated && audit.omitted==0;
+    return "{\"schema\":\"openxcom-globe-input-audit/2\",\"scope\":\"game_lifetime_prefix\",\"capacity\":32,\"retained_events\":"+std::to_string(audit.size)+
+        ",\"attempted_events\":"+agentJsonString(std::to_string(audit.attempted))+",\"omitted_events\":"+agentJsonString(std::to_string(audit.omitted))+
+        ",\"counters_saturated\":"+(audit.countersSaturated?"true":"false")+",\"complete\":"+(complete?"true":"false")+
+        ",\"post_eof_only\":true,\"owned_input_cleared\":true,\"overflow\":"+(audit.overflow?"true":"false")+",\"motion_proven\":false,\"events\":"+events+"}";
+}
+} }
+
+#endif
+
 namespace OpenXcom
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+// Scoped to the background controls exposed under minimized interceptions.
+class AgentGeoscapeFightButton : public TextButton
+{
+public:
+    AgentGeoscapeFightButton(int w,int h,int x,int y):TextButton(w,h,x,y){}
+    void blit(Surface *destination) override {
+        const auto full=[](const SDL_Surface *s){return s && s->clip_rect.x==0 && s->clip_rect.y==0 && s->clip_rect.w==s->w && s->clip_rect.h==s->h;};
+        const SDL_Rect *crop=getCrop();
+        if(crop->x||crop->y||crop->w||crop->h||!full(getSurface())||!destination||!full(destination->getSurface()))agentPresentationMutation();
+        TextButton::blit(destination);
+    }
+};
+#else
+using AgentGeoscapeFightButton=TextButton;
+#endif
+
 
 /**
  * Initializes all the elements in the Geoscape screen.
@@ -132,18 +265,18 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_btnBases = new TextButton(63, 11, screenWidth-63, screenHeight/2-88);
 	_btnGraphs = new TextButton(63, 11, screenWidth-63, screenHeight/2-76);
 	_btnUfopaedia = new TextButton(63, 11, screenWidth-63, screenHeight/2-64);
-	_btnOptions = new TextButton(63, 11, screenWidth-63, screenHeight/2-52);
+	_btnOptions = new AgentGeoscapeFightButton(63, 11, screenWidth-63, screenHeight/2-52);
 	_btnFunding = new TextButton(63, 11, screenWidth-63, screenHeight/2-40);
 
 	// Leave full nine-pixel calendar rows above the speed controls.
 	// Twelve-pixel buttons still fit the stock geo font and stop before the
 	// fixed globe rotation/zoom artwork and hit regions.
-	_btn5Secs = new TextButton(31, 12, screenWidth-63, screenHeight/2+18);
-	_btn1Min = new TextButton(31, 12, screenWidth-31, screenHeight/2+18);
-	_btn5Mins = new TextButton(31, 12, screenWidth-63, screenHeight/2+31);
-	_btn30Mins = new TextButton(31, 12, screenWidth-31, screenHeight/2+31);
-	_btn1Hour = new TextButton(31, 12, screenWidth-63, screenHeight/2+44);
-	_btn1Day = new TextButton(31, 12, screenWidth-31, screenHeight/2+44);
+	_btn5Secs = new AgentGeoscapeFightButton(31, 12, screenWidth-63, screenHeight/2+18);
+	_btn1Min = new AgentGeoscapeFightButton(31, 12, screenWidth-31, screenHeight/2+18);
+	_btn5Mins = new AgentGeoscapeFightButton(31, 12, screenWidth-63, screenHeight/2+31);
+	_btn30Mins = new AgentGeoscapeFightButton(31, 12, screenWidth-31, screenHeight/2+31);
+	_btn1Hour = new AgentGeoscapeFightButton(31, 12, screenWidth-63, screenHeight/2+44);
+	_btn1Day = new AgentGeoscapeFightButton(31, 12, screenWidth-31, screenHeight/2+44);
 
 	_btnRotateLeft = new InteractiveSurface(12, 10, screenWidth-61, screenHeight/2+76);
 	_btnRotateRight = new InteractiveSurface(12, 10, screenWidth-37, screenHeight/2+76);
@@ -424,6 +557,9 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
  */
 GeoscapeState::~GeoscapeState()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentCancelGlobeInputOwner(this,Observer::AgentGlobeCancelReason::Destroyed);
+#endif
 	delete _gameTimer;
 	delete _zoomInEffectTimer;
 	delete _zoomOutEffectTimer;
@@ -458,16 +594,96 @@ DogfightState *GeoscapeState::agentActiveDogfight() const
 	return _dogfights.front();
 }
 
+bool GeoscapeState::agentDogfightComposite(Observer::AgentUiState &out) const
+{
+    using namespace Observer;
+    const std::vector<DogfightState*> roster(_dogfights.begin(),_dogfights.end());
+    if(!_game->isState(const_cast<GeoscapeState*>(this))||_modal||roster.empty()||roster.size()>4||
+       !_dogfightsToBeStarted.empty()||!_popups.empty()||!_agentCompositePainted||!_agentRosterRevision||
+       roster!=_agentPaintedDogfights||!agentPaintHealthy())return false;
+    out=AgentUiState();out.screen="dogfight";out.actor=this;out.context.push_back(_agentRosterRevision);
+    std::string windows="[",controls="[";bool allMinimized=true,mode=false,minimize=false,restore=false;
+    std::vector<Surface*> allChildren;
+    for(auto *dog:roster){if(!dog)return false;const auto &surfaces=dog->agentPaintSurfaces();allChildren.insert(allChildren.end(),surfaces.begin(),surfaces.end());}
+    for(size_t i=0;i<roster.size();++i){
+        std::vector<Surface*> later;
+        for(size_t j=i+1;j<roster.size();++j){const auto &surfaces=roster[j]->agentPaintSurfaces();later.insert(later.end(),surfaces.begin(),surfaces.end());}
+        AgentUiState part;if(!roster[i]->agentWindowUiState(part,later))return false;
+        const std::string head="{\"handle\":\"w"+std::to_string(i)+"\",";
+        if(i){windows+=",";controls+=",";}windows+=head+part.visible.substr(1);controls+=head+part.controlVisible.substr(1);
+        out.context.insert(out.context.end(),{reinterpret_cast<std::uintptr_t>(roster[i]),reinterpret_cast<std::uintptr_t>(part.actor),reinterpret_cast<std::uintptr_t>(part.save)});
+        out.context.insert(out.context.end(),part.context.begin(),part.context.end());
+        out.widgets.insert(out.widgets.end(),part.widgets.begin(),part.widgets.end());
+        out.targetLifetimes.insert(out.targetLifetimes.end(),part.targetLifetimes.begin(),part.targetLifetimes.end());
+        out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());
+        mode=mode||part.offers("choose_dogfight_mode");minimize=minimize||part.offers("minimize_dogfight");restore=restore||part.offers("restore_dogfight");
+        allMinimized=allMinimized&&roster[i]->isMinimized();
+    }
+    windows+="]";controls+="]";
+    if(mode)out.actions.emplace_back("choose_dogfight_mode","Choose dogfight mode","visible_control_semantics","dogfight_mode");
+    if(minimize)out.actions.emplace_back("minimize_dogfight","Minimize dogfight","visible_control_semantics","dogfight_window");
+    if(restore)out.actions.emplace_back("restore_dogfight","Restore dogfight","visible_control_semantics","dogfight_window");
+    std::string geo="null",geoControls="null";
+    if(allMinimized){
+        auto painted=agentFlattenPaintOrder(_surfaces);const auto children=agentFlattenPaintOrder(allChildren);painted.insert(painted.end(),children.begin(),children.end());
+        const Surface *destination=_game->getScreen()->getSurface();
+        const auto include=[&](const Surface *widget,bool control){
+            if(!widget->agentPresentationPaintedTo(destination)||!agentWidgetVisible(widget))return false;
+            AgentUiState part;agentIncludeWidget(part,widget);
+            if(part.regions.empty()||!agentRegionsUncovered(part.regions,widget,painted)||!_game->agentOverlayClear(part))return false;
+            if(control){auto before=out.regions.size();out.regions.insert(out.regions.end(),part.regions.begin(),part.regions.end());if(!agentRegionsDisjoint(out)){out.regions.resize(before);return false;}}
+            return true;
+        };
+        const Text *fields[]={_txtHour,_txtMin,_txtSec,_txtWeekday,_txtDay,_txtMonth,_txtYear,_txtFunds};
+        const char *keys[]={"hour","minute","second","weekday","day","month","year","funds"};
+        std::string clock="{";
+        for(unsigned i=0;i<8;++i){if(i)clock+=",";const auto value=agentTextJson(fields[i]);clock+=agentJsonString(keys[i])+":"+(value!="null"&&include(fields[i],false)?value:"null");}clock+="}";
+        const TextButton *speeds[]={_btn5Secs,_btn1Min,_btn5Mins,_btn30Mins,_btn1Hour,_btn1Day};
+        std::string choices="[",speed="null",first;unsigned selectedCount=0;
+        for(unsigned i=0;i<6;++i){const auto *button=speeds[i];out.widgets.emplace_back(button,button->agentSelectionRevision());out.widgets.emplace_back(button,button->agentPresentationRevision());bool selected=false;
+            if(!button->agentPressed(selected)||!include(button,true))continue;
+            const auto label=agentButtonLabel(button);if(label.empty()||label.size()>1024)continue;
+            if(out.rows.empty())first=label;else choices+=",";
+            choices+="{\"handle\":\"s"+std::to_string(out.rows.size())+"\",\"label\":"+agentJsonString(label)+",\"selected\":"+(selected?"true":"false")+"}";out.rows.push_back(i);
+            if(selected){speed=agentJsonString(label);++selectedCount;}
+        }choices+="]";if(selectedCount>1)return false;
+        if(!out.rows.empty())out.actions.emplace_back("choose_geoscape_speed",first,"visible_text","geoscape_speed");
+        std::string buttons="[";out.widgets.emplace_back(_btnOptions,_btnOptions->agentPresentationRevision());
+        const auto label=agentButtonLabel(_btnOptions);
+        if(!label.empty()&&label.size()<=1024&&include(_btnOptions,true)){buttons+="{\"id\":\"options\",\"label\":"+agentJsonString(label)+"}";out.actions.emplace_back("open_pause_menu",label,"visible_text");}buttons+="]";
+        geoControls="{\"speed\":"+speed+",\"speeds\":"+choices+",\"buttons\":"+buttons+"}";
+        geo="{\"clock\":"+clock+","+geoControls.substr(1);
+    }
+    out.visible="{\"windows\":"+windows+",\"geoscape\":"+geo+"}";
+    out.controlVisible="{\"windows\":"+controls+",\"geoscape\":"+geoControls+"}";
+    size_t bytes=0;for(unsigned char c:out.payload())if((bytes+=c<128?1:6)>30000)return false;
+    return !out.regions.empty()&&agentRegionsDisjoint(out)&&out.visible.size()<=24000;
+}
+bool GeoscapeState::agentDispatchDogfight(const Observer::AgentRequest &request)
+{
+    Observer::AgentUiState current;if(!agentDogfightComposite(current)||!current.offers(request.action))return false;
+    if(request.action=="open_pause_menu"){btnOptionsClick(nullptr);return true;}
+    if(request.action=="choose_geoscape_speed"){
+        if(request.choice.size()!=2||request.choice[0]!='s'||request.choice[1]<'0'||request.choice[1]>'5')return false;
+        const size_t slot=request.choice[1]-'0';if(slot>=current.rows.size())return false;
+        TextButton *speeds[]={_btn5Secs,_btn1Min,_btn5Mins,_btn30Mins,_btn1Hour,_btn1Day};return selectGeoscapeSpeed(speeds[current.rows[slot]]);
+    }
+    if(request.choice.size()!=2||request.choice[0]!='w'||request.choice[1]<'0'||request.choice[1]>'3')return false;
+    const std::vector<DogfightState*> roster(_dogfights.begin(),_dogfights.end());const size_t slot=request.choice[1]-'0';
+    if(slot>=roster.size())return false;std::vector<Surface*> later;
+    for(size_t i=slot+1;i<roster.size();++i){const auto &surfaces=roster[i]->agentPaintSurfaces();later.insert(later.end(),surfaces.begin(),surfaces.end());}
+    return roster[slot]->agentDispatchWindow(request,later);
+}
+
 bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 {
 	if (_modal) return false;
 	// Dogfight windows are painted after the strategic surfaces. This bounded
-	// route owns exactly one expanded composite; never route a background HUD
+	// route owns the currently painted composite; never route a background HUD
 	// action through an ambiguous, queued, minimized or preview window.
 	if (!_dogfights.empty())
 	{
-		DogfightState *dogfight = agentActiveDogfight();
-		return dogfight && dogfight->agentUiState(out);
+		return agentDogfightComposite(out);
 	}
 	out = Observer::AgentUiState();
 	out.screen = "geoscape";
@@ -516,6 +732,7 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 		// Include every member's generation, including hidden members, to retain
 		// radio selection away/back (ABA) freshness without serializing identity.
 		out.widgets.push_back(std::make_pair(button, button->agentSelectionRevision()));
+        out.widgets.emplace_back(button,button->agentPresentationRevision());
 		bool selected = false;
 		if (!Observer::agentWidgetUncovered(button, _surfaces) || !button->agentPressed(selected)) continue;
 		const std::string label = Observer::agentButtonLabel(button);
@@ -530,6 +747,15 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 	choices += "]";
 	if (!out.rows.empty())
 		out.actions.push_back(Observer::AgentUiAction("choose_geoscape_speed", firstLabel, "visible_text", "geoscape_speed"));
+    if(!out.rows.empty()){
+        auto authority=std::make_shared<Observer::AgentUiState>(out);
+        authority->actor=this;
+        authority->visible="{\"speed\":"+speed+",\"speeds\":"+choices+"}";
+        authority->controlVisible=authority->visible;
+        // Captured before any marker identity/position/region is attached.
+        // The normal composite keeps its full immutable marker projection.
+        out.geoscapeSpeedAuthority=authority;
+    }
 	std::string controls = "{\"speed\":" + speed + ",\"speeds\":" + choices + ",\"buttons\":[";
 
 	const TextButton *buttons[] = {_btnIntercept, _btnBases, _btnGraphs, _btnUfopaedia, _btnOptions, _btnFunding};
@@ -545,7 +771,7 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
 			out.actions.push_back(Observer::AgentUiAction("open_interception", label, "visible_text"));
 		if (buttons[i] == _btnBases)
 			out.actions.push_back(Observer::AgentUiAction("open_bases", label, "visible_text"));
-		if (buttons[i] == _btnOptions)
+		if (buttons[i] == _btnOptions && !(_zoomInEffectTimer->isRunning() || _zoomOutEffectTimer->isRunning()))
 			out.actions.push_back(Observer::AgentUiAction("open_pause_menu", label, "visible_text"));
 		if (buttons[i] == _btnUfopaedia)
 			out.actions.push_back(Observer::AgentUiAction("open_ufopaedia", label, "visible_text"));
@@ -574,17 +800,91 @@ bool GeoscapeState::agentUiState(Observer::AgentUiState &out) const
     out.regions.insert(out.regions.end(),markerProjection.regions.begin(),markerProjection.regions.end());
     if (!markerTargets.empty())
         out.actions.emplace_back("click_visible_globe_target","Inspect visible target","visible_control_semantics","visible_row");
-    controls += "],\"targets\":"+markers+"}";
+    // Six empty hitboxes acquire authority only from their current stock glyph
+    // pixels in the painted sidebar AND the final composed screen.
+    const InteractiveSurface *viewButtons[]={_btnRotateLeft,_btnRotateRight,_btnRotateUp,_btnRotateDown,_btnZoomIn,_btnZoomOut};
+    const char *viewIds[]={"rotate_globe_left","rotate_globe_right","rotate_globe_up","rotate_globe_down","zoom_globe_in","zoom_globe_out"};
+    const char *viewLabels[]={"Rotate globe left","Rotate globe right","Rotate globe up","Rotate globe down","Zoom globe in","Zoom globe out"};
+    const int glyph[6][4]={{3,176,12,10},{27,176,12,10},{15,162,13,12},{15,187,13,12},{39,156,23,23},{44,182,13,17}};
+    Surface *shown=_game->getScreen()->getSurface();
+    const auto fingerprint=[](const Surface *surface,int x,int y,int w,int h,std::uint64_t &value)->bool {
+        if(!surface || surface->getSurface()->format->BytesPerPixel!=1 || !surface->getPalette() || x<0 || y<0 || x+w>surface->getWidth() || y+h>surface->getHeight())return false;
+        value=14695981039346656037ULL;
+        for(int dy=0;dy<h;++dy)for(int dx=0;dx<w;++dx){const SDL_Color c=surface->getPalette()[surface->getPixel(x+dx,y+dy)];for(unsigned char b:{c.r,c.g,c.b})value=(value^b)*1099511628211ULL;}
+        return true;
+    };
+    std::uint64_t crop[6]={};int registered=-1;
+    const std::string activeMaster=Options::getActiveMaster();
+    const int master=activeMaster=="xcom1"?0:(activeMaster=="xcom2"?1:-1);
+    if(master>=0 && _sidebar->getWidth()==64 && _sidebar->getHeight()==200 && _sidebar->agentPresentationPaintedTo(shown) && Observer::agentWidgetVisible(_sidebar))
+        {bool match=true;for(int i=0;i<6;++i)match=match && fingerprint(_sidebar,glyph[i][0],glyph[i][1],glyph[i][2],glyph[i][3],crop[i]) && crop[i]==Observer::agentGlobeGlyphs[master][i];if(match)registered=master;}
+    const bool viewEnabled=registered>=0 && Observer::agentGlobeInputIdle(_game) && !_modal && _popups.empty() && _dogfights.empty() && !(_zoomInEffectTimer->isRunning() || _zoomOutEffectTimer->isRunning()) && _globe->agentViewIdle() && !Observer::agentGlobeInputHeld(_game);
+    std::string viewControls="[";unsigned viewCount=0;
+    for(int i=0;i<6;++i){
+        const Surface *button=viewButtons[i];const int x=_sidebar->getX()+glyph[i][0],y=_sidebar->getY()+glyph[i][1],w=glyph[i][2],h=glyph[i][3];
+        if(!viewEnabled || !button->getVisible() || button->getX()!=x || button->getY()!=y || button->getWidth()!=w || button->getHeight()!=h)continue;
+        Observer::AgentUiState witness;witness.regions.push_back({x,y,w,h});
+        if(!Observer::agentRegionVisible(witness.regions[0]) || !_game->agentOverlayClear(witness))continue;
+        bool afterSidebar=false,clear=true;
+        for(const Surface *surface:_surfaces){
+            if(surface==_sidebar){afterSidebar=true;continue;}
+            if(!afterSidebar || !surface || !surface->getVisible())continue;
+            bool hitbox=false;for(const auto b:viewButtons)if(surface==b)hitbox=true;
+            if(hitbox){
+                // Their ordinary art is the sidebar. A nonempty/custom hitbox
+                // paint invalidates the registered glyph proof.
+                const SDL_Surface *raw=surface->getSurface();
+                if(raw->format->BytesPerPixel!=1 || !(raw->flags&SDL_SRCCOLORKEY)){clear=false;break;}
+                for(int py=0;py<surface->getHeight();++py)for(int px=0;px<surface->getWidth();++px)
+                    if(surface->getPixel(px,py)!=raw->format->colorkey)clear=false;
+                continue;
+            }
+            if(x<surface->getX()+surface->getWidth() && x+w>surface->getX() && y<surface->getY()+surface->getHeight() && y+h>surface->getY())clear=false;
+        }
+        std::uint64_t actual=0;
+        if(!clear || !fingerprint(shown,x,y,w,h,actual) || actual!=crop[i])continue;
+        const std::size_t before=out.regions.size();out.regions.push_back(witness.regions[0]);
+        if(!Observer::agentRegionsDisjoint(out)){out.regions.resize(before);continue;}
+        out.widgets.emplace_back(_sidebar,_sidebar->agentPresentationRevision());out.widgets.emplace_back(button,button->agentPresentationRevision());out.context.push_back(_globe->agentViewRevision());
+        out.actions.emplace_back(viewIds[i],viewLabels[i],"visible_control_semantics");
+        if(viewCount++)viewControls+=",";
+        viewControls+="{\"id\":"+Observer::agentJsonString(viewIds[i])+",\"rect\":{\"x\":"+std::to_string(x)+",\"y\":"+std::to_string(y)+",\"width\":"+std::to_string(w)+",\"height\":"+std::to_string(h)+"}}";
+    }
+    viewControls+="]";
+    Observer::AgentUiState rasterProjection;
+    const std::string raster=_globe->agentViewRaster(rasterProjection,markerOverlays);
+    out.regions.insert(out.regions.end(),rasterProjection.regions.begin(),rasterProjection.regions.end());
+    out.context.insert(out.context.end(),rasterProjection.context.begin(),rasterProjection.context.end());
+    controls += "],\"targets\":"+markers+",\"globe_controls\":"+viewControls+"}";
 	out.visible += ",";
 	out.visible.append(controls, 1, std::string::npos);
+    out.visible.pop_back();out.visible+=",\"globe_view\":"+raster+"}";
 	out.controlVisible = controls;
-	return true;
+    if(Observer::agentGlobeInputHeld(_game))out.actions.clear();
+    return out.visible.size()<24000 && Observer::agentRegionsDisjoint(out);
 }
 
 bool GeoscapeState::agentDispatch(const std::string &action)
 {
 	Observer::AgentUiState current;
 	if (!agentUiState(current) || !current.offers(action)) return false;
+    if(Observer::agentGlobeInputHeld(_game))return false;
+    if(action=="zoom_globe_in"){if(!Observer::agentGlobeInputIdle(_game))return false;agentGlobeAudits[_game];btnZoomInLeftClick(nullptr);globeZoomReturned(_game,"zoom_globe_in");return true;}
+    if(action=="zoom_globe_out"){if(!Observer::agentGlobeInputIdle(_game))return false;agentGlobeAudits[_game];btnZoomOutLeftClick(nullptr);globeZoomReturned(_game,"zoom_globe_out");return true;}
+    const char *recordAction=nullptr;
+    void (GeoscapeState::*press)(Action *)=nullptr;
+    void (GeoscapeState::*release)(Action *)=nullptr;
+    if(action=="rotate_globe_left"){recordAction="rotate_globe_left";press=&GeoscapeState::btnRotateLeftPress;release=&GeoscapeState::btnRotateLeftRelease;}
+    if(action=="rotate_globe_right"){recordAction="rotate_globe_right";press=&GeoscapeState::btnRotateRightPress;release=&GeoscapeState::btnRotateRightRelease;}
+    if(action=="rotate_globe_up"){recordAction="rotate_globe_up";press=&GeoscapeState::btnRotateUpPress;release=&GeoscapeState::btnRotateUpRelease;}
+    if(action=="rotate_globe_down"){recordAction="rotate_globe_down";press=&GeoscapeState::btnRotateDownPress;release=&GeoscapeState::btnRotateDownRelease;}
+    if(press){
+        if(!_globe->agentViewIdle() || _game->agentTopState()!=this || !Observer::agentGlobeInputIdle(_game))return false;
+        auto &audit=agentGlobeAudits[_game];audit.closed=false;const std::uint64_t sequence=globeNextSequence(audit);
+        if(!agentGlobePulses.emplace(_game,AgentGlobePulse{_game,this,_globe,release,_globe->agentViewRevision(),SDL_GetTicks(),sequence,0,recordAction}).second)return false;
+        (this->*press)(nullptr);
+        globeRecord(_game,sequence,recordAction,"press_return","",0,false);return true;
+    }
 	if (action == "open_ufopaedia") { btnUfopaediaClick(nullptr); return true; }
 	if (action == "open_graphs") { btnGraphsClick(nullptr); return true; }
 	if (action == "open_funding") { btnFundingClick(nullptr); return true; }
@@ -596,14 +896,7 @@ bool GeoscapeState::agentDispatch(const std::string &action)
 
 bool GeoscapeState::agentDispatch(const Observer::AgentRequest &request)
 {
-	if (request.action == "choose_dogfight_mode")
-	{
-		Observer::AgentUiState current;
-		if (!agentUiState(current) || current.screen != "dogfight" ||
-			!current.offers(request.action)) return false;
-		DogfightState *dogfight = agentActiveDogfight();
-		return dogfight && dogfight->agentDispatch(request);
-	}
+	if (!_dogfights.empty()) return agentDispatchDogfight(request);
     if (request.action=="click_visible_globe_target")
     {
         Observer::AgentUiState current;
@@ -647,6 +940,15 @@ bool GeoscapeState::agentDispatch(const Observer::AgentRequest &request)
  */
 void GeoscapeState::blit()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _agentCompositePainted=false;
+    const Surface *beforeLogical=_game->getScreen()->getSurface();
+    const SDL_Surface *beforePixels=beforeLogical?beforeLogical->getSurface():nullptr;
+    const bool beforeFull=beforePixels && beforePixels->clip_rect.x==0 && beforePixels->clip_rect.y==0 && beforePixels->clip_rect.w==beforePixels->w && beforePixels->clip_rect.h==beforePixels->h;
+    const std::vector<DogfightState*> roster(_dogfights.begin(),_dogfights.end());
+    if(roster!=_agentPaintedDogfights && _agentRosterRevision)++_agentRosterRevision;
+    for(Surface *surface:_surfaces)surface->agentTrackPresentation();
+#endif
 	State::blit();
 	for (std::list<DogfightState*>::iterator it = _dogfights.begin(); it != _dogfights.end(); ++it)
 	{
@@ -654,6 +956,9 @@ void GeoscapeState::blit()
 	}
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
 	_globe->agentRecordOccluders(_surfaces, _dogfights.empty());
+    _agentPaintedDogfights=roster;
+    const Surface *logical=_game->getScreen()->getSurface();const SDL_Surface *pixels=logical?logical->getSurface():nullptr;
+    _agentCompositePainted=beforeFull && Observer::agentPaintHealthy() && pixels && pixels->clip_rect.x==0 && pixels->clip_rect.y==0 && pixels->clip_rect.w==pixels->w && pixels->clip_rect.h==pixels->h;
 #endif
 }
 
@@ -735,6 +1040,9 @@ void GeoscapeState::handle(Action *action)
  */
 void GeoscapeState::init()
 {
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentCancelGlobeInputOwner(this,Observer::AgentGlobeCancelReason::Init);
+#endif
 	State::init();
 	timeDisplay();
 
@@ -786,7 +1094,19 @@ void GeoscapeState::init()
  */
 void GeoscapeState::think()
 {
-	State::think();
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    Observer::agentPollGlobeInput(_game);
+    if(_modal || !_popups.empty() || !_dogfights.empty() || buttonsDisabled())
+        Observer::agentCancelGlobeInputOwner(this,Observer::AgentGlobeCancelReason::Modal);
+#endif
+    State::think(); // Ordinary Globe::think is the only rotation timer driver.
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    auto pulse=agentGlobePulses.find(_game);
+    if(pulse!=agentGlobePulses.end() && pulse->second.owner==this &&
+       pulse->second.globe->agentViewRevision()!=pulse->second.revision)
+        Observer::agentCancelGlobeInput(_game,Observer::AgentGlobeCancelReason::ViewTick);
+    Observer::agentPollGlobeInput(_game);
+#endif
 
 	_zoomInEffectTimer->think(this, 0);
 	_zoomOutEffectTimer->think(this, 0);

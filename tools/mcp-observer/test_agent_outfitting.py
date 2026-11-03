@@ -47,6 +47,8 @@ def all_unknown(obj):
     v = obj['visible']
     for key, value in list(v.items()):
         if key not in ('headings', 'rows', 'scroll', 'buttons', 'stats', 'weapons'): v[key] = None
+    if obj['state'] == 'soldier_info': obj['actions'] = [x for x in obj['actions'] if x['id'] not in ('focus_soldier_name', 'replace_soldier_name', 'finish_soldier_name')]
+    if obj['state'] == 'craft_info': obj['actions'] = [x for x in obj['actions'] if x['id'] not in ('focus_craft_name', 'replace_craft_name', 'finish_craft_name')]
     if 'headings' in v: v['headings'] = [None] * len(v['headings'])
     for row in v.get('rows', []): row['cells'] = [None] * len(row['cells'])
     if 'stats' in v: v['stats'] = []
@@ -72,8 +74,8 @@ class OutfittingContractTests(unittest.TestCase):
         with self.assertRaises(Unavailable): validate(page([event(obj)]))
 
     def test_closed_wire_catalog_and_four_tools(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/51')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (265, 107, 7))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/66')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (286, 109, 7))
         self.assertEqual(set(a.OUTFITTING_FIELDS), set(STATES) | {'memorial_soldier_info'})
         self.assertEqual(a.OUTFITTING_LISTS, ROWS)
         self.assertEqual(len(NEW_ACTIONS), 23)

@@ -37,6 +37,10 @@ class MedikitView : public InteractiveSurface
 	BattleUnit *_unit;
 	Text *_partTxt, *_woundTxt;
 public:
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    bool agentPartPoint(unsigned part, int &x, int &y) const;
+    void agentClickPart(int x, int y);
+#endif
 	/// Creates the MedikitView.
 	MedikitView (int w, int h, int x, int y, Game * game, BattleUnit *unit, Text *partTxt, Text *woundTxt);
 	/// Draws the body view.

@@ -100,11 +100,13 @@ public:
 	void agentEnableSaveName();
 	bool agentSaveName(const Surface *destination, std::string &shown, SDL_Rect &allocation, std::uint64_t &captureEpoch) const;
 	bool agentSaveNameBinding(const Surface *destination, Observer::AgentUiState &out) const;
-	bool agentReplaceSaveName(const Surface *destination, const std::string &text);
+	enum class AgentSaveNameOutcome { Unavailable, Replaced, WidthRejectedAndRestored };
+	AgentSaveNameOutcome agentReplaceSaveName(const Surface *destination, const std::string &text);
 	void agentEnableBasescapeName();
 	bool agentBasescapeName(const Surface *destination, std::string &shown,
 		SDL_Rect &allocation, std::uint64_t &captureEpoch) const;
 	void agentEnableBaseInfoName();
+	bool agentBaseInfoNameBinding(const Surface *destination, Observer::AgentUiState &out) const;
 	bool agentBaseInfoName(const Surface *destination, std::string &shown,
 		SDL_Rect &allocation, std::uint64_t &captureEpoch) const;
 	/// Reads only the complete currently rendered child text.

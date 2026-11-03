@@ -1,3 +1,4 @@
+#include "AgentGlobeInput.h"
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Agent control is intentionally a different ABI from supervised proposals.
 #include "AgentController.h"
@@ -79,6 +80,7 @@ AgentController::AgentController(Game *game) : _game(game)
 AgentController::~AgentController() { close(); }
 void AgentController::close()
 {
+    agentCloseGlobeInput(_game);
     if (_fd >= 0) ::close(_fd);
     _fd = -1; _ready = false; _capability.clear(); _readChallenge.clear();
     _boundTop = _frameTop = 0;
@@ -109,7 +111,7 @@ void AgentController::beforeEvent(const SDL_Event &event)
     {
         case SDL_KEYDOWN: case SDL_KEYUP: case SDL_MOUSEBUTTONDOWN: case SDL_MOUSEBUTTONUP:
         case SDL_MOUSEMOTION: case SDL_ACTIVEEVENT: case SDL_VIDEORESIZE: case SDL_VIDEOEXPOSE: case SDL_QUIT:
-            invalidate(); break;
+            agentCancelGlobeInput(_game,AgentGlobeCancelReason::ManualInput); invalidate(); break;
         default: break;
     }
 }
@@ -129,7 +131,8 @@ bool AgentController::sample(AgentUiState &out) const
     }
     // Cursor-only UI motion is independent of semantic provider availability.
     // A rejected provider was cleared above; never revive its hidden semantics.
-    _game->agentCursorState(out);
+    if(!agentGlobeInputIdle(_game)) out.actions.clear();
+    else _game->agentCursorState(out);
     return true;
 }
 void AgentController::unavailable()
@@ -147,6 +150,7 @@ std::string AgentController::statePacket(const AgentUiState &ui, const std::stri
     if (grant && !ui.actions.empty())
     {
         if (!randomToken(_capability)) { close(); return std::string(); }
+        _fullBindingRevoked=false;
         _binding = ui; _boundTop = _game->agentTopState(); _contextTime = now();
         _boundDisplayRevision = _game->getScreen()->agentDisplayRevision();
     }
@@ -218,9 +222,21 @@ void AgentController::drainAudioEvents()
     for (unsigned i = 0; i < 64 && _game->agentAudioEvents().take(event); ++i)
     {
         // Main-thread encoding only; callback retains fixed postmix bytes, no metadata.
-        std::string pcmHex;
+        std::string pcmHex, callbackAnchors = "[";
         if (event.kind == AgentAudioEvents::Event::Window)
         {
+            if (!event.timing.callbackAnchorCount || event.timing.callbackAnchorCount > AgentAudioEvents::CallbackAnchorCapacity)
+            { close(); return; }
+            for (unsigned n = 0; n < event.timing.callbackAnchorCount; ++n)
+            {
+                const auto &a = event.timing.callbackAnchors[n];
+                if (n) callbackAnchors += ",";
+                callbackAnchors += "{\"offset_frames\":" + std::to_string(a.offsetFrames) +
+                    ",\"monotonic_us\":" + std::to_string(a.monotonicUs) +
+                    ",\"realtime_us\":" + std::to_string(a.realtimeUs) +
+                    ",\"frames\":" + std::to_string(a.frames) + "}";
+            }
+            callbackAnchors += "]";
             static const char digits[] = "0123456789abcdef";
             pcmHex.reserve(AgentAudioEvents::WindowBytes * 2);
             for (unsigned i = 0; i < AgentAudioEvents::WindowBytes; ++i)
@@ -241,7 +257,7 @@ void AgentController::drainAudioEvents()
                     ",\"last_realtime_us\":" + std::to_string(event.timing.lastRealtimeUs) +
                     ",\"last_monotonic_us\":" + std::to_string(event.timing.lastMonotonicUs) +
                     ",\"last_frame_end_offset\":" + std::to_string(event.timing.lastFrameEndOffset) +
-                    ",\"last_callback_frames\":" + std::to_string(event.timing.lastCallbackFrames) + "}" +
+                    ",\"last_callback_frames\":" + std::to_string(event.timing.lastCallbackFrames) + ",\"callback_anchors\":" + callbackAnchors + "}" +
                     ",\"pcm_sequence\":" + std::to_string(event.pcmSequence) +
                     ",\"profile\":\"s16le-stereo-22050\",\"pcm_hex\":\"" + pcmHex + "\"";
         if (!_publicEvents.append(body)) { close(); return; }
@@ -296,6 +312,7 @@ void AgentController::playerBasesPage(const AgentRequest &request)
 }
 void AgentController::poll()
 {
+    agentPollGlobeInput(_game); // FIRST: paused loop and every early-return path.
     if (_fd < 0) return;
 #ifdef OPENXCOM_EXPERIMENTAL_AGENT_REPORT_FIXTURE
     if (AgentReportFixture::waiting()) return;
@@ -309,7 +326,7 @@ void AgentController::poll()
     drainAudioEvents();
     if (_fd < 0) return;
     if (!diagnosticProfileQualified()) { close(); return; }
-    if (!focused()) invalidate(false);
+    if (!focused()) { agentCancelGlobeInput(_game,AgentGlobeCancelReason::FocusLost); invalidate(false); }
     if (_queued.active() && (_queued.expired(now()) || !_queued.generationMatches(_generation))) rejectQueued();
     if (_fd < 0) return;
     if (!_readChallenge.empty() && now() - _readTime > 1000)
@@ -362,11 +379,12 @@ void AgentController::poll()
     const std::uint64_t received = now(), grantTime = _contextTime, display = _boundDisplayRevision;
     const AgentUiState binding = _binding;
     State *target = _boundTop;
-    const bool valid = !_queued.active() && _pendingId.empty() && _readChallenge.empty() &&
+    const bool valid = agentGlobeInputIdle(_game) && !_queued.active() && _pendingId.empty() && _readChallenge.empty() &&
         request.epoch == _epoch && !_capability.empty() && request.capability == _capability &&
         request.revision == _revision && received >= grantTime && received - grantTime <= 120000 &&
         target && target == _game->agentTopState() && focused() &&
-        display == _game->getScreen()->agentDisplayRevision() && binding.offers(request.action);
+        display == _game->getScreen()->agentDisplayRevision() && binding.offers(request.action) &&
+        (!_fullBindingRevoked || (request.action=="choose_geoscape_speed" && binding.screen=="geoscape" && binding.geoscapeSpeedAuthority));
     invalidate(); // One-use consumption occurs before queueing, never on replay.
     if (!valid || !_queued.stage(request, binding, target, _generation, display, grantTime, received))
     {
@@ -406,7 +424,7 @@ void AgentController::dispatchQueued(const AgentUiState &shown)
     if (!queuedInputClear() || !focused()) { invalidate(false); rejectQueued(); return; }
     if (!transportAlive()) { close(); return; }
     State *target = _game->agentTopState();
-    const bool valid = diagnosticProfileQualified() && agentPaintHealthy() &&
+    const bool valid = agentGlobeInputIdle(_game) && diagnosticProfileQualified() && agentPaintHealthy() &&
         _game->getScreen()->agentPresentationReady() &&
         _queued.matchesFrame(now(), _generation, _game->getScreen()->agentDisplayRevision(), target, shown) &&
         (_queued.request().action == "move_cursor" || target->agentBindingCurrent(_queued.binding()));
@@ -457,8 +475,20 @@ void AgentController::presented()
         if (++_eventSequence >= 9007199254740992ULL) { close(); return; }
     }
     const std::string authority = ui.authorityPayload();
-    if (authority != _lastAuthority) { _lastAuthority = authority; invalidate(); }
-    else if (!_capability.empty() && (!_binding.sameBinding(ui) ||
+    // Keep the originally issued full binding immutable. Only ordinary speed
+    // commands can survive unrelated marker motion; every non-speed action is
+    // permanently revoked for this grant on the first observed full change.
+    const bool issuedSpeedStable=!_capability.empty() && _binding.geoscapeSpeedAuthority &&
+        _binding.sameActionBinding(ui,"choose_geoscape_speed") &&
+        _boundTop==_game->agentTopState() && _boundDisplayRevision==_game->getScreen()->agentDisplayRevision();
+    const bool queuedSpeedStable=_queued.active() && _queued.request().action=="choose_geoscape_speed" &&
+        _queued.binding().geoscapeSpeedAuthority && _queued.binding().sameActionBinding(ui,"choose_geoscape_speed");
+    if(!_capability.empty() && !_binding.sameBinding(ui))_fullBindingRevoked=true;
+    if (authority != _lastAuthority) {
+        _lastAuthority=authority;
+        if(!issuedSpeedStable && !queuedSpeedStable)invalidate();
+    }
+    else if (!_capability.empty() && ((!_binding.sameBinding(ui) && !issuedSpeedStable) ||
         _boundDisplayRevision != _game->getScreen()->agentDisplayRevision())) invalidate(false);
     // Identical public presentations do not create repeated journal entries.
     // This runs after successful flip, independent of state/event polling.

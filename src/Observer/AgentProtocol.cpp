@@ -4,10 +4,10 @@
 #include <vector>
 
 namespace OpenXcom { namespace Observer {
-const char *agentProtocolSchema() { return "openxcom-agent-control/51"; }
+const char *agentProtocolSchema() { return "openxcom-agent-control/66"; }
 std::string agentEnvelope()
 {
-    return "{\"schema\":\"openxcom-agent-control/51\",\"mode\":\"agent-control\"";
+    return "{\"schema\":\"openxcom-agent-control/66\",\"mode\":\"agent-control\"";
 }
 std::string agentJsonString(const std::string &value)
 {
@@ -27,7 +27,7 @@ bool agentToken(const std::string &value)
 }
 bool agentActionId(const std::string &value)
 {
-    return value == "open_unit_stats" || value == "previous_unit_info" || value == "next_unit_info" || value == "close_unit_info" || value == "open_graphs" || value == "graph_alien_region" || value == "graph_alien_country" || value == "graph_xcom_region" || value == "graph_xcom_country" || value == "graph_income" || value == "graph_finance" || value == "toggle_graph_series" || value == "scroll_graph_legend" || value == "close_graphs" || value == "acknowledge_cannot_reequip" || value == "open_abort_mission" || value == "confirm_abort_mission" || value == "cancel_abort_mission" || value == "move_cursor" || value == "choose_dogfight_mode" || value == "open_interception" || value == "open_contact_interception" || value == "cancel_interception" ||
+    return value == "select_medikit_part" || value == "medikit_heal" || value == "medikit_stimulant" || value == "medikit_painkiller" || value == "close_medikit" || value == "close_scanner" || value == "open_unit_stats" || value == "previous_unit_info" || value == "next_unit_info" || value == "close_unit_info" || value == "open_graphs" || value == "graph_alien_region" || value == "graph_alien_country" || value == "graph_xcom_region" || value == "graph_xcom_country" || value == "graph_income" || value == "graph_finance" || value == "toggle_graph_series" || value == "scroll_graph_legend" || value == "close_graphs" || value == "acknowledge_cannot_reequip" || value == "open_abort_mission" || value == "confirm_abort_mission" || value == "cancel_abort_mission" || value == "move_cursor" || value == "choose_dogfight_mode" || value == "minimize_dogfight" || value == "restore_dogfight" || value == "open_interception" || value == "open_contact_interception" || value == "cancel_interception" ||
         value == "open_intercept_base" || value == "confirm_interception" || value == "cancel_interception_confirmation" ||
         value == "open_transfer" || value == "cancel_transfer_destination" ||
         value == "change_transfer_quantity" || value == "review_transfer" ||
@@ -36,6 +36,9 @@ bool agentActionId(const std::string &value)
         value == "stand" || value == "reserve_none" || value == "reserve_snap" || value == "reserve_aimed" || value == "reserve_auto" || value == "toggle_kneel_reserve" || value == "acknowledge_crash_recovery" || value == "continue_next_turn" || value == "new_battle" ||
         value == "start_battle" || value == "continue_briefing" || value == "close_inventory" ||
         value == "open_new_game" || value == "open_options" || value == "open_load_game" ||
+        value == "rotate_globe_left" || value == "rotate_globe_right" ||
+        value == "rotate_globe_up" || value == "rotate_globe_down" ||
+        value == "zoom_globe_in" || value == "zoom_globe_out" ||
         value == "open_pause_menu" || value == "open_save_game" || value == "resume_game" ||
         value == "cancel_menu" || value == "dismiss_error" || value == "select_difficulty" ||
         value == "set_ironman" || value == "start_new_game" || value == "place_base_site" || value == "choose_visible_craft_point" || value == "open_new_base" || value == "cancel_new_base" || value == "confirm_new_base" || value == "cancel_new_base_confirmation" || value == "place_access_lift_cell" ||
@@ -46,7 +49,7 @@ bool agentActionId(const std::string &value)
         value == "center_enemy" || value == "center_selected_unit" || value == "open_hand_action_menu" ||
         value == "choose_weapon_action" || value == "choose_grenade_timer" || value == "cancel_grenade_timer" || value == "cancel_weapon_action" || value == "close_debriefing" || value == "toggle_debriefing_stats" || value == "open_statistics" ||
         value == "open_inventory" || value == "inventory_hover" || value == "inventory_activate" ||
-        value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page" ||
+        value == "cancel_inventory_hold" || value == "unload_inventory" || value == "next_inventory_ground_page" || value == "previous_inventory_unit" || value == "next_inventory_unit" ||
         value == "view_level_up" || value == "view_level_down" || value == "toggle_layers" ||
         value == "open_minimap" || value == "close_minimap" || value == "unit_up" || value == "unit_down" ||
         value == "camera_pan" || value == "minimap_center" ||
@@ -90,7 +93,8 @@ bool agentActionId(const std::string &value)
         value == "close_crafts" ||
         value == "open_craft_crew" ||
         value == "open_craft_equipment" ||
-        value == "click_visible_globe_target" || value == "choose_globe_target" || value == "cancel_globe_targets" || value == "open_target_interception" || value == "focus_target_name" || value == "finish_target_name" || value == "replace_target_name" || value == "close_target_info" || value == "open_ufopaedia" ||
+        value == "open_craft_inventory" ||
+        value == "click_visible_globe_target" || value == "choose_globe_target" || value == "cancel_globe_targets" || value == "open_target_interception" || value == "focus_target_name" || value == "finish_target_name" || value == "replace_target_name" || value == "focus_craft_name" || value == "replace_craft_name" || value == "focus_soldier_name" || value == "replace_soldier_name" || value == "focus_existing_base_name" || value == "replace_existing_base_name" || value == "finish_existing_base_name" || value == "finish_soldier_name" || value == "finish_craft_name" || value == "close_target_info" || value == "open_ufopaedia" ||
         value == "select_ufopaedia_category" ||
         value == "close_ufopaedia" ||
         value == "select_ufopaedia_article" ||
@@ -123,12 +127,13 @@ bool agentActionId(const std::string &value)
         value == "close_ufopaedia_article" ||
         value == "previous_ufopaedia_article" ||
         value == "next_ufopaedia_article" ||
-        value == "scroll_article_text";
+        value == "scroll_article_text" || value == "scroll_article_stats";
 }
 const char *agentArgumentKind(const std::string &action)
 {
     if (action == "move_cursor") return "cursor_position";
     if (action == "choose_dogfight_mode") return "dogfight_mode";
+    if (action == "minimize_dogfight" || action == "restore_dogfight") return "dogfight_window";
     if (action == "set_craft_soldier") return "crew_assignment";
     if (action == "change_craft_equipment") return "equipment_quantity";
     if (action == "choose_globe_target" || action == "select_ufopaedia_category" || action == "select_ufopaedia_article" || action == "select_craft_weapon" || action == "toggle_psi_training" || action == "select_soldier" || action == "select_craft" || action == "open_craft_soldier_info" || action == "select_craft_armor_soldier" || action == "select_soldier_armor") return "outfitting_row";
@@ -155,11 +160,11 @@ const char *agentArgumentKind(const std::string &action)
     if (action == "camera_pan") return "camera_direction";
     if (action == "minimap_center") return "minimap_target";
     if (action == "open_new_battle_choice") return "choice_control";
-    if (action == "toggle_graph_series" || action == "click_visible_globe_target" || action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
-    if (action == "scroll_graph_legend" || action == "scroll_visible_list" || action == "scroll_article_text") return "scroll_direction";
+    if (action == "select_medikit_part" || action == "toggle_graph_series" || action == "click_visible_globe_target" || action == "choose_visible_row" || action == "open_psi_training_base" || action == "choose_visible_craft_destination" || action == "load_saved_game") return "visible_row";
+    if (action == "scroll_graph_legend" || action == "scroll_visible_list" || action == "scroll_article_text" || action == "scroll_article_stats") return "scroll_direction";
     if (action == "select_difficulty") return "difficulty";
     if (action == "set_ironman") return "boolean";
-    if (action == "replace_target_name" || action == "replace_base_name" || action == "replace_new_save_name") return "text";
+    if (action == "replace_target_name" || action == "replace_craft_name" || action == "replace_soldier_name" || action == "replace_existing_base_name" || action == "replace_base_name" || action == "replace_new_save_name") return "text";
     if (action == "place_base_site" || action == "choose_visible_craft_point") return "point";
     return agentActionId(action) ? "none" : "unsupported";
 }
@@ -260,11 +265,14 @@ bool parseAgentRequest(const std::string &packet, AgentRequest &request)
         !agentActionId(request.action) || !decimal(parts[4], 9007199254740991ULL, request.revision)) return false;
     const std::string kind = agentArgumentKind(request.action);
     if (kind == "none") { if (parts.size() != 6) return false; }
-    else if (kind == "dogfight_mode")
+    else if (kind == "dogfight_mode" || kind == "dogfight_window")
     {
-        if (parts.size() != 7 || (parts[6] != "standoff" && parts[6] != "cautious" &&
-            parts[6] != "standard" && parts[6] != "aggressive" && parts[6] != "disengage")) return false;
-        request.choice = parts[6];
+        if(parts.size()!=(kind=="dogfight_mode"?8u:7u)||parts[6].size()!=2||parts[6][0]!='w'||parts[6][1]<'0'||parts[6][1]>'3')return false;
+        request.choice=parts[6];
+        if(kind=="dogfight_mode"){
+            if(parts[7]!="standoff"&&parts[7]!="cautious"&&parts[7]!="standard"&&parts[7]!="aggressive"&&parts[7]!="disengage")return false;
+            request.control=parts[7];
+        }
     }
     else if (kind == "sale_quantity")
     {

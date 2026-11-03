@@ -35,7 +35,7 @@ TEXT_FIELDS = {
 VISIBLE_KEYS = {
     'items_arriving': {'title', 'headings', 'rows', 'scroll', 'buttons'},
     'production_complete': {'message', 'buttons'},
-    'ufo_contact': {'title', 'detected_label', 'hyperwave_label', 'details_status', 'buttons'},
+    'ufo_contact': {'title', 'detected_label', 'hyperwave_label', 'details_status', 'buttons', 'contact_rows', 'hyperwave_rows'},
     'error_message': {'message', 'heading'},
 }
 
@@ -76,8 +76,8 @@ def sized_arrival(size, event=False):
 
 class CompletionContractTests(unittest.TestCase):
     def test_wire_counts_closed_state_catalog_and_previous_wires_rejected(self):
-        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/51')
-        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (265, 107, 7))
+        self.assertEqual(a.SCHEMA, 'openxcom-agent-control/66')
+        self.assertEqual((len(a.ACTIONS), len(a.STATE_ACTIONS), len(a.definitions())), (286, 109, 7))
         self.assertEqual((a.MAX_COMMANDS, a.EVENT_CAPACITY, a.MAX_TEXT_PACKET, a.MAX_PACKET, a.MAX_REQUEST),
                          (256, 256, 32768, 49152, 512))
         self.assertEqual(a.COMPLETION_BUTTONS, BUTTONS)

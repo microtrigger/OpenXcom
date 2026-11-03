@@ -1,3 +1,4 @@
+from private_launcher_fixture import finite_process, assert_private_stderr
 # SPDX-License-Identifier: GPL-3.0-or-later
 # New contribution maintained in this OpenXcom fork, 2026-10-10.
 # See repository LICENSE.txt and LICENSE-NOTICES.md.
@@ -417,7 +418,7 @@ class InterfaceTests(unittest.TestCase):
                     patch.dict(os.environ, {'OPENXCOM_PRESENTATION_VERSION': '2',
                                             'OPENXCOM_PRESENTATION_FD': '123',
                                             'OPENXCOM_MIXED_AUDIO_FD': '456'}), \
-                    patch('launch_presentation.subprocess.Popen') as spawn, \
+                    patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                     patch('launch_presentation.serve') as serve:
                 launch_presentation.main()
                 env = spawn.call_args.kwargs['env']
@@ -435,7 +436,7 @@ class InterfaceTests(unittest.TestCase):
 
     def test_invalid_launcher_combination_does_not_spawn(self):
         with patch.object(sys, 'argv', ['launcher', '--audio-only', '--presented-hud', '--', 'game']), \
-                patch('launch_presentation.subprocess.Popen') as spawn, \
+                patch('launch_presentation.subprocess.Popen', **finite_process()) as spawn, \
                 patch('sys.stderr', io.StringIO()), self.assertRaises(SystemExit):
             launch_presentation.main()
         spawn.assert_not_called()

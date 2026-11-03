@@ -43,6 +43,10 @@ private:
     std::vector<std::pair<Soldier *, int> > _agentDeadRoster;
     size_t _agentDeadOrdinal = 0;
     bool agentDeadRosterValid() const;
+    std::vector<std::pair<Soldier *, int> > _agentLivingRoster;
+    size_t _agentLivingOrdinal = 0;
+    const void *_agentLivingSave = nullptr;
+    bool agentLivingRosterValid() const;
     bool _agentDestinationPaintFull=false;
     std::uint64_t _agentUiRevision=0;
     std::vector<std::uint64_t> _agentStoredPaintRevisions;

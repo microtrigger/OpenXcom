@@ -142,4 +142,24 @@ void MedikitView::updateSelectedPart()
 	}
 }
 
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+bool MedikitView::agentPartPoint(unsigned part, int &x, int &y) const
+{
+ SurfaceSet *set=_game->getMod()->getSurfaceSet("MEDIBITS.DAT");
+ if(part>=6 || part>=set->getTotalFrames())return false;
+ Surface *sprite=set->getFrame(part);
+ for(int py=0;py<getHeight();++py)for(int px=0;px<getWidth();++px){
+  if(!sprite->getPixel(px,py) || !getPixel(px,py))continue;
+  bool earlier=false;for(unsigned i=0;i<part;++i)if(set->getFrame(i)->getPixel(px,py)){earlier=true;break;}
+  if(!earlier){x=getX()+px;y=getY()+py;return true;}
+ }
+ return false;
+}
+void MedikitView::agentClickPart(int x,int y)
+{
+ SDL_Event e={};e.type=SDL_MOUSEBUTTONDOWN;e.button.button=SDL_BUTTON_LEFT;
+ Action a(&e,1.0,1.0,0,0);a.setMouseAction(x,y,getX(),getY());mouseClick(&a,nullptr);
+}
+#endif
+
 }

@@ -808,16 +808,26 @@ bool InventoryState::agentUiState(Observer::AgentUiState &out) const
         return value;
     };
     const auto button = [&](const Surface *widget, const char *id, const char *label) {
+        // Selection arrows need their own current destination-paint witness,
+        // not merely an independently ready inventory composite.
+        if ((widget == _btnPrev || widget == _btnNext) &&
+            (!widget || !widget->agentPresentationPaintedTo(_game->getScreen()->getSurface()))) return;
         // Stock Ground arrow allocates one transparent column past x=320.
         // Admit only its actual complete ink, not that padded allocation.
         AgentUiRect r;
         if (!agentInventoryInk(widget, r) || !agentRegionsUncovered({r}, widget, preceding)) return;
         if (agentInventoryClear(_inv, r) && include(r))
+        {
             out.actions.push_back(AgentUiAction(id,label,"visible_control_semantics"));
+            out.widgets.emplace_back(widget,widget->agentPresentationRevision());
+        }
     };
     button(_btnOk, "close_inventory", "Close inventory");
+    button(_btnPrev, "previous_inventory_unit", "Previous inventory unit");
+    button(_btnNext, "next_inventory_unit", "Next inventory unit");
     std::string name="null", tus="null", weight="null", item="null", ammo="null", warning="null", held="null", targets="[]";
-    if (_tu)
+    // Pre-mission and tactical inventory share the same painted controls.
+    // The ordinary Inventory handlers retain their native TU-mode semantics.
     {
         name = text(_txtName); tus = text(_txtTus); weight = text(_txtWeight);
         item = text(_txtItem); ammo = text(_txtAmmo);
@@ -910,6 +920,8 @@ bool InventoryState::agentDispatch(const std::string &action)
     Observer::AgentUiState shown;
     if (!agentUiState(shown) || !shown.offers(action)) return false;
     if (action == "close_inventory") btnOkClick(nullptr);
+    else if (action == "previous_inventory_unit") btnPrevClick(nullptr);
+    else if (action == "next_inventory_unit") btnNextClick(nullptr);
     else if (action == "unload_inventory") btnUnloadClick(nullptr);
     else if (action == "next_inventory_ground_page") btnGroundClick(nullptr);
     else return false;

@@ -32,6 +32,7 @@ class AgentController {
     void playerBasesPage(const AgentRequest &request);
     State *_boundTop = 0, *_frameTop = 0;
     AgentUiState _binding;
+    bool _fullBindingRevoked = false; // monotonic for each issued grant, including marker ABA
     std::uint64_t _revision = 0, _eventSequence = 0, _contextTime = 0;
     std::uint64_t _readTime = 0, _dispatchTime = 0, _frameGeneration = 0, _generation = 0;
     std::uint64_t _boundDisplayRevision = 0;

@@ -125,6 +125,10 @@ PurchaseState::PurchaseState(Base *base) : _base(base), _sel(0), _total(0), _pQt
 	_lstItems->setSelectable(true);
 	_lstItems->setBackground(_window);
 	_lstItems->setMargin(2);
+#ifdef OPENXCOM_EXPERIMENTAL_AGENT_CONTROL
+    _lstItems->agentEnablePurchaseNameCells();
+    _lstItems->agentEnablePurchasePriceCells();
+#endif
 	_lstItems->onLeftArrowPress((ActionHandler)&PurchaseState::lstItemsLeftArrowPress);
 	_lstItems->onLeftArrowRelease((ActionHandler)&PurchaseState::lstItemsLeftArrowRelease);
 	_lstItems->onLeftArrowClick((ActionHandler)&PurchaseState::lstItemsLeftArrowClick);
